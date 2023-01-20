@@ -32,7 +32,7 @@ setup(name=NAME,
       author_email='p.sopasakis@gmail.com',
       license='MIT License',
       packages=find_packages(
-          exclude=["icasadi", "templates"]),
+          exclude=["templates", "playground"]),
       include_package_data=True,
       install_requires=[
           'jinja2', 'casadi', 'numpy'
