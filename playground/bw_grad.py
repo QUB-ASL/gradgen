@@ -3,7 +3,6 @@ import numpy as np
 
 nx = 3
 nu = 3
-N = 3
 
 x = cs.SX.sym('x', nx)
 u = cs.SX.sym('u', nu)
