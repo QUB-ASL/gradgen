@@ -68,7 +68,7 @@ def et(t):
     return e
 
 us = np.random.uniform(size=(nu, N))  # just a random sequence of inputs
-xs = np.zeros((nx, N + 1))  # sequence of states                           why N+1
+xs = np.zeros((nx, N + 1))  # sequence of states              
 xs[:, 0] = [1, 0, -1]  # some arbitrary initial state
 
 JF_this_iteration = np.zeros((nx, nu * N))
