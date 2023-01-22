@@ -109,12 +109,10 @@ for i in range(N):
 VN = VN + vf_fun(x)    # here x is xN
 
 # and now let us use CasADi to determine the Jacobian of VN (wrt big-u) directly
-
 nabla_VN_u_sym = cs.jacobian(VN, u_seq)
 nabla_VN_u_fun = cs.Function('nabla_VN_u', [u_seq], [nabla_VN_u_sym])
 correct_nabla_VN_u = nabla_VN_u_fun(us)
 print(correct_nabla_VN_u)
-
-err = np.linalg.norm(g_Vf .T - correct_nabla_VN_u)
+err = np.linalg.norm(g_Vf.T - correct_nabla_VN_u)
 print(f"Error = {err}")
 assert err < 1e-6
