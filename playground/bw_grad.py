@@ -6,7 +6,7 @@ nu = 3
 
 x = cs.SX.sym('x', nx)
 u = cs.SX.sym('u', nu)
-d = cs.SX.sym('u', nx)
+d = cs.SX.sym('d', nx)
 f = cs.sin(x) + 2*u
 ell = 0.5 * (cs.dot(x, x) + cs.dot(u, u))
 vf = 20 * cs.dot(x, x)
