@@ -7,7 +7,7 @@ N = 3
 
 x = cs.SX.sym('x', nx)
 u = cs.SX.sym('u', nu)
-d = cs.SX.sym('u', nx)
+d = cs.SX.sym('d', nx)
 f = cs.sin(x) + 2*u
 ell = 0.5 * (cs.dot(x, x) + cs.dot(u, u))
 vf = 20 * cs.dot(x, x)
@@ -67,12 +67,11 @@ def et(t):
     e[:, nu*t:nu*(t+1)] = np.eye(nu)
     return e
 
-
-N = 3
 us = np.random.uniform(size=(nu, N))  # just a random sequence of inputs
 xs = np.zeros((nx, N + 1))  # sequence of states                           why N+1
 xs[:, 0] = [1, 0, -1]  # some arbitrary initial state
 
+JF_this_iteration = np.zeros((nx, nu * N))
 JF_cache = []
 JF0 = np.zeros((nx, nu * N))
 JF_cache = [JF0]
@@ -82,18 +81,18 @@ g_ell_sum = 0
 # Simulate the system
 
 for t in range(0, N):
-    jac_fx_t = jfx_py(xs[:, t], us[:, t], JF_cache[-1])
+    jac_fx_t = jfx_py(xs[:, t], us[:, t], JF_this_iteration)
     jac_fu_t = jfu_py(xs[:, t], us[:, t], et(t))
     JF_t_plus_1 = jac_fx_t + jac_fu_t
-    JF_cache += [JF_t_plus_1]
     g_ellx_t = ellx_py(xs[:, t], us[:, t])
     g_ellu_t = ellu_py(xs[:, t], us[:, t])
-    g_ell = JF_cache[t].T @ g_ellx_t + et(t).T @ g_ellu_t
+    g_ell = JF_this_iteration.T @ g_ellx_t + et(t).T @ g_ellu_t
     g_ell_sum += g_ell
+    JF_this_iteration = JF_t_plus_1
     xs[:, t + 1] = f_py(xs[:, t], us[:, t]).reshape(nx)
 
 # print(g_ell_sum, g_ell_sum.shape)
-g_Vf = g_ell_sum + JF_cache[-1].T @ vfx_py(xs[:, N])
+g_Vf = g_ell_sum + JF_t_plus_1.T @ vfx_py(xs[:, N])
 print(g_Vf, g_Vf.shape)
 
 
