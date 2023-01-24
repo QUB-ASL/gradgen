@@ -73,8 +73,6 @@ nabla_Vf_N_1 = vfx_py(xs[:, N])
 nabla_VN_u_N_1 = ellu_py(xs[:, N-1], us[:, N-1]) + \
     jfu_py(xs[:, N-1], us[:, N-1], nabla_Vf_N_1)
 
-# I'm leaving u(N-2), u(N-3), ..., u(0) to you
-
 # But is this correct?
 # Let us define VN...
 VN = 0
@@ -96,3 +94,5 @@ correct_nabla_VN_u_N_1 = nabla_VN_u_N_1_fun(us)
 err = np.linalg.norm(nabla_VN_u_N_1.T - correct_nabla_VN_u_N_1)
 print(f"Error = {err}")
 assert err < 1e-6
+
+# Let us check whether the backward method works for t=N-2
