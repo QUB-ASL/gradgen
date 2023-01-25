@@ -1,6 +1,9 @@
 import casadi.casadi as cs
 import numpy as np
 
+# This is not so interesting; check out playground/bw_grad_for_loop.py
+
+
 nx = 3
 nu = 3
 
@@ -86,7 +89,7 @@ ell_u_N_3 = ellu_py(xs[:, N-3], us[:, N-3])
 ell_x_N_2 = ellx_py(xs[:, N-2], us[:, N-2])
 nabla_Vf_N_3 = ell_u_N_3 + \
     jfu_py(xs[:, N-3], us[:, N-3], ell_x_N_2 +
-           jfx_py(xs[:, N-2], us[:, N-2], ell_x_N_1) + z_N_3)
+           jfx_py(xs[:, N-2], us[:, N-2], ell_x_N_1 + z_N_2))
 
 
 # But is this correct?
