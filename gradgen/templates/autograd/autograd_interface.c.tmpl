@@ -183,6 +183,12 @@ static casadi_real ws_vfx[VFX_SZ_W_{{ name | upper}}];
 static casadi_real *ws_vfx = NULL;
 #endif
 
+/* -------------------------- */
+/*      Persistent Memory     */
+/* -------------------------- */
+#define N_PERSISTENT_MEM_{{ name | upper}} (2 * NX_{{ name | upper}} + NU_{{ name | upper}})
+static casadi_real persistent_memory[N_PERSISTENT_MEM_{{ name | upper}}];  /* (x, u, d) */
+
 int main()
 {
     double x[3] = {1.570796326794897, 0., 2.};
