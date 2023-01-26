@@ -1,0 +1,197 @@
+#include <stdlib.h>
+
+/*
+ * This is to be used ONLY for DEBUG purposes
+ * Compile with -DTEST_INTERFACE
+ */
+#ifdef TEST_INTERFACE
+#include <stdio.h>
+#endif
+
+#include "glob_header.h"
+
+// DO: gcc -Wall -o test autogen_interface.c mylib.so -lm
+
+#ifndef casadi_real
+#define casadi_real double
+#endif
+
+#ifndef casadi_int
+#define casadi_int long long int
+#endif
+
+extern int {{name}}_f(
+    const casadi_real **arg,
+    casadi_real **res,
+    casadi_int *iw,
+    casadi_real *w,
+    int mem);
+
+extern int {{name}}_jfx(
+    const casadi_real **arg,
+    casadi_real **res,
+    casadi_int *iw,
+    casadi_real *w,
+    int mem);
+
+extern int {{name}}_jfu(
+    const casadi_real **arg,
+    casadi_real **res,
+    casadi_int *iw,
+    casadi_real *w,
+    int mem);
+
+extern int {{name}}_ell(
+    const casadi_real **arg,
+    casadi_real **res,
+    casadi_int *iw,
+    casadi_real *w,
+    int mem);
+
+extern int {{name}}_ellx(
+    const casadi_real **arg,
+    casadi_real **res,
+    casadi_int *iw,
+    casadi_real *w,
+    int mem);
+
+extern int {{name}}_ellu(
+    const casadi_real **arg,
+    casadi_real **res,
+    casadi_int *iw,
+    casadi_real *w,
+    int mem);
+
+extern int {{name}}_vf(
+    const casadi_real **arg,
+    casadi_real **res,
+    casadi_int *iw,
+    casadi_real *w,
+    int mem);
+
+extern int {{name}}_vfx(
+    const casadi_real **arg,
+    casadi_real **res,
+    casadi_int *iw,
+    casadi_real *w,
+    int mem);
+
+
+/* -------------------------- */
+/*     Integer Workspaces     */
+/* -------------------------- */
+
+#if F_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_f[F_SZ_IW_{{ name | upper}}];  
+#else
+static casadi_int *iws_f = NULL;
+#endif
+
+#if JFX_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_jfx[JFX_SZ_IW_{{ name | upper}}];  
+#else
+static casadi_int *iws_jfx = NULL;
+#endif
+
+
+#if JFU_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_jfu[JFU_SZ_IW_{{ name | upper}}];  
+#else
+static casadi_int *iws_jfu = NULL;
+#endif
+
+#if ELL_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_ell[ELL_SZ_IW_{{ name | upper}}];  
+#else
+static casadi_int *iws_ell = NULL;
+#endif
+
+#if ELLX_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_ellx[ELLX_SZ_IW_{{ name | upper}}];  
+#else
+static casadi_int *iws_ellx = NULL;
+#endif
+
+#if ELLU_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_ellu[ELLU_SZ_IW_{{ name | upper}}];  
+#else
+static casadi_int *iws_ellu = NULL;
+#endif
+
+#if VF_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_vf[VF_SZ_IW_{{ name | upper}}];  
+#else
+static casadi_int *iws_vf = NULL;
+#endif
+
+#if VFX_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_vfx[VFX_SZ_IW_{{ name | upper}}];  
+#else
+static casadi_int *iws_vfx = NULL;
+#endif
+
+
+/* -------------------------- */
+/*       Real Workspaces      */
+/* -------------------------- */
+
+#if F_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_f[F_SZ_W_{{ name | upper}}];
+#else
+static casadi_real *ws_f = NULL;
+#endif
+
+#if JFX_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_jfx[JFX_SZ_W_{{ name | upper}}];
+#else
+static casadi_real *ws_jfx = NULL;
+#endif
+
+#if JFU_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_jfu[JFU_SZ_W_{{ name | upper}}];
+#else
+static casadi_real *ws_jfu = NULL;
+#endif
+
+#if ELL_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_ell[ELL_SZ_W_{{ name | upper}}];
+#else
+static casadi_real *ws_ell = NULL;
+#endif
+
+#if ELLX_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_ellx[ELLX_SZ_W_{{ name | upper}}];
+#else
+static casadi_real *ws_ellx = NULL;
+#endif
+
+#if ELLU_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_ellu[ELLU_SZ_W_{{ name | upper}}];
+#else
+static casadi_real *ws_ellu = NULL;
+#endif
+
+#if VF_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_vf[VF_SZ_W_{{ name | upper}}];
+#else
+static casadi_real *ws_vf = NULL;
+#endif
+
+#if VFX_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_vfx[VFX_SZ_W_{{ name | upper}}];
+#else
+static casadi_real *ws_vfx = NULL;
+#endif
+
+int main()
+{
+    double x[3] = {1.570796326794897, 0., 2.};
+    double u[2] = {1.5, 2.1};
+    const double *arg[2] = {x, u};
+    double fxu[3] = {0., 0., 0.};
+    double *rez[1] = {fxu};
+    {{name}}_f(arg, rez, iws_f, ws_f, 0);
+    printf("%g\n", fxu[0]);
+    printf("%g\n", fxu[1]);
+    printf("%g\n", fxu[2]);
+}

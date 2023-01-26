@@ -11,6 +11,5 @@ f = cs.sin(x) + 2*(u[0]+u[1]**3)*x
 ell = 0.5 * (cs.dot(x, x) + cs.dot(u, u))
 vf = 20 * cs.dot(x, x)
 
-gradObj = grad.CostGradient(
-    x, u, f, ell, vf, N).with_extra_c_compiler_flags(['-O3', '-std=c90'])
+gradObj = grad.CostGradient(x, u, f, ell, vf, N)
 gradObj.build()
