@@ -28,8 +28,7 @@ class CostGradient:
         self.__N = N
         self.__nx = x.size()[0]
         self.__nu = u.size()[0]
-        self.__dx = cs.SX.sym('dx', self.__nx)
-        self.__du = cs.SX.sym('du', self.__nu)
+        self.__d = cs.SX.sym('d', self.__nx)
         self.__jfx = None
         self.__jfu = None
         self.__ellx = None
@@ -77,8 +76,8 @@ class CostGradient:
         return self
 
     def __create_gradients(self):
-        self.__jfx = cs.jacobian(self.__f, self.__x) @ self.__dx
-        self.__jfu = cs.jacobian(self.__f, self.__u) @ self.__du
+        self.__jfx = cs.jacobian(self.__f, self.__x).T @ self.__d
+        self.__jfu = cs.jacobian(self.__f, self.__u).T @ self.__d
         self.__ellx = cs.jacobian(self.__ell, self.__x).T
         self.__ellu = cs.jacobian(self.__ell, self.__u).T
         self.__vfx = cs.jacobian(self.__vf, self.__x).T
@@ -87,9 +86,9 @@ class CostGradient:
         self.__f_fun = cs.Function(self.__name+'_f', [self.__x, self.__u], [
             self.__f], ['x', 'u'], ['f'])
         self.__jfx_fun = cs.Function(
-            self.__name+'jfx', [self.__x, self.__u, self.__dx], [self.__jfx], ['x', 'u', 'dx'], ['jfx'])
-        self.__jfu_fun = cs.Function(self.__name+'_jfu', [self.__x, self.__u, self.__du], [
-            self.__jfu], ['x', 'u', 'du'], ['jfu'])
+            self.__name+'jfx', [self.__x, self.__u, self.__d], [self.__jfx], ['x', 'u', 'd'], ['jfx'])
+        self.__jfu_fun = cs.Function(self.__name+'_jfu', [self.__x, self.__u, self.__d], [
+            self.__jfu], ['x', 'u', 'd'], ['jfu'])
         self.__ell_fun = cs.Function(self.__name+'_ell', [self.__x, self.__u], [
             self.__ell], ['x', 'u'], ['ell'])
         self.__ellx_fun = cs.Function(self.__name+'_ellx', [self.__x, self.__u], [
