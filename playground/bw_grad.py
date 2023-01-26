@@ -1,6 +1,9 @@
 import casadi.casadi as cs
 import numpy as np
 
+# This is not so interesting; check out playground/bw_grad_for_loop.py
+
+
 nx = 3
 nu = 3
 
@@ -70,10 +73,24 @@ for i in range(N):
 
 # Then determine the gradient of VN with respect to u(N-1)
 nabla_Vf_N_1 = vfx_py(xs[:, N])
+z_N_1 = nabla_Vf_N_1
 nabla_VN_u_N_1 = ellu_py(xs[:, N-1], us[:, N-1]) + \
-    jfu_py(xs[:, N-1], us[:, N-1], nabla_Vf_N_1)
+    jfu_py(xs[:, N-1], us[:, N-1], z_N_1)
 
-# I'm leaving u(N-2), u(N-3), ..., u(0) to you
+# Gradient of VN with respect o u(N-2)
+z_N_2 = jfx_py(xs[:, N-1], us[:, N-1], z_N_1)
+ell_u_N_2 = ellu_py(xs[:, N-2], us[:, N-2])
+ell_x_N_1 = ellx_py(xs[:, N-1], us[:, N-1])
+nabla_Vf_N_2 = ell_u_N_2 + jfu_py(xs[:, N-2], us[:, N-2], ell_x_N_1 + z_N_2)
+
+# Gradient of VN with respect o u(N-3)
+z_N_3 = jfx_py(xs[:, N-2], us[:, N-2], z_N_2)
+ell_u_N_3 = ellu_py(xs[:, N-3], us[:, N-3])
+ell_x_N_2 = ellx_py(xs[:, N-2], us[:, N-2])
+nabla_Vf_N_3 = ell_u_N_3 + \
+    jfu_py(xs[:, N-3], us[:, N-3], ell_x_N_2 +
+           jfx_py(xs[:, N-2], us[:, N-2], ell_x_N_1 + z_N_2))
+
 
 # But is this correct?
 # Let us define VN...
@@ -88,11 +105,33 @@ for i in range(N):
 VN = VN + vf_fun(x)
 
 # and now let us use CasADi to determine the Jacobian of VN (wrt big-u) directly...
+# -- wrt N-2
 nabla_VN_u_N_1_sym = cs.jacobian(VN, u_seq[:, N-1])
 nabla_VN_u_N_1_fun = cs.Function(
     'nabla_VN_u_N_1', [u_seq], [nabla_VN_u_N_1_sym])
 correct_nabla_VN_u_N_1 = nabla_VN_u_N_1_fun(us)
 
-err = np.linalg.norm(nabla_VN_u_N_1.T - correct_nabla_VN_u_N_1)
-print(f"Error = {err}")
+# -- wrt N-2
+nabla_VN_u_N_2_sym = cs.jacobian(VN, u_seq[:, N-2])
+nabla_VN_u_N_2_fun = cs.Function(
+    'nabla_VN_u_N_2', [u_seq], [nabla_VN_u_N_2_sym])
+correct_nabla_VN_u_N_2 = nabla_VN_u_N_2_fun(us)
+
+# -- wrt N-3
+nabla_VN_u_N_3_sym = cs.jacobian(VN, u_seq[:, N-3])
+nabla_VN_u_N_3_fun = cs.Function(
+    'nabla_VN_u_N_3', [u_seq], [nabla_VN_u_N_3_sym])
+correct_nabla_VN_u_N_3 = nabla_VN_u_N_3_fun(us)
+
+# --- ERRORS ---
+err = np.linalg.norm(nabla_VN_u_N_1 - correct_nabla_VN_u_N_1.T)
+print(f"Error(N-1) = {err}")
+assert err < 1e-6
+
+err = np.linalg.norm(nabla_Vf_N_2-correct_nabla_VN_u_N_2.T)
+print(f"Error(N-2) = {err}")
+assert err < 1e-6
+
+err = np.linalg.norm(nabla_Vf_N_3 - correct_nabla_VN_u_N_3.T)
+print(f"Error(N-3) = {err}")
 assert err < 1e-6
