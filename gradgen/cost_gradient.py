@@ -19,7 +19,6 @@ class CostGradient:
         :param vf: terminal cost symbol (depends on x)
         :param N: prediction horizon (int) 
         """
-        # TODO write docs
         self.__x = x
         self.__u = u
         self.__f = f
@@ -44,17 +43,24 @@ class CostGradient:
         self.__vfx_fun = None
         self.__name = 'gradgen'
         self.__destination_path = 'codegenz'
-        self.__c_compiler = 'gcc'
-        self.__c_compiler_flags = ['-fPIC']
 
-    def __get_target_code_dir_asbpath(self):
+    def __target_externc_dir(self):
         dest_abspath = os.path.join(
-            self.__destination_path, self.__name, 'extern')
+            self.__destination_path, self.__name, 'casadi', 'extern')
         return os.path.abspath(dest_abspath)
 
+    def __target_casadirs_dir(self):
+        casadirs_abspath = os.path.join(
+            self.__destination_path, self.__name, 'casadi')
+        return os.path.abspath(casadirs_abspath)
+
     def __create_dirs(self):
-        if not os.path.exists(self.__get_target_code_dir_asbpath()):
-            os.makedirs(self.__get_target_code_dir_asbpath())
+        if not os.path.exists(self.__target_externc_dir()):
+            os.makedirs(self.__target_externc_dir())
+        casadi_src_path = os.path.join(
+            self.__destination_path, self.__name, 'casadi', 'src')
+        if not os.path.exists(casadi_src_path):
+            os.makedirs(casadi_src_path)
 
     @staticmethod
     def __get_template(name, subdir=None):
@@ -67,16 +73,8 @@ class CostGradient:
         self.__name = name
         return self
 
-    def with_c_code_destination(self, c_code_dir):
-        self.__c_code_dir = c_code_dir
-        return self
-
-    def with_c_compiler(self, c_compiler):
-        self.__c_compiler = c_compiler
-        return self
-
-    def with_extra_c_compiler_flags(self, extra_c_flags):
-        self.__c_compiler_flags += extra_c_flags
+    def with_target_path(self, dst_path):
+        self.__destination_path = dst_path
         return self
 
     def __create_gradients(self):
@@ -120,12 +118,12 @@ class CostGradient:
         codegen.add(self.__vfx_fun)
         codegen.generate()
         # Move generated C code to destination directory
-        target_dir = self.__get_target_code_dir_asbpath()
+        target_dir = self.__target_externc_dir()
         shutil.move(c_code_filename, os.path.join(target_dir, c_code_filename))
 
     def __generate_glob_header(self):
         global_header_template = CostGradient.__get_template(
-            'global_header.h.tmpl', subdir='autograd')
+            'global_header.h.tmpl', subdir='c')
         global_header_rendered = global_header_template.render(
             name=self.__name,
             f=self.__f_fun,
@@ -141,18 +139,45 @@ class CostGradient:
             nu=self.__nu
         )
         glob_header_target_path = os.path.join(
-            self.__get_target_code_dir_asbpath(), "glob_header.h")
+            self.__target_externc_dir(), "glob_header.h")
         with open(glob_header_target_path, "w") as fh:
             fh.write(global_header_rendered)
 
     def __generate_c_interface(self):
         c_interface_template = CostGradient.__get_template(
-            'autograd_interface.c.tmpl', subdir='autograd')
+            'autograd_interface.c.tmpl', subdir='c')
         c_interface_rendered = c_interface_template.render(name=self.__name)
         c_interface_target_path = os.path.join(
-            self.__get_target_code_dir_asbpath(), "interface.c")
+            self.__target_externc_dir(), "interface.c")
         with open(c_interface_target_path, "w") as fh:
             fh.write(c_interface_rendered)
+
+    def __prepare_casadi_rs(self):
+        # Cargo.toml [casadi]
+        cargo_template = CostGradient.__get_template(
+            'Cargo.toml', subdir='casadi-rs')
+        cargo_rendered = cargo_template.render(name=self.__name)
+        cargo_target_path = os.path.join(
+            self.__target_casadirs_dir(), "Cargo.toml")
+        with open(cargo_target_path, "w") as fh:
+            fh.write(cargo_rendered)
+        # build.rs
+        build_rs_template = CostGradient.__get_template(
+            'build.rs', subdir='casadi-rs')
+        build_rs_rendered = build_rs_template.render(name=self.__name)
+        build_rs_target_path = os.path.join(
+            self.__target_casadirs_dir(), "build.rs")
+        with open(build_rs_target_path, "w") as fh:
+            fh.write(build_rs_rendered)
+        # lib.rs
+        casadi_lib_rs_template = CostGradient.__get_template(
+            'lib.rs', subdir='casadi-rs')
+        casadi_lib_rs_rendered = casadi_lib_rs_template.render(
+            name=self.__name)
+        casadi_lib_rs_target_path = os.path.join(
+            self.__target_casadirs_dir(), "src", "lib.rs")
+        with open(casadi_lib_rs_target_path, "w") as fh:
+            fh.write(casadi_lib_rs_rendered)
 
     def build(self):
         self.__create_dirs()
@@ -161,3 +186,4 @@ class CostGradient:
         self.__generate_c_code()
         self.__generate_glob_header()
         self.__generate_c_interface()
+        self.__prepare_casadi_rs()

@@ -3,7 +3,7 @@ import pkg_resources
 
 def templates_dir():
     """Directory where the templates are found (for internal use, mainly)"""
-    return pkg_resources.resource_filename('opengen', 'templates/')
+    return pkg_resources.resource_filename('gradgen', 'templates/')
 
 
 def templates_subdir(subdir=None):
