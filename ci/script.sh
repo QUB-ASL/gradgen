@@ -27,6 +27,9 @@ regular_test() {
     # --- run the tests
     export PYTHONPATH=.
     python main.py
+
+    cd codegenz/alice/casadi/
+    cargo test
     
 }
 
