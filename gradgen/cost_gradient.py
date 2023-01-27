@@ -42,17 +42,17 @@ class CostGradient:
         self.__ellu_fun = None
         self.__vf_fun = None
         self.__vfx_fun = None
-        self.__name = 'autogen_cost_grad'
+        self.__name = 'gradgen'
         self.__destination_path = 'codegenz'
         self.__c_compiler = 'gcc'
         self.__c_compiler_flags = ['-fPIC']
-        self.__prepare()
 
     def __get_target_code_dir_asbpath(self):
-        dest_abspath = os.path.join(self.__destination_path, self.__name)
+        dest_abspath = os.path.join(
+            self.__destination_path, self.__name, 'extern')
         return os.path.abspath(dest_abspath)
 
-    def __prepare(self):
+    def __create_dirs(self):
         if not os.path.exists(self.__get_target_code_dir_asbpath()):
             os.makedirs(self.__get_target_code_dir_asbpath())
 
@@ -62,6 +62,10 @@ class CostGradient:
         file_loader = jinja2.FileSystemLoader(subdir_path)
         env = jinja2.Environment(loader=file_loader, autoescape=True)
         return env.get_template(name)
+
+    def with_name(self, name):
+        self.__name = name
+        return self
 
     def with_c_code_destination(self, c_code_dir):
         self.__c_code_dir = c_code_dir
@@ -82,26 +86,29 @@ class CostGradient:
         self.__ellu = cs.jacobian(self.__ell, self.__u).T
         self.__vfx = cs.jacobian(self.__vf, self.__x).T
 
+    def __function_name(self, fname):
+        return 'casadi_' + self.__name + '_' + fname
+
     def __generate_casadi_functions(self):
-        self.__f_fun = cs.Function(self.__name+'_f', [self.__x, self.__u], [
+        self.__f_fun = cs.Function(self.__function_name('f'), [self.__x, self.__u], [
             self.__f], ['x', 'u'], ['f'])
-        self.__jfx_fun = cs.Function(
-            self.__name+'jfx', [self.__x, self.__u, self.__d], [self.__jfx], ['x', 'u', 'd'], ['jfx'])
-        self.__jfu_fun = cs.Function(self.__name+'_jfu', [self.__x, self.__u, self.__d], [
-            self.__jfu], ['x', 'u', 'd'], ['jfu'])
-        self.__ell_fun = cs.Function(self.__name+'_ell', [self.__x, self.__u], [
-            self.__ell], ['x', 'u'], ['ell'])
-        self.__ellx_fun = cs.Function(self.__name+'_ellx', [self.__x, self.__u], [
+        self.__jfx_fun = cs.Function(self.__function_name(
+            'jfx'), [self.__x, self.__u, self.__d], [self.__jfx], ['x', 'u', 'd'], ['jfx'])
+        self.__jfu_fun = cs.Function(self.__function_name(
+            'jfu'), [self.__x, self.__u, self.__d], [self.__jfu], ['x', 'u', 'd'], ['jfu'])
+        self.__ell_fun = cs.Function(self.__function_name(
+            'ell'), [self.__x, self.__u], [self.__ell], ['x', 'u'], ['ell'])
+        self.__ellx_fun = cs.Function(self.__function_name('ellx'), [self.__x, self.__u], [
             self.__ellx], ['x', 'u'], ['ellx'])
-        self.__ellu_fun = cs.Function(self.__name+'_ellu', [self.__x, self.__u], [
+        self.__ellu_fun = cs.Function(self.__function_name('ellu'), [self.__x, self.__u], [
             self.__ellu], ['x', 'u'], ['ellu'])
-        self.__vf_fun = cs.Function(
-            self.__name+'_vf', [self.__x], [self.__vf], ['x'], ['vf'])
-        self.__vfx_fun = cs.Function(
-            self.__name+'_vfx', [self.__x], [self.__vfx], ['x'], ['vfx'])
+        self.__vf_fun = cs.Function(self.__function_name(
+            'vf'), [self.__x], [self.__vf], ['x'], ['vf'])
+        self.__vfx_fun = cs.Function(self.__function_name(
+            'vfx'), [self.__x], [self.__vfx], ['x'], ['vfx'])
 
     def __generate_c_code(self):
-        c_code_filename = self.__name + '.c'
+        c_code_filename = 'casadi_functions.c'
         codegen = cs.CodeGenerator(c_code_filename)
         codegen.add(self.__f_fun)
         codegen.add(self.__jfx_fun)
@@ -148,6 +155,7 @@ class CostGradient:
             fh.write(c_interface_rendered)
 
     def build(self):
+        self.__create_dirs()
         self.__create_gradients()
         self.__generate_casadi_functions()
         self.__generate_c_code()

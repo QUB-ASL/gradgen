@@ -9,7 +9,7 @@ x = cs.SX.sym('x', nx)
 u = cs.SX.sym('u', nu)
 f = cs.sin(x) + 2*(u[0]+u[1]**3)*x
 ell = 0.5 * (cs.dot(x, x) + cs.dot(u, u))
-vf = 20 * cs.dot(x, x)
+vf = 10 * cs.dot(x, x)
 
-gradObj = grad.CostGradient(x, u, f, ell, vf, N)
+gradObj = grad.CostGradient(x, u, f, ell, vf, N).with_name("bob")
 gradObj.build()

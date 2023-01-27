@@ -1,3 +1,8 @@
+/*
+clang -fPIC -shared casadi_functions.c -o casadi_functions.so
+clang -DTEST_INTERFACE -o test interface.c casadi_functions.so -lm
+*/
+
 #include <stdlib.h>
 
 /*
@@ -10,8 +15,6 @@
 
 #include "glob_header.h"
 
-// DO: gcc -Wall -o test autogen_interface.c mylib.so -lm
-
 #ifndef casadi_real
 #define casadi_real double
 #endif
@@ -20,56 +23,56 @@
 #define casadi_int long long int
 #endif
 
-extern int {{name}}_f(
+extern int casadi_{{name}}_f(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int {{name}}_jfx(
+extern int casadi_{{name}}_jfx(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int {{name}}_jfu(
+extern int casadi_{{name}}_jfu(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int {{name}}_ell(
+extern int casadi_{{name}}_ell(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int {{name}}_ellx(
+extern int casadi_{{name}}_ellx(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int {{name}}_ellu(
+extern int casadi_{{name}}_ellu(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int {{name}}_vf(
+extern int casadi_{{name}}_vf(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int {{name}}_vfx(
+extern int casadi_{{name}}_vfx(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
@@ -183,21 +186,205 @@ static casadi_real ws_vfx[VFX_SZ_W_{{ name | upper}}];
 static casadi_real *ws_vfx = NULL;
 #endif
 
+
 /* -------------------------- */
-/*      Persistent Memory     */
+/*        Result Spaces       */
 /* -------------------------- */
+static casadi_real *f_res[F_SZ_RES_{{ name | upper}}];
+static casadi_real *jfx_res[JFX_SZ_RES_{{ name | upper}}];
+static casadi_real *jfu_res[JFU_SZ_RES_{{ name | upper}}];
+static casadi_real *ell_res[ELL_SZ_RES_{{ name | upper}}];
+static casadi_real *ellx_res[ELLX_SZ_RES_{{ name | upper}}];
+static casadi_real *ellu_res[ELLU_SZ_RES_{{ name | upper}}];
+static casadi_real *vf_res[VF_SZ_RES_{{ name | upper}}];
+static casadi_real *vfx_res[VFX_SZ_RES_{{ name | upper}}];
+
+
+/* ------------------------------------ */
+/*      Persistent (x, u, d) memory     */
+/* ------------------------------------ */
 #define N_PERSISTENT_MEM_{{ name | upper}} (2 * NX_{{ name | upper}} + NU_{{ name | upper}})
 static casadi_real persistent_memory[N_PERSISTENT_MEM_{{ name | upper}}];  /* (x, u, d) */
+#define IDX_X_{{ name | upper}} 0
+#define IDX_U_{{ name | upper}} IDX_X_{{ name | upper}} + NX_{{ name | upper}}
+#define IDX_D_{{ name | upper}} IDX_U_{{ name | upper}} + NU_{{ name | upper}}
 
+
+void init_interface_{{ name }}(void) {
+    /* nothing */
+}
+
+/* Copy (x) into persistent_memory; arg = {x}  */
+static void copy_x_to_persistent(const casadi_real** arg) {
+    unsigned int i;
+    for (i=0; i<NX_{{ name | upper}}; i++)  
+        persistent_memory[IDX_X_{{ name | upper}} + i] = arg[0][i];  /* copy x */    
+}
+
+/* Copy (x, u) into persistent_memory; arg = {x, u}  */
+static void copy_xu_to_persistent(const casadi_real** arg) {
+    unsigned int i;
+    copy_x_to_persistent(arg);  /* copy x */
+    for (i=0; i<NU_{{ name | upper}}; i++)  
+        persistent_memory[IDX_U_{{ name | upper}} + i] = arg[1][i];  /* copy u */    
+}
+
+/* Copy (x, u, d) into persistent_memory; arg = {x, u, d}  */
+static void copy_xud_to_persistent(const casadi_real** arg) {
+    unsigned int i;
+    copy_xu_to_persistent(arg);
+    for (i=0; i<NX_{{ name | upper}}; i++)  
+        persistent_memory[IDX_D_{{ name | upper}} + i] = arg[2][i];  /* copy d */    
+}
+
+int {{ name }}_f(const casadi_real** arg, casadi_real** res) {
+    copy_xu_to_persistent(arg);  /* arg = {x, u} */
+    const casadi_real* args__[F_SZ_ARG_{{ name | upper}}] = {
+        persistent_memory + IDX_X_{{ name | upper}},
+        persistent_memory + IDX_U_{{ name | upper}}};
+    f_res[0] = res[0];
+    return casadi_{{ name }}_f(args__, f_res, iws_f, ws_f, 0);
+}
+
+int {{ name }}_jfx(const casadi_real** arg, casadi_real** res) {
+    copy_xud_to_persistent(arg);  /* arg = {x, u, d} */
+    const casadi_real* args__[JFX_SZ_ARG_{{ name | upper}}] = {
+        persistent_memory + IDX_X_{{ name | upper}},
+        persistent_memory + IDX_U_{{ name | upper}},
+        persistent_memory + IDX_D_{{ name | upper}}};
+    jfx_res[0] = res[0];
+    return casadi_{{ name }}_jfx(args__, jfx_res, iws_jfx, ws_jfx, 0);
+}
+
+int {{ name }}_jfu(const casadi_real** arg, casadi_real** res) {
+    copy_xud_to_persistent(arg);  /* arg = {x, u, d} */
+    const casadi_real* args__[JFU_SZ_ARG_{{ name | upper}}] = {
+        persistent_memory + IDX_X_{{ name | upper}},
+        persistent_memory + IDX_U_{{ name | upper}},
+        persistent_memory + IDX_D_{{ name | upper}}};
+    jfu_res[0] = res[0];
+    return casadi_{{ name }}_jfu(args__, jfu_res, iws_jfu, ws_jfu, 0);
+}
+
+int {{ name }}_ellx(const casadi_real** arg, casadi_real** res) {
+    copy_xu_to_persistent(arg);  /* arg = {x, u} */
+    const casadi_real* args__[ELLX_SZ_ARG_{{ name | upper}}] = {
+        persistent_memory + IDX_X_{{ name | upper}},
+        persistent_memory + IDX_U_{{ name | upper}}};
+    ellx_res[0] = res[0];
+    return casadi_{{ name }}_ellx(args__, ellx_res, iws_ellx, ws_ellx, 0);
+}
+
+int {{ name }}_ellu(const casadi_real** arg, casadi_real** res) {
+    copy_xu_to_persistent(arg);  /* arg = {x, u} */
+    const casadi_real* args__[ELLU_SZ_ARG_{{ name | upper}}] = {
+        persistent_memory + IDX_X_{{ name | upper}},
+        persistent_memory + IDX_U_{{ name | upper}}};
+    ellu_res[0] = res[0];
+    return casadi_{{ name }}_ellu(args__, ellu_res, iws_ellu, ws_ellu, 0);
+}
+
+int {{ name }}_vfx(const casadi_real** arg, casadi_real** res) {
+    copy_x_to_persistent(arg);  /* arg = {x} */
+    const casadi_real* args__[VFX_SZ_ARG_{{ name | upper}}] = {persistent_memory + IDX_X_{{ name | upper}}};
+    vfx_res[0] = res[0];
+    return casadi_{{ name }}_vfx(args__, vfx_res, iws_vfx, ws_vfx, 0);
+}
+
+#ifdef TEST_INTERFACE
+/* -------------------------- */
+/*           Testing          */
+/* -------------------------- */
+
+void call_f_test(){
+    double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};
+    double u[NU_{{ name | upper}}] = {1.5, 2.1};
+    double x_next[NX_{{ name | upper}}];
+    const double *arg[2] = {x, u};
+    double *res[1] = {x_next};
+    {{ name }}_f(arg, res);
+
+    int i;
+    for (i = 0; i < NX_{{ name | upper}}; i++)
+    {
+        printf("x+ >> %g\n", x_next[i]);
+    }
+}
+
+void call_jfx_test()
+{
+    double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};
+    double u[NU_{{ name | upper}}] = {1.5, 2.1};
+    double d[NX_{{ name | upper}}] = {0, 1, 0};
+
+    double jfx[NX_{{ name | upper}}];
+    const double *arg[3] = {x, u, d};
+    double *res[1] = {jfx};
+    {{ name }}_jfx(arg, res);
+
+    for (unsigned int i = 0; i < NX_{{ name | upper}}; i++)
+    {
+        printf("Jxf >> %g\n", jfx_res[0][i]);
+    }
+}
+
+void call_jfu_test()
+{
+    double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};
+    double u[NU_{{ name | upper}}] = {1.5, 2.1};
+    double d[NX_{{ name | upper}}] = {1, 1, 0};
+
+    double jfu[NX_{{ name | upper}}];
+    const double *arg[3] = {x, u, d};
+    double *res[1] = {jfu};
+    {{ name }}_jfu(arg, res);
+
+    for (unsigned int i = 0; i < NX_{{ name | upper}}; i++)
+    {
+        printf("Juf >> %g\n", jfu_res[0][i]);
+    }
+}
+
+void call_ellx_test()
+{
+    double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};
+    double u[NU_{{ name | upper}}] = {1.5, 2.1};
+
+    double ellx[NX_{{ name | upper}}];
+    const double *arg[2] = {x, u};
+    double *res[1] = {ellx};
+    {{ name }}_ellx(arg, res);
+
+    for (unsigned int i = 0; i < NX_{{ name | upper}}; i++)
+    {
+        printf("ell_x >> %g\n", ellx_res[0][i]);
+    }
+}
+
+void call_vfx_test()
+{
+    double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};
+
+    double vfx[NX_{{ name | upper}}];
+    const double *arg[1] = {x};
+    double *res[1] = {vfx};
+    {{ name }}_vfx(arg, res);
+
+    for (unsigned int i = 0; i < NX_{{ name | upper}}; i++)
+    {
+        printf("vfx >> %g\n", vfx_res[0][i]);
+    }
+}
+
+/* for testing purposes only! */
 int main()
 {
-    double x[3] = {1.570796326794897, 0., 2.};
-    double u[2] = {1.5, 2.1};
-    const double *arg[2] = {x, u};
-    double fxu[3] = {0., 0., 0.};
-    double *rez[1] = {fxu};
-    {{name}}_f(arg, rez, iws_f, ws_f, 0);
-    printf("%g\n", fxu[0]);
-    printf("%g\n", fxu[1]);
-    printf("%g\n", fxu[2]);
-}
+    call_f_test();
+    call_jfx_test();
+    call_jfu_test();
+    call_ellx_test();
+    call_vfx_test();
+    return 0;
+}   
+#endif
+
