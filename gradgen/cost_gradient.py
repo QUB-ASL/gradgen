@@ -173,7 +173,10 @@ class CostGradient:
         casadi_lib_rs_template = CostGradient.__get_template(
             'lib.rs', subdir='casadi-rs')
         casadi_lib_rs_rendered = casadi_lib_rs_template.render(
-            name=self.__name)
+            name=self.__name,
+            nx=self.__nx,
+            nu=self.__nu,
+            N=self.__N)
         casadi_lib_rs_target_path = os.path.join(
             self.__target_casadirs_dir(), "src", "lib.rs")
         with open(casadi_lib_rs_target_path, "w") as fh:
