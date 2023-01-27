@@ -28,9 +28,11 @@ regular_test() {
     export PYTHONPATH=.
     python main.py
 
-    cd codegenz/alice/casadi/
+    cd codegenz/alice/casadi_alice/
     cargo test
     
+    cd .. 
+    cargo test
 }
 
 main() {
