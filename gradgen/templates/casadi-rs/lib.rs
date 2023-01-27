@@ -1,8 +1,11 @@
 use libc::{c_double, c_int};
 
-pub const NX_{{ name | upper }}: usize = {{ nx }};
-pub const NU_{{ name | upper }}: usize = {{ nu }};
-pub const NPRED_{{ name | upper }}: usize = {{ N }};
+/// number of states 
+pub const NX: usize = {{ nx }};
+/// number of inputs
+pub const NU: usize = {{ nu }};
+/// prediction horizon
+pub const NPRED: usize = {{ N }};
 
 
 extern "C" {
@@ -70,24 +73,22 @@ mod tests {
 
     #[test]
     fn tst_f(){
-        let x = [0.1; NX_{{ name | upper }}];
-        let u = [0.1; NU_{{ name | upper }}];
-        let mut fxu = [0.0; NX_{{ name | upper }}];
-        assert_eq!(0, super::f(&x, &u, &mut fxu));
-        println!("{:?}", fxu);
+        let x = [0.1; NX];
+        let u = [0.1; NU];
+        let mut fxu = [0.0; NX];
+        assert_eq!(0, f(&x, &u, &mut fxu));
     }
 
     #[test]
     fn tst_simulate(){
-        let mut x = vec![vec![0.0; NX_{{ name | upper }}]; NPRED_{{ name | upper }} + 1];
+        let mut x = vec![vec![0.0; NX]; NPRED + 1];
         x[0].copy_from_slice(&[1., 2., 3.]);
         let u = [0.1; 2]; // test with constant input
-        let mut x_next = vec![0.0; NX_{{ name | upper }}];
-        for i in 0..=NPRED_{{ name | upper }} - 1 {
-            assert_eq!(0, super::f(&x[i], &u, &mut x_next));
+        let mut x_next = vec![0.0; NX];
+        for i in 0..=NPRED - 1 {
+            assert_eq!(0, f(&x[i], &u, &mut x_next));
             x[i + 1].copy_from_slice(&x_next);
         }
-        println!("{:?}", x);
     }
     
     #[test]
@@ -95,9 +96,8 @@ mod tests {
         let x = [0.1, 0.2, 0.3];
         let u = [1.1, 2.2];
         let d = [-0.8, 6.2, 0.0];
-        let mut jfx_d = [0.0; NX_{{ name | upper }}];
-        assert_eq!(0, super::jfx(&x, &u, &d, &mut jfx_d));
-        println!("{:?}", jfx_d);
+        let mut jfx_d = [0.0; NX];
+        assert_eq!(0, jfx(&x, &u, &d, &mut jfx_d));
     }
 
     #[test]
@@ -105,35 +105,31 @@ mod tests {
         let x = [0.1, 0.2, 0.3];
         let u = [1.1, 2.2];
         let d = [-0.8, 6.2, 0.0];
-        let mut jfu_d = [0.0; NX_{{ name | upper }}];
-        assert_eq!(0, super::jfu(&x, &u, &d, &mut jfu_d));
-        println!("{:?}", jfu_d);
+        let mut jfu_d = [0.0; NX];
+        assert_eq!(0, jfu(&x, &u, &d, &mut jfu_d));
     }
 
     #[test]
     fn tst_ellx() {
         let x = [0.1, 0.2, 0.3];
         let u = [1.1, 2.2];
-        let mut ellx_res = [0.0; NX_{{ name | upper }}];
-        assert_eq!(0, super::ellx(&x, &u, &mut ellx_res));
-        println!("{:?}", ellx_res);
+        let mut ellx_res = [0.0; NX];
+        assert_eq!(0, ellx(&x, &u, &mut ellx_res));
     }
 
     #[test]
     fn tst_ellu() {
         let x = [0.1, 0.2, 0.3];
         let u = [1.1, 2.2];
-        let mut ellu_res = [0.0; NU_{{ name | upper }}];
-        assert_eq!(0, super::ellu(&x, &u, &mut ellu_res));
-        println!("{:?}", ellu_res);
+        let mut ellu_res = [0.0; NU];
+        assert_eq!(0, ellu(&x, &u, &mut ellu_res));
     }
 
     #[test]
     fn tst_vfx() {
         let x = [0.1, 0.2, 0.3];
         let u = [1.1, 2.2];
-        let mut vfx_res = [0.0; NX_{{ name | upper }}];
-        assert_eq!(0, super::vfx(&x, &u, &mut vfx_res));
-        println!("{:?}", vfx_res);
+        let mut vfx_res = [0.0; NX];
+        assert_eq!(0, vfx(&x, &u, &mut vfx_res));
     }
 }

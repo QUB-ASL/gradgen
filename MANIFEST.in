@@ -1,0 +1,3 @@
+include gradgen/templates/*
+include VERSION
+

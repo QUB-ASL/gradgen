@@ -44,23 +44,31 @@ class CostGradient:
         self.__name = 'gradgen'
         self.__destination_path = 'codegenz'
 
+    def __target_root_dir(self):
+        trgt_root_abspath = os.path.join(self.__destination_path, self.__name)
+        return os.path.abspath(trgt_root_abspath)
+
     def __target_externc_dir(self):
         dest_abspath = os.path.join(
-            self.__destination_path, self.__name, 'casadi', 'extern')
+            self.__destination_path, self.__name, 'casadi_'+self.__name, 'extern')
         return os.path.abspath(dest_abspath)
 
     def __target_casadirs_dir(self):
         casadirs_abspath = os.path.join(
-            self.__destination_path, self.__name, 'casadi')
+            self.__destination_path, self.__name, 'casadi_'+self.__name)
         return os.path.abspath(casadirs_abspath)
 
     def __create_dirs(self):
         if not os.path.exists(self.__target_externc_dir()):
             os.makedirs(self.__target_externc_dir())
         casadi_src_path = os.path.join(
-            self.__destination_path, self.__name, 'casadi', 'src')
+            self.__destination_path, self.__name, 'casadi_'+self.__name, 'src')
+        main_src_path = os.path.join(
+            self.__destination_path, self.__name, 'src')
         if not os.path.exists(casadi_src_path):
             os.makedirs(casadi_src_path)
+        if not os.path.exists(main_src_path):
+            os.makedirs(main_src_path)
 
     @staticmethod
     def __get_template(name, subdir=None):
@@ -182,6 +190,23 @@ class CostGradient:
         with open(casadi_lib_rs_target_path, "w") as fh:
             fh.write(casadi_lib_rs_rendered)
 
+    def __generate_rust_lib(self):
+        # Cargo
+        cargo_template = CostGradient.__get_template(
+            'Cargo.toml', subdir='rust')
+        cargo_rendered = cargo_template.render(name=self.__name)
+        cargo_target_path = os.path.join(
+            self.__target_root_dir(), "Cargo.toml")
+        with open(cargo_target_path, "w") as fh:
+            fh.write(cargo_rendered)
+        # lib
+        lib_template = CostGradient.__get_template('lib.rs', subdir='rust')
+        lib_rendered = lib_template.render(name=self.__name)
+        lib_target_path = os.path.join(
+            self.__target_root_dir(), "src", "lib.rs")
+        with open(lib_target_path, "w") as fh:
+            fh.write(lib_rendered)
+
     def build(self):
         self.__create_dirs()
         self.__create_gradients()
@@ -190,3 +215,4 @@ class CostGradient:
         self.__generate_glob_header()
         self.__generate_c_interface()
         self.__prepare_casadi_rs()
+        self.__generate_rust_lib()
