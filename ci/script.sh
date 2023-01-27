@@ -7,7 +7,6 @@ regular_test() {
     # ------------------------------------
 
     # --- create virtual environment
-    cd gradgen
     export PYTHONPATH=.
 
     # --- install virtualenv
