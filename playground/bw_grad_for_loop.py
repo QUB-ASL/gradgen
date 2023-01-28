@@ -4,20 +4,31 @@ import numpy as np
 # In this scirpt we test the correctness of the backward method
 # (using a for loop)
 
-nx = 3
-nu = 3
+nx, nu = 3, 2
+ts, L = 0.1, 0.9
 N = 6
 
 x = cs.SX.sym('x', nx)
-u = cs.SX.sym('u', nu)
 d = cs.SX.sym('d', nx)
-f = cs.sin(x) + 2*u
-ell = 0.5 * (cs.dot(x, x) + cs.dot(u, u))
-vf = 20 * cs.dot(x, x)
+u = cs.SX.sym('u', nu)
+
+theta_dot = (u[1] * cs.cos(x[2]) - u[0] * cs.sin(x[2])) / L
+f = cs.vertcat(
+    x[0] + ts * (u[0] + L * cs.sin(x[2]) * theta_dot),
+    x[1] + ts * (u[1] - L * cs.cos(x[2]) * theta_dot),
+    x[2] + ts * theta_dot)
+
+# Stage cost function, ell
+q = np.array([1, 2, 3]).reshape((nx, 1))
+ell = 0.5 * cs.dot(x, x) + q.T @ x + 5 * \
+    u[0]**2 + 6 * u[1]**2 + 7 * u[0] + 8 * u[1]
+
+# terminal cost function, vf
+vf = 0.5 * (x[0]**2 + 50 * x[1]**2 + 100 * x[2]**2)
 
 # Make Jacobians
-jfx = cs.jacobian(f, x) @ d
-jfu = cs.jacobian(f, u) @ d
+jfx = cs.jacobian(f, x).T @ d
+jfu = cs.jacobian(f, u).T @ d
 ellx = cs.jacobian(ell, x).T
 ellu = cs.jacobian(ell, u).T
 vfx = cs.jacobian(vf, x).T
@@ -57,7 +68,8 @@ def vfx_py(x_):
     return vfx_fun(x_).full()
 
 
-us = np.random.uniform(size=(nu, N))  # just a random sequence of inputs
+# us = np.random.uniform(size=(nu, N))  # just a random sequence of inputs
+us = np.ones((nu, N))
 xs = np.zeros((nx, N+1))  # sequence of states
 xs[:, 0] = [1, 0, -1]  # some arbitrary initial state
 
@@ -102,3 +114,4 @@ err = np.linalg.norm(
     grads_matrix - correct_nabla_VN_u.reshape((nu, N)), np.inf)
 print(f"Error = {err}")
 assert (err < 1e-6)
+print(correct_nabla_VN_u.reshape((nu, N)))
