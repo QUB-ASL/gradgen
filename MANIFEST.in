@@ -1,3 +1,4 @@
 include gradgen/templates/*
+include gradgen/templates/**/*
 include VERSION
 
