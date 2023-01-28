@@ -57,7 +57,7 @@ pub fn ellu(x: &[f64], u: &[f64], ellu_out: &mut [f64]) -> i32 {
 }
 
 pub fn vfx(x: &[f64], vfx_out: &mut [f64]) -> i32 {
-    let arguments = &[x.as_ptr(), u.as_ptr()];
+    let arguments = &[x.as_ptr()];
     let result = &mut [vfx_out.as_mut_ptr()];
     unsafe { {{name}}_vfx(arguments.as_ptr(), result.as_mut_ptr()) as i32 }
 }
