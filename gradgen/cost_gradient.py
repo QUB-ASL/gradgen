@@ -207,6 +207,14 @@ class CostGradient:
         with open(lib_target_path, "w") as fh:
             fh.write(lib_rendered)
 
+    def __cargo_build(self):
+        cmd = ['cargo', 'build', '-q']
+        p = subp.Popen(cmd, cwd=self.__target_root_dir())
+        process_completion = p.wait()
+        if process_completion != 0:
+            raise Exception('Rust build failed')
+        pass
+
     def build(self):
         self.__create_dirs()
         self.__create_gradients()
@@ -216,3 +224,4 @@ class CostGradient:
         self.__generate_c_interface()
         self.__prepare_casadi_rs()
         self.__generate_rust_lib()
+        self.__cargo_build()
