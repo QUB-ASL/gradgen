@@ -25,10 +25,11 @@ regular_test() {
     pip install .
 
     # --- run the tests
+    cd test
     export PYTHONPATH=.
-    python main.py
+    python test_gradgen
 
-    cd codegenz/alice/casadi_alice/
+    cd alice_test/casadi_alice_test/
     cargo test
     
     cd .. 
