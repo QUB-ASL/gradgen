@@ -27,7 +27,7 @@ regular_test() {
     # --- run the tests
     cd test
     export PYTHONPATH=.
-    python test_gradgen
+    python test_gradgen.py
 
     cd alice_test/casadi_alice_test/
     cargo test
