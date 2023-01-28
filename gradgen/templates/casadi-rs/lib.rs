@@ -56,8 +56,8 @@ pub fn ellu(x: &[f64], u: &[f64], ellu_out: &mut [f64]) -> i32 {
     unsafe { {{name}}_ellu(arguments.as_ptr(), result.as_mut_ptr()) as i32 }
 }
 
-pub fn vfx(x: &[f64], u: &[f64], vfx_out: &mut [f64]) -> i32 {
-    let arguments = &[x.as_ptr(), u.as_ptr()];
+pub fn vfx(x: &[f64], vfx_out: &mut [f64]) -> i32 {
+    let arguments = &[x.as_ptr()];
     let result = &mut [vfx_out.as_mut_ptr()];
     unsafe { {{name}}_vfx(arguments.as_ptr(), result.as_mut_ptr()) as i32 }
 }
@@ -130,6 +130,6 @@ mod tests {
         let x = [0.1, 0.2, 0.3];
         let u = [1.1, 2.2];
         let mut vfx_res = [0.0; NX];
-        assert_eq!(0, vfx(&x, &u, &mut vfx_res));
+        assert_eq!(0, vfx(&x, &mut vfx_res));
     }
 }
