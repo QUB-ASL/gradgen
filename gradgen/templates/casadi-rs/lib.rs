@@ -130,6 +130,6 @@ mod tests {
         let x = [0.1, 0.2, 0.3];
         let u = [1.1, 2.2];
         let mut vfx_res = [0.0; NX];
-        assert_eq!(0, vfx(&x, &u, &mut vfx_res));
+        assert_eq!(0, vfx(&x, &mut vfx_res));
     }
 }
