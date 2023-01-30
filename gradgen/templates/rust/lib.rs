@@ -4,6 +4,7 @@ use casadi_{{name}}::*;
 #[derive(Debug)]
 pub struct BackwardGradientWorkspace {
     pub(crate) w: Vec<f64>,
+    pub(crate) w_new: Vec<f64>,
     pub(crate) x_seq: Vec<f64>,
     pub(crate) temp_nu: Vec<f64>,
     pub(crate) temp_nx: Vec<f64>,
@@ -13,6 +14,7 @@ impl BackwardGradientWorkspace {
     pub fn new() -> BackwardGradientWorkspace {
         BackwardGradientWorkspace {
             w: vec![0.0; NX],
+            w_new : vec![0.0; NX],
             x_seq: vec![0.0; NX * (NPRED + 1)],
             temp_nu: vec! [0.0; NU],
             temp_nx: vec! [0.0; NX],
@@ -66,7 +68,7 @@ pub fn total_cost_gradient_bw(
 
 
         // gradnj += &mut workspace.temp_nx
-        jfx(xnj, unj, &mut workspace.w, gradnj);
+        jfx(xnj, unj, &mut workspace.w, &mut workspace.w_new);
         // temp_nx <-- ell^x_N_minus_j
         ellx(xnj, unj,&mut workspace.temp_nx );
         // grad_V_N_minus_j += temp_nu
