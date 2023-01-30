@@ -36,10 +36,8 @@ pub fn total_cost_gradient_bw(
 
     /*
     * Simulate the system starting from x0 and using the
-    * sequence of inputs, u_seq = (u(0), u(1),
-    -.., U(N-1))
-    * and store the states, x_seq = (x(0), x(1),
-    ..., x(N))
+    * sequence of inputs, u_seq = (u(0), u(1), .., U(N-1))
+    * and store the states, x_seq = (x(0), x(1),..., x(N))
     * in workspace. x_seq = (x(0), x(1), . . . , x (N))
     */
     workspace.x_seq[0..NX].copy_from_slice(x0);
