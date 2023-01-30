@@ -73,12 +73,13 @@ pub fn total_cost_gradient_bw(
         add(gradnj, &workspace.temp_nu);
 
 
-        // gradnj += &mut workspace.temp_nx
+        // &mut workspace.w_new := f^x(w) at t=N-j
         jfx(xnj, unj, &mut workspace.w, &mut workspace.w_new);
-        // temp_nx <-- ell^x_N_minus_j
+        // temp_nx := ellx at t=N-j
         ellx(xnj, unj,&mut workspace.temp_nx );
-        // grad_V_N_minus_j += temp_nx
+        // &mut workspace.w_new += temp_nx
         add(&mut workspace.w_new, &workspace.temp_nx);
+        // update w
         workspace.w.copy_from_slice (&workspace.w_new);
     }
 
