@@ -1,6 +1,10 @@
 # Custom rules
+codegenz/
 playground/*.c
 playground/*.so
+
+# Files related to cargo
+*.lock
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

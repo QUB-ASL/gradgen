@@ -23,7 +23,10 @@ impl BackwardGradientWorkspace {
 }
 
 
-// fn add(l1: &[f64], l2: &[f64])
+/// a = a + b
+fn add(a: &mut [f64], b: &[f64]) {
+    a.iter_mut().zip(b.iter()).for_each(|(ai, bi)| *ai += bi);
+}
 
 
 
@@ -41,7 +44,7 @@ pub fn total_cost_gradient_bw(
     * in workspace. x_seq = (x(0), x(1), . . . , x (N))
     */
     workspace.x_seq[0..NX].copy_from_slice(x0);
-    // Let us simulate
+    /* Simulation */
     for t in 0..=NPRED - 1 {
         let xt = &workspace.x_seq[t * NX.. (t + 1) * NX];
         let ut = &u_seq[t * NU.. (t + 1) * NU];
@@ -50,19 +53,24 @@ pub fn total_cost_gradient_bw(
         // x seq[next]<- W (CODY)
         workspace.x_seq[(t + 1) * NX.. (t + 2) * NX].copy_from_slice (&workspace.w);
     }
+
+    /* Store Vfx in w */
     let xn = &workspace.x_seq[NPRED * NX..(NPRED + 1) * NX];
     vfx(xn, &mut workspace.w);
 
+    /* backward for-loop */
     for j in 1..=NPRED {
-        // grad V N minus i <-- f^u_N_minus_j(w)
+
         let xnj = &workspace.x_seq[(NPRED-j)* NX.. (NPRED-j+ 1) * NX];
         let unj = &u_seq[(NPRED-j) * NU.. (NPRED-j+1)* NU];
         let gradnj = &mut grad[(NPRED-j) * NU.. (NPRED-j+1)* NU];
+
+        // gradnj := f^u(w) at t=N-j
         jfu(xnj, unj, &mut workspace.w, gradnj);
-        // temp_nu <-- ell^u_N_minus_j
+        // temp_nu := ellu at t=N-j
         ellu(xnj, unj,&mut workspace.temp_nu );
-        // grad_V_N_minus_j += temp_nu
-        // gradnj = &mut workspace.temp_nu + gradnj;
+        // gradnj += temp_nu
+        add(gradnj, &workspace.temp_nu);
 
 
         // gradnj += &mut workspace.temp_nx
