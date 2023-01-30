@@ -1,5 +1,5 @@
 // nothing
-use casadi_alice::*;
+use casadi_{{name}}::*;
 
 #[derive(Debug)]
 pub struct BackwardGradientWorkspace {
