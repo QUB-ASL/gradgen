@@ -213,9 +213,8 @@ class CostGradient:
         process_completion = p.wait()
         if process_completion != 0:
             raise Exception('Rust build failed')
-        pass
 
-    def build(self):
+    def build(self, no_rust_build=False):
         self.__create_dirs()
         self.__create_gradients()
         self.__generate_casadi_functions()
@@ -224,4 +223,5 @@ class CostGradient:
         self.__generate_c_interface()
         self.__prepare_casadi_rs()
         self.__generate_rust_lib()
-        self.__cargo_build()
+        if not no_rust_build:
+            self.__cargo_build()
