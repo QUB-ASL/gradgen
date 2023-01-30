@@ -53,7 +53,7 @@ pub fn total_cost_gradient_bw(
     let xn = &workspace.x_seq[NPRED * NX..(NPRED + 1) * NX];
     vfx(xn, &mut workspace.w);
 
-    for j in 0..NPRED {
+    for j in 1..=NPRED {
         // grad V N minus i <-- f^u_N_minus_j(w)
         let xnj = &workspace.x_seq[(NPRED-j)* NX.. (NPRED-j+ 1) * NX];
         let unj = &u_seq[(NPRED-j) * NU.. (NPRED-j+1)* NU];
@@ -62,14 +62,16 @@ pub fn total_cost_gradient_bw(
         // temp_nu <-- ell^u_N_minus_j
         ellu(xnj, unj,&mut workspace.temp_nu );
         // grad_V_N_minus_j += temp_nu
-//         gradnj = &mut workspace.temp_nu + gradnj;
+        // gradnj = &mut workspace.temp_nu + gradnj;
 
 
         // gradnj += &mut workspace.temp_nx
         jfx(xnj, unj, &mut workspace.w, &mut workspace.w_new);
         // temp_nx <-- ell^x_N_minus_j
         ellx(xnj, unj,&mut workspace.temp_nx );
-        // grad_V_N_minus_j += temp_nu
+        // grad_V_N_minus_j += temp_nx
+        // &workspace.w_new = &mut workspace.temp_nx +  &mut workspace.w_new;
+        // workspace.w.copy_from_slice (&workspace.w_new);
     }
 
 
