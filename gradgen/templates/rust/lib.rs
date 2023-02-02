@@ -103,13 +103,14 @@ mod tests {
 
     #[test]
     fn tst_nothing() {
-        let n: usize= 20 ;
+        let n: usize= 6 ;
         let mut ws = super::BackwardGradientWorkspace::new(n);
         let x0 = vec![1.0; NX];
-        let u_seq = vec![0.0; NU * n];
+        let u_seq = vec![1.0; NU * n];
         let mut grad = vec![0.0; NU * n];
         super::total_cost_gradient_bw(&x0, &u_seq, &mut grad, &mut ws, n);
-        println!("{:?}", grad);
+        println!("The gradient of total cost function is {:?}", grad);
+        println!("The state variable x is {:?}", ws.x_seq);
     }
 }
 
