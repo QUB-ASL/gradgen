@@ -4,7 +4,6 @@ import casadi.casadi as cs
 from ..cost_gradient import *
 import logging
 import numpy as np
-
 import subprocess
 
 

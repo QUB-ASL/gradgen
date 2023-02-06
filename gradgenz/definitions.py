@@ -3,7 +3,7 @@ import pkg_resources
 
 def templates_dir():
     """Directory where the templates are found (for internal use, mainly)"""
-    return pkg_resources.resource_filename('gradgen', 'templates/')
+    return pkg_resources.resource_filename('gradgenz', 'templates/')
 
 
 def templates_subdir(subdir=None):
@@ -13,4 +13,4 @@ def templates_subdir(subdir=None):
     """
     if subdir is None:
         return templates_dir()
-    return pkg_resources.resource_filename('gradgen', 'templates/%s/' % subdir)
+    return pkg_resources.resource_filename('gradgenz', 'templates/%s/' % subdir)
