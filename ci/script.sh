@@ -25,7 +25,7 @@ regular_test() {
     pip install .
 
     # --- run the tests
-    cd gradgen/test
+    cd gradgenz/test
     export PYTHONPATH=.
     python test_gradgen.py
 
