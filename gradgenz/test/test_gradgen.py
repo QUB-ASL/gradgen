@@ -1,7 +1,7 @@
 import os
 import unittest
 import casadi.casadi as cs
-from gradgen.gradgenz.cost_gradient import *
+from gradgenz.cost_gradient import *
 import logging
 import numpy as np
 import subprocess

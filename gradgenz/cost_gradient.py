@@ -3,7 +3,7 @@ import subprocess as subp
 import os
 import shutil
 import jinja2
-from gradgen.gradgenz.definitions import *
+from gradgenz.definitions import *
 
 
 class CostGradient:
