@@ -1,2 +1,2 @@
-from gradgenz.cost_gradient import *
-import gradgenz.definitions
+from gradgen.gradgenz.cost_gradient import *
+import gradgen.gradgenz.definitions
