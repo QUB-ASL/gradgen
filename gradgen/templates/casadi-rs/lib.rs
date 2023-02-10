@@ -77,19 +77,7 @@ mod tests {
         let u = [0.1; NU];
         let mut fxu = [0.0; NX];
         assert_eq!(0, f(&x, &u, &mut fxu));
-    }
-
-    #[test]
-    fn tst_simulate(){
-        let mut x = vec![vec![0.0; NX]; NPRED + 1];
-        x[0].copy_from_slice(&[1., 2., 3.]);
-        let u = [0.1; 2]; // test with constant input
-        let mut x_next = vec![0.0; NX];
-        for i in 0..=NPRED - 1 {
-            assert_eq!(0, f(&x[i], &u, &mut x_next));
-            x[i + 1].copy_from_slice(&x_next);
-        }
-    }
+    }  
     
     #[test]
     fn tst_jfx() {

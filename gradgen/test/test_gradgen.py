@@ -1,7 +1,7 @@
 import os
 import unittest
 import casadi.casadi as cs
-from ..cost_gradient import *
+from gradgen.cost_gradient import *
 import logging
 import numpy as np
 import subprocess
@@ -37,10 +37,10 @@ class GradgenTestCase(unittest.TestCase):
         w = cs.vertcat(wx, wy, wz)
         n = cs.vertcat(nx, ny, nz)
         f = cs.vertcat((Ts / 2) * expQbar @ q,
-                       w + Ts * (Gamma_n @ n + Gamma_u @ u - Iinv @ cs.cross(w, I @ w)),
+                       w + Ts * (Gamma_n @ n + Gamma_u @ u -
+                                 Iinv @ cs.cross(w, I @ w)),
                        n + Ts * (k1 * k2 * u - k2 * n)
                        )
-
 
         # Stage cost function, ell
         ell = 5*x[0]**2 + 0.01*x[1]**2 + 0.01*x[2]**2
@@ -53,7 +53,7 @@ class GradgenTestCase(unittest.TestCase):
         x, u, f, ell, vf = GradgenTestCase.create_example()
         N = 15
         gradObj = CostGradient(x, u, f, ell, vf, N).with_name(
-            "Quadcopter_test").with_target_path("codegenz")
+            "quadcopter_test").with_target_path(".")
         gradObj.build(no_rust_build=True)
 
 
