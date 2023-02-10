@@ -3,7 +3,7 @@ import subprocess as subp
 import os
 import shutil
 import jinja2
-import gradgen.definitions as dfn
+from gradgen.definitions import *
 
 
 class CostGradient:
@@ -41,7 +41,7 @@ class CostGradient:
         self.__ellu_fun = None
         self.__vf_fun = None
         self.__vfx_fun = None
-        self.__name = 'gradgen'
+        self.__name = 'gradgenz'
         self.__destination_path = 'codegenz'
 
     def __target_root_dir(self):
@@ -72,7 +72,7 @@ class CostGradient:
 
     @staticmethod
     def __get_template(name, subdir=None):
-        subdir_path = dfn.templates_subdir(subdir)
+        subdir_path = templates_subdir(subdir)
         file_loader = jinja2.FileSystemLoader(subdir_path)
         env = jinja2.Environment(loader=file_loader, autoescape=True)
         return env.get_template(name)
@@ -213,9 +213,8 @@ class CostGradient:
         process_completion = p.wait()
         if process_completion != 0:
             raise Exception('Rust build failed')
-        pass
 
-    def build(self):
+    def build(self, no_rust_build=False):
         self.__create_dirs()
         self.__create_gradients()
         self.__generate_casadi_functions()
@@ -224,4 +223,5 @@ class CostGradient:
         self.__generate_c_interface()
         self.__prepare_casadi_rs()
         self.__generate_rust_lib()
-        self.__cargo_build()
+        if not no_rust_build:
+            self.__cargo_build()
