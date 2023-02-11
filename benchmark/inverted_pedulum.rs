@@ -50,8 +50,8 @@ fn main() {
         //the average runtime (in microsecond) for calculating the total gradient once
         let data_mean = mean(&store);
         let data_std_deviation = std_deviation(&store);
-        // println!("{},{:?},{:?}", n_pred,data_mean.unwrap_or(-1.0),data_std_deviation.unwrap_or(-1.0));
-        println!("{:?}",grad)
+        println!("{},{:?},{:?}", n_pred,data_mean.unwrap_or(-1.0),data_std_deviation.unwrap_or(-1.0));
+
 
     }
 }
