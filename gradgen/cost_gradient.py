@@ -9,15 +9,21 @@ from gradgen.definitions import *
 class CostGradient:
 
     def __init__(self, x, u, f, ell, vf, N):
-        """
+        """"
         Create new CostGradient object
 
         :param x: state symbol
+        :type x: list
         :param u: input symbol
+        :type u: list
         :param f: system dynamics symbol (depends on x, u)
+        :type f: int
         :param ell: cost function symbol (depends on x, u)
+        :type ell: int
         :param vf: terminal cost symbol (depends on x)
-        :param N: prediction horizon (int) 
+        :type vf: int
+        :param N: prediction horizon
+        :type N: int
         """
         self.__x = x
         self.__u = u
@@ -41,24 +47,46 @@ class CostGradient:
         self.__ellu_fun = None
         self.__vf_fun = None
         self.__vfx_fun = None
-        self.__name = 'gradgenz'
+        self.__name = 'gradgen'
         self.__destination_path = 'codegenz'
 
     def __target_root_dir(self):
+        """Import destination path and name path and concatenate the paths to form a new complete target root path
+
+        :return: a normalized absolutized version of string which represents the concatenated path components target root path
+        :rtype: string
+        """
         trgt_root_abspath = os.path.join(self.__destination_path, self.__name)
         return os.path.abspath(trgt_root_abspath)
 
     def __target_externc_dir(self):
+        """Import destination path, name path, casadi_name path and extern path concatenate the paths to form a new complete target destination path
+
+        :return: a normalized absolutized version of string which represents the concatenated path componentstarget external path
+        :rtype: string
+        """
         dest_abspath = os.path.join(
             self.__destination_path, self.__name, 'casadi_'+self.__name, 'extern')
         return os.path.abspath(dest_abspath)
 
     def __target_casadirs_dir(self):
+        """Import destination path, name path and casadi_name path concatenate the paths to form a new complete target casadi path
+
+        :return: a normalized absolutized version of string which represents the concatenated path componentstarget target casadi path
+        :rtype: string
+        """
         casadirs_abspath = os.path.join(
             self.__destination_path, self.__name, 'casadi_'+self.__name)
         return os.path.abspath(casadirs_abspath)
 
     def __create_dirs(self):
+        """If there is not target external path exist, make a target external path;
+           Import destination path, name path, casadi_name path and src path concatenate the paths to form a new complete casadi src path;
+           Import destination path, name path and src path concatenate the paths to form a new complete mian src path;
+           If there is not casadi src path exist, make a casadi src path;
+           If there is not mian src path exist, make a mian src path;
+        """
+
         if not os.path.exists(self.__target_externc_dir()):
             os.makedirs(self.__target_externc_dir())
         casadi_src_path = os.path.join(
@@ -72,20 +100,48 @@ class CostGradient:
 
     @staticmethod
     def __get_template(name, subdir=None):
+        """Use the template Environment.
+        Use instances of this class to store the configuration and global objects,
+        and load templates from the file system or other locations by name with loader
+        and return a template.
+
+        :param name: Receive user's input name. It is the name of the template to load.
+        :type name: string
+        :param subdir: There is not subdirectories of named directories for processing , defaults to None
+        :type subdir: data type, optional
+        :return: load a template from the environment by name with loader and return a Template.
+        :rtype: jinja2.environment.Template
+        """
         subdir_path = templates_subdir(subdir)
         file_loader = jinja2.FileSystemLoader(subdir_path)
         env = jinja2.Environment(loader=file_loader, autoescape=True)
         return env.get_template(name)
 
     def with_name(self, name):
+        """Turn name into instances of class
+
+        :param name: take user input as a name and assign it to the name associated with the obje
+        :type name: string
+        :return: an instance of the class
+        :rtype: string
+        """
         self.__name = name
         return self
 
     def with_target_path(self, dst_path):
+        """Turn final destination for generated code into instances of class
+
+        :param dst_path: final destination for generated code
+        :type dst_path:  string
+        :return: an instance of the class
+        :rtype:  string
+        """
         self.__destination_path = dst_path
         return self
 
     def __create_gradients(self):
+        """Create jacobian of function ellx, ellu, fx, fu and turn them into instances of class
+        """
         self.__jfx = cs.jacobian(self.__f, self.__x).T @ self.__d
         self.__jfu = cs.jacobian(self.__f, self.__u).T @ self.__d
         self.__ellx = cs.jacobian(self.__ell, self.__x).T
@@ -93,9 +149,18 @@ class CostGradient:
         self.__vfx = cs.jacobian(self.__vf, self.__x).T
 
     def __function_name(self, fname):
+        """Create function name
+
+        :param fname: receive function name from user
+        :type fname: string
+        :return: full casadi gradgen function name
+        :rtype:  string
+        """
         return 'casadi_' + self.__name + '_' + fname
 
     def __generate_casadi_functions(self):
+        """Create casadi functions and turn them into instances of class
+        """
         self.__f_fun = cs.Function(self.__function_name('f'), [self.__x, self.__u], [
             self.__f], ['x', 'u'], ['f'])
         self.__jfx_fun = cs.Function(self.__function_name(
@@ -114,6 +179,8 @@ class CostGradient:
             'vfx'), [self.__x], [self.__vfx], ['x'], ['vfx'])
 
     def __generate_c_code(self):
+        """Generate C code for casadi functions
+        """
         c_code_filename = 'casadi_functions.c'
         codegen = cs.CodeGenerator(c_code_filename)
         codegen.add(self.__f_fun)
@@ -130,6 +197,13 @@ class CostGradient:
         shutil.move(c_code_filename, os.path.join(target_dir, c_code_filename))
 
     def __generate_glob_header(self):
+        """Generate global header:
+        Load a template from this environment, return the loaded global header template
+        and render it with some variables to generate global header render.
+        And join target externc path and glob_header.h together.
+        Then open the file from above path in a write mode
+        and then writing to it replaces the existing content.
+        """
         global_header_template = CostGradient.__get_template(
             'global_header.h.tmpl', subdir='c')
         global_header_rendered = global_header_template.render(
@@ -152,6 +226,13 @@ class CostGradient:
             fh.write(global_header_rendered)
 
     def __generate_c_interface(self):
+        """Generate C interface:
+        Load a template from this environment, return the c interface template
+        and render it with name variable to generate c interface render.
+        And join target externc path and interface.c together.
+        Then open the file from above path in a write mode
+        and then writing to it replaces the existing content.
+        """
         c_interface_template = CostGradient.__get_template(
             'autograd_interface.c.tmpl', subdir='c')
         c_interface_rendered = c_interface_template.render(name=self.__name)
@@ -161,6 +242,13 @@ class CostGradient:
             fh.write(c_interface_rendered)
 
     def __prepare_casadi_rs(self):
+        """Prepare casadi:
+        Load a template from this environment, return the cargo, build, casadi libary template
+        and render it with variables to generate render.
+        And join target casadi path, Cargo.toml, build.rs, lib.rs, src together.
+        Then open the file from above path in a write mode
+        and then writing to it replaces the existing content.
+        """
         # Cargo.toml [casadi]
         cargo_template = CostGradient.__get_template(
             'Cargo.toml', subdir='casadi-rs')
@@ -191,6 +279,13 @@ class CostGradient:
             fh.write(casadi_lib_rs_rendered)
 
     def __generate_rust_lib(self):
+        """Generate Rust libary:
+        Load a template from this environment, return the cargo, libary template
+        and render it with variables to generate render.
+        And join target root path, Cargo.toml, lib.rs, src together.
+        Then open the file from above path in a write mode
+        and then writing to it replaces the existing content.
+        """
         # Cargo
         cargo_template = CostGradient.__get_template(
             'Cargo.toml', subdir='rust')
@@ -208,6 +303,12 @@ class CostGradient:
             fh.write(lib_rendered)
 
     def __cargo_build(self):
+        """Build cargo
+        Spawn the child process and override the current working directory with target root dictionary
+        and check whether the cargo build is successful
+
+        :raises Exception: Rust build may fail
+        """
         cmd = ['cargo', 'build', '-q']
         p = subp.Popen(cmd, cwd=self.__target_root_dir())
         process_completion = p.wait()
@@ -215,6 +316,11 @@ class CostGradient:
             raise Exception('Rust build failed')
 
     def build(self, no_rust_build=False):
+        """Build all the function we need to calculate gradient
+
+        :param no_rust_build: situation when there is not rust bulid, defaults to False
+        :type no_rust_build: bool, optional
+        """
         self.__create_dirs()
         self.__create_gradients()
         self.__generate_casadi_functions()
