@@ -68,7 +68,7 @@ pub fn total_cost_gradient_bw(
     vfx(xn, &mut workspace.w);
 
     /* backward for-loop */
-    for j in 1..=n{
+    for j in 1..=n-1{
 
         let xnj = &workspace.x_seq[(n-j)* NX.. (n-j+ 1) * NX];
         let unj = &u_seq[(n-j) * NU.. (n-j+1)* NU];
