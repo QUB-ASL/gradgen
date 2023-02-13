@@ -81,7 +81,7 @@ pub fn total_cost_gradient_bw(
     );
 
     /* backward method */
-    for j in 1..=n-1 {
+    for j in 1..=n {
         let x_npred_j = &ws.x_seq[(n - j) * NX..(n - j + 1) * NX];
         let u_npred_j = &u_seq[(n - j) * NU..(n - j + 1) * NU];
         let grad_npred_j = &mut grad[(n - j) * NU..(n - j + 1) * NU];
