@@ -6,22 +6,25 @@ from statistics import mean
 
 
 N=5
-nx, nu = 4, 1
-m, I, g, ts = 1, 0.0005, 9.81, 0.01
+
+nx, nu = 4, 3
+m, M, l, F, g, ts = 1, 3, 0.0005, 4, 9.81, 0.01
 
 x = cs.SX.sym('x', nx)
 u = cs.SX.sym('u', nu)
 d = cs.SX.sym('d', nx)
 
+
 # System dynamics, f
 f = cs.vertcat(
     x[0] + ts * x[1],
-    x[1] + ts * ((5 / 7) * x[0] * x[3] ** 2 - g * cs.sin(x[2])),
+    x[1] + ts * (4 * m * l * x[3] ** 2 * cs.sin(x[2]) + 4 * F - 3 * m * g * cs.sin(x[2]) * cs.cos(x[2]))/ (4 * (M + m) - 3 * m * cs.cos(x[2]) ** 2),
     x[2] + ts * x[3],
-    x[3] + ts * ((u[0] - m * g * x[0] * cs.cos(x[2]) - 2 * m * x[0] * x[1] * x[2]) / (m * x[0] ** 2 + I)))
+    x[3] + ts * (-3) * ((m * l * x[3] ** 2 * cs.sin(x[2]) * cs.cos(x[2]) + F * cs.cos(x[2]) - (M + m) * g * cs.sin(x[2])) / ((4 * (M + m) - 3 * m * cs.cos(x[2]) ** 2) * l))
+)
 
 # Stage cost function, ell
-ell = 5 * x[0] ** 2 + 0.01 * x[1] ** 2 + 0.01 * x[2] ** 2 + 0.05 * x[3] ** 2 + 2.2 * u ** 2
+ell = 5 * x[0] ** 2 + 0.01 * x[1] ** 2 + 0.01 * x[2] ** 2 + 0.05 * x[3] ** 2 + 2.2 * u[1] ** 2
 
 # terminal cost function, vf
 vf = 0.5 * (x[0] ** 2 + 50 * x[1] ** 2 + 100 * x[2] ** 2)
@@ -69,7 +72,7 @@ def vfx_py(x_):
 
 
 # us = np.random.uniform(size=(nu, N))  # just a random sequence of inputs
-us = 1.0 * np.ones((nu, N))
+us = 1 * np.ones((nu, N))
 xs = np.zeros((nx, N+1))  # sequence of states
 xs[:, 0] = [0, 0, 0, 0]  # some arbitrary initial state
 
@@ -114,7 +117,7 @@ correct_nabla_VN_u = nabla_VN_u_N_fun(us)
 
 err = np.linalg.norm(
     grads_matrix - correct_nabla_VN_u.reshape((nu, N)), np.inf)
-# print(f"Error = {err}")
+print(f"Error = {err}")
 assert (err < 1)
 # print(correct_nabla_VN_u.reshape((nu, N)))
 
@@ -129,30 +132,52 @@ out = subp.run([my_compiler, '-fPIC', '-O3', '-shared',
 assert ~out.returncode, "compilation failed"
 # We can now do
 ext_grad_VN = cs.external('nabla_VN_u_N', 'nabla.so')
-
-
+#
+# runtime = 5000
+# a = []
+#
+#
+# for t in range(0, runtime):
+#     start_time = monotonic()
+#     result_from_so = ext_grad_VN(us)
+#     end_time = (monotonic() - start_time) * 1e6
+#     a.append(end_time)
+# average = mean(a)
+# stda = np.std(a)
+# print(N, average, stda)
 
 
 gamma = 0.1
-tol = 5e-4  # desired tolerance
-u0 = 1.0 * np.ones((nu, 1))  # initial guess (just 0)
+
+tol =0.000000001  # desired tolerance
+u0 = 1.0 * np.ones((nu, N))  # initial guess (just 0)
 u = u0
 
+error_cache = []
+max_num_iterations = 2
+
+for i in range(max_num_iterations):
+    print("u", u)
+    df = ext_grad_VN(u)  # compute the gradient
+    print("df",df)
+
+    u_new = u.reshape((1,15))- gamma * df  # gradient update
+    # print(df)
+    # print(dff)
+    print("u_new",u_new)
+
+    error = np.linalg.norm(u_new - u.reshape((1,15)), np.inf)
+    error_cache += [error]
+    if error < tol:
+        break
+    u = u_new.reshape((3, 5))
+    # print(u)
 
 df = ext_grad_VN(u)  # compute the gradient
-u_new = u - gamma * df  # gradient update
 print(df)
-print(u_new)
+# print(u)
+# u_new = u - gamma * df  # gradient update
 
 
-# error_cache = []
-#
-# max_num_iterations = 100  # maximum number of iterations
-# for i in range(max_num_iterations):
-#     df = ext_grad_VN(us)  # compute the gradient
-#     x_new = x - gamma * df  # gradient update
-#     error = np.linalg.norm(x_new - x, np.inf)
-#     error_cache += [error]
-#     if error < tol:
-#         break
-#     x = x_new
+
+
