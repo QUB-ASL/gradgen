@@ -132,19 +132,6 @@ out = subp.run([my_compiler, '-fPIC', '-O3', '-shared',
 assert ~out.returncode, "compilation failed"
 # We can now do
 ext_grad_VN = cs.external('nabla_VN_u_N', 'nabla.so')
-#
-# runtime = 5000
-# a = []
-#
-#
-# for t in range(0, runtime):
-#     start_time = monotonic()
-#     result_from_so = ext_grad_VN(us)
-#     end_time = (monotonic() - start_time) * 1e6
-#     a.append(end_time)
-# average = mean(a)
-# stda = np.std(a)
-# print(N, average, stda)
 
 
 gamma = 0.1
