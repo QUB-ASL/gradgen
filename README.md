@@ -54,7 +54,7 @@ Here is a simple example of calculating gradient of total cost function in ball-
 [![bnp.png](https://i.postimg.cc/ydfNFBYQ/bnp.png)](https://postimg.cc/Q9Ts3271)  
 Consider A ball of mass m is placed on a beam which is poised on a fulcrum at its middle. We can control the system by applying a torque $u$ with respect to the fulcrum point. The moment of inertia of the beam is denoted by $I$. The displacement $x$ of the ball from the midpoint can be measured with an optical sensor. The dynamical system is described by the following nonlinear differential equations  
   
-$$  
+$$
 \begin{align}  
 \dot{x}_1 {}={}& x_2  
 \\  
@@ -64,11 +64,12 @@ $$
 \\  
 \dot{x}_4 {}={}& \frac{u - mgx_1\cos(x_3) - 2mx_1x_2x_3}{m x_1^2 + I}  
 \end{align}  
-$$  
+$$
   
 where $x_1=x$, $x_2=\dot{x}$, $x_3=\theta$, $x_4 = \dot{\theta}$.   
 We can discretise this system with the Euler method with sampling time $T_s$. This yields
-$$  
+
+$$
 \begin{align}  
 x_{1, t+1} {}={}& x_{1, t} + T_s x_{2, t}  
 \\  
@@ -78,9 +79,10 @@ x_{3,t+1} {}={}& x_{3,t} + T_s x_{4,t}
 \\  
 x_{4,t+1} {}={}& x_{4, t} + T_s \frac{u_t - mg x_{1,t}\cos(x_{3,t}) - 2 m x_{1,t} x_{2,t} x_{3,t}}{m x_{1,t}^2 + I}  
 \end{align}  
-$$  
+$$
 The above dynamical system has four states and one input and can be written in the form $x_{t+1} = f(x_t, u_t)$, where $f:\mathbb{R}^4 \times \mathbb{R} \to \mathbb{R}^4$ is defined by
-$$   
+
+$$
 \begin{align}  
     f(x, u)  
     {}={}  
@@ -94,20 +96,24 @@ $$
      x_{4} + T_s \frac{u - mg x_{1}\cos(x_{3}) - 2 m x_{1} x_{2} x_{3}}{m x_{1}^2 + I}  
     \end{bmatrix}.  
 \end{align} 
-$$  
+$$
+
 In the simulations, we can use the numerical values $m = 1$, $I = 0.0005$, $g = 9.81$, $T_s = 0.01$.  
 We define state cost function:
+
 $$   
 \begin{align}  
 \ell =  5*x_{0}^2  +  0.01*x_{1}^2 +  0.01*x_{2}^2 +  0.05*x_{3}^2 +  2.2*u^2,
 \end{align} 
-$$  
+$$
+
 and terminal cost function:
-$$   
+
+$$
 \begin{align}  
 V_f = 0.5 * (x_{0}^2+ 50*x_{1}^2+ 100 *x_{2}^2)      
 \end{align} 
-$$  
+$$
 
   
   
