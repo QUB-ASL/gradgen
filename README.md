@@ -165,7 +165,7 @@ An example is shown below.
     
 ```rust 
 fn main() {       
- # Define initial variables    
+ // Define initial variables    
  let n_pred = 5; 
  let mut ws = ball_and_beam::BackwardGradientWorkspace::new(n_pred);      
  let nu = ball_and_beam::num_inputs();      
