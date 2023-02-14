@@ -46,13 +46,20 @@ $$V_N(u) = \sum_{t=0}^{N-1}\ell(x_t, u_t) + V_f(x_N).$$
     
     
 ### Installation instructions   
+
 To install gradgen:      
+
 - Install `Rust`. You can find install instructions [here](https://www.rust-lang.org).    
 - Create a virtual environment: `virtualenv -p python3 venv` - Activate the virtual environment. On Linux/MacOS, run `source venv/bin/activate` - Install the project:  `pip install gradgen `      
- ### Code Generation Example   
-Here is a simple example of calculating gradient of total cost function in ball-and-beam model. (read the [docs]() for details)    
-[![bnp.png](https://i.postimg.cc/ydfNFBYQ/bnp.png)](https://postimg.cc/Q9Ts3271)  
-Consider A ball of mass m is placed on a beam which is poised on a fulcrum at its middle. We can control the system by applying a torque $u$ with respect to the fulcrum point. The moment of inertia of the beam is denoted by $I$. The displacement $x$ of the ball from the midpoint can be measured with an optical sensor. The dynamical system is described by the following nonlinear differential equations  
+
+
+### Code Generation Example   
+
+Here is a simple example of calculating the gradient of the total cost function in ball-and-beam model
+
+![bnp.png](https://i.postimg.cc/ydfNFBYQ/bnp.png)
+
+Consider a ball of mass $m$ placed on a beam which is poised on a fulcrum at its middle. We can control the system by applying a torque $u$ with respect to the fulcrum point. The moment of inertia of the beam is denoted by $I$. The displacement $x$ of the ball from the midpoint can be measured with an optical sensor. The dynamical system is described by the following nonlinear differential equations  
   
 $$
 \begin{align}  
@@ -67,6 +74,7 @@ $$
 $$
   
 where $x_1=x$, $x_2=\dot{x}$, $x_3=\theta$, $x_4 = \dot{\theta}$.   
+
 We can discretise this system with the Euler method with sampling time $T_s$. This yields
 
 $$
@@ -108,7 +116,7 @@ $$
 \end{align} 
 $$
 
-and terminal cost function:
+and the terminal cost function:
 
 $$
 \begin{align}  
@@ -118,7 +126,7 @@ $$
 
   
   
- First, you should define your system dynamics and total cost function in Python.    
+First, you should define your system dynamics and total cost function in Python.    
     
     
 ```python 
