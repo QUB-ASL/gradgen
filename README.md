@@ -80,6 +80,7 @@ x_{3,t+1} {}={}& x_{3,t} + T_s x_{4,t}
 x_{4,t+1} {}={}& x_{4, t} + T_s \frac{u_t - mg x_{1,t}\cos(x_{3,t}) - 2 m x_{1,t} x_{2,t} x_{3,t}}{m x_{1,t}^2 + I}  
 \end{align}  
 $$
+
 The above dynamical system has four states and one input and can be written in the form $x_{t+1} = f(x_t, u_t)$, where $f:\mathbb{R}^4 \times \mathbb{R} \to \mathbb{R}^4$ is defined by
 
 $$
@@ -103,7 +104,7 @@ We define state cost function:
 
 $$   
 \begin{align}  
-\ell =  5*x_{0}^2  +  0.01*x_{1}^2 +  0.01*x_{2}^2 +  0.05*x_{3}^2 +  2.2*u^2,
+\ell =  5*{x_{0}}^2  +  0.01*{x_{1}}^2 +  0.01*{x_{2}}^2 +  0.05*{x_{3}}^2 +  2.2*u^2,
 \end{align} 
 $$
 
@@ -111,7 +112,7 @@ and terminal cost function:
 
 $$
 \begin{align}  
-V_f = 0.5 * (x_{0}^2+ 50*x_{1}^2+ 100 *x_{2}^2)      
+V_f = 0.5 * ({x_{0}}^2+ 50*{x_{1}}^2+ 100 *{x_{2}}^2).    
 \end{align} 
 $$
 
