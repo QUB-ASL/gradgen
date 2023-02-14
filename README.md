@@ -67,7 +67,7 @@ $$
 $$  
   
 where $x_1=x$, $x_2=\dot{x}$, $x_3=\theta$, $x_4 = \dot{\theta}$.   
-We can discretise this system with the Euler method with sampling time $T_s$. This yields   
+We can discretise this system with the Euler method with sampling time $T_s$. This yields
 $$  
 \begin{align}  
 x_{1, t+1} {}={}& x_{1, t} + T_s x_{2, t}  
@@ -78,9 +78,9 @@ x_{3,t+1} {}={}& x_{3,t} + T_s x_{4,t}
 \\  
 x_{4,t+1} {}={}& x_{4, t} + T_s \frac{u_t - mg x_{1,t}\cos(x_{3,t}) - 2 m x_{1,t} x_{2,t} x_{3,t}}{m x_{1,t}^2 + I}  
 \end{align}  
- $$  
-The above dynamical system has four states and one input and can be written in the form $x_{t+1} = f(x_t, u_t)$, where $f:\R^4\times\R\to\R^4$ is defined by  
- $$   
+$$  
+The above dynamical system has four states and one input and can be written in the form $x_{t+1} = f(x_t, u_t)$, where $f:\mathbb{R}^4 \times \mathbb{R} \to \mathbb{R}^4$ is defined by
+$$   
 \begin{align}  
     f(x, u)  
     {}={}  
@@ -94,20 +94,20 @@ The above dynamical system has four states and one input and can be written in t
      x_{4} + T_s \frac{u - mg x_{1}\cos(x_{3}) - 2 m x_{1} x_{2} x_{3}}{m x_{1}^2 + I}  
     \end{bmatrix}.  
 \end{align} 
- $$  
+$$  
 In the simulations, we can use the numerical values $m = 1$, $I = 0.0005$, $g = 9.81$, $T_s = 0.01$.  
 We define state cost function:
- $$   
+$$   
 \begin{align}  
 \ell =  5*x_{0}^2  +  0.01*x_{1}^2 +  0.01*x_{2}^2 +  0.05*x_{3}^2 +  2.2*u^2,
 \end{align} 
- $$  
+$$  
 and terminal cost function:
- $$   
+$$   
 \begin{align}  
 V_f = 0.5 * (x_{0}^2+ 50*x_{1}^2+ 100 *x_{2}^2)      
 \end{align} 
- $$  
+$$  
 
   
   
@@ -115,46 +115,35 @@ V_f = 0.5 * (x_{0}^2+ 50*x_{1}^2+ 100 *x_{2}^2)
     
     
 ```python 
-import os 
-import unittest 
 import casadi.casadi as cs 
 from gradgen.cost_gradient import * 
-import logging 
 import numpy as np 
-import subprocess    
-logger = logging.getLogger(__name__)      
+
+N = 15   
+nx, nu = 4, 1      
+m, I, g, ts= 1, 0.0005,9.81,0.01      
       
- class GradgenTestCase(unittest.TestCase):      
+x = cs.SX.sym('x', nx)      
+u = cs.SX.sym('u', nu)      
       
-  @classmethod      
-  def create_example(cls):      
-      nx, nu = 4, 1      
-      m, I, g, ts= 1, 0.0005,9.81,0.01      
-      
-      x = cs.SX.sym('x', nx)      
-      u = cs.SX.sym('u', nu)      
-      
-      # System dynamics, f      
-      f = cs.vertcat(      
+# System dynamics, f      
+f = cs.vertcat(      
       x[0] + ts * x[1],      
       x[1] + ts * ((5/7)*x[0]*x[3]**2-g * cs.sin(x[2])),      
       x[2] + ts * x[3],      
-      x[3] + ts * ((u[0] - m * g * x[0] * cs.cos(x[2]) - 2 * m * x[0] * x[1] * x[2] ) / (m*x[0]**2+I)))      
+      x[3] + ts * ((u[0] - m * g * x[0] * cs.cos(x[2]) - 2 * m * x[0] * x[1] * x[2] ) / (m*x[0]**2+I))
+      )      
       
-      # Stage cost function, ell      
-      ell = 5*x[0]**2 + 0.01*x[1]**2 + 0.01*x[2]**2 + 0.05*x[3]**2 + 2.2*u**2      
+# Stage cost function, ell      
+ell = 5*x[0]**2 + 0.01*x[1]**2 + 0.01*x[2]**2 + 0.05*x[3]**2 + 2.2*u**2      
       
-      # terminal cost function, vf      
-      vf = 0.5 * (x[0]**2 + 50 * x[1]**2 + 100 * x[2]**2)      
-      return x, u, f, ell, vf      
-      
-  def test_generate_code_and_build(self):      
-      x, u, f, ell, vf = GradgenTestCase.create_example()      
-      N = 15      
-      gradObj = CostGradient(x, u, f, ell, vf, N).with_name(      
+# terminal cost function, vf      
+vf = 0.5 * (x[0]**2 + 50 * x[1]**2 + 100 * x[2]**2)        
+ 
+gradObj = CostGradient(x, u, f, ell, vf, N).with_name(      
             "ball_and_beam").with_target_path(".")      
-      gradObj.build(no_rust_build=True)      
-```   
+gradObj.build(no_rust_build=True)      
+``` 
 Above Python codes automatically generate the Rust interface, which include Jacobian of $f$ with respects to state variable $x$, $f_{x}(x, u)$, Jacobian of $\ell$ with respects to state variable $x$, $\ell_{x}(x, u)$, and other functions we needed to generate gradient by sequential backward-in-time method.
 You can simply call these functions to realize Rust implementation.
 An example is shown below. 
