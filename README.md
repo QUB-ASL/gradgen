@@ -49,8 +49,8 @@ $$V_N(u) = \sum_{t=0}^{N-1}\ell(x_t, u_t) + V_f(x_N).$$
 
 To install gradgen:      
 
-- Install `Rust`. You can find install instructions [here](https://www.rust-lang.org).    
-- Create a virtual environment: `virtualenv -p python3 venv` - Activate the virtual environment. On Linux/MacOS, run `source venv/bin/activate` - Install the project:  `pip install gradgen `      
+- Install Rust. You can find install instructions [here](https://www.rust-lang.org).    
+- Install gradgen with `pip install gradgen` (we recommend installing within a virtual environment)      
 
 
 ### Code Generation Example   
