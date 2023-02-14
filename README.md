@@ -8,42 +8,51 @@
   
 </div>  
   
-**GradGen** can determine the derivative     
-(or gradient, or Jacobian) of a given cost function in optimization problems, reducing calculation time.    
-The general form of total cost function:
-$$\operatorname*{Minimise}_{u_0, u_1, \ldots, u_{N-1}}\sum_{t=0}^{N-1}\ell(x_t, u_t) + V_f(x_N).$$
+**GradGen** can determine the gradient of the total cost function of an optimal control problem with respect to the sequence of control actions.
 
-$$
-\begin{aligned}
-\text { subject to: } x_{t+1}& =f\left(x_t, u_t\right), t=0, \ldots, N-1 \\
-x_0& =x .
-\end{aligned}
-$$
+In particular, consider the following optimal control problem
+
+$$\begin{aligned}
+\operatorname*{Minimise}_{u_0, u_1, \ldots, u_{N-1}}&\sum_{t=0}^{N-1}\ell(x_t, u_t) + V_f(x_N)\\
+\text { subject to: } x_{t+1}& =f\left(x_t, u_t\right), t=0, \ldots, N-1\\
+x_0& =x.
+\end{aligned}$$
+
+Let $u=(u_0, u_1, \ldots, u_{N-1})$. The state of the system at time $t$ starting from the initial state $x_0=x$ and with the action of these control actions is $x_t = \phi(t; x, u)$. Then, the total cost function is defined as 
+
+$$V_N(u) = \sum_{t=0}^{N-1}\ell(x_t, u_t) + V_f(x_N).$$
+
+**Gradgen** is a Python module that generates Rust code that can be used to compute $\nabla V_N(u)$.
+
+
 ### Table of contents    
-[Features](#features)  
+
+- [Features](#features)
+- [Installation instructions](#installation-instructions)  
+- [Code Generation Example](#code-generation-example)  
+- [Core team](#core-team)  
   
-[Installation instructions](#installation-instructions)  
   
-[Code Generation Example](#code-generation-example)  
+### Features   
+
+**GradGen** is based on the sequential backward-in-time algorithm. You can see more information in this [paper]().  
   
-[Core team](#core-team)  
-  
-### Features    
-**GradGen** is based on sequential backward-in-time algorithm. You can see more information in this [paper]().  
-  
-**GradGen** is ideal for accelerating computation process in these problems:  
+**GradGen** is ideal for computing the   
+
 - Nonlinear programming problem in Nonlinear Model Predictive Control (NMPC)  
 - Gradient-based numerical optimisation methods   
 - Other control, machine learning, and engineering applications  
   
   
   
-### Installation instructions    
+### Installation instructions   
+
 To install gradgen:    
 - Install `Rust`. You can find install instructions [here](https://www.rust-lang.org).  
 - Create a virtual environment: `virtualenv -p python3 venv` - Activate the virtual environment. On Linux/MacOS, run `source venv/bin/activate` - Install the project:  `pip install gradgen `    
    
 ### Code Generation Example  
+
 Here is a simple example of calculating gradient of total cost function in ball-and-beam model. (read the [docs]() for details)  
 
 Consider A ball of mass m is placed on a beam which is poised on a fulcrum at its middle. We can control the system by applying a torque $u$ with respect to the fulcrum point. The moment of inertia of the beam is denoted by $I$. The displacement $x$ of the ball from the midpoint can be measured with an optical sensor. The dynamical system is described by the following nonlinear differential equations
@@ -112,7 +121,7 @@ import subprocess
 Above Python codes generates Rust codes which include functions  to generate gradient. You can simply call these functions by next step.
  - Create a Rust file.  
   
-```Rust  
+```rust  
 fn main() {    
     
  # Define initial variables  
