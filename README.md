@@ -100,11 +100,11 @@ $$
 $$
 
 In the simulations, we can use the numerical values $m = 1$, $I = 0.0005$, $g = 9.81$, $T_s = 0.01$.  
-We define state cost function:
+We define the stage cost function:
 
 $$   
 \begin{align}  
-\ell =  5*{x_{0}}^2  +  0.01*{x_{1}}^2 +  0.01*{x_{2}}^2 +  0.05*{x_{3}}^2 +  2.2*u^2,
+\ell =  5{x_{0}}^2  +  0.01{x_{1}}^2 +  0.01{x_{2}}^2 +  0.05{x_{3}}^2 +  2.2{u_1}^2,
 \end{align} 
 $$
 
@@ -112,7 +112,7 @@ and terminal cost function:
 
 $$
 \begin{align}  
-V_f = 0.5 * ({x_{0}}^2+ 50*{x_{1}}^2+ 100 *{x_{2}}^2).    
+V_f = 0.5({x_{0}}^2+ 50{x_{1}}^2+ 100{x_{2}}^2).    
 \end{align} 
 $$
 
@@ -151,7 +151,7 @@ gradObj = CostGradient(x, u, f, ell, vf, N).with_name(
             "ball_and_beam").with_target_path(".")      
 gradObj.build(no_rust_build=True)      
 ``` 
-Above Python codes automatically generate the Rust interface, which include Jacobian of $f$ with respects to state variable $x$, $f_{x}(x, u)$, Jacobian of $\ell$ with respects to state variable $x$, $\ell_{x}(x, u)$, and other functions we needed to generate gradient by sequential backward-in-time method.
+The above Python code automatically generate the Rust interface, which include the Jacobian of $f$ with respect to the state variable $x$, $f_{x}(x, u)$, Jacobian of $\ell$ with respects to state variable $x$, $\ell_{x}(x, u)$, and other functions we need to generate the gradient by the sequential backward-in-time method.
 You can simply call these functions to realize Rust implementation.
 An example is shown below. 
     
@@ -171,8 +171,7 @@ fn main() {
  println!("{:?}",grad); 
 } 
 ```
- >**Note that:** you should keep the consistency of test file name. For example, in the first step, we create a folder called 'ball_and_beam'. Backward gradient workspace is stored in this folder. So every time you use 'total_cost_gradient_bw' to call workspace structure, you should find it from 'ball_and_beam' folder.
-    
+  
     
 ## Core Team    
  <table>    
