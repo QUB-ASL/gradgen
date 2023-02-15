@@ -16,7 +16,7 @@ pub fn num_inputs() -> usize {
 pub struct BackwardGradientWorkspace {
     pub(crate) w: Vec<f64>,
     pub(crate) w_new: Vec<f64>,
-    pub(crate) x_seq: Vec<f64>,
+    pub x_seq: Vec<f64>,
     pub(crate) temp_nx: Vec<f64>,
     pub(crate) temp_nu: Vec<f64>,
 }
