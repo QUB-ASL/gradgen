@@ -300,7 +300,7 @@ class CostGradient:
     def build(self, no_rust_build=False):
         """Build all the function we need to calculate gradient
 
-        :param no_rust_build: if set to True, the code will be generated, but it will not be compiled, defaults to False
+        :param no_rust_build: If set to True, the code will be generated, but it will not be compiled, defaults to False
         """
         self.__create_dirs()
         self.__create_gradients()
