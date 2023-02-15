@@ -13,17 +13,11 @@ class CostGradient:
         Create new CostGradient object
 
         :param x: state symbol
-        :type x: list
         :param u: input symbol
-        :type u: list
         :param f: system dynamics symbol (depends on x, u)
-        :type f: int
         :param ell: cost function symbol (depends on x, u)
-        :type ell: int
         :param vf: terminal cost symbol (depends on x)
-        :type vf: int
         :param N: prediction horizon
-        :type N: int
         """
         self.__x = x
         self.__u = u
@@ -54,7 +48,6 @@ class CostGradient:
         """Import destination path and name path and concatenate the paths to form a new complete target root path
 
         :return: a normalized absolutized version of string which represents the concatenated path components target root path
-        :rtype: string
         """
         trgt_root_abspath = os.path.join(self.__destination_path, self.__name)
         return os.path.abspath(trgt_root_abspath)
@@ -63,7 +56,6 @@ class CostGradient:
         """Import destination path, name path, casadi_name path and extern path concatenate the paths to form a new complete target destination path
 
         :return: a normalized absolutized version of string which represents the concatenated path componentstarget external path
-        :rtype: string
         """
         dest_abspath = os.path.join(
             self.__destination_path, self.__name, 'casadi_'+self.__name, 'extern')
@@ -73,7 +65,6 @@ class CostGradient:
         """Import destination path, name path and casadi_name path concatenate the paths to form a new complete target casadi path
 
         :return: a normalized absolutized version of string which represents the concatenated path componentstarget target casadi path
-        :rtype: string
         """
         casadirs_abspath = os.path.join(
             self.__destination_path, self.__name, 'casadi_'+self.__name)
@@ -106,11 +97,8 @@ class CostGradient:
         and return a template.
 
         :param name: Receive user's input name. It is the name of the template to load.
-        :type name: string
         :param subdir: There is not subdirectories of named directories for processing , defaults to None
-        :type subdir: data type, optional
         :return: load a template from the environment by name with loader and return a Template.
-        :rtype: jinja2.environment.Template
         """
         subdir_path = templates_subdir(subdir)
         file_loader = jinja2.FileSystemLoader(subdir_path)
@@ -121,9 +109,7 @@ class CostGradient:
         """Turn name into instances of class
 
         :param name: take user input as a name and assign it to the name associated with the obje
-        :type name: string
         :return: an instance of the class
-        :rtype: string
         """
         self.__name = name
         return self
@@ -132,9 +118,7 @@ class CostGradient:
         """Turn final destination for generated code into instances of class
 
         :param dst_path: final destination for generated code
-        :type dst_path:  string
         :return: an instance of the class
-        :rtype:  string
         """
         self.__destination_path = dst_path
         return self
@@ -152,9 +136,7 @@ class CostGradient:
         """Create function name
 
         :param fname: receive function name from user
-        :type fname: string
         :return: full casadi gradgen function name
-        :rtype:  string
         """
         return 'casadi_' + self.__name + '_' + fname
 
@@ -319,7 +301,6 @@ class CostGradient:
         """Build all the function we need to calculate gradient
 
         :param no_rust_build: situation when there is not rust bulid, defaults to False
-        :type no_rust_build: bool, optional
         """
         self.__create_dirs()
         self.__create_gradients()
