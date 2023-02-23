@@ -48,8 +48,9 @@ pub fn jfu(x: &[f64], u: &[f64], d: &[f64], jfud: &mut [f64]) -> i32 {
 
 pub fn ell(x: &[f64], u: &[f64], ell_out: &mut f64) -> i32 {
     let arguments = &[x.as_ptr(), u.as_ptr()];
-    let mut result =  ell_out as *mut f64 ;
-    unsafe {  {{name}}_ell(arguments.as_ptr(),   &mut result) as i32 }
+    let mut result = ell_out as *mut f64;
+    unsafe { { { name } }_ell(arguments.as_ptr(), &mut result) as i32 }
+}
 
 
 pub fn ellx(x: &[f64], u: &[f64], ellx_out: &mut [f64]) -> i32 {
