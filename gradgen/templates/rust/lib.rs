@@ -19,6 +19,9 @@ pub struct BackwardGradientWorkspace {
     pub x_seq: Vec<f64>,
     pub(crate) temp_nx: Vec<f64>,
     pub(crate) temp_nu: Vec<f64>,
+     pub(crate) temp_vf: f64,
+    pub(crate) temp_vn: f64,
+
 }
 
 /// Workspace structure
@@ -37,6 +40,9 @@ impl BackwardGradientWorkspace {
             x_seq: vec![0.0; NX * (n_pred + 1)],
             temp_nx: vec![0.0; NX],
             temp_nu: vec![0.0; NU],
+            temp_vf: 0.0,
+            temp_vn: 0.0,
+
         }
     }
 }
@@ -62,6 +68,7 @@ pub fn total_cost_gradient_bw(
     grad: &mut [f64],
     ws: &mut BackwardGradientWorkspace,
     n: usize
+    vn: &mut f64
 ) {
 
     ws.x_seq[..NX].copy_from_slice(x0);
@@ -70,11 +77,17 @@ pub fn total_cost_gradient_bw(
         let xi = &ws.x_seq[i * NX..(i + 1) * NX];
         let ui = &u_seq[i * NU..(i + 1) * NU];
         f(xi, ui, &mut ws.w);
+        ell(xi, ui,&mut ws.temp_vn);
         ws.x_seq[(i + 1) * NX..(i + 2) * NX].copy_from_slice(&ws.w);
+        *vn = *vn + * &ws.temp_vn;
     }
 
-    /* initial w */
+    /* add Vf */
     let x_npred = &ws.x_seq[n * NX..(n + 1) * NX];
+    vf(x_npred, &mut ws.temp_vf);
+    *vn = *vn +  * &ws.temp_vf;
+
+    /* initial w */
     vfx(
         x_npred,
         &mut ws.w,

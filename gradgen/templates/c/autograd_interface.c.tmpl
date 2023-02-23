@@ -109,6 +109,7 @@ static casadi_int iws_ell[ELL_SZ_IW_{{ name | upper}}];
 static casadi_int *iws_ell = NULL;
 #endif
 
+
 #if ELLX_SZ_IW_{{ name | upper}} > 0
 static casadi_int iws_ellx[ELLX_SZ_IW_{{ name | upper}}];  
 #else
@@ -266,6 +267,15 @@ int {{ name }}_jfu(const casadi_real** arg, casadi_real** res) {
     return casadi_{{ name }}_jfu(args__, jfu_res, iws_jfu, ws_jfu, 0);
 }
 
+int {{ name }}_ell(const casadi_real** arg, casadi_real** res) {
+    copy_xu_to_persistent(arg);  /* arg = {x, u} */
+    const casadi_real* args__[ELL_SZ_ARG_{{ name | upper}}] = {
+        persistent_memory + IDX_X_{{ name | upper}},
+        persistent_memory + IDX_U_{{ name | upper}}};
+    ell_res[0] = res[0];
+    return casadi_{{ name }}_ell(args__, ell_res, iws_ell, ws_ell, 0);
+}
+
 int {{ name }}_ellx(const casadi_real** arg, casadi_real** res) {
     copy_xu_to_persistent(arg);  /* arg = {x, u} */
     const casadi_real* args__[ELLX_SZ_ARG_{{ name | upper}}] = {
@@ -282,6 +292,13 @@ int {{ name }}_ellu(const casadi_real** arg, casadi_real** res) {
         persistent_memory + IDX_U_{{ name | upper}}};
     ellu_res[0] = res[0];
     return casadi_{{ name }}_ellu(args__, ellu_res, iws_ellu, ws_ellu, 0);
+}
+
+int {{ name }}_vf(const casadi_real** arg, casadi_real** res) {
+    copy_x_to_persistent(arg);  /* arg = {x} */
+    const casadi_real* args__[VF_SZ_ARG_{{ name | upper}}] = {persistent_memory + IDX_X_{{ name | upper}}};
+    vf_res[0] = res[0];
+    return casadi_{{ name }}_vf(args__, vf_res, iws_vf, ws_vf, 0);
 }
 
 int {{ name }}_vfx(const casadi_real** arg, casadi_real** res) {
