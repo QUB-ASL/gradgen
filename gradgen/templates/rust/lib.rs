@@ -67,7 +67,7 @@ pub fn total_cost_gradient_bw(
     u_seq: &[f64],
     grad: &mut [f64],
     ws: &mut BackwardGradientWorkspace,
-    n: usize
+    n: usize,
     vn: &mut f64
 ) {
 
