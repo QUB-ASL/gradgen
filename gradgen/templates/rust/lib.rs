@@ -74,7 +74,7 @@ pub fn total_cost_gradient_bw(
     n: usize,
     vn: &mut f64
 ) {
-
+    *vn = 0.0;
     ws.x_seq[..NX].copy_from_slice(x0);
     /* Simulation and add ell*/
     for i in 0..=n - 1 {
@@ -83,13 +83,13 @@ pub fn total_cost_gradient_bw(
         f(xi, ui, &mut ws.w);
         ell(xi, ui,&mut ws.temp_vn);
         ws.x_seq[(i + 1) * NX..(i + 2) * NX].copy_from_slice(&ws.w);
-        *vn = *vn + * &ws.temp_vn;
+        *vn = *vn + ws.temp_vn;
     }
 
     /* add Vf */
     let x_npred = &ws.x_seq[n * NX..(n + 1) * NX];
     vf(x_npred, &mut ws.temp_vf);
-    *vn = *vn +  * &ws.temp_vf;
+    *vn = *vn +  ws.temp_vf;
 
     /* initial w */
     vfx(
