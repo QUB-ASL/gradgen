@@ -2,6 +2,7 @@
 codegenz/
 playground/*.c
 playground/*.so
+.idea/
 
 # Files related to cargo
 *.lock

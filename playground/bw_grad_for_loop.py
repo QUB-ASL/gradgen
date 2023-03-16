@@ -1,7 +1,7 @@
 import casadi.casadi as cs
 import numpy as np
 
-# In this scirpt we test the correctness of the backward method
+# In this script we test the correctness of the backward method
 # (using a for loop)
 
 nx, nu = 3, 2
