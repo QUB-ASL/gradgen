@@ -15,6 +15,7 @@ class CostGradientStochastic(CostGradient):
         :param tree: scenario tree for stochastic ocp
         :param x: state symbol
         :param u: input symbol
+        :param w: list of possible events
         :param f: list of system dynamics symbol (depends on x, u, w)
         :param ell: list of cost function symbol (depends on x, u, w)
         :param vf: terminal cost symbol (depends on x)
@@ -47,7 +48,6 @@ class CostGradientStochastic(CostGradient):
         self.__ellx_fun = None
         self.__ellu_fun = None
         self.__vf = vf
-        self.__name = 'the_uncertain_gradiator'
 
     def __create_gradients(self):
         """Create Jacobian of functions of ellx(w), ellu(w), fx(w), fu(w), vfx, and turn them into instances of class
@@ -153,7 +153,7 @@ class CostGradientStochastic(CostGradient):
             nodes_at_stage_to += [nodes_at_stage_i[-1]]
 
         global_header_rendered = global_header_template.render(
-            name=self.__name,
+            name=self.name(),
             nx=self.__nx,
             nu=self.__nu,
             N=self.__N,
@@ -186,7 +186,7 @@ class CostGradientStochastic(CostGradient):
         """
         c_interface_template = self._CostGradient__get_template(
             'autograd_interface_stochastic.c.tmpl', subdir='c')
-        c_interface_rendered = c_interface_template.render(name=self.__name)
+        c_interface_rendered = c_interface_template.render(name=self.name())
         c_interface_target_path = os.path.join(
             self._CostGradient__target_externc_dir(), "interface.c")
         with open(c_interface_target_path, "w") as fh:
@@ -203,7 +203,7 @@ class CostGradientStochastic(CostGradient):
         # Cargo.toml [casadi]
         cargo_template = self._CostGradient__get_template(
             'Cargo.toml', subdir='casadi-rs')
-        cargo_rendered = cargo_template.render(name=self.__name)
+        cargo_rendered = cargo_template.render(name=self.name())
         cargo_target_path = os.path.join(
             self._CostGradient__target_casadirs_dir(), "Cargo.toml")
         with open(cargo_target_path, "w") as fh:
@@ -211,7 +211,7 @@ class CostGradientStochastic(CostGradient):
         # build.rs
         build_rs_template = self._CostGradient__get_template(
             'build.rs', subdir='casadi-rs')
-        build_rs_rendered = build_rs_template.render(name=self.__name)
+        build_rs_rendered = build_rs_template.render(name=self.name())
         build_rs_target_path = os.path.join(
             self._CostGradient__target_casadirs_dir(), "build.rs")
         with open(build_rs_target_path, "w") as fh:
@@ -220,7 +220,7 @@ class CostGradientStochastic(CostGradient):
         casadi_lib_rs_template = self._CostGradient__get_template(
             'lib_stochastic.rs', subdir='casadi-rs')
         casadi_lib_rs_rendered = casadi_lib_rs_template.render(
-            name=self.__name,
+            name=self.name(),
             nx=self.__nx,
             nu=self.__nu,
             N=self.__N)
@@ -240,7 +240,7 @@ class CostGradientStochastic(CostGradient):
         # Cargo
         cargo_template = self._CostGradient__get_template(
             'Cargo.toml', subdir='rust')
-        cargo_rendered = cargo_template.render(name=self.__name)
+        cargo_rendered = cargo_template.render(name=self.name())
         cargo_target_path = os.path.join(
             self._CostGradient__target_root_dir(), "Cargo.toml")
         with open(cargo_target_path, "w") as fh:
@@ -248,7 +248,7 @@ class CostGradientStochastic(CostGradient):
         # lib
         lib_template = self._CostGradient__get_template(
             'lib.rs', subdir='rust')
-        lib_rendered = lib_template.render(name=self.__name)
+        lib_rendered = lib_template.render(name=self.name())
         lib_target_path = os.path.join(
             self._CostGradient__target_root_dir(), "src", "lib.rs")
         with open(lib_target_path, "w") as fh:

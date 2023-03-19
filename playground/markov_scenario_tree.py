@@ -55,5 +55,5 @@ ell_list = [ell * 2, ell * 3, ell * 4]
 # gradiator
 uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, f_list, ell_list, vf) \
     .with_name("stochastic_quadcopter_test") \
-    .with_target_path("../codegenz")
+    .with_target_path("codegenz")
 uncertain_gradiator.build(no_rust_build=True)
