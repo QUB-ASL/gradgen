@@ -51,10 +51,10 @@ ell = 5*x[0]**2 + 0.01*x[1]**2 + 0.01*x[2]**2
 # terminal cost function, vf
 vf = 0.5 * (x[0]**2 + 50 * x[1]**2 + 100 * x[2]**2)
 
-w_list = [0, 1]  # maximum branches per node: 2 (implementation will not handle more)
+num_pos_events = 2  # maximum branches per node: 2 (implementation will not handle more)
 f_list = [f, f]
 ell_list = [ell, ell]
-uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, w_list, f_list, ell_list, vf) \
+uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, num_pos_events, f_list, ell_list, vf) \
     .with_name("stochastic_quadcopter_test")\
     .with_target_path("../codegenz")
 uncertain_gradiator.build(no_rust_build=True)

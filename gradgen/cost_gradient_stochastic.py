@@ -9,7 +9,7 @@ from gradgen.cost_gradient import CostGradient
 
 class CostGradientStochastic(CostGradient):
 
-    def __init__(self, tree, x, u, w, f, ell, vf):
+    def __init__(self, tree, x, u, num_events, f, ell, vf):
         """
         Create new stochastic CostGradient object
         :param tree: scenario tree for stochastic ocp
@@ -24,14 +24,13 @@ class CostGradientStochastic(CostGradient):
         super().__init__(x, u, None, None, None, None)
         self.__x = x
         self.__u = u
+        self.__nw = num_events
+        self.__w = cs.SX.sym('w', 1)
         self.__f_list = f
         self.__ell_list = ell
         self.__nx = self.__x.size()[0]
         self.__nu = self.__u.size()[0]
         self.__d = cs.SX.sym('d', self.__nx)
-        self.__w_list = w
-        self.__w = cs.SX.sym('w', 1)
-        self.__nw = len(self.__w_list)
         self.__N = self.__tree.num_stages - 1
         self.__f = None
         self.__jfx = None
