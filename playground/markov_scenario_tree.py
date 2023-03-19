@@ -2,9 +2,10 @@ import numpy as np
 import casadi as cs
 import gradgen
 
-p = np.array([[0.5, 0.5],
-              [0.5, 0.5]])
-v = np.array([0.5, 0.5])
+p = np.array([[0.5, 0.4, 0.1],
+              [0.5, 0.3, 0.2],
+              [0.6, 0.2, 0.2]])
+v = np.array([0.1, 0.8, 0.1])
 (N, tau) = (2, 2)
 markov_tree = gradgen.MarkovChainScenarioTreeFactory(p, v, N, tau).create()
 
@@ -40,16 +41,18 @@ f = cs.vertcat((Ts / 2) * expQbar @ q,
                n + Ts * (k1 * k2 * u - k2 * n)
                )
 
-# Stage cost function, ell
-ell = 5*x[0]**2 + 0.01*x[1]**2 + 0.01*x[2]**2
+# stage cost function, ell
+ell = 5 * x[0] ** 2 + 0.01 * x[1] ** 2 + 0.01 * x[2] ** 2
 
 # terminal cost function, vf
-vf = 0.5 * (x[0]**2 + 50 * x[1]**2 + 100 * x[2]**2)
+vf = 0.5 * (x[0] ** 2 + 50 * x[1] ** 2 + 100 * x[2] ** 2)
 
-num_pos_events = 2  # maximum branches per node: 2 (implementation will not handle more)
-f_list = [f, f]
-ell_list = [ell, ell]
-uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, num_pos_events, f_list, ell_list, vf) \
-    .with_name("stochastic_quadcopter_test")\
+# dynamics functions and cost functions for each event
+f_list = [f * 2, f * 3, f * 4]
+ell_list = [ell * 2, ell * 3, ell * 4]
+
+# gradiator
+uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, f_list, ell_list, vf) \
+    .with_name("stochastic_quadcopter_test") \
     .with_target_path("../codegenz")
 uncertain_gradiator.build(no_rust_build=True)

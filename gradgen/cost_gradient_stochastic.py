@@ -9,7 +9,7 @@ from gradgen.cost_gradient import CostGradient
 
 class CostGradientStochastic(CostGradient):
 
-    def __init__(self, tree, x, u, num_events, f, ell, vf):
+    def __init__(self, tree, x, u, f, ell, vf):
         """
         Create new stochastic CostGradient object
         :param tree: scenario tree for stochastic ocp
@@ -24,18 +24,20 @@ class CostGradientStochastic(CostGradient):
         super().__init__(x, u, None, None, None, None)
         self.__x = x
         self.__u = u
-        self.__nw = num_events
         self.__w = cs.SX.sym('w', 1)
         self.__f_list = f
         self.__ell_list = ell
         self.__nx = self.__x.size()[0]
         self.__nu = self.__u.size()[0]
+        self.__nw = len(self.__f_list)
+        if self.__nw != len(self.__ell_list):
+            raise Exception("number of dynamics functions does not equal number of cost functions")
         self.__d = cs.SX.sym('d', self.__nx)
         self.__N = self.__tree.num_stages - 1
-        self.__f = None
+        self.__f_selector = None
         self.__jfx = None
         self.__jfu = None
-        self.__ell = None
+        self.__ell_selector = None
         self.__ellx = None
         self.__ellu = None
         self.__f_fun = None
@@ -50,12 +52,16 @@ class CostGradientStochastic(CostGradient):
     def __create_gradients(self):
         """Create Jacobian of functions of ellx(w), ellu(w), fx(w), fu(w), vfx, and turn them into instances of class
         """
-        self.__f = cs.if_else(self.__w == 1.0, self.__f_list[1], self.__f_list[0])
-        self.__jfx = cs.jacobian(self.__f, self.__x).T @ self.__d
-        self.__jfu = cs.jacobian(self.__f, self.__u).T @ self.__d
-        self.__ell = cs.if_else(self.__w == 1.0, self.__ell_list[1], self.__ell_list[0])
-        self.__ellx = cs.jacobian(self.__ell, self.__x).T
-        self.__ellu = cs.jacobian(self.__ell, self.__u).T
+        self.__f_selector = cs.if_else(self.__w == self.__nw - 1, self.__f_list[-1], cs.SX_nan(1))
+        self.__ell_selector = cs.if_else(self.__w == self.__nw - 1, self.__ell_list[-1], cs.SX_nan(1))
+        for i_events in range(self.__nw - 2, -1, -1):
+            self.__f_selector = cs.if_else(self.__w == i_events, self.__f_list[i_events], self.__f_selector)
+            self.__ell_selector = cs.if_else(self.__w == i_events, self.__ell_list[i_events], self.__ell_selector)
+
+        self.__jfx = cs.jacobian(self.__f_selector, self.__x).T @ self.__d
+        self.__jfu = cs.jacobian(self.__f_selector, self.__u).T @ self.__d
+        self.__ellx = cs.jacobian(self.__ell_selector, self.__x).T
+        self.__ellu = cs.jacobian(self.__ell_selector, self.__u).T
         self.__vfx = cs.jacobian(self.__vf, self.__x).T
 
     def __generate_casadi_functions(self):
@@ -63,7 +69,7 @@ class CostGradientStochastic(CostGradient):
         """
         self.__f_fun = cs.Function(self._CostGradient__function_name('f'),
                                    [self.__x, self.__u, self.__w],
-                                   [self.__f],
+                                   [self.__f_selector],
                                    ['x', 'u', 'w'],
                                    ['f'])
         self.__jfx_fun = cs.Function(self._CostGradient__function_name('jfx'),
@@ -78,7 +84,7 @@ class CostGradientStochastic(CostGradient):
                                      ['jfu'])
         self.__ell_fun = cs.Function(self._CostGradient__function_name('ell'),
                                      [self.__x, self.__u, self.__w],
-                                     [self.__ell],
+                                     [self.__ell_selector],
                                      ['x', 'u', 'w'],
                                      ['ell'])
         self.__ellx_fun = cs.Function(self._CostGradient__function_name('ellx'),
