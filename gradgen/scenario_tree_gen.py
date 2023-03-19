@@ -1,5 +1,4 @@
 from typing import Union, Any
-
 import numpy as np
 import turtle
 
@@ -113,10 +112,10 @@ class ScenarioTree:
             raise ValueError("node_idx cannot be <0")
         return self.__stages[node_idx]
 
-    def value_at_node(self, node_idx):
+    def event_at_node(self, node_idx):
         """
         :param node_idx: node index
-        :return: value of the disturbance (`w`) at the given node (if any)
+        :return: the event (disturbance) `w` that caused `node_idx` to exist
         """
         return self.__w_idx[node_idx]
 
