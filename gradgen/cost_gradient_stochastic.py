@@ -141,6 +141,11 @@ class CostGradientStochastic(CostGradient):
         """
         global_header_template = self._CostGradient__get_template(
             'global_header_stochastic.h.tmpl', subdir='c')
+
+        children = self.__tree._ScenarioTree__children
+        children_from = [x[0] for x in children]
+        children_to = [x[-1] for x in children]
+
         global_header_rendered = global_header_template.render(
             name=self.__name,
             nx=self.__nx,
@@ -154,7 +159,9 @@ class CostGradientStochastic(CostGradient):
             ellu=self.__ellu_fun,
             vf=self.__vf_fun,
             vfx=self.__vfx_fun,
-            tree=self.__tree
+            tree=self.__tree,
+            children_from=children_from,
+            children_to=children_to
         )
         glob_header_target_path = os.path.join(
             self._CostGradient__target_externc_dir(), "glob_header.h")

@@ -19,12 +19,14 @@
 /* tree */
 #define NUM_STAGES_{{ name | upper}} {{ tree.num_stages }}
 #define NUM_NODES_{{ name | upper}} {{ tree.num_nodes }}
+#define NUM_NONLEAF_NODES_{{ name | upper}} {{ children_to | length }}
 
 int stages_{{ name }}[NUM_NODES_{{ name | upper}}] = { {{ tree._ScenarioTree__stages | join(', ') }} };
 int ancestors_{{ name }}[NUM_NODES_{{ name | upper}}] = { {{ tree._ScenarioTree__ancestors | join(', ') }} };
 int w_events_{{ name }}[NUM_NODES_{{ name | upper}}] = { {{ tree._ScenarioTree__w_idx | join(', ') }} };
 double probabilities_{{ name }}[NUM_NODES_{{ name | upper}}] = { {{ tree._ScenarioTree__probability[:tree.num_nodes] | join(', ') }} };
-
+int children_from_{{ name }}[NUM_NONLEAF_NODES_{{ name | upper}}] = { {{ children_from | join(', ') }} };
+int children_to_{{ name }}[NUM_NONLEAF_NODES_{{ name | upper}}] = { {{ children_to | join(', ') }} };
 
 /* f */
 #define F_SZ_ARG_{{ name | upper}} {{ f.sz_arg() }}
