@@ -22,36 +22,31 @@
 #define F{{ i }}_SZ_IW_{{ name | upper}} {{ f_list[i].sz_iw() }}
 #define F{{ i }}_SZ_W_{{ name | upper}} {{ f_list[i].sz_w() }}
 #define F{{ i }}_SZ_RES_{{ name | upper}} {{ f_list[i].sz_res() }}
-{% endfor %}
-{% for i in w %}
+
 /* jfx_(w={{ i }}) */
 #define JFX{{ i }}_SZ_ARG_{{ name | upper}} {{ jfx_list[i].sz_arg() }}
 #define JFX{{ i }}_SZ_IW_{{ name | upper}} {{ jfx_list[i].sz_iw() }}
 #define JFX{{ i }}_SZ_W_{{ name | upper}} {{ jfx_list[i].sz_w() }}
 #define JFX{{ i }}_SZ_RES_{{ name | upper}} {{ jfx_list[i].sz_res() }}
-{% endfor %}
-{% for i in w %}
+
 /* jfu_(w={{ i }}) */
 #define JFU{{ i }}_SZ_ARG_{{ name | upper}} {{ jfu_list[i].sz_arg() }}
 #define JFU{{ i }}_SZ_IW_{{ name | upper}} {{ jfu_list[i].sz_iw() }}
 #define JFU{{ i }}_SZ_W_{{ name | upper}} {{ jfu_list[i].sz_w() }}
 #define JFU{{ i }}_SZ_RES_{{ name | upper}} {{ jfu_list[i].sz_res() }}
-{% endfor %}
-{% for i in w %}
+
 /* ell_(w={{ i }}) */
 #define ELL{{ i }}_SZ_ARG_{{ name | upper}} {{ ell_list[i].sz_arg() }}
 #define ELL{{ i }}_SZ_IW_{{ name | upper}} {{ ell_list[i].sz_iw() }}
 #define ELL{{ i }}_SZ_W_{{ name | upper}} {{ ell_list[i].sz_w() }}
 #define ELL{{ i }}_SZ_RES_{{ name | upper}} {{ ell_list[i].sz_res() }}
-{% endfor %}
-{% for i in w %}
+
 /* ellx_(w={{ i }}) */
 #define ELLX{{ i }}_SZ_ARG_{{ name | upper}} {{ ellx_list[i].sz_arg() }}
 #define ELLX{{ i }}_SZ_IW_{{ name | upper}} {{ ellx_list[i].sz_iw() }}
 #define ELLX{{ i }}_SZ_W_{{ name | upper}} {{ ellx_list[i].sz_w() }}
 #define ELLX{{ i }}_SZ_RES_{{ name | upper}} {{ ellx_list[i].sz_res() }}
-{% endfor %}
-{% for i in w %}
+
 /* ellu_(w={{ i }}) */
 #define ELLU{{ i }}_SZ_ARG_{{ name | upper}} {{ ellu_list[i].sz_arg() }}
 #define ELLU{{ i }}_SZ_IW_{{ name | upper}} {{ ellu_list[i].sz_iw() }}

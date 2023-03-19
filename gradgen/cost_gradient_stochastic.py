@@ -43,88 +43,7 @@ class CostGradientStochastic(CostGradient):
         self.__ellx_fun_list = [None] * self.__nw
         self.__ellu_fun_list = [None] * self.__nw
         self.__vf = vf
-        self.__name = 'the uncertain gradiator'
-
-    # def __target_root_dir(self):
-    #     """Import destination path and name path and concatenate the paths to form a new complete target root path
-    #
-    #     :return: an absolute version of string which represents the concatenated path components target root path
-    #     """
-    #     trgt_root_abspath = os.path.join(self.__destination_path, self.__name)
-    #     return os.path.abspath(trgt_root_abspath)
-
-    # def __target_externc_dir(self):
-    #     """Import destination path, name path, casadi_name path and extern path.
-    #     Concatenate the paths to form a new complete target destination path.
-    #
-    #     :return: an absolute version of string which represents the concatenated path components target external path
-    #     """
-    #     dest_abspath = os.path.join(
-    #         self.__destination_path, self.__name, 'casadi_' + self.__name, 'extern')
-    #     return os.path.abspath(dest_abspath)
-
-    # def __target_casadirs_dir(self):
-    #     """Import destination path, name path and casadi_name path.
-    #     Concatenate the paths to form a new complete target casadi path.
-    #
-    #     :return: an absolute version of string which represents the concatenated path components target casadi path
-    #     """
-    #     casadirs_abspath = os.path.join(
-    #         self.__destination_path, self.__name, 'casadi_' + self.__name)
-    #     return os.path.abspath(casadirs_abspath)
-
-    # def __create_dirs(self):
-    #     """If there is no target external path exist, make a target external path;
-    #        Import destination path, name path, casadi_name path and src path.
-    #        Concatenate the paths to form a new complete casadi src path;
-    #        Import destination path, name path and src path concatenate the paths to form a new complete mian src path;
-    #        If there is no casadi src path exist, make a casadi src path;
-    #        If there is no main src path exist, make a mian src path;
-    #     """
-    #     if not os.path.exists(self.__target_externc_dir()):
-    #         os.makedirs(self.__target_externc_dir())
-    #     casadi_src_path = os.path.join(
-    #         self.__destination_path, self.__name, 'casadi_' + self.__name, 'src')
-    #     main_src_path = os.path.join(
-    #         self.__destination_path, self.__name, 'src')
-    #     if not os.path.exists(casadi_src_path):
-    #         os.makedirs(casadi_src_path)
-    #     if not os.path.exists(main_src_path):
-    #         os.makedirs(main_src_path)
-
-    # @staticmethod
-    # def __get_template(name, subdir=None):
-    #     """Use the template Environment.
-    #     Use instances of this class to store the configuration and global objects,
-    #     and load templates from the file system or other locations by name with loader
-    #     and return a template.
-    #
-    #     :param name: Receive user's input name. It is the name of the template to load.
-    #     :param subdir: There is no subdirectories of named directories for processing, defaults to None
-    #     :return: load a template from the environment by name with loader and return a Template.
-    #     """
-    #     subdir_path = templates_subdir(subdir)
-    #     file_loader = jinja2.FileSystemLoader(subdir_path)
-    #     env = jinja2.Environment(loader=file_loader, autoescape=True)
-    #     return env.get_template(name)
-
-    # def with_name(self, name):
-    #     """Turn name into instances of class
-    #
-    #     :param name: take user input as a name and assign it to the name associated with the object
-    #     :return: an instance of the class
-    #     """
-    #     self.__name = name
-    #     return self
-
-    # def with_target_path(self, dst_path):
-    #     """Turn final destination for generated code into instances of class
-    #
-    #     :param dst_path: final destination for generated code
-    #     :return: an instance of the class
-    #     """
-    #     self.__destination_path = dst_path
-    #     return self
+        self.__name = 'the_uncertain_gradiator'
 
     def __create_gradients(self):
         """Create Jacobian of functions of ellx(w), ellu(w), fx(w), fu(w), vfx, and turn them into instances of class
@@ -136,14 +55,6 @@ class CostGradientStochastic(CostGradient):
             self.__ellu_list[index_w] = cs.jacobian(self.__ell_list[index_w], self.__u).T
 
         self.__vfx = cs.jacobian(self.__vf, self.__x).T
-
-    # def __function_name(self, fname):
-    #     """Create function name
-    #
-    #     :param fname: receive function name from user
-    #     :return: full casadi gradgen function name
-    #     """
-    #     return 'casadi_' + self.__name + '_' + fname
 
     def __generate_casadi_functions(self):
         """Create casadi functions and turn them into instances of class
@@ -282,7 +193,8 @@ class CostGradientStochastic(CostGradient):
             name=self.__name,
             nx=self.__nx,
             nu=self.__nu,
-            N=self.__N)
+            N=self.__N,
+            w=self.__w_list)
         casadi_lib_rs_target_path = os.path.join(
             self._target_casadirs_dir(), "src", "lib.rs")
         with open(casadi_lib_rs_target_path, "w") as fh:
@@ -311,19 +223,6 @@ class CostGradientStochastic(CostGradient):
             self._target_root_dir(), "src", "lib.rs")
         with open(lib_target_path, "w") as fh:
             fh.write(lib_rendered)
-
-    # def __cargo_build(self):
-    #     """Build cargo
-    #     Spawn the child process and override the current working directory with target root dictionary
-    #     and check whether the cargo build is successful
-    #
-    #     :raises Exception: Rust build may fail
-    #     """
-    #     cmd = ['cargo', 'build', '-q']
-    #     p = subp.Popen(cmd, cwd=self.__target_root_dir())
-    #     process_completion = p.wait()
-    #     if process_completion != 0:
-    #         raise Exception('Rust build failed')
 
     def build(self, no_rust_build=False):
         """Build all the function we need to calculate gradient
