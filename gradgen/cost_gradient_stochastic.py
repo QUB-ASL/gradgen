@@ -146,6 +146,13 @@ class CostGradientStochastic(CostGradient):
         children_from = [x[0] for x in children]
         children_to = [x[-1] for x in children]
 
+        nodes_at_stage_from = [0]
+        nodes_at_stage_to = [0]
+        for i in range(1, self.__tree.num_stages):
+            nodes_at_stage_i = self.__tree.nodes_at_stage(i)
+            nodes_at_stage_from += [nodes_at_stage_i[0]]
+            nodes_at_stage_to += [nodes_at_stage_i[-1]]
+
         global_header_rendered = global_header_template.render(
             name=self.__name,
             nx=self.__nx,
@@ -161,7 +168,9 @@ class CostGradientStochastic(CostGradient):
             vfx=self.__vfx_fun,
             tree=self.__tree,
             children_from=children_from,
-            children_to=children_to
+            children_to=children_to,
+            nodes_at_stage_from=nodes_at_stage_from,
+            nodes_at_stage_to=nodes_at_stage_to
         )
         glob_header_target_path = os.path.join(
             self._CostGradient__target_externc_dir(), "glob_header.h")
