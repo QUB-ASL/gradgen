@@ -12,20 +12,21 @@ class CostGradientStochastic(CostGradient):
     def __init__(self, tree, x, u, w, f, ell, vf):
         """
         Create new stochastic CostGradient object
-
+        :param tree: scenario tree for stochastic ocp
         :param x: state symbol
         :param u: input symbol
         :param w: list of events
         :param f: list of system dynamics symbol (depends on x, u, w)
         :param ell: list of cost function symbol (depends on x, u, w)
         :param vf: terminal cost symbol (depends on x)
-        :param tree: scenario tree for stochastic ocp
+
         """
         super().__init__(x, u, f, ell, vf, N=None)
+        self.__tree = tree
         self.__w_list = w
         self.__f_list = f
         self.__ell_list = ell
-        self.__nw = self.__w_list.size()[0]
+        self.__nw = len(self.__w_list)
         self.__jfx_list = [None] * self.__nw
         self.__jfu_list = [None] * self.__nw
         self.__ellx_list = [None] * self.__nw
