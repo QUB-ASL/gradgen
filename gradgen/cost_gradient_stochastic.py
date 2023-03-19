@@ -50,10 +50,10 @@ class CostGradientStochastic(CostGradient):
     def __create_gradients(self):
         """Create Jacobian of functions of ellx(w), ellu(w), fx(w), fu(w), vfx, and turn them into instances of class
         """
-        self.__f = cs.if_else(self.__w == 1, self.__f_list[1], self.__f_list[0])
+        self.__f = cs.if_else(self.__w == 1.0, self.__f_list[1], self.__f_list[0])
         self.__jfx = cs.jacobian(self.__f, self.__x).T @ self.__d
         self.__jfu = cs.jacobian(self.__f, self.__u).T @ self.__d
-        self.__ell = cs.if_else(self.__w == 1, self.__ell_list[1], self.__ell_list[0])
+        self.__ell = cs.if_else(self.__w == 1.0, self.__ell_list[1], self.__ell_list[0])
         self.__ellx = cs.jacobian(self.__ell, self.__x).T
         self.__ellu = cs.jacobian(self.__ell, self.__u).T
         self.__vfx = cs.jacobian(self.__vf, self.__x).T
