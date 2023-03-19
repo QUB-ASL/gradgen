@@ -25,8 +25,8 @@ class CostGradient:
         self.__ell = ell
         self.__vf = vf
         self.__N = N
-        self.__nx = x.size()[0]
-        self.__nu = u.size()[0]
+        self.__nx = self.__x.size()[0]
+        self.__nu = self.__u.size()[0]
         self.__d = cs.SX.sym('d', self.__nx)
         self.__jfx = None
         self.__jfu = None
@@ -47,7 +47,7 @@ class CostGradient:
     def __target_root_dir(self):
         """Import destination path and name path and concatenate the paths to form a new complete target root path
 
-        :return: a absolutized version of string which represents the concatenated path components target root path
+        :return: an absolute version of string which represents the concatenated path components target root path
         """
         trgt_root_abspath = os.path.join(self.__destination_path, self.__name)
         return os.path.abspath(trgt_root_abspath)
@@ -90,7 +90,7 @@ class CostGradient:
             os.makedirs(main_src_path)
 
     @staticmethod
-    def __get_template(name, subdir=None):
+    def _get_template(name, subdir=None):
         """Use the template Environment.
         Use instances of this class to store the configuration and global objects,
         and load templates from the file system or other locations by name with loader
@@ -186,7 +186,7 @@ class CostGradient:
         Then open the file from above path in a write mode
         and then writing to it replaces the existing content.
         """
-        global_header_template = CostGradient.__get_template(
+        global_header_template = CostGradient._get_template(
             'global_header.h.tmpl', subdir='c')
         global_header_rendered = global_header_template.render(
             name=self.__name,
@@ -215,7 +215,7 @@ class CostGradient:
         Then open the file from above path in a write mode
         and then writing to it replaces the existing content.
         """
-        c_interface_template = CostGradient.__get_template(
+        c_interface_template = CostGradient._get_template(
             'autograd_interface.c.tmpl', subdir='c')
         c_interface_rendered = c_interface_template.render(name=self.__name)
         c_interface_target_path = os.path.join(
@@ -232,7 +232,7 @@ class CostGradient:
         and then writing to it replaces the existing content.
         """
         # Cargo.toml [casadi]
-        cargo_template = CostGradient.__get_template(
+        cargo_template = CostGradient._get_template(
             'Cargo.toml', subdir='casadi-rs')
         cargo_rendered = cargo_template.render(name=self.__name)
         cargo_target_path = os.path.join(
@@ -240,7 +240,7 @@ class CostGradient:
         with open(cargo_target_path, "w") as fh:
             fh.write(cargo_rendered)
         # build.rs
-        build_rs_template = CostGradient.__get_template(
+        build_rs_template = CostGradient._get_template(
             'build.rs', subdir='casadi-rs')
         build_rs_rendered = build_rs_template.render(name=self.__name)
         build_rs_target_path = os.path.join(
@@ -248,7 +248,7 @@ class CostGradient:
         with open(build_rs_target_path, "w") as fh:
             fh.write(build_rs_rendered)
         # lib.rs
-        casadi_lib_rs_template = CostGradient.__get_template(
+        casadi_lib_rs_template = CostGradient._get_template(
             'lib.rs', subdir='casadi-rs')
         casadi_lib_rs_rendered = casadi_lib_rs_template.render(
             name=self.__name,
@@ -269,7 +269,7 @@ class CostGradient:
         and then writing to it replaces the existing content.
         """
         # Cargo
-        cargo_template = CostGradient.__get_template(
+        cargo_template = CostGradient._get_template(
             'Cargo.toml', subdir='rust')
         cargo_rendered = cargo_template.render(name=self.__name)
         cargo_target_path = os.path.join(
@@ -277,7 +277,7 @@ class CostGradient:
         with open(cargo_target_path, "w") as fh:
             fh.write(cargo_rendered)
         # lib
-        lib_template = CostGradient.__get_template('lib.rs', subdir='rust')
+        lib_template = CostGradient._get_template('lib.rs', subdir='rust')
         lib_rendered = lib_template.render(name=self.__name)
         lib_target_path = os.path.join(
             self.__target_root_dir(), "src", "lib.rs")
