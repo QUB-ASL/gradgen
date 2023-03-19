@@ -44,7 +44,7 @@ class CostGradient:
         self.__name = 'gradgen'
         self.__destination_path = 'codegenz'
 
-    def _target_root_dir(self):
+    def __target_root_dir(self):
         """Import destination path and name path and concatenate the paths to form a new complete target root path
 
         :return: an absolute version of string which represents the concatenated path components target root path
@@ -52,7 +52,7 @@ class CostGradient:
         trgt_root_abspath = os.path.join(self.__destination_path, self.__name)
         return os.path.abspath(trgt_root_abspath)
 
-    def _target_externc_dir(self):
+    def __target_externc_dir(self):
         """Import destination path, name path, casadi_name path and extern path concatenate the paths to form a new complete target destination path
 
         :return: an absolute version of string which represents the concatenated path components target external path
@@ -61,7 +61,7 @@ class CostGradient:
             self.__destination_path, self.__name, 'casadi_'+self.__name, 'extern')
         return os.path.abspath(dest_abspath)
 
-    def _target_casadirs_dir(self):
+    def __target_casadirs_dir(self):
         """Import destination path, name path and casadi_name path concatenate the paths to form a new complete target casadi path
 
         :return: an absolute version of string which represents the concatenated path components target casadi path
@@ -70,7 +70,7 @@ class CostGradient:
             self.__destination_path, self.__name, 'casadi_'+self.__name)
         return os.path.abspath(casadirs_abspath)
 
-    def _create_dirs(self):
+    def __create_dirs(self):
         """If there is no target external path exist, make a target external path;
            Import destination path, name path, casadi_name path and src path concatenate the paths to form a new complete casadi src path;
            Import destination path, name path and src path concatenate the paths to form a new complete mian src path;
@@ -78,8 +78,8 @@ class CostGradient:
            If there is not mian src path exist, make a mian src path;
         """
 
-        if not os.path.exists(self._target_externc_dir()):
-            os.makedirs(self._target_externc_dir())
+        if not os.path.exists(self.__target_externc_dir()):
+            os.makedirs(self.__target_externc_dir())
         casadi_src_path = os.path.join(
             self.__destination_path, self.__name, 'casadi_'+self.__name, 'src')
         main_src_path = os.path.join(
@@ -90,7 +90,7 @@ class CostGradient:
             os.makedirs(main_src_path)
 
     @staticmethod
-    def _get_template(name, subdir=None):
+    def __get_template(name, subdir=None):
         """Use the template Environment.
         Use instances of this class to store the configuration and global objects,
         and load templates from the file system or other locations by name with loader
@@ -132,7 +132,7 @@ class CostGradient:
         self.__ellu = cs.jacobian(self.__ell, self.__u).T
         self.__vfx = cs.jacobian(self.__vf, self.__x).T
 
-    def _function_name(self, fname):
+    def __function_name(self, fname):
         """Create function name
 
         :param fname: receive function name from user
@@ -143,21 +143,21 @@ class CostGradient:
     def __generate_casadi_functions(self):
         """Create casadi functions and turn them into instances of class
         """
-        self.__f_fun = cs.Function(self._function_name('f'), [self.__x, self.__u], [
+        self.__f_fun = cs.Function(self.__function_name('f'), [self.__x, self.__u], [
             self.__f], ['x', 'u'], ['f'])
-        self.__jfx_fun = cs.Function(self._function_name(
+        self.__jfx_fun = cs.Function(self.__function_name(
             'jfx'), [self.__x, self.__u, self.__d], [self.__jfx], ['x', 'u', 'd'], ['jfx'])
-        self.__jfu_fun = cs.Function(self._function_name(
+        self.__jfu_fun = cs.Function(self.__function_name(
             'jfu'), [self.__x, self.__u, self.__d], [self.__jfu], ['x', 'u', 'd'], ['jfu'])
-        self.__ell_fun = cs.Function(self._function_name(
+        self.__ell_fun = cs.Function(self.__function_name(
             'ell'), [self.__x, self.__u], [self.__ell], ['x', 'u'], ['ell'])
-        self.__ellx_fun = cs.Function(self._function_name('ellx'), [self.__x, self.__u], [
+        self.__ellx_fun = cs.Function(self.__function_name('ellx'), [self.__x, self.__u], [
             self.__ellx], ['x', 'u'], ['ellx'])
-        self.__ellu_fun = cs.Function(self._function_name('ellu'), [self.__x, self.__u], [
+        self.__ellu_fun = cs.Function(self.__function_name('ellu'), [self.__x, self.__u], [
             self.__ellu], ['x', 'u'], ['ellu'])
-        self.__vf_fun = cs.Function(self._function_name(
+        self.__vf_fun = cs.Function(self.__function_name(
             'vf'), [self.__x], [self.__vf], ['x'], ['vf'])
-        self.__vfx_fun = cs.Function(self._function_name(
+        self.__vfx_fun = cs.Function(self.__function_name(
             'vfx'), [self.__x], [self.__vfx], ['x'], ['vfx'])
 
     def __generate_c_code(self):
@@ -175,7 +175,7 @@ class CostGradient:
         codegen.add(self.__vfx_fun)
         codegen.generate()
         # Move generated C code to destination directory
-        target_dir = self._target_externc_dir()
+        target_dir = self.__target_externc_dir()
         shutil.move(c_code_filename, os.path.join(target_dir, c_code_filename))
 
     def __generate_glob_header(self):
@@ -186,7 +186,7 @@ class CostGradient:
         Then open the file from above path in a write mode
         and then writing to it replaces the existing content.
         """
-        global_header_template = CostGradient._get_template(
+        global_header_template = CostGradient.__get_template(
             'global_header.h.tmpl', subdir='c')
         global_header_rendered = global_header_template.render(
             name=self.__name,
@@ -203,7 +203,7 @@ class CostGradient:
             nu=self.__nu
         )
         glob_header_target_path = os.path.join(
-            self._target_externc_dir(), "glob_header.h")
+            self.__target_externc_dir(), "glob_header.h")
         with open(glob_header_target_path, "w") as fh:
             fh.write(global_header_rendered)
 
@@ -215,11 +215,11 @@ class CostGradient:
         Then open the file from above path in a write mode
         and then writing to it replaces the existing content.
         """
-        c_interface_template = CostGradient._get_template(
+        c_interface_template = CostGradient.__get_template(
             'autograd_interface.c.tmpl', subdir='c')
         c_interface_rendered = c_interface_template.render(name=self.__name)
         c_interface_target_path = os.path.join(
-            self._target_externc_dir(), "interface.c")
+            self.__target_externc_dir(), "interface.c")
         with open(c_interface_target_path, "w") as fh:
             fh.write(c_interface_rendered)
 
@@ -232,23 +232,23 @@ class CostGradient:
         and then writing to it replaces the existing content.
         """
         # Cargo.toml [casadi]
-        cargo_template = CostGradient._get_template(
+        cargo_template = CostGradient.__get_template(
             'Cargo.toml', subdir='casadi-rs')
         cargo_rendered = cargo_template.render(name=self.__name)
         cargo_target_path = os.path.join(
-            self._target_casadirs_dir(), "Cargo.toml")
+            self.__target_casadirs_dir(), "Cargo.toml")
         with open(cargo_target_path, "w") as fh:
             fh.write(cargo_rendered)
         # build.rs
-        build_rs_template = CostGradient._get_template(
+        build_rs_template = CostGradient.__get_template(
             'build.rs', subdir='casadi-rs')
         build_rs_rendered = build_rs_template.render(name=self.__name)
         build_rs_target_path = os.path.join(
-            self._target_casadirs_dir(), "build.rs")
+            self.__target_casadirs_dir(), "build.rs")
         with open(build_rs_target_path, "w") as fh:
             fh.write(build_rs_rendered)
         # lib.rs
-        casadi_lib_rs_template = CostGradient._get_template(
+        casadi_lib_rs_template = CostGradient.__get_template(
             'lib.rs', subdir='casadi-rs')
         casadi_lib_rs_rendered = casadi_lib_rs_template.render(
             name=self.__name,
@@ -256,7 +256,7 @@ class CostGradient:
             nu=self.__nu,
             N=self.__N)
         casadi_lib_rs_target_path = os.path.join(
-            self._target_casadirs_dir(), "src", "lib.rs")
+            self.__target_casadirs_dir(), "src", "lib.rs")
         with open(casadi_lib_rs_target_path, "w") as fh:
             fh.write(casadi_lib_rs_rendered)
 
@@ -269,18 +269,18 @@ class CostGradient:
         and then writing to it replaces the existing content.
         """
         # Cargo
-        cargo_template = CostGradient._get_template(
+        cargo_template = CostGradient.__get_template(
             'Cargo.toml', subdir='rust')
         cargo_rendered = cargo_template.render(name=self.__name)
         cargo_target_path = os.path.join(
-            self._target_root_dir(), "Cargo.toml")
+            self.__target_root_dir(), "Cargo.toml")
         with open(cargo_target_path, "w") as fh:
             fh.write(cargo_rendered)
         # lib
-        lib_template = CostGradient._get_template('lib.rs', subdir='rust')
+        lib_template = CostGradient.__get_template('lib.rs', subdir='rust')
         lib_rendered = lib_template.render(name=self.__name)
         lib_target_path = os.path.join(
-            self._target_root_dir(), "src", "lib.rs")
+            self.__target_root_dir(), "src", "lib.rs")
         with open(lib_target_path, "w") as fh:
             fh.write(lib_rendered)
 
@@ -292,7 +292,7 @@ class CostGradient:
         :raises Exception: Rust build may fail
         """
         cmd = ['cargo', 'build', '-q']
-        p = subp.Popen(cmd, cwd=self._target_root_dir())
+        p = subp.Popen(cmd, cwd=self.__target_root_dir())
         process_completion = p.wait()
         if process_completion != 0:
             raise Exception('Rust build failed')
@@ -302,7 +302,7 @@ class CostGradient:
 
         :param no_rust_build: If set to True, the code will be generated, but it will not be compiled, defaults to False
         """
-        self._create_dirs()
+        self.__create_dirs()
         self.__create_gradients()
         self.__generate_casadi_functions()
         self.__generate_c_code()

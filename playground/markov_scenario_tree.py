@@ -51,7 +51,7 @@ ell = 5*x[0]**2 + 0.01*x[1]**2 + 0.01*x[2]**2
 # terminal cost function, vf
 vf = 0.5 * (x[0]**2 + 50 * x[1]**2 + 100 * x[2]**2)
 
-w_list = [0, 1]
+w_list = [0, 1]  # maximum branches per node: 2 (implementation will not handle more)
 f_list = [f, f]
 ell_list = [ell, ell]
 uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, w_list, f_list, ell_list, vf) \
