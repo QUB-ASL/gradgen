@@ -7,14 +7,13 @@ import gradgen
 sys.path.insert(1, '../../../clone_raocp-toolbox/raocp-toolbox')
 import raocp.core as core
 
-w = [0, 1]
 p = np.array([[0.5, 0.5],
               [0.5, 0.5]])
 v = np.array([0.5, 0.5])
 (N, tau) = (2, 2)
 markov_tree = core.MarkovChainScenarioTreeFactory(p, v, N, tau).create()
 
-markov_tree.bulls_eye_plot(dot_size=6, radius=300, filename='scenario-tree.eps')
+# markov_tree.bulls_eye_plot(dot_size=6, radius=300, filename='scenario-tree.eps')
 print(markov_tree)
 
 nx, nu = 10, 3
@@ -52,7 +51,10 @@ ell = 5*x[0]**2 + 0.01*x[1]**2 + 0.01*x[2]**2
 # terminal cost function, vf
 vf = 0.5 * (x[0]**2 + 50 * x[1]**2 + 100 * x[2]**2)
 
-uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, w, f, ell, vf) \
+w_list = [0, 1]
+f_list = [f, f]
+ell_list = [ell, ell]
+uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, w_list, f_list, ell_list, vf) \
     .with_name("stochastic_quadcopter_test")\
     .with_target_path("../codegenz")
 uncertain_gradiator.build(no_rust_build=True)
