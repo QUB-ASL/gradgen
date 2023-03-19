@@ -288,10 +288,12 @@ int {{ name }}_jfx(const casadi_real** arg, casadi_real** res) {
 
 int {{ name }}_jfu(const casadi_real** arg, casadi_real** res) {
     copy_xud_to_persistent(arg);  /* arg = {x, u, d} */
+    copy_w_to_persistent(arg[3][0]); /* persist w */
     const casadi_real* args__[JFU_SZ_ARG_{{ name | upper}}] = {
         persistent_memory + IDX_X_{{ name | upper}},
         persistent_memory + IDX_U_{{ name | upper}},
-        persistent_memory + IDX_D_{{ name | upper}}
+        persistent_memory + IDX_D_{{ name | upper}},
+        persistent_memory + IDX_W_{{ name | upper}},
     };
     jfu_res[0] = res[0];
     return casadi_{{ name }}_jfu(args__, jfu_res, iws_jfu, ws_jfu, 0);
@@ -368,13 +370,14 @@ void call_jfu_test()
     double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};
     double u[NU_{{ name | upper}}] = {1.5, 2.1};
     double d[NX_{{ name | upper}}] = {1, 1, 0};
+    double w[1] = {2};
 
-    double jfu[NX_{{ name | upper}}];
-    const double *arg[3] = {x, u, d};
+    double jfu[NU_{{ name | upper}}];
+    const double *arg[4] = {x, u, d, w};
     double *res[1] = {jfu};
     {{ name }}_jfu(arg, res);
 
-    for (unsigned int i = 0; i < NX_{{ name | upper}}; i++)
+    for (unsigned int i = 0; i < NU_{{ name | upper}}; i++)
     {
         printf("Juf >> %g\n", jfu_res[0][i]);
     }
@@ -414,9 +417,9 @@ void call_vfx_test()
 /* for testing purposes only! */
 int main()
 {
-    call_f_test();
-    call_jfx_test();
-    // call_jfu_test();
+    call_f_test(); printf("\n");
+    call_jfx_test();printf("\n");
+    call_jfu_test();printf("\n");
     // call_ellx_test();
     // call_vfx_test();
     return 0;
