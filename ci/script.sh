@@ -25,15 +25,9 @@ regular_test() {
     pip install .
 
     # --- run the tests
-    cd gradgen/test
-    export PYTHONPATH=.
-    python test_gradgen.py
-
-    cd quadcopter_test/casadi_quadcopter_test/
-    cargo test
-    
-    cd .. 
-    cargo test
+    python gradgen/test/test_gradgen.py
+    cargo test --manifest-path gradgen/test/codegenz/quadcopter_test/Cargo.toml
+    cargo test --manifest-path gradgen/test/codegenz/quadcopter_test/casadi_quadcopter_test/Cargo.toml
 }
 
 main() {
