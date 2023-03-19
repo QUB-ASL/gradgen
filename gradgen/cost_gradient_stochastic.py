@@ -156,7 +156,8 @@ class CostGradientStochastic(CostGradient):
         """
         c_interface_template = CostGradient._get_template(
             'autograd_interface_stochastic.c.tmpl', subdir='c')
-        c_interface_rendered = c_interface_template.render(name=self.__name)
+        c_interface_rendered = c_interface_template.render(name=self.__name,
+                                                           w=self.__w_list)
         c_interface_target_path = os.path.join(
             self._target_externc_dir(), "interface.c")
         with open(c_interface_target_path, "w") as fh:

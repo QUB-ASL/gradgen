@@ -23,56 +23,58 @@ clang -DTEST_INTERFACE -o test interface.c casadi_functions.so -lm
 #define casadi_int long long int
 #endif
 
-extern int casadi_{{name}}_f(
+{% for index_w in w %}
+extern int casadi_{{name}}_f{{index_w}}(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int casadi_{{name}}_jfx(
+extern int casadi_{{name}}_jfx{{index_w}}(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int casadi_{{name}}_jfu(
+extern int casadi_{{name}}_jfu{{index_w}}(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int casadi_{{name}}_ell(
+extern int casadi_{{name}}_ell{{index_w}}(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int casadi_{{name}}_ellx(
+extern int casadi_{{name}}_ellx{{index_w}}(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int casadi_{{name}}_ellu(
+extern int casadi_{{name}}_ellu{{index_w}}(
+    const casadi_real **arg,
+    casadi_real **res,
+    casadi_int *iw,
+    casadi_real *w,
+    int mem);
+{% endfor %}
+
+extern int casadi_{{name}}_vf{{index_w}}(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int casadi_{{name}}_vf(
-    const casadi_real **arg,
-    casadi_real **res,
-    casadi_int *iw,
-    casadi_real *w,
-    int mem);
-
-extern int casadi_{{name}}_vfx(
+extern int casadi_{{name}}_vfx{{index_w}}(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
@@ -84,42 +86,43 @@ extern int casadi_{{name}}_vfx(
 /*     Integer Workspaces     */
 /* -------------------------- */
 
-#if F_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_f[F_SZ_IW_{{ name | upper}}];  
+{% for index_w in w %}
+#if F{{index_w}}_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_f{{index_w}}[F{{index_w}}_SZ_IW_{{ name | upper}}];
 #else
-static casadi_int *iws_f = NULL;
+static casadi_int *iws_f{{index_w}} = NULL;
 #endif
 
-#if JFX_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_jfx[JFX_SZ_IW_{{ name | upper}}];  
+#if JFX{{index_w}}_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_jfx{{index_w}}[JFX{{index_w}}_SZ_IW_{{ name | upper}}];
 #else
-static casadi_int *iws_jfx = NULL;
+static casadi_int *iws_jfx{{index_w}} = NULL;
 #endif
 
-
-#if JFU_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_jfu[JFU_SZ_IW_{{ name | upper}}];  
+#if JFU{{index_w}}_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_jfu{{index_w}}[JFU{{index_w}}_SZ_IW_{{ name | upper}}];
 #else
-static casadi_int *iws_jfu = NULL;
+static casadi_int *iws_jfu{{index_w}} = NULL;
 #endif
 
-#if ELL_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_ell[ELL_SZ_IW_{{ name | upper}}];  
+#if ELL{{index_w}}_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_ell{{index_w}}[ELL{{index_w}}_SZ_IW_{{ name | upper}}];
 #else
-static casadi_int *iws_ell = NULL;
+static casadi_int *iws_ell{{index_w}} = NULL;
 #endif
 
-#if ELLX_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_ellx[ELLX_SZ_IW_{{ name | upper}}];  
+#if ELLX{{index_w}}_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_ellx{{index_w}}[ELLX{{index_w}}_SZ_IW_{{ name | upper}}];
 #else
-static casadi_int *iws_ellx = NULL;
+static casadi_int *iws_ellx{{index_w}} = NULL;
 #endif
 
-#if ELLU_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_ellu[ELLU_SZ_IW_{{ name | upper}}];  
+#if ELLU{{index_w}}_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_ellu{{index_w}}[ELLU{{index_w}}_SZ_IW_{{ name | upper}}];
 #else
-static casadi_int *iws_ellu = NULL;
+static casadi_int *iws_ellu{{index_w}} = NULL;
 #endif
+{% endfor %}
 
 #if VF_SZ_IW_{{ name | upper}} > 0
 static casadi_int iws_vf[VF_SZ_IW_{{ name | upper}}];  
@@ -138,41 +141,43 @@ static casadi_int *iws_vfx = NULL;
 /*       Real Workspaces      */
 /* -------------------------- */
 
-#if F_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_f[F_SZ_W_{{ name | upper}}];
+{% for index_w in w %}
+#if F{{index_w}}_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_f{{index_w}}[F{{index_w}}_SZ_W_{{ name | upper}}];
 #else
-static casadi_real *ws_f = NULL;
+static casadi_real *ws_f{{index_w}} = NULL;
 #endif
 
-#if JFX_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_jfx[JFX_SZ_W_{{ name | upper}}];
+#if JFX{{index_w}}_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_jfx{{index_w}}[JFX{{index_w}}_SZ_W_{{ name | upper}}];
 #else
-static casadi_real *ws_jfx = NULL;
+static casadi_real *ws_jfx{{index_w}} = NULL;
 #endif
 
-#if JFU_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_jfu[JFU_SZ_W_{{ name | upper}}];
+#if JFU{{index_w}}_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_jfu{{index_w}}[JFU{{index_w}}_SZ_W_{{ name | upper}}];
 #else
-static casadi_real *ws_jfu = NULL;
+static casadi_real *ws_jfu{{index_w}} = NULL;
 #endif
 
-#if ELL_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_ell[ELL_SZ_W_{{ name | upper}}];
+#if ELL{{index_w}}_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_ell{{index_w}}[ELL{{index_w}}_SZ_W_{{ name | upper}}];
 #else
-static casadi_real *ws_ell = NULL;
+static casadi_real *ws_ell{{index_w}} = NULL;
 #endif
 
-#if ELLX_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_ellx[ELLX_SZ_W_{{ name | upper}}];
+#if ELLX{{index_w}}_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_ellx{{index_w}}[ELLX{{index_w}}_SZ_W_{{ name | upper}}];
 #else
-static casadi_real *ws_ellx = NULL;
+static casadi_real *ws_ellx{{index_w}} = NULL;
 #endif
 
-#if ELLU_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_ellu[ELLU_SZ_W_{{ name | upper}}];
+#if ELLU{{index_w}}_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_ellu{{index_w}}[ELLU{{index_w}}_SZ_W_{{ name | upper}}];
 #else
-static casadi_real *ws_ellu = NULL;
+static casadi_real *ws_ellu{{index_w}} = NULL;
 #endif
+{% endfor %}
 
 #if VF_SZ_W_{{ name | upper}} > 0
 static casadi_real ws_vf[VF_SZ_W_{{ name | upper}}];
@@ -190,12 +195,14 @@ static casadi_real *ws_vfx = NULL;
 /* -------------------------- */
 /*        Result Spaces       */
 /* -------------------------- */
-static casadi_real *f_res[F_SZ_RES_{{ name | upper}}];
-static casadi_real *jfx_res[JFX_SZ_RES_{{ name | upper}}];
-static casadi_real *jfu_res[JFU_SZ_RES_{{ name | upper}}];
-static casadi_real *ell_res[ELL_SZ_RES_{{ name | upper}}];
-static casadi_real *ellx_res[ELLX_SZ_RES_{{ name | upper}}];
-static casadi_real *ellu_res[ELLU_SZ_RES_{{ name | upper}}];
+{% for index_w in w %}
+static casadi_real *f{{index_w}}_res[F{{index_w}}_SZ_RES_{{ name | upper}}];
+static casadi_real *jfx{{index_w}}_res[JFX{{index_w}}_SZ_RES_{{ name | upper}}];
+static casadi_real *jfu{{index_w}}_res[JFU{{index_w}}_SZ_RES_{{ name | upper}}];
+static casadi_real *ell{{index_w}}_res[ELL{{index_w}}_SZ_RES_{{ name | upper}}];
+static casadi_real *ellx{{index_w}}_res[ELLX{{index_w}}_SZ_RES_{{ name | upper}}];
+static casadi_real *ellu{{index_w}}_res[ELLU{{index_w}}_SZ_RES_{{ name | upper}}];
+{% endfor %}
 static casadi_real *vf_res[VF_SZ_RES_{{ name | upper}}];
 static casadi_real *vfx_res[VFX_SZ_RES_{{ name | upper}}];
 
@@ -302,7 +309,7 @@ void call_f_test(){
     double x_next[NX_{{ name | upper}}];
     const double *arg[2] = {x, u};
     double *res[1] = {x_next};
-    {{ name }}_f(arg, res);
+    {{ name }}_f0(arg, res);
 
     int i;
     for (i = 0; i < NX_{{ name | upper}}; i++)
@@ -320,7 +327,7 @@ void call_jfx_test()
     double jfx[NX_{{ name | upper}}];
     const double *arg[3] = {x, u, d};
     double *res[1] = {jfx};
-    {{ name }}_jfx(arg, res);
+    {{ name }}_jfx0(arg, res);
 
     for (unsigned int i = 0; i < NX_{{ name | upper}}; i++)
     {
@@ -337,7 +344,7 @@ void call_jfu_test()
     double jfu[NX_{{ name | upper}}];
     const double *arg[3] = {x, u, d};
     double *res[1] = {jfu};
-    {{ name }}_jfu(arg, res);
+    {{ name }}_jfu0(arg, res);
 
     for (unsigned int i = 0; i < NX_{{ name | upper}}; i++)
     {
@@ -353,7 +360,7 @@ void call_ellx_test()
     double ellx[NX_{{ name | upper}}];
     const double *arg[2] = {x, u};
     double *res[1] = {ellx};
-    {{ name }}_ellx(arg, res);
+    {{ name }}_ellx0(arg, res);
 
     for (unsigned int i = 0; i < NX_{{ name | upper}}; i++)
     {
