@@ -210,8 +210,18 @@ static casadi_real persistent_memory[N_PERSISTENT_MEM_{{ name | upper}}];  /* (x
 #define IDX_X_{{ name | upper}} 0
 #define IDX_U_{{ name | upper}} IDX_X_{{ name | upper}} + NX_{{ name | upper}}
 #define IDX_D_{{ name | upper}} IDX_U_{{ name | upper}} + NU_{{ name | upper}}
-#define IDX_W_{{ name | upper}} IDX_D_{{ name | upper}} + 1
+#define IDX_W_{{ name | upper}} IDX_D_{{ name | upper}} + NX_{{ name | upper}}
 
+
+#ifdef TEST_INTERFACE
+static void print_persistent_memory(void){
+    int i;
+    for (unsigned int i = 0; i < N_PERSISTENT_MEM_STOCHASTIC_QUADCOPTER; i++)
+    {
+        printf("persistent_memory >> %g\n", persistent_memory[i]);
+    }
+}
+#endif
 
 void init_interface_{{ name }}(void) {
     /* nothing */
@@ -317,6 +327,7 @@ int {{ name }}_vfx(const casadi_real** arg, casadi_real** res) {
 /* -------------------------- */
 /*           Testing          */
 /* -------------------------- */
+
 
 void call_f_test(){
     double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};

@@ -53,14 +53,14 @@ class CostGradientStochastic(CostGradient):
         """Create Jacobian of functions of ellx(w), ellu(w), fx(w), fu(w), vfx, and turn them into instances of class
         """
         self.__f_selector = cs.if_else(
-            self.__w == self.__nw - 1, self.__f_list[-1], cs.SX_nan(1))
+            cs.fabs(self.__w - (self.__nw - 1)) <= 0.1, self.__f_list[-1], cs.SX_nan(1))
         self.__ell_selector = cs.if_else(
-            self.__w == self.__nw - 1, self.__ell_list[-1], cs.SX_nan(1))
+            cs.fabs(self.__w - (self.__nw - 1)) <= 0.1, self.__ell_list[-1], cs.SX_nan(1))
         for i_events in range(self.__nw - 2, -1, -1):
             self.__f_selector = cs.if_else(
-                self.__w == i_events, self.__f_list[i_events], self.__f_selector)
+                cs.fabs(self.__w - i_events) <= 0.1, self.__f_list[i_events], self.__f_selector)
             self.__ell_selector = cs.if_else(
-                self.__w == i_events, self.__ell_list[i_events], self.__ell_selector)
+                cs.fabs(self.__w - i_events) <= 0.1, self.__ell_list[i_events], self.__ell_selector)
 
         self.__jfx = cs.jacobian(self.__f_selector, self.__x).T @ self.__d
         self.__jfu = cs.jacobian(self.__f_selector, self.__u).T @ self.__d

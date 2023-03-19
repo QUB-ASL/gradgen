@@ -17,9 +17,9 @@ nx, nu = 3, 2
 x = cs.SX.sym('x', nx)
 u = cs.SX.sym('u', nu)
 
-f = cs.vertcat(x[0] + 0.1 * x[0] + 2 * u[0],
-               x[1] + 0.5 * x[0] + 4 * u[1] + (u[0]-1)**3,
-               x[2] + 0.9 * cs.sin(x[1]))
+f = cs.vertcat(1.1 * x[0] + 2 * u[0],
+               x[1] + 0.5 * x[0] + 4 * u[1],
+               x[2] + 0.9 * x[1])
 f_list = [f, 0 * f, 10 * f]
 
 # stage cost function, ell
