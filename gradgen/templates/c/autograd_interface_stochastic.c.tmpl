@@ -301,9 +301,11 @@ int {{ name }}_jfu(const casadi_real** arg, casadi_real** res) {
 
 int {{ name }}_ellx(const casadi_real** arg, casadi_real** res) {
     copy_xu_to_persistent(arg);  /* arg = {x, u} */
+    copy_w_to_persistent(arg[2][0]); /* persist w */
     const casadi_real* args__[ELLX_SZ_ARG_{{ name | upper}}] = {
         persistent_memory + IDX_X_{{ name | upper}},
-        persistent_memory + IDX_U_{{ name | upper}}
+        persistent_memory + IDX_U_{{ name | upper}},
+        persistent_memory + IDX_W_{{ name | upper}}
     };
     ellx_res[0] = res[0];
     return casadi_{{ name }}_ellx(args__, ellx_res, iws_ellx, ws_ellx, 0);
@@ -311,9 +313,11 @@ int {{ name }}_ellx(const casadi_real** arg, casadi_real** res) {
 
 int {{ name }}_ellu(const casadi_real** arg, casadi_real** res) {
     copy_xu_to_persistent(arg);  /* arg = {x, u} */
+    copy_w_to_persistent(arg[2][0]); /* persist w */
     const casadi_real* args__[ELLU_SZ_ARG_{{ name | upper}}] = {
         persistent_memory + IDX_X_{{ name | upper}},
-        persistent_memory + IDX_U_{{ name | upper}}};
+        persistent_memory + IDX_U_{{ name | upper}},
+        persistent_memory + IDX_W_{{ name | upper}}};
     ellu_res[0] = res[0];
     return casadi_{{ name }}_ellu(args__, ellu_res, iws_ellu, ws_ellu, 0);
 }
@@ -387,9 +391,10 @@ void call_ellx_test()
 {
     double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};
     double u[NU_{{ name | upper}}] = {1.5, 2.1};
+    double w[1] = {0};
 
     double ellx[NX_{{ name | upper}}];
-    const double *arg[2] = {x, u};
+    const double *arg[3] = {x, u, w};
     double *res[1] = {ellx};
     {{ name }}_ellx(arg, res);
 
@@ -420,8 +425,8 @@ int main()
     call_f_test(); printf("\n");
     call_jfx_test();printf("\n");
     call_jfu_test();printf("\n");
-    // call_ellx_test();
-    // call_vfx_test();
+    call_ellx_test();printf("\n");
+    call_vfx_test();
     return 0;
 }   
 #endif
