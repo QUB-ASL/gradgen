@@ -189,7 +189,7 @@ class CostGradientStochastic(CostGradient):
             fh.write(build_rs_rendered)
         # lib.rs
         casadi_lib_rs_template = CostGradient._get_template(
-            'lib.rs', subdir='casadi-rs')
+            'lib_stochastic.rs', subdir='casadi-rs')
         casadi_lib_rs_rendered = casadi_lib_rs_template.render(
             name=self.__name,
             nx=self.__nx,
