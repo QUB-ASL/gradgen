@@ -26,9 +26,8 @@ regular_test() {
 
     # --- run the tests
     python gradgen/test/test_gradgen.py
-    echo "$PWD"
-    cargo test --manifest-path gradgen/test/codegenz/quadcopter_test/Cargo.toml
-    cargo test --manifest-path gradgen/test/codegenz/quadcopter_test/casadi_quadcopter_test/Cargo.toml
+    cargo test --manifest-path test/codegenz/quadcopter_test/Cargo.toml
+    cargo test --manifest-path test/codegenz/quadcopter_test/casadi_quadcopter_test/Cargo.toml
 }
 
 main() {
