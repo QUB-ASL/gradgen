@@ -15,7 +15,6 @@ class CostGradientStochastic(CostGradient):
         :param tree: scenario tree for stochastic ocp
         :param x: state symbol
         :param u: input symbol
-        :param w: list of possible events
         :param f: list of system dynamics symbol (depends on x, u, w)
         :param ell: list of cost function symbol (depends on x, u, w)
         :param vf: terminal cost symbol (depends on x)

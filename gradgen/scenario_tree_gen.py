@@ -41,6 +41,9 @@ class ScenarioTree:
         self.__update_children()
         self.__allocate_data()
 
+    def probability(self):
+        return self.__probability
+
     def __update_children(self):
         self.__children = []
         for i in range(self.num_nonleaf_nodes):
@@ -327,14 +330,13 @@ class MarkovChainScenarioTreeFactory:
         for i in range(num_nonzero_init_distr + 1, num_nodes):
             if stages[i] == self.__stopping_time + 1:
                 index = i
+                for j in range(index, num_nodes):
+                    probs_new = probs[ancestors[j]]
+                    probs = np.concatenate((probs, [probs_new]))
+
                 break
             probs_new = probs[ancestors[i]] * \
                 self.__transition_prob[values[ancestors[i]], values[i]]
-            probs = np.concatenate((probs, [probs_new]))
-            index = i
-
-        for j in range(index, num_nodes):
-            probs_new = probs[ancestors[j]]
             probs = np.concatenate((probs, [probs_new]))
 
         return probs

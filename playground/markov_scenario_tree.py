@@ -6,11 +6,12 @@ p = np.array([[0.5, 0.4, 0.1],
               [0.5, 0.3, 0.2],
               [0.6, 0.2, 0.2]])
 v = np.array([0.1, 0.8, 0.1])
-(N, tau) = (2, 2)
+(N, tau) = (3, 2)
 markov_tree = gradgen.MarkovChainScenarioTreeFactory(p, v, N, tau).create()
 
 # markov_tree.bulls_eye_plot(dot_size=6, radius=300, filename='scenario-tree.eps')
 print(markov_tree)
+
 
 nx, nu = 10, 3
 k1, k2, Ts = 252, 20, 1 / 125
