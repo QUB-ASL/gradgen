@@ -114,6 +114,9 @@ class CostGradient:
         self.__name = name
         return self
 
+    def name(self):
+        return self.__name
+
     def with_target_path(self, dst_path):
         """Turn final destination for generated code into instances of class
 
