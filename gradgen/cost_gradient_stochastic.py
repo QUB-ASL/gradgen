@@ -31,7 +31,8 @@ class CostGradientStochastic(CostGradient):
         self.__nu = self.__u.size()[0]
         self.__nw = len(self.__f_list)
         if self.__nw != len(self.__ell_list):
-            raise Exception("number of dynamics functions does not equal number of cost functions")
+            raise Exception(
+                "number of dynamics functions does not equal number of cost functions")
         self.__d = cs.SX.sym('d', self.__nx)
         self.__N = self.__tree.num_stages - 1
         self.__f_selector = None
@@ -52,11 +53,15 @@ class CostGradientStochastic(CostGradient):
     def __create_gradients(self):
         """Create Jacobian of functions of ellx(w), ellu(w), fx(w), fu(w), vfx, and turn them into instances of class
         """
-        self.__f_selector = cs.if_else(self.__w == self.__nw - 1, self.__f_list[-1], cs.SX_nan(1))
-        self.__ell_selector = cs.if_else(self.__w == self.__nw - 1, self.__ell_list[-1], cs.SX_nan(1))
+        self.__f_selector = cs.if_else(
+            self.__w == self.__nw - 1, self.__f_list[-1], cs.SX_nan(1))
+        self.__ell_selector = cs.if_else(
+            self.__w == self.__nw - 1, self.__ell_list[-1], cs.SX_nan(1))
         for i_events in range(self.__nw - 2, -1, -1):
-            self.__f_selector = cs.if_else(self.__w == i_events, self.__f_list[i_events], self.__f_selector)
-            self.__ell_selector = cs.if_else(self.__w == i_events, self.__ell_list[i_events], self.__ell_selector)
+            self.__f_selector = cs.if_else(
+                self.__w == i_events, self.__f_list[i_events], self.__f_selector)
+            self.__ell_selector = cs.if_else(
+                self.__w == i_events, self.__ell_list[i_events], self.__ell_selector)
 
         self.__jfx = cs.jacobian(self.__f_selector, self.__x).T @ self.__d
         self.__jfu = cs.jacobian(self.__f_selector, self.__u).T @ self.__d
@@ -148,7 +153,8 @@ class CostGradientStochastic(CostGradient):
             ellx=self.__ellx_fun,
             ellu=self.__ellu_fun,
             vf=self.__vf_fun,
-            vfx=self.__vfx_fun
+            vfx=self.__vfx_fun,
+            tree=self.__tree
         )
         glob_header_target_path = os.path.join(
             self._CostGradient__target_externc_dir(), "glob_header.h")
@@ -225,7 +231,8 @@ class CostGradientStochastic(CostGradient):
         with open(cargo_target_path, "w") as fh:
             fh.write(cargo_rendered)
         # lib
-        lib_template = self._CostGradient__get_template('lib.rs', subdir='rust')
+        lib_template = self._CostGradient__get_template(
+            'lib.rs', subdir='rust')
         lib_rendered = lib_template.render(name=self.__name)
         lib_target_path = os.path.join(
             self._CostGradient__target_root_dir(), "src", "lib.rs")
