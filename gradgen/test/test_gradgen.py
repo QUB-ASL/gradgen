@@ -53,7 +53,7 @@ class GradgenTestCase(unittest.TestCase):
         x, u, f, ell, vf = GradgenTestCase.create_example()
         N = 15
         gradObj = CostGradient(x, u, f, ell, vf, N).with_name(
-            "quadcopter_test").with_target_path(".")
+            "quadcopter_test").with_target_path("./codegenz")
         gradObj.build(no_rust_build=True)
 
 
