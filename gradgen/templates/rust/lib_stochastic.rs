@@ -12,16 +12,6 @@ pub fn num_inputs() -> usize {
     return NU;
 }
 
-/// Number of nodes
-pub fn num_nodes() -> usize {
-    return NUM_NODES;
-}
-
-/// Number of inputs
-pub fn num_nonleaf_nodes() -> usize {
-    return NUM_NONLEAF_NODES;
-}
-
 #[derive(Debug)]
 pub struct BackwardGradientWorkspace {
     pub(crate) r: Vec<f64>,
@@ -45,7 +35,7 @@ impl BackwardGradientWorkspace {
         BackwardGradientWorkspace {
             r: vec![0.0; NX],
             // a_new: vec![0.0; NX],
-            x_at_node: vec![0.0; NX * (n_pred + 1)],
+            x_at_node: vec![0.0; NX * NUM_NODES],
             // temp_nx: vec![0.0; NX],
             // temp_nu: vec![0.0; NU],
         }
@@ -77,10 +67,10 @@ pub fn total_cost_gradient_bw(
 
     ws.x_at_node[..NX].copy_from_slice(x0);
     /* simulation of state x[i] for all i in nodes(1, N) */
-    for i in 1..=num_nodes - 1 {
-        let x_anc_i = &ws.x_at_node[ancestors(i) * NX..(ancestors(i) + 1) * NX];
-        let u_anc_i = &u_at_node[ancestors(i) * NU..(ancestors(i) + 1) * NU];
-        let w_i = &w_at_node(i);
+    for i in 1..=NUM_NODES - 1 {
+        let x_anc_i = &ws.x_at_node[ANCESTOR_OF_NODE[i] * NX..(ANCESTOR_OF_NODE[i] + 1) * NX];
+        let u_anc_i = &u_at_node[ANCESTOR_OF_NODE[i] * NU..(ANCESTOR_OF_NODE[i] + 1) * NU];
+        let w_i = EVENT_AT_NODE[i];
         f(x_anc_i, u_anc_i, w_i, &mut ws.r);
         ws.x_at_node[i * NX..(i + 1) * NX].copy_from_slice(&ws.r);
     }

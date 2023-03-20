@@ -8,8 +8,6 @@ pub const NU: usize = {{ nu }};
 
 /// prediction horizon
 pub const NPRED: usize = {{ N }};
-/// number of nodes
-pub const NUM_NODES: usize = {{ NUM_NODES }};
 
 /// number of events (# different values of w)
 pub const NEVENTS: usize = {{ num_events }};
@@ -36,7 +34,7 @@ pub const ANCESTOR_OF_NODE : &[usize]= &[
 ];
 
 /// Event, w, leading up to a given node
-pub const EVENT_AT_NODE : &[usize]= &[
+pub const EVENT_AT_NODE : &[i32]= &[
     0, {{ tree._ScenarioTree__w_idx[1:] | join(', ') }}
 ];
 
