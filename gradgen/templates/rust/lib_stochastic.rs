@@ -15,10 +15,10 @@ pub fn num_inputs() -> usize {
 #[derive(Debug)]
 pub struct BackwardGradientWorkspace {
     pub(crate) r: Vec<f64>,
-    // pub(crate) a_new: Vec<f64>,
     pub x_at_node: Vec<f64>,
-    // pub(crate) temp_nx: Vec<f64>,
-    // pub(crate) temp_nu: Vec<f64>,
+    pub a_at_node: Vec<f64>,
+    pub(crate) temp_nx: Vec<f64>,
+    pub(crate) temp_nu: Vec<f64>,
 }
 
 /// Workspace structure
@@ -29,15 +29,16 @@ impl BackwardGradientWorkspace {
     /// # Arguments
     ///
     /// * `r` - storage for state (NX) sized variable
-    /// * `x_at_node` - vector of states: consists of state at node [vector index] for nodes(0, N)
+    /// * `x_at_node` - vector of states: consists of state at node [index] for nodes(0, N)
+    /// * `a_at_node` - vector of adjoints: consists of adjoint at node [index] for nodes(1, N)
     ///
     pub fn new(n_pred: usize) -> BackwardGradientWorkspace {
         BackwardGradientWorkspace {
             r: vec![0.0; NX],
-            // a_new: vec![0.0; NX],
             x_at_node: vec![0.0; NX * NUM_NODES],
-            // temp_nx: vec![0.0; NX],
-            // temp_nu: vec![0.0; NU],
+            a_at_node: vec![0.0; NX * NUM_NODES],
+            temp_nx: vec![0.0; NX],
+            temp_nu: vec![0.0; NU],
         }
     }
 }
@@ -51,18 +52,18 @@ fn a_plus_eq_b(a: &mut [f64], b: &[f64]) {
 /// # Arguments
 ///
 /// * `x0` - initial state (state at node 0)
-/// * `u_at_node` - vector of inputs: consists of input at node [vector index] for nodes(0, N-1)
+/// * `u_at_node` - vector of inputs: consists of input at node [index] for nodes(0, N-1)
 /// * `grad_stoc` - gradient of total stochastic cost function (result)
 /// * `ws` - workspace of type `BackwardGradientWorkspace`
-/// * `num_nodes` - total number of nodes
-/// * `num_nonleaf_nodes` - number of nonleaf nodes
+/// * `NPRED` - prediction horizon
+/// * `NUM_NODES` - total number of nodes
+/// * `NUM_NONLEAF_NODES` - number of nonleaf nodes
 ///
 pub fn total_cost_gradient_bw(
     x0: &[f64],
     u_at_node: &[f64],
     grad_stoc: &mut [f64],
-    ws: &mut BackwardGradientWorkspace,
-    n: usize
+    ws: &mut BackwardGradientWorkspace
 ) {
 
     ws.x_at_node[..NX].copy_from_slice(x0);
@@ -76,13 +77,27 @@ pub fn total_cost_gradient_bw(
     }
 
     /* a[i] for all i in nodes(N) */
-    let x_npred = &ws.x_at_node[n * NX..(n + 1) * NX];
-    vfx(
-        x_npred,
-        &mut ws.a,
-    );
+    let stage = NPRED;
+    for i in NODES_AT_STAGE_FROM[stage]..=NODES_AT_STAGE_TO[stage] {
+        let x_i = &ws.x_at_node[i * NX..(i + 1) * NX];
+        vfx(x_i, &mut ws.r);
+        ws.a_at_node[i * NX..(i + 1) * NX].copy_from_slice(&ws.r);
+    }
 
     /* grad_stoc[i] for all i in nodes(N-1) */
+    let stage = NPRED - 1;
+    for i in NODES_AT_STAGE_FROM[stage]..=NODES_AT_STAGE_TO[stage] {
+        let x_i = &ws.x_at_node[i * NX..(i + 1) * NX];
+        let u_i = &u_at_node[i * NU..(i + 1) * NU];
+        for j in CHILDREN_OF_NODE_FROM[i]..=CHILDREN_OF_NODE_TO[i] {
+            let a_j = &a_at_node[j * NX..(j + 1) * NX];
+            let w_j = EVENT_AT_NODE[j];
+            let pi_j = PROBABILITY_AT_NODE[j];
+            ellu(x_i, u_i, w_j, &mut ws.temp_nu);
+            jfu(x_i, u_i, a_j, w_j, &mut ws.temp_nx);
+            ws.x_at_node[i * NX..(i + 1) * NX].copy_from_slice(&ws.r);
+        }
+    }
 
     /* backward method */
     for j in 1..=n-1 {
