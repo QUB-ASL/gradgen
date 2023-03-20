@@ -14,11 +14,13 @@ pub fn num_inputs() -> usize {
 
 #[derive(Debug)]
 pub struct BackwardGradientWorkspace {
-    pub(crate) r: Vec<f64>,
     pub x_at_node: Vec<f64>,
     pub a_at_node: Vec<f64>,
-    pub(crate) temp_nx: Vec<f64>,
-    pub(crate) temp_nu: Vec<f64>,
+    pub(crate) temp_nx_a: Vec<f64>,
+    pub(crate) temp_nx_f: Vec<f64>,
+    pub(crate) temp_nx_ell: Vec<f64>,
+    pub(crate) temp_nu_f: Vec<f64>,
+    pub(crate) temp_nu_ell: Vec<f64>,
 }
 
 /// Workspace structure
@@ -32,19 +34,25 @@ impl BackwardGradientWorkspace {
     /// * `x_at_node` - vector of states: consists of state at node [index] for nodes(0, N)
     /// * `a_at_node` - vector of adjoints: consists of adjoint at node [index] for nodes(1, N)
     ///
-    pub fn new(n_pred: usize) -> BackwardGradientWorkspace {
+    pub fn new() -> BackwardGradientWorkspace {
         BackwardGradientWorkspace {
-            r: vec![0.0; NX],
             x_at_node: vec![0.0; NX * NUM_NODES],
             a_at_node: vec![0.0; NX * NUM_NODES],
-            temp_nx: vec![0.0; NX],
-            temp_nu: vec![0.0; NU],
+            temp_nx_a: vec![0.0; NX],
+            temp_nx_f: vec![0.0; NX],
+            temp_nx_ell: vec![0.0; NX],
+            temp_nu_f: vec![0.0; NU],
+            temp_nu_ell: vec![0.0; NU],
         }
     }
 }
 
 fn a_plus_eq_b(a: &mut [f64], b: &[f64]) {
     a.iter_mut().zip(b.iter()).for_each(|(ai, bi)| *ai += *bi);
+}
+
+fn a_times_eq_scalar_b(a: &mut [f64], b: &f64) {
+    a.iter_mut().for_each(|ai| *ai *= *b);
 }
 
 /// Gradient of the total stochastic cost function with backward method
@@ -72,56 +80,100 @@ pub fn total_cost_gradient_bw(
         let x_anc_i = &ws.x_at_node[ANCESTOR_OF_NODE[i] * NX..(ANCESTOR_OF_NODE[i] + 1) * NX];
         let u_anc_i = &u_at_node[ANCESTOR_OF_NODE[i] * NU..(ANCESTOR_OF_NODE[i] + 1) * NU];
         let w_i = EVENT_AT_NODE[i];
-        f(x_anc_i, u_anc_i, w_i, &mut ws.r);
-        ws.x_at_node[i * NX..(i + 1) * NX].copy_from_slice(&ws.r);
+        f(x_anc_i, u_anc_i, w_i, &mut ws.temp_nx_f);
+        ws.x_at_node[i * NX..(i + 1) * NX].copy_from_slice(&ws.temp_nx_f);
     }
 
-    /* a[i] for all i in nodes(N) */
+    /* calculate adjoint a[i] for all i in nodes(N) */
     let stage = NPRED;
     for i in NODES_AT_STAGE_FROM[stage]..=NODES_AT_STAGE_TO[stage] {
         let x_i = &ws.x_at_node[i * NX..(i + 1) * NX];
-        vfx(x_i, &mut ws.r);
-        ws.a_at_node[i * NX..(i + 1) * NX].copy_from_slice(&ws.r);
+        let a_i = &mut ws.a_at_node[i * NX..(i + 1) * NX];
+        vfx(x_i, a_i);
     }
 
-    /* grad_stoc[i] for all i in nodes(N-1) */
+    /* -------------------- backward method -------------------- */
+
+    /* calculate gradient grad_stoc[i] and adjoint a[i] for all i in nodes(N-1) */
     let stage = NPRED - 1;
     for i in NODES_AT_STAGE_FROM[stage]..=NODES_AT_STAGE_TO[stage] {
+        let grad_i = &mut grad_stoc[i * NU..(i + 1) * NU];
         let x_i = &ws.x_at_node[i * NX..(i + 1) * NX];
         let u_i = &u_at_node[i * NU..(i + 1) * NU];
         for j in CHILDREN_OF_NODE_FROM[i]..=CHILDREN_OF_NODE_TO[i] {
-            let a_j = &a_at_node[j * NX..(j + 1) * NX];
+            let a_j = &mut ws.a_at_node[j * NX..(j + 1) * NX];
             let w_j = EVENT_AT_NODE[j];
-            let pi_j = PROBABILITY_AT_NODE[j];
-            ellu(x_i, u_i, w_j, &mut ws.temp_nu);
-            jfu(x_i, u_i, a_j, w_j, &mut ws.temp_nx);
-            ws.x_at_node[i * NX..(i + 1) * NX].copy_from_slice(&ws.r);
+            let pi_j = &PROBABILITY_AT_NODE[j];
+            /* calculate gradient at node i */
+            fu(x_i, u_i, a_j, w_j, &mut ws.temp_nu_f);
+            ellu(x_i, u_i, w_j, &mut ws.temp_nu_ell);
+            a_plus_eq_b(&mut ws.temp_nu_f, &ws.temp_nu_ell);
+            a_times_eq_scalar_b(&mut ws.temp_nu_f, pi_j);
+            a_plus_eq_b(grad_i, &ws.temp_nu_f);
+            if NPRED > 1 {
+                /* calculate adjoint at node i */
+                fx(x_i, u_i, a_j, w_j, &mut ws.temp_nx_f);
+                ellx(x_i, u_i, w_j, &mut ws.temp_nx_ell);
+                a_plus_eq_b(&mut ws.temp_nx_f, &ws.temp_nx_ell);
+                a_times_eq_scalar_b(&mut ws.temp_nx_f, pi_j);
+                a_plus_eq_b(&mut ws.temp_nx_a, &ws.temp_nx_f);
+            }
+        }
+        if NPRED > 1 {
+            ws.a_at_node[i * NU..(i + 1) * NU].copy_from_slice(&ws.temp_nx_a);
+            ws.temp_nx_a = vec![0.0; NX];
         }
     }
 
-    /* backward method */
-    for j in 1..=n-1 {
-        let x_npred_j = &ws.x_at_node[(n - j) * NX..(n - j + 1) * NX];
-        let u_npred_j = &u_at_node[(n - j) * NU..(n - j + 1) * NU];
-        let grad_npred_j = &mut grad_stoc[(n - j) * NU..(n - j + 1) * NU];
-
-        fu(x_npred_j, u_npred_j, &ws.a, grad_npred_j);
-        ellu(x_npred_j, u_npred_j, &mut ws.temp_nu);
-        a_plus_eq_b(grad_npred_j, &ws.temp_nu);
-
-        fx(x_npred_j, u_npred_j, &ws.a, &mut ws.a_new);
-        ellx(x_npred_j, u_npred_j, &mut ws.temp_nx);
-        a_plus_eq_b(&mut ws.a_new, &ws.temp_nx);
-        ws.a.copy_from_slice(&ws.a_new);
+    /* if prediction horizon is greater than 2, continue, else skip */
+    if NPRED > 2 {
+        /* calculate gradient grad_stoc[i] and adjoint a[i] for all i in nodes(1, N-2) */
+        for stage in (1..=NPRED - 2).rev() {
+            for i in NODES_AT_STAGE_FROM[stage]..=NODES_AT_STAGE_TO[stage] {
+                let grad_i = &mut grad_stoc[i * NU..(i + 1) * NU];
+                let x_i = &ws.x_at_node[i * NX..(i + 1) * NX];
+                let u_i = &u_at_node[i * NU..(i + 1) * NU];
+                for j in CHILDREN_OF_NODE_FROM[i]..=CHILDREN_OF_NODE_TO[i] {
+                    let a_j = &mut ws.a_at_node[j * NX..(j + 1) * NX];
+                    let w_j = EVENT_AT_NODE[j];
+                    let pi_j = &PROBABILITY_AT_NODE[j];
+                    /* calculate gradient at node i */
+                    fu(x_i, u_i, a_j, w_j, &mut ws.temp_nu_f);
+                    ellu(x_i, u_i, w_j, &mut ws.temp_nu_ell);
+                    a_times_eq_scalar_b(&mut ws.temp_nu_ell, pi_j);
+                    a_plus_eq_b(&mut ws.temp_nu_f, &ws.temp_nu_ell);
+                    a_plus_eq_b(grad_i, &ws.temp_nu_f);
+                    /* calculate adjoint at node i */
+                    fx(x_i, u_i, a_j, w_j, &mut ws.temp_nx_f);
+                    ellx(x_i, u_i, w_j, &mut ws.temp_nx_ell);
+                    a_times_eq_scalar_b(&mut ws.temp_nx_f, pi_j);
+                    a_plus_eq_b(&mut ws.temp_nx_f, &ws.temp_nx_ell);
+                    a_plus_eq_b(&mut ws.temp_nx_a, &ws.temp_nx_f);
+                }
+                ws.a_at_node[i * NU..(i + 1) * NU].copy_from_slice(&ws.temp_nx_a);
+                ws.temp_nx_a = vec![0.0; NX];
+            }
+        }
     }
 
-    /* first coordinate (t=0) */
-    let x_npred_j = &ws.x_at_node[0..NX];
-    let u_npred_j = &u_at_node[0..NU];
-    let grad_npred_j = &mut grad_stoc[..NU];
-
-    fu(x_npred_j, u_npred_j, &ws.a, grad_npred_j);
-    ellu(x_npred_j, u_npred_j, &mut ws.temp_nu);
-    a_plus_eq_b(grad_npred_j, &ws.temp_nu);
+    /* if prediction horizon is greater than 1, continue, else finish */
+    if NPRED > 1 {
+        /* calculate gradient grad_stoc[0] and adjoint a[0] */
+        let i = 0;
+        let grad_i = &mut grad_stoc[i * NU..(i + 1) * NU];
+        let x_i = &ws.x_at_node[i * NX..(i + 1) * NX];
+        let u_i = &u_at_node[i * NU..(i + 1) * NU];
+        for j in CHILDREN_OF_NODE_FROM[i]..=CHILDREN_OF_NODE_TO[i] {
+            let a_j = &ws.a_at_node[j * NX..(j + 1) * NX];
+            let w_j = EVENT_AT_NODE[j];
+            let pi_j = &PROBABILITY_AT_NODE[j];
+            /* calculate gradient at node i */
+            fu(x_i, u_i, a_j, w_j, &mut ws.temp_nu_f);
+            ellu(x_i, u_i, w_j, &mut ws.temp_nu_ell);
+            a_times_eq_scalar_b(&mut ws.temp_nu_ell, pi_j);
+            a_plus_eq_b(&mut ws.temp_nu_f, &ws.temp_nu_ell);
+            a_plus_eq_b(grad_i, &ws.temp_nu_f);
+        }
+    }
 
 }
