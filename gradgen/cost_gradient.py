@@ -28,14 +28,14 @@ class CostGradient:
         self.__nx = self.__x.size()[0]
         self.__nu = self.__u.size()[0]
         self.__d = cs.SX.sym('d', self.__nx)
-        self.__jfx = None
-        self.__jfu = None
+        self.__fx = None
+        self.__fu = None
         self.__ellx = None
         self.__ellu = None
         self.__vfx = None
         self.__f_fun = None
-        self.__jfx_fun = None
-        self.__jfu_fun = None
+        self.__fx_fun = None
+        self.__fu_fun = None
         self.__ell_fun = None
         self.__ellx_fun = None
         self.__ellu_fun = None
@@ -129,8 +129,8 @@ class CostGradient:
     def __create_gradients(self):
         """Create Jacobian of function ellx, ellu, fx, fu and turn them into instances of class
         """
-        self.__jfx = cs.jacobian(self.__f, self.__x).T @ self.__d
-        self.__jfu = cs.jacobian(self.__f, self.__u).T @ self.__d
+        self.__fx = cs.jacobian(self.__f, self.__x).T @ self.__d
+        self.__fu = cs.jacobian(self.__f, self.__u).T @ self.__d
         self.__ellx = cs.jacobian(self.__ell, self.__x).T
         self.__ellu = cs.jacobian(self.__ell, self.__u).T
         self.__vfx = cs.jacobian(self.__vf, self.__x).T
@@ -148,10 +148,10 @@ class CostGradient:
         """
         self.__f_fun = cs.Function(self.__function_name('f'), [self.__x, self.__u], [
             self.__f], ['x', 'u'], ['f'])
-        self.__jfx_fun = cs.Function(self.__function_name(
-            'jfx'), [self.__x, self.__u, self.__d], [self.__jfx], ['x', 'u', 'd'], ['jfx'])
-        self.__jfu_fun = cs.Function(self.__function_name(
-            'jfu'), [self.__x, self.__u, self.__d], [self.__jfu], ['x', 'u', 'd'], ['jfu'])
+        self.__fx_fun = cs.Function(self.__function_name(
+            'fx'), [self.__x, self.__u, self.__d], [self.__fx], ['x', 'u', 'd'], ['fx'])
+        self.__fu_fun = cs.Function(self.__function_name(
+            'fu'), [self.__x, self.__u, self.__d], [self.__fu], ['x', 'u', 'd'], ['fu'])
         self.__ell_fun = cs.Function(self.__function_name(
             'ell'), [self.__x, self.__u], [self.__ell], ['x', 'u'], ['ell'])
         self.__ellx_fun = cs.Function(self.__function_name('ellx'), [self.__x, self.__u], [
@@ -169,8 +169,8 @@ class CostGradient:
         c_code_filename = 'casadi_functions.c'
         codegen = cs.CodeGenerator(c_code_filename)
         codegen.add(self.__f_fun)
-        codegen.add(self.__jfx_fun)
-        codegen.add(self.__jfu_fun)
+        codegen.add(self.__fx_fun)
+        codegen.add(self.__fu_fun)
         codegen.add(self.__ell_fun)
         codegen.add(self.__ellx_fun)
         codegen.add(self.__ellu_fun)
@@ -194,8 +194,8 @@ class CostGradient:
         global_header_rendered = global_header_template.render(
             name=self.__name,
             f=self.__f_fun,
-            jfx=self.__jfx_fun,
-            jfu=self.__jfu_fun,
+            fx=self.__fx_fun,
+            fu=self.__fu_fun,
             ell=self.__ell_fun,
             ellx=self.__ellx_fun,
             ellu=self.__ellu_fun,

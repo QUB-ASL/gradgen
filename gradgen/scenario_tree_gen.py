@@ -36,7 +36,8 @@ class ScenarioTree:
         self.__ancestors = ancestors
         self.__probability = probability
         self.__w_idx = w_values
-        self.__children = None  # this will be updated later (the user doesn't need to provide it)
+        # this will be updated later (the user doesn't need to provide it)
+        self.__children = None
         self.__data = None  # really, any data associated with the nodes of the tree
         self.__update_children()
         self.__allocate_data()
@@ -52,7 +53,7 @@ class ScenarioTree:
 
     def __allocate_data(self):
         self.__data = np.empty(shape=(self.num_nodes, ), dtype=dict)
-        
+
     def get_data_at_node(self, node_idx):
         """
         :param node_idx: index of node, or range of indices
@@ -233,7 +234,8 @@ class ScenarioTree:
         radius_step = radius / (self.num_stages - 1)
         for n in range(self.num_stages - 2, -1, -1):
             radius -= radius_step
-            arcs = self.__draw_nonleaf_nodes_on_circle(t, radius, radius + radius_step, n, arcs, dot_size)
+            arcs = self.__draw_nonleaf_nodes_on_circle(
+                t, radius, radius + radius_step, n, arcs, dot_size)
 
         wn.update()
 
@@ -276,7 +278,8 @@ class MarkovChainScenarioTreeFactory:
         """
         :return: ancestors, values of w and stages
         """
-        num_nonzero_init_distr = len(list(filter(lambda x: (x > 0), self.__initial_distribution)))
+        num_nonzero_init_distr = len(
+            list(filter(lambda x: (x > 0), self.__initial_distribution)))
         # Initialise `ancestors`
         ancestors = np.zeros((num_nonzero_init_distr + 1,), dtype=int)
         ancestors[0] = -1  # node 0 does not have an ancestor
@@ -308,7 +311,8 @@ class MarkovChainScenarioTreeFactory:
             stages = np.concatenate((stages, (1 + stage_idx) * ones))
 
         for stage_idx in range(self.__stopping_time, self.__num_stages):
-            ancestors = np.concatenate((ancestors, range(cursor, cursor + num_nodes_at_stage)))
+            ancestors = np.concatenate(
+                (ancestors, range(cursor, cursor + num_nodes_at_stage)))
             cursor += num_nodes_at_stage
             ones = np.ones((num_nodes_at_stage,), dtype=int)
             stages = np.concatenate((stages, (1 + stage_idx) * ones))
@@ -320,11 +324,13 @@ class MarkovChainScenarioTreeFactory:
         """
         :return: probability
         """
-        num_nonzero_init_distr = len(list(filter(lambda x: (x > 0), self.__initial_distribution)))
+        num_nonzero_init_distr = len(
+            list(filter(lambda x: (x > 0), self.__initial_distribution)))
         # Initialise `probs`
         probs = np.zeros((num_nonzero_init_distr + 1,))
         probs[0] = 1
-        probs[1:] = self.__initial_distribution[np.flatnonzero(self.__initial_distribution)]
+        probs[1:] = self.__initial_distribution[np.flatnonzero(
+            self.__initial_distribution)]
         num_nodes = len(values)
         index = 0
         for i in range(num_nonzero_init_distr + 1, num_nodes):
@@ -348,5 +354,6 @@ class MarkovChainScenarioTreeFactory:
         # check input data
         ancestors, values, stages = self.__make_ancestors_values_stages()
         probs = self.__make_probability_values(ancestors, values, stages)
-        tree = ScenarioTree(stages, ancestors, probs, values, is_markovian=True)
+        tree = ScenarioTree(stages, ancestors, probs,
+                            values, is_markovian=True)
         return tree

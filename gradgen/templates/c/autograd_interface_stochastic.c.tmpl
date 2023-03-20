@@ -30,14 +30,14 @@ extern int casadi_{{name}}_f(
     casadi_real *w,
     int mem);
 
-extern int casadi_{{name}}_jfx(
+extern int casadi_{{name}}_fx(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
     casadi_real *w,
     int mem);
 
-extern int casadi_{{name}}_jfu(
+extern int casadi_{{name}}_fu(
     const casadi_real **arg,
     casadi_real **res,
     casadi_int *iw,
@@ -91,16 +91,16 @@ static casadi_int *iws_f = NULL;
 #endif
 
 #if JFX_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_jfx[JFX_SZ_IW_{{ name | upper}}];
+static casadi_int iws_fx[JFX_SZ_IW_{{ name | upper}}];
 #else
-static casadi_int *iws_jfx = NULL;
+static casadi_int *iws_fx = NULL;
 #endif
 
 
 #if JFU_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_jfu[JFU_SZ_IW_{{ name | upper}}];
+static casadi_int iws_fu[JFU_SZ_IW_{{ name | upper}}];
 #else
-static casadi_int *iws_jfu = NULL;
+static casadi_int *iws_fu = NULL;
 #endif
 
 #if ELL_SZ_IW_{{ name | upper}} > 0
@@ -145,15 +145,15 @@ static casadi_real *ws_f = NULL;
 #endif
 
 #if JFX_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_jfx[JFX_SZ_W_{{ name | upper}}];
+static casadi_real ws_fx[JFX_SZ_W_{{ name | upper}}];
 #else
-static casadi_real *ws_jfx = NULL;
+static casadi_real *ws_fx = NULL;
 #endif
 
 #if JFU_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_jfu[JFU_SZ_W_{{ name | upper}}];
+static casadi_real ws_fu[JFU_SZ_W_{{ name | upper}}];
 #else
-static casadi_real *ws_jfu = NULL;
+static casadi_real *ws_fu = NULL;
 #endif
 
 #if ELL_SZ_W_{{ name | upper}} > 0
@@ -191,8 +191,8 @@ static casadi_real *ws_vfx = NULL;
 /*        Result Spaces       */
 /* -------------------------- */
 static casadi_real *f_res[F_SZ_RES_{{ name | upper}}];
-static casadi_real *jfx_res[JFX_SZ_RES_{{ name | upper}}];
-static casadi_real *jfu_res[JFU_SZ_RES_{{ name | upper}}];
+static casadi_real *fx_res[JFX_SZ_RES_{{ name | upper}}];
+static casadi_real *fu_res[JFU_SZ_RES_{{ name | upper}}];
 static casadi_real *ell_res[ELL_SZ_RES_{{ name | upper}}];
 static casadi_real *ellx_res[ELLX_SZ_RES_{{ name | upper}}];
 static casadi_real *ellu_res[ELLU_SZ_RES_{{ name | upper}}];
@@ -274,7 +274,7 @@ int {{ name }}_f(const casadi_real** arg, casadi_real** res) {
     return casadi_{{ name }}_f(args__, f_res, iws_f, ws_f, 0);
 }
 
-int {{ name }}_jfx(const casadi_real** arg, casadi_real** res) {
+int {{ name }}_fx(const casadi_real** arg, casadi_real** res) {
     copy_xud_to_persistent(arg);  /* arg = {x, u, d} */
     copy_w_to_persistent(arg[3][0]); /* persist w */
     const casadi_real* args__[JFX_SZ_ARG_{{ name | upper}}] = {
@@ -282,11 +282,11 @@ int {{ name }}_jfx(const casadi_real** arg, casadi_real** res) {
         persistent_memory + IDX_U_{{ name | upper}},
         persistent_memory + IDX_D_{{ name | upper}},
         persistent_memory + IDX_W_{{ name | upper}}};
-    jfx_res[0] = res[0];
-    return casadi_{{ name }}_jfx(args__, jfx_res, iws_jfx, ws_jfx, 0);
+    fx_res[0] = res[0];
+    return casadi_{{ name }}_fx(args__, fx_res, iws_fx, ws_fx, 0);
 }
 
-int {{ name }}_jfu(const casadi_real** arg, casadi_real** res) {
+int {{ name }}_fu(const casadi_real** arg, casadi_real** res) {
     copy_xud_to_persistent(arg);  /* arg = {x, u, d} */
     copy_w_to_persistent(arg[3][0]); /* persist w */
     const casadi_real* args__[JFU_SZ_ARG_{{ name | upper}}] = {
@@ -295,8 +295,8 @@ int {{ name }}_jfu(const casadi_real** arg, casadi_real** res) {
         persistent_memory + IDX_D_{{ name | upper}},
         persistent_memory + IDX_W_{{ name | upper}},
     };
-    jfu_res[0] = res[0];
-    return casadi_{{ name }}_jfu(args__, jfu_res, iws_jfu, ws_jfu, 0);
+    fu_res[0] = res[0];
+    return casadi_{{ name }}_fu(args__, fu_res, iws_fu, ws_fu, 0);
 }
 
 int {{ name }}_ellx(const casadi_real** arg, casadi_real** res) {
@@ -351,39 +351,39 @@ void call_f_test(){
     }
 }
 
-void call_jfx_test()
+void call_fx_test()
 {
     double x[NX_STOCHASTIC_QUADCOPTER] = {1.5, 10., 2.};
     double u[NU_STOCHASTIC_QUADCOPTER] = {1.5, 2.1};
     double d[NX_STOCHASTIC_QUADCOPTER] = {5, 1, 6};
     double w[1] = {0};
 
-    double jfx[NX_STOCHASTIC_QUADCOPTER];
+    double fx[NX_STOCHASTIC_QUADCOPTER];
     const double *arg[4] = {x, u, d, w};
-    double *res[1] = {jfx};
-    stochastic_quadcopter_jfx(arg, res);
+    double *res[1] = {fx};
+    stochastic_quadcopter_fx(arg, res);
 
     for (unsigned int i = 0; i < NX_STOCHASTIC_QUADCOPTER; i++)
     {
-        printf("Jxf >> %g\n", jfx_res[0][i]);
+        printf("Jxf >> %g\n", fx_res[0][i]);
     }
 }
 
-void call_jfu_test()
+void call_fu_test()
 {
     double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};
     double u[NU_{{ name | upper}}] = {1.5, 2.1};
     double d[NX_{{ name | upper}}] = {1, 1, 0};
     double w[1] = {2};
 
-    double jfu[NU_{{ name | upper}}];
+    double fu[NU_{{ name | upper}}];
     const double *arg[4] = {x, u, d, w};
-    double *res[1] = {jfu};
-    {{ name }}_jfu(arg, res);
+    double *res[1] = {fu};
+    {{ name }}_fu(arg, res);
 
     for (unsigned int i = 0; i < NU_{{ name | upper}}; i++)
     {
-        printf("Juf >> %g\n", jfu_res[0][i]);
+        printf("Juf >> %g\n", fu_res[0][i]);
     }
 }
 
@@ -423,8 +423,8 @@ void call_vfx_test()
 int main()
 {
     call_f_test(); printf("\n");
-    call_jfx_test();printf("\n");
-    call_jfu_test();printf("\n");
+    call_fx_test();printf("\n");
+    call_fu_test();printf("\n");
     call_ellx_test();printf("\n");
     call_vfx_test();
     return 0;
