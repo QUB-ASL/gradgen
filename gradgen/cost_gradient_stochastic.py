@@ -196,6 +196,9 @@ class CostGradientStochastic(CostGradient):
             nodes_at_stage_from += [nodes_at_stage_i[0]]
             nodes_at_stage_to += [nodes_at_stage_i[-1]]
 
+        # number of different w's
+        num_ws = len(set(self.__tree._ScenarioTree__w_idx[1:]))
+
         # Cargo.toml [casadi]
         cargo_template = self._CostGradient__get_template(
             'Cargo.toml', subdir='casadi-rs')
@@ -224,7 +227,8 @@ class CostGradientStochastic(CostGradient):
             children_from=children_from,
             children_to=children_to,
             nodes_at_stage_from=nodes_at_stage_from,
-            nodes_at_stage_to=nodes_at_stage_to)
+            nodes_at_stage_to=nodes_at_stage_to,
+            num_events=num_ws)
         casadi_lib_rs_target_path = os.path.join(
             self._CostGradient__target_casadirs_dir(), "src", "lib.rs")
         with open(casadi_lib_rs_target_path, "w") as fh:
