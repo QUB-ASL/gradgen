@@ -90,15 +90,15 @@ static casadi_int iws_f[F_SZ_IW_{{ name | upper}}];
 static casadi_int *iws_f = NULL;
 #endif
 
-#if JFX_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_fx[JFX_SZ_IW_{{ name | upper}}];
+#if FX_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_fx[FX_SZ_IW_{{ name | upper}}];
 #else
 static casadi_int *iws_fx = NULL;
 #endif
 
 
-#if JFU_SZ_IW_{{ name | upper}} > 0
-static casadi_int iws_fu[JFU_SZ_IW_{{ name | upper}}];
+#if FU_SZ_IW_{{ name | upper}} > 0
+static casadi_int iws_fu[FU_SZ_IW_{{ name | upper}}];
 #else
 static casadi_int *iws_fu = NULL;
 #endif
@@ -144,14 +144,14 @@ static casadi_real ws_f[F_SZ_W_{{ name | upper}}];
 static casadi_real *ws_f = NULL;
 #endif
 
-#if JFX_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_fx[JFX_SZ_W_{{ name | upper}}];
+#if FX_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_fx[FX_SZ_W_{{ name | upper}}];
 #else
 static casadi_real *ws_fx = NULL;
 #endif
 
-#if JFU_SZ_W_{{ name | upper}} > 0
-static casadi_real ws_fu[JFU_SZ_W_{{ name | upper}}];
+#if FU_SZ_W_{{ name | upper}} > 0
+static casadi_real ws_fu[FU_SZ_W_{{ name | upper}}];
 #else
 static casadi_real *ws_fu = NULL;
 #endif
@@ -191,8 +191,8 @@ static casadi_real *ws_vfx = NULL;
 /*        Result Spaces       */
 /* -------------------------- */
 static casadi_real *f_res[F_SZ_RES_{{ name | upper}}];
-static casadi_real *fx_res[JFX_SZ_RES_{{ name | upper}}];
-static casadi_real *fu_res[JFU_SZ_RES_{{ name | upper}}];
+static casadi_real *fx_res[FX_SZ_RES_{{ name | upper}}];
+static casadi_real *fu_res[FU_SZ_RES_{{ name | upper}}];
 static casadi_real *ell_res[ELL_SZ_RES_{{ name | upper}}];
 static casadi_real *ellx_res[ELLX_SZ_RES_{{ name | upper}}];
 static casadi_real *ellu_res[ELLU_SZ_RES_{{ name | upper}}];
@@ -277,7 +277,7 @@ int {{ name }}_f(const casadi_real** arg, casadi_real** res) {
 int {{ name }}_fx(const casadi_real** arg, casadi_real** res) {
     copy_xud_to_persistent(arg);  /* arg = {x, u, d} */
     copy_w_to_persistent(arg[3][0]); /* persist w */
-    const casadi_real* args__[JFX_SZ_ARG_{{ name | upper}}] = {
+    const casadi_real* args__[FX_SZ_ARG_{{ name | upper}}] = {
         persistent_memory + IDX_X_{{ name | upper}},
         persistent_memory + IDX_U_{{ name | upper}},
         persistent_memory + IDX_D_{{ name | upper}},
@@ -289,7 +289,7 @@ int {{ name }}_fx(const casadi_real** arg, casadi_real** res) {
 int {{ name }}_fu(const casadi_real** arg, casadi_real** res) {
     copy_xud_to_persistent(arg);  /* arg = {x, u, d} */
     copy_w_to_persistent(arg[3][0]); /* persist w */
-    const casadi_real* args__[JFU_SZ_ARG_{{ name | upper}}] = {
+    const casadi_real* args__[FU_SZ_ARG_{{ name | upper}}] = {
         persistent_memory + IDX_X_{{ name | upper}},
         persistent_memory + IDX_U_{{ name | upper}},
         persistent_memory + IDX_D_{{ name | upper}},
