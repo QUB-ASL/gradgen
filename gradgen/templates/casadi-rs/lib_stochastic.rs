@@ -79,10 +79,12 @@ pub fn init_{{name}}() {
     }
 }
 
-pub fn f(x: &[f64], u: &[f64], w: &[f64], fxu: &mut [f64]) -> i32 {
-    let arguments = &[x.as_ptr(), u.as_ptr(), w.as_ptr()];
+pub fn f(x: &[f64], u: &[f64], w: i32, fxu: &mut [f64]) -> i32 {
+    let w_dbl = f64::from(w);
+    let w_dbl_vect = [w_dbl];
+    let arguments = &[x.as_ptr(), u.as_ptr(), w_dbl_vect.as_ptr()];
     let result = &mut [fxu.as_mut_ptr()];
-    unsafe { {{name}}_f(arguments.as_ptr(), result.as_mut_ptr()) as i32}
+    unsafe { stochastic_quadcopter_f(arguments.as_ptr(), result.as_mut_ptr()) as i32 }
 }
 
 pub fn jfx(x: &[f64], u: &[f64], d: &[f64], w: &[f64], jfx_d: &mut [f64]) -> i32 {
