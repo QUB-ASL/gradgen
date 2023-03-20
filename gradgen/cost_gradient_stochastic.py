@@ -141,17 +141,6 @@ class CostGradientStochastic(CostGradient):
         global_header_template = self._CostGradient__get_template(
             'global_header_stochastic.h.tmpl', subdir='c')
 
-        children = self.__tree._ScenarioTree__children
-        children_from = [x[0] for x in children]
-        children_to = [x[-1] for x in children]
-
-        nodes_at_stage_from = [0]
-        nodes_at_stage_to = [0]
-        for i in range(1, self.__tree.num_stages):
-            nodes_at_stage_i = self.__tree.nodes_at_stage(i)
-            nodes_at_stage_from += [nodes_at_stage_i[0]]
-            nodes_at_stage_to += [nodes_at_stage_i[-1]]
-
         global_header_rendered = global_header_template.render(
             name=self.name(),
             nx=self.__nx,
@@ -164,12 +153,7 @@ class CostGradientStochastic(CostGradient):
             ellx=self.__ellx_fun,
             ellu=self.__ellu_fun,
             vf=self.__vf_fun,
-            vfx=self.__vfx_fun,
-            tree=self.__tree,
-            children_from=children_from,
-            children_to=children_to,
-            nodes_at_stage_from=nodes_at_stage_from,
-            nodes_at_stage_to=nodes_at_stage_to
+            vfx=self.__vfx_fun
         )
         glob_header_target_path = os.path.join(
             self._CostGradient__target_externc_dir(), "glob_header.h")
@@ -200,6 +184,18 @@ class CostGradientStochastic(CostGradient):
         Then open the file from above path in a write mode
         and then writing to it replaces the existing content.
         """
+
+        children = self.__tree._ScenarioTree__children
+        children_from = [x[0] for x in children]
+        children_to = [x[-1] for x in children]
+
+        nodes_at_stage_from = [0]
+        nodes_at_stage_to = [0]
+        for i in range(1, self.__tree.num_stages):
+            nodes_at_stage_i = self.__tree.nodes_at_stage(i)
+            nodes_at_stage_from += [nodes_at_stage_i[0]]
+            nodes_at_stage_to += [nodes_at_stage_i[-1]]
+
         # Cargo.toml [casadi]
         cargo_template = self._CostGradient__get_template(
             'Cargo.toml', subdir='casadi-rs')
@@ -223,7 +219,12 @@ class CostGradientStochastic(CostGradient):
             name=self.name(),
             nx=self.__nx,
             nu=self.__nu,
-            N=self.__N)
+            N=self.__N,
+            tree=self.__tree,
+            children_from=children_from,
+            children_to=children_to,
+            nodes_at_stage_from=nodes_at_stage_from,
+            nodes_at_stage_to=nodes_at_stage_to)
         casadi_lib_rs_target_path = os.path.join(
             self._CostGradient__target_casadirs_dir(), "src", "lib.rs")
         with open(casadi_lib_rs_target_path, "w") as fh:

@@ -7,6 +7,59 @@ pub const NU: usize = {{ nu }};
 /// prediction horizon
 pub const NPRED: usize = {{ N }};
 
+/* SCENARIO TREE */ 
+
+/// Number of stages (i.e., prediction horizon)
+pub const NUM_STAGES: usize = {{ tree.num_stages }};
+
+/// Total number of nodes
+pub const NUM_NODES: usize = {{ tree.num_nodes }};
+
+/// Number of non-leaf nodes
+pub const NUM_NONLEAF_NODES: usize = {{ children_to | length }};
+
+/// List of stage indices of each node
+pub const STAGE_OF_NODE : &[usize]= &[
+    {{ tree._ScenarioTree__stages | join(', ') }}
+];
+
+/// List of ancestors of each node
+pub const ANCESTOR_OF_NODE : &[usize]= &[
+    0, {{ tree._ScenarioTree__ancestors[1:] | join(', ') }}
+];
+
+/// Event, w, leading up to a given node
+pub const EVENT_AT_NODE : &[usize]= &[
+    0, {{ tree._ScenarioTree__w_idx[1:] | join(', ') }}
+];
+
+
+/// Children (from) of a node
+pub const CHILDREN_OF_NODE_FROM : &[usize]= &[
+    {{ children_from | join(', ') }}
+];
+
+/// Children (to) of a node
+pub const CHILDREN_OF_NODE_TO : &[usize]= &[
+    {{ children_to | join(', ') }}
+];
+
+
+pub const NODES_AT_STAGE_FROM : &[usize]= &[
+    {{ nodes_at_stage_from | join(', ') }}
+];
+
+pub const NODES_AT_STAGE_TO : &[usize]= &[
+    {{ nodes_at_stage_to | join(', ') }}
+];
+
+
+/// Probability at given node
+pub const PROBABILITY_AT_NODE : &[f64]= &[
+    {{ tree._ScenarioTree__probability[:tree.num_nodes] | join(', ') }}
+];
+
+
 
 extern "C" {
     fn init_interface_{{name}}();
