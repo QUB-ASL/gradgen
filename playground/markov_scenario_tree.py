@@ -36,4 +36,4 @@ vf = 0.5 * cs.dot(x, x)
 uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, f_list, ell_list, vf) \
     .with_name("stochastic_quadcopter") \
     .with_target_path("codegenz")
-uncertain_gradiator.build(no_rust_build=True)
+uncertain_gradiator.build(no_rust_build=False)

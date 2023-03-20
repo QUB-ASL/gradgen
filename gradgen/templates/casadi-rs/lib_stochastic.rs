@@ -6,6 +6,8 @@ pub const NX: usize = {{ nx }};
 pub const NU: usize = {{ nu }};
 /// prediction horizon
 pub const NPRED: usize = {{ N }};
+/// number of nodes
+pub const NUM_NODES: usize = {{ NUM_NODES }};
 
 
 extern "C" {

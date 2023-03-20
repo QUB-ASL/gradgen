@@ -15,7 +15,6 @@ class CostGradientStochastic(CostGradient):
         :param tree: scenario tree for stochastic ocp
         :param x: state symbol
         :param u: input symbol
-        :param w: list of possible events
         :param f: list of system dynamics symbol (depends on x, u, w)
         :param ell: list of cost function symbol (depends on x, u, w)
         :param vf: terminal cost symbol (depends on x)
@@ -51,6 +50,8 @@ class CostGradientStochastic(CostGradient):
 
     def __create_gradients(self):
         """Create Jacobian of functions of ellx(w), ellu(w), fx(w), fu(w), vfx, and turn them into instances of class
+
+        TODO: test (cs.fabs(self.__w - (self.__nw - 1)) <= 0.1) against (cs.round(self.__w) == self.__nw - 1)
         """
         self.__f_selector = cs.if_else(
             cs.fabs(self.__w - (self.__nw - 1)) <= 0.1, self.__f_list[-1], cs.SX_nan(1))
@@ -247,7 +248,7 @@ class CostGradientStochastic(CostGradient):
             fh.write(cargo_rendered)
         # lib
         lib_template = self._CostGradient__get_template(
-            'lib.rs', subdir='rust')
+            'lib_stochastic.rs', subdir='rust')
         lib_rendered = lib_template.render(name=self.name())
         lib_target_path = os.path.join(
             self._CostGradient__target_root_dir(), "src", "lib.rs")
@@ -255,7 +256,7 @@ class CostGradientStochastic(CostGradient):
             fh.write(lib_rendered)
 
     def build(self, no_rust_build=False):
-        """Build all the function we need to calculate gradient
+        """Build all the functions we need to calculate the stochastic gradient
 
         :param no_rust_build: If set to True, the code will be generated, but it will not be compiled, defaults to False
         """
@@ -268,4 +269,4 @@ class CostGradientStochastic(CostGradient):
         self.__prepare_casadi_rs()
         self.__generate_rust_lib()
         if not no_rust_build:
-            self.__cargo_build()
+            self._CostGradient__cargo_build()
