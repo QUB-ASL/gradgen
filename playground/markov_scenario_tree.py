@@ -17,10 +17,22 @@ nx, nu = 3, 2
 x = cs.SX.sym('x', nx)
 u = cs.SX.sym('u', nu)
 
-f = cs.vertcat(1.1 * x[0] + 2 * u[0],
-               x[1] + 0.5 * x[0] + 4 * u[1],
-               x[2] + 0.9 * x[1])
-f_list = [f, 0 * f, 10 * f]
+A = np.array([[0.9, -0.5, 0.0],
+              [0.0, 0.1, 0.5],
+              [-0.6, 0.7, 0.8]])
+B1 = np.array([[2, 0],
+              [0, 1],
+              [0, 0]])
+B2 = np.array([[1, 0],
+              [0.5, 2],
+              [0, 0]])
+B3 = np.array([[0, 0],
+              [0, 0],
+              [0, 0]])
+
+f_list = [A @ x + B1 @ u,
+          (3 * A) @ x + B2 @ u,
+          0.5 * A @ x + B3 @ u]
 
 # stage cost function, ell
 ell0 = 5 * cs.dot(x, x) + 0.1 * x[0] + cs.dot(u, u)

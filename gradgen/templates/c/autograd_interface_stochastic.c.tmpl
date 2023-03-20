@@ -336,8 +336,8 @@ int {{ name }}_vfx(const casadi_real** arg, casadi_real** res) {
 
 
 void call_f_test(){
-    double x[NX_{{ name | upper}}] = {1.570796326794897, 10., 2.};
-    double u[NU_{{ name | upper}}] = {1.5, 2.1};
+    double x[NX_{{ name | upper}}] = {1.5, 10., 2.};
+    double u[NU_{{ name | upper}}] = {-0.3, 2.1};
     double w[1] = {0};
     double x_next[NX_{{ name | upper}}];
     const double *arg[3] = {x, u, w};
