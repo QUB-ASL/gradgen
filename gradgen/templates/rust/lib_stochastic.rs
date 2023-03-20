@@ -105,11 +105,11 @@ pub fn total_cost_gradient_bw(
         let u_npred_j = &u_at_node[(n - j) * NU..(n - j + 1) * NU];
         let grad_npred_j = &mut grad_stoc[(n - j) * NU..(n - j + 1) * NU];
 
-        jfu(x_npred_j, u_npred_j, &ws.a, grad_npred_j);
+        fu(x_npred_j, u_npred_j, &ws.a, grad_npred_j);
         ellu(x_npred_j, u_npred_j, &mut ws.temp_nu);
         a_plus_eq_b(grad_npred_j, &ws.temp_nu);
 
-        jfx(x_npred_j, u_npred_j, &ws.a, &mut ws.a_new);
+        fx(x_npred_j, u_npred_j, &ws.a, &mut ws.a_new);
         ellx(x_npred_j, u_npred_j, &mut ws.temp_nx);
         a_plus_eq_b(&mut ws.a_new, &ws.temp_nx);
         ws.a.copy_from_slice(&ws.a_new);
@@ -120,7 +120,7 @@ pub fn total_cost_gradient_bw(
     let u_npred_j = &u_at_node[0..NU];
     let grad_npred_j = &mut grad_stoc[..NU];
 
-    jfu(x_npred_j, u_npred_j, &ws.a, grad_npred_j);
+    fu(x_npred_j, u_npred_j, &ws.a, grad_npred_j);
     ellu(x_npred_j, u_npred_j, &mut ws.temp_nu);
     a_plus_eq_b(grad_npred_j, &ws.temp_nu);
 

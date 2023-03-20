@@ -35,14 +35,14 @@ class CostGradientStochastic(CostGradient):
         self.__d = cs.SX.sym('d', self.__nx)
         self.__N = self.__tree.num_stages - 1
         self.__f_selector = None
-        self.__jfx = None
-        self.__jfu = None
+        self.__fx = None
+        self.__fu = None
         self.__ell_selector = None
         self.__ellx = None
         self.__ellu = None
         self.__f_fun = None
-        self.__jfx_fun = None
-        self.__jfu_fun = None
+        self.__fx_fun = None
+        self.__fu_fun = None
         self.__ell_fun = None
         self.__ellx_fun = None
         self.__ellu_fun = None
@@ -63,8 +63,8 @@ class CostGradientStochastic(CostGradient):
             self.__ell_selector = cs.if_else(
                 cs.fabs(self.__w - i_events) <= 0.1, self.__ell_list[i_events], self.__ell_selector)
 
-        self.__jfx = cs.jacobian(self.__f_selector, self.__x).T @ self.__d
-        self.__jfu = cs.jacobian(self.__f_selector, self.__u).T @ self.__d
+        self.__fx = cs.jacobian(self.__f_selector, self.__x).T @ self.__d
+        self.__fu = cs.jacobian(self.__f_selector, self.__u).T @ self.__d
         self.__ellx = cs.jacobian(self.__ell_selector, self.__x).T
         self.__ellu = cs.jacobian(self.__ell_selector, self.__u).T
         self.__vfx = cs.jacobian(self.__vf, self.__x).T
@@ -77,16 +77,16 @@ class CostGradientStochastic(CostGradient):
                                    [self.__f_selector],
                                    ['x', 'u', 'w'],
                                    ['f'])
-        self.__jfx_fun = cs.Function(self._CostGradient__function_name('jfx'),
-                                     [self.__x, self.__u, self.__d, self.__w],
-                                     [self.__jfx],
-                                     ['x', 'u', 'd', 'w'],
-                                     ['jfx'])
-        self.__jfu_fun = cs.Function(self._CostGradient__function_name('jfu'),
-                                     [self.__x, self.__u, self.__d, self.__w],
-                                     [self.__jfu],
-                                     ['x', 'u', 'd', 'w'],
-                                     ['jfu'])
+        self.__fx_fun = cs.Function(self._CostGradient__function_name('fx'),
+                                    [self.__x, self.__u, self.__d, self.__w],
+                                    [self.__fx],
+                                    ['x', 'u', 'd', 'w'],
+                                    ['fx'])
+        self.__fu_fun = cs.Function(self._CostGradient__function_name('fu'),
+                                    [self.__x, self.__u, self.__d, self.__w],
+                                    [self.__fu],
+                                    ['x', 'u', 'd', 'w'],
+                                    ['fu'])
         self.__ell_fun = cs.Function(self._CostGradient__function_name('ell'),
                                      [self.__x, self.__u, self.__w],
                                      [self.__ell_selector],
@@ -119,8 +119,8 @@ class CostGradientStochastic(CostGradient):
         c_code_filename = 'casadi_functions.c'
         codegen = cs.CodeGenerator(c_code_filename)
         codegen.add(self.__f_fun)
-        codegen.add(self.__jfx_fun)
-        codegen.add(self.__jfu_fun)
+        codegen.add(self.__fx_fun)
+        codegen.add(self.__fu_fun)
         codegen.add(self.__ell_fun)
         codegen.add(self.__ellx_fun)
         codegen.add(self.__ellu_fun)
@@ -148,8 +148,8 @@ class CostGradientStochastic(CostGradient):
             nu=self.__nu,
             N=self.__N,
             f=self.__f_fun,
-            jfx=self.__jfx_fun,
-            jfu=self.__jfu_fun,
+            fx=self.__fx_fun,
+            fu=self.__fu_fun,
             ell=self.__ell_fun,
             ellx=self.__ellx_fun,
             ellu=self.__ellu_fun,
