@@ -19,8 +19,20 @@ class ModelFactory:
         return f
 
     @ staticmethod
-    def create_bicycle_model():
-        raise NotImplementedError()
+    def create_bicycle_model(x, u,
+                             L=1,
+                             alpha=0.25,
+                             t_sampling=0.01):
+        _check_state_input_dims(x, u, 4, 2)
+        psi = x[2]
+        v = x[3]
+        a = u[0]
+        d = u[1]
+        f = cs.vertcat(v * cs.cos(psi),
+                       v * cs.sin(psi),
+                       v * cs.tan(d) / L,
+                       alpha * (a - v))
+        return cs.simplify(x + t_sampling * f)
 
     @ staticmethod
     def create_inv_pend_model(x, u, m=1, ell=1, M=1, g=9.81, t_sampling=0.01):
@@ -74,4 +86,4 @@ class ModelFactory:
                        (u - m*g * x[0] * cs.cos(x[1]) - 2*m *
                         x[0] * x[1] * x[2]) / (m * x[0]**2 + moi)
                        )
-        return x + t_sampling * f
+        return cs.simplify(x + t_sampling * f)

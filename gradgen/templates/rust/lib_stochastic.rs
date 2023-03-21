@@ -189,7 +189,7 @@ mod tests {
         let x0 = vec![0.1; NX];
         let us = vec![0.001; NU * NUM_NONLEAF_NODES];
         let mut grad_stoc = vec![0.0; NU * NUM_NONLEAF_NODES];
-        let runs = 5000;
+        let runs = 10000;
         let now = Instant::now();
         
         for _ in 1..runs {
