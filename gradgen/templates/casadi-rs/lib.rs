@@ -14,8 +14,10 @@ extern "C" {
     fn {{name}}_f(arg: *const *const c_double, casadi_results: *mut *mut c_double) -> c_int;
     fn {{name}}_fx(arg: *const *const c_double, casadi_results: *mut *mut c_double) -> c_int;
     fn {{name}}_fu(arg: *const *const c_double, casadi_results: *mut *mut c_double) -> c_int;
+    fn {{name}}_ell(arg: *const *const c_double, casadi_results:  *mut *mut c_double) -> c_int;
     fn {{name}}_ellx(arg: *const *const c_double, casadi_results: *mut *mut c_double) -> c_int;
     fn {{name}}_ellu(arg: *const *const c_double, casadi_results: *mut *mut c_double) -> c_int;
+    fn {{name}}_vf(arg: *const *const  c_double, casadi_results:  *mut *mut c_double) -> c_int;
     fn {{name}}_vfx(arg: *const *const c_double, casadi_results: *mut *mut c_double) -> c_int;
 }
 
@@ -44,6 +46,12 @@ pub fn fu(x: &[f64], u: &[f64], d: &[f64], fud: &mut [f64]) -> i32 {
     unsafe { {{name}}_fu(arguments.as_ptr(), result.as_mut_ptr()) as i32 }
 }
 
+pub fn ell(x: &[f64], u: &[f64], ell_out: &mut f64) -> i32 {
+    let arguments = &[x.as_ptr(), u.as_ptr()];
+    let mut result = ell_out as *mut f64;
+    unsafe { {{name}}_ell(arguments.as_ptr(), &mut result) as i32 }
+}
+
 pub fn ellx(x: &[f64], u: &[f64], ellx_out: &mut [f64]) -> i32 {
     let arguments = &[x.as_ptr(), u.as_ptr()];
     let result = &mut [ellx_out.as_mut_ptr()];
@@ -54,6 +62,12 @@ pub fn ellu(x: &[f64], u: &[f64], ellu_out: &mut [f64]) -> i32 {
     let arguments = &[x.as_ptr(), u.as_ptr()];
     let result = &mut [ellu_out.as_mut_ptr()];
     unsafe { {{name}}_ellu(arguments.as_ptr(), result.as_mut_ptr()) as i32 }
+}
+
+pub fn vf(x: &[f64], vf_out: &mut f64) -> i32 {
+    let arguments = &[x.as_ptr()];
+    let mut result =  vf_out as *mut f64 ;
+    unsafe { {{name}}_vf(arguments.as_ptr(), &mut result) as i32 }
 }
 
 pub fn vfx(x: &[f64], vfx_out: &mut [f64]) -> i32 {
