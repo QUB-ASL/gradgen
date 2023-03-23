@@ -70,8 +70,8 @@ pub fn total_cost_gradient_bw(
 ) {
     *vn = 0.0;
     ws.x_seq[..NX].copy_from_slice(x0);
-    let temp_vf=0.0;
-    let temp_vn=0.0;
+    let mut temp_vf=0.0;
+    let mut temp_vn=0.0;
     /* Simulation and add ell*/
     for i in 0..=n - 1 {
         let xi = &ws.x_seq[i * NX..(i + 1) * NX];
