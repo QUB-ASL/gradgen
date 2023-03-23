@@ -17,12 +17,9 @@ pub struct BackwardGradientWorkspace {
     pub(crate) w: Vec<f64>,
     pub(crate) w_new: Vec<f64>,
     pub x_seq: Vec<f64>,
-    pub(crate) x_a: Vec<f64>,
-    pub(crate) x_b: Vec<f64>,
     pub(crate) temp_nx: Vec<f64>,
     pub(crate) temp_nu: Vec<f64>,
-    pub(crate) temp_vf: f64,
-    pub(crate) temp_vn: f64,
+
 
 }
 
@@ -40,12 +37,9 @@ impl BackwardGradientWorkspace {
             w: vec![0.0; NX],
             w_new: vec![0.0; NX],
             x_seq: vec![0.0; NX * (n_pred + 1)],
-            x_a: vec![0.0; NX],
-            x_b: vec![0.0; NX],
             temp_nx: vec![0.0; NX],
             temp_nu: vec![0.0; NU],
-            temp_vf: 0.0,
-            temp_vn: 0.0,
+
 
         }
     }
@@ -76,20 +70,22 @@ pub fn total_cost_gradient_bw(
 ) {
     *vn = 0.0;
     ws.x_seq[..NX].copy_from_slice(x0);
+    let temp_vf=0.0;
+    let temp_vn=0.0;
     /* Simulation and add ell*/
     for i in 0..=n - 1 {
         let xi = &ws.x_seq[i * NX..(i + 1) * NX];
         let ui = &u_seq[i * NU..(i + 1) * NU];
         f(xi, ui, &mut ws.w);
-        ell(xi, ui,&mut ws.temp_vn);
+        ell(xi, ui,&mut temp_vn);
         ws.x_seq[(i + 1) * NX..(i + 2) * NX].copy_from_slice(&ws.w);
-        *vn = *vn + ws.temp_vn;
+        *vn = *vn + temp_vn;
     }
 
     /* add Vf */
     let x_npred = &ws.x_seq[n * NX..(n + 1) * NX];
-    vf(x_npred, &mut ws.temp_vf);
-    *vn = *vn +  ws.temp_vf;
+    vf(x_npred, &mut temp_vf);
+    *vn = *vn +  temp_vf;
 
     /* initial w */
     vfx(
@@ -139,17 +135,19 @@ pub fn total_cost(
     ws: &mut BackwardGradientWorkspace,
     n: usize
 ) -> f64 {
+    let mut temp_vf=0.0;
+    let mut temp_vn=0.0;
     let mut vn = 0.0;
-    ws.x_a[..NX].copy_from_slice(x0);
+    ws.temp_nx[..NX].copy_from_slice(x0);
     let mut xi= vec![0.0; NX];
     xi.copy_from_slice(&x0);
     for i in 0..=n - 1 {
-        f(&ws.x_a[..NX], &u_seq[i * NU..(i + 1) * NU], &mut ws.x_b[..NX]);
-        ell(&ws.x_a[..NX], &u_seq[i * NU..(i + 1) * NU],&mut ws.temp_vn);
-        ws.x_a.copy_from_slice(&ws.x_b);
-        vn = vn + ws.temp_vn;
+        f(&ws.temp_nx[..NX], &u_seq[i * NU..(i + 1) * NU], &mut ws.temp_nu[..NX]);
+        ell(&ws.temp_nx[..NX], &u_seq[i * NU..(i + 1) * NU],&mut temp_vn);
+        ws.temp_nx.copy_from_slice(&ws.temp_nu);
+        vn = vn + temp_vn;
     }
-    vf(&ws.x_a[..NX], &mut ws.temp_vf);
-    vn = vn +  ws.temp_vf;
+    vf(&ws.temp_nx[..NX], &mut temp_vf);
+    vn = vn +  temp_vf;
     vn
 }
