@@ -21,8 +21,8 @@ p = np.array([[0.2, 0.3, 0.5],
               [0.1, 0.25, 0.65],
               [0.05, 0.8, 0.15]])
 v_tree = np.array([0.6, 0.1, 0.3])
-N = 40
-tau = 3
+N = 30
+tau = 4
 tree = gradgen.MarkovChainScenarioTreeFactory(p, v_tree, N, tau).create()
 print(tree)
 
@@ -36,7 +36,11 @@ def f(x, u, t_sampling):
 
 
 def ell(x, u):
-    return q_theta * x[0]**2 + q_theta_dot * x[1]**2 + r * u
+    return q_theta * x[0]**2 + q_theta_dot * x[1]**2 + r * u**2
+
+
+def vf(x):
+    return 0.5 * cs.dot(x, x)
 
 
 nx = 2
@@ -58,21 +62,25 @@ for i in range(1, tree.num_nonleaf_nodes):  # Looping through all non-leaf nodes
     x_anc = z_sequence[idx_anc]
     u_anc = u[idx_anc*nu:(idx_anc+1)*nu]
     u_current = u[i*nu:(i+1)*nu]
-
     t_s_current = 0.01 * (1 + 0.5 * tree.event_at_node(i))
 
     x_current = f(x_anc, u_anc, t_s_current)
 
-    cost += ell(x_current, u_current)
+    cost += tree.probability_of_node(i) * ell(x_current, u_current)
 
     z_sequence[i] = cs.vertcat(x_current)
+
+    if tree.stage_of(i) == N - 1:
+        for i_plus in tree.children_of(i):
+            t_s_current = 0.01 * (1 + 0.5 * tree.event_at_node(i_plus))
+            x_plus = f(x_anc, u_anc, t_s_current)
+            cost += tree.probability_of_node(i_plus) * vf(x_plus)
 
 bounds = og.constraints.NoConstraints()
 problem = og.builder.Problem(u, z0, cost)\
     .with_constraints(bounds)
 build_config = og.config.BuildConfiguration()\
-    .with_build_directory("basic_optimizer")\
-    .with_build_mode("debug")
+    .with_build_directory("basic_optimizer")
 meta = og.config.OptimizerMeta().with_optimizer_name("big_grad")
 solver_config = og.config.SolverConfiguration()
 
