@@ -71,7 +71,7 @@ class ModelFactory:
         gamma_u = np.diagflat([0, 0, gamma_u_z])
         gamma_n = np.diagflat(gamma_n)
         moi = np.diagflat(moi)
-        moi_inv = 1 / moi
+        moi_inv = np.linalg.inv(moi)
         fw = w + t_sampling * (gamma_u @ u + gamma_n @
                                n - moi_inv @ cs.cross(w, moi @ w))
         fn = n + t_sampling * (k1*k2*u - k2*n)
