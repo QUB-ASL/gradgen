@@ -16,7 +16,7 @@ pub fn num_inputs() -> usize {
 pub struct BackwardGradientWorkspace {
     pub(crate) w: Vec<f64>,
     pub(crate) w_new: Vec<f64>,
-    pub x_seq: Vec<f64>,
+    pub(crate) x_seq: Vec<f64>,
     pub(crate) temp_nx: Vec<f64>,
     pub(crate) temp_nu: Vec<f64>,
 
@@ -137,14 +137,15 @@ pub fn total_cost(
 ) -> f64 {
     let mut temp_vf=0.0;
     let mut temp_vn=0.0;
+    let mut temp_nx_new= vec![0.0; NX];
     let mut vn = 0.0;
     ws.temp_nx[..NX].copy_from_slice(x0);
     let mut xi= vec![0.0; NX];
     xi.copy_from_slice(&x0);
     for i in 0..=n - 1 {
-        f(&ws.temp_nx[..NX], &u_seq[i * NU..(i + 1) * NU], &mut ws.temp_nu[..NX]);
+        f(&ws.temp_nx[..NX], &u_seq[i * NU..(i + 1) * NU], &mut temp_nx_new[..NX]);
         ell(&ws.temp_nx[..NX], &u_seq[i * NU..(i + 1) * NU],&mut temp_vn);
-        ws.temp_nx.copy_from_slice(&ws.temp_nu);
+        ws.temp_nx.copy_from_slice(&temp_nx_new);
         vn = vn + temp_vn;
     }
     vf(&ws.temp_nx[..NX], &mut temp_vf);
