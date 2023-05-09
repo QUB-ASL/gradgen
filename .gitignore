@@ -1,5 +1,6 @@
 # Custom rules
 codegenz/
+generated_code/
 playground/*.c
 playground/*.so
 .idea/

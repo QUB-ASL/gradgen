@@ -14,7 +14,6 @@ markov_tree = gradgen.MarkovChainScenarioTreeFactory(
     p, v_tree, N, tau).create()
 print(markov_tree)
 
-
 nx, nu = 2, 1
 x = cs.SX.sym('x', nx)
 u = cs.SX.sym('u', nu)
@@ -22,12 +21,6 @@ f_list = [gradgen.ModelFactory.create_inv_pend_model(x, u, t_sampling=0.008),
           gradgen.ModelFactory.create_inv_pend_model(x, u, t_sampling=0.01),
           gradgen.ModelFactory.create_inv_pend_model(x, u, t_sampling=0.05)]
 
-# nx, nu = 10, 3
-# x = cs.SX.sym('x', nx)
-# u = cs.SX.sym('u', nu)
-# f_list = [gradgen.ModelFactory.create_quadcopter_model(x, u, t_sampling=0.008)]
-
-# print(cs.jacobian(f_list[0], x))
 # stage cost function, ell
 ell0 = 5 * cs.dot(x, x) + cs.dot(u, u)
 ell1 = 3 * cs.dot(x, x) + cs.dot(u, u)
@@ -37,9 +30,8 @@ ell_list = [ell0, ell1, ell2]
 # terminal cost function, vf
 vf = 0.5 * cs.dot(x, x)
 
-
-# gradiator
-uncertain_gradiator = gradgen.CostGradientStochastic(markov_tree, x, u, f_list, ell_list, vf) \
-    .with_name("stochastic_ip") \
-    .with_target_path("codegenz")
-uncertain_gradiator.build(no_rust_build=False)
+# gradgen
+grad = gradgen.CostGradientStochastic(markov_tree, x, u, f_list, ell_list, vf) \
+    .with_name("stoc_ip") \
+    .with_target_path("basic_optimizer")
+grad.build(no_rust_build=False)

@@ -5,35 +5,9 @@ fn main() {
     let n_pred_max = 5;
     let n_runs= 2;
     let mut ws = inverted_pendulum_test::BackwardGradientWorkspace::new(n_pred_max);
-    let nu = inverted_pendulum_test:: num_inputs();
+    let nu = inverted_pendulum_test::num_inputs();
     let nx = inverted_pendulum_test::num_states();
     let x0 = vec![0.0; nx];
-
-
-    fn mean(data: &[f64]) -> Option<f64> {
-        let sum = data.iter().sum::<f64>() as f64;
-        let count = data.len();
-        match count {
-            positive if positive > 0 => Some(sum/count as f64),
-            _ => None,
-        }
-    }
-    fn std_deviation(data: &[f64]) -> Option<f64> {
-        match (mean(data), data.len()) {
-            (Some(data_mean), count) if count > 0 => {
-                let variance = data.iter().map(|value| {
-                    let diff = data_mean - (*value as f64);
-
-                    diff * diff
-                }).sum::<f64>()/count as f64;
-
-                Some(variance.sqrt())
-            },
-            _ => None
-        }
-    }
-
-
 
     for n_pred in (5..=n_pred_max).step_by(5){
         let u_seq = vec! [1.0; nu * n_pred];
@@ -48,10 +22,11 @@ fn main() {
         }
         //print horizon size N and
         //the average runtime (in microsecond) for calculating the total gradient once
-        let data_mean = mean(&store);
-        let data_std_deviation = std_deviation(&store);
-        println!("{},{:?},{:?}", n_pred,data_mean.unwrap_or(-1.0),data_std_deviation.unwrap_or(-1.0));
-
-
+        let data_mean = inverted_pendulum_test::mean(&store);
+        let data_std_deviation = inverted_pendulum_test::std_deviation(&store);
+        println!("{},{:?},{:?}",
+                 n_pred,
+                 data_mean.unwrap_or(-1.0),
+                 data_std_deviation.unwrap_or(-1.0));
     }
 }
