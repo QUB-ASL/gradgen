@@ -116,6 +116,12 @@ class ScenarioTree:
             raise ValueError("node_idx cannot be <0")
         return self.__stages[node_idx]
 
+    def num_possible_events(self):
+        """
+        :return: max number of events at any node
+        """
+        return len(self.__w_idx)
+
     def event_at_node(self, node_idx):
         """
         :param node_idx: node index
