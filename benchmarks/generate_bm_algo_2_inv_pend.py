@@ -90,8 +90,8 @@ for i in range(1, tree.num_nonleaf_nodes):  # looping through all non-leaf nodes
     cost += tree.probability_of_node(i) * ell(x_current, u_current)
     z_seq[i] = cs.vertcat(x_current)
 
-    if tree.stage_of(i) == N - 1:
-        for i_plus in tree.children_of(i):  # ????
+    if tree.stage_of(i) == N - 2:
+        for i_plus in tree.children_of(i):
             t_s_current = t_s_at_event(tree.event_at_node(i_plus))
             x_plus = f(x_anc, u_anc, t_s_current)
             cost += tree.probability_of_node(i_plus) * vf(x_plus)
