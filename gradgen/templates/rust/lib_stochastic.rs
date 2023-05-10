@@ -11,6 +11,11 @@ pub fn num_inputs() -> usize {
     return NU;
 }
 
+/// Number of nonleaf nodes
+pub fn num_nonleaf_nodes() -> usize {
+    return NUM_NONLEAF_NODES;
+}
+
 #[derive(Debug)]
 pub struct BackwardGradientWorkspace {
     pub x_at_node: Vec<f64>,
@@ -176,6 +181,61 @@ pub fn total_cost_gradient_bw(
     }
 
 }
+
+
+// ** fundamental calculations **
+pub fn dot(a: &[f64], b: &[f64]) -> f64 {
+        let mut sum = 0.0;
+        for i in 0..a.len() {
+            sum += a[i] * b[i];
+        }
+        sum
+    }
+pub fn sub(vec_a: Vec<f64>, vec_b: Vec<f64>)-> Vec<f64>  {
+        vec_a.into_iter().zip(vec_b).map(|(a, b)| a - b).collect()
+    }
+pub fn mul(vec_a: Vec<f64>, vec_b: Vec<f64>)-> Vec<f64>  {
+        vec_a.into_iter().zip(vec_b).map(|(a, b)| a * b).collect()
+    }
+pub fn mean(data: &[f64]) -> Option<f64> {
+        let sum = data.iter().sum::<f64>() as f64;
+        let count = data.len();
+        match count {
+            positive if positive > 0 => Some(sum/count as f64),
+            _ => None,
+        }
+    }
+pub fn std_deviation(data: &[f64]) -> Option<f64> {
+        match (mean(data), data.len()) {
+            (Some(data_mean), count) if count > 0 => {
+                let variance = data.iter().map(|value| {
+                    let diff = data_mean - (*value as f64);
+
+                    diff * diff
+                }).sum::<f64>()/count as f64;
+
+                Some(variance.sqrt())
+            },
+            _ => None
+        }
+    }
+pub fn max(vec_a: &Vec<f64>, vec_b: &Vec<f64>) -> Vec<f64> {
+        let mut vec_c=vec! [0.0;vec_a.len()];
+        for i in 0..vec_a.len() {
+            for i in 0..vec_b.len() {
+                if vec_a[i] > vec_b[i] {
+                    vec_c[i] = vec_a[i];
+                }
+                if vec_a[i] < vec_b[i] {
+                    vec_c[i] = vec_b[i];
+                }
+            }
+        }
+        vec_c.to_vec()
+    }
+pub fn euclidean_norm(v: &[f64]) -> f64 {
+    v.iter().map(|&x| x * x).sum::<f64>().sqrt()
+    }
 
 
 #[cfg(test)]
