@@ -191,7 +191,7 @@ fn main() {
         <a href="https://alphaville.github.io">Pantelis Sopasakis</a>     
       </td>    
       <td align="center" valign="top">    
-        <img width="150" height="150" src="https://i.postimg.cc/m2Q3Qtpq/IMG-3356.jpg">    
+        <img width="150" height="150" src="https://github.com/inLimonL.png?s=100">    
         <br>    
         <a href="https://github.com/inLimonL">Jie Lin</a>         
       </td>    
