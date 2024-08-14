@@ -13,11 +13,7 @@
   
 In particular, consider the following optimal control problem  
   
-$$\begin{aligned}  
-\operatorname*{Minimise}_{u_0, u_1, \ldots, u_{N-1}}&\sum_{t=0}^{N-1}\ell(x_t, u_t) + V_f(x_N)\\  
-\text { subject to: } x_{t+1}& =f\left(x_t, u_t\right), t=0, \ldots, N-1\\  
-x_0& =x.  
-\end{aligned}$$  
+$$\begin{aligned} \mathrm{Minimise}&\sum_{t=0}^{N-1}\ell(x_t, u_t) + V_f(x_N) \\\\  \text { subject to: } &x_{t+1} =f\left(x_t, u_t\right), t=0, \ldots, N-1 \\\\  &x_0=x.  \end{aligned}$$  
   
 Let $u=(u_0, u_1, \ldots, u_{N-1})$. The state of the system at time $t$ starting from the initial state $x_0=x$ and with the action of these control actions is $x_t = \phi(t; x, u)$. Then, the total cost function is defined as   
   
