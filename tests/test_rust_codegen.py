@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from gradgen import Function, SX, SXVector, create_rust_project, derivative
+from gradgen import Function, RustBackendConfig, SX, SXVector, create_rust_project, derivative
 
 
 class RustCodegenTests(unittest.TestCase):
@@ -181,6 +181,62 @@ mod tests {{
         self.assertIn("work[1] = x[1] * y[1];", result.source)
         self.assertIn("work[2] = work[0] + work[1];", result.source)
         self.assertIn("dot[0] = work[2];", result.source)
+
+    def test_backend_config_supports_chainable_updates(self) -> None:
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_math_lib("libm")
+            .with_crate_name("my_kernel")
+            .with_function_name("eval_kernel")
+            .with_emit_metadata_helpers(False)
+        )
+
+        self.assertEqual(config.backend_mode, "no_std")
+        self.assertEqual(config.math_library, "libm")
+        self.assertEqual(config.crate_name, "my_kernel")
+        self.assertEqual(config.function_name, "eval_kernel")
+        self.assertFalse(config.emit_metadata_helpers)
+
+    def test_generate_rust_accepts_backend_config(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x.sin()], input_names=["x"], output_names=["y"])
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_math_lib("libm")
+            .with_function_name("eval_kernel")
+            .with_emit_metadata_helpers(False)
+        )
+
+        result = f.generate_rust(config=config)
+
+        self.assertEqual(result.function_name, "eval_kernel")
+        self.assertEqual(result.backend_mode, "no_std")
+        self.assertEqual(result.math_library, "libm")
+        self.assertIn("#![no_std]", result.source)
+        self.assertIn("pub fn eval_kernel(", result.source)
+        self.assertNotIn("WORK_SIZE", result.source)
+        self.assertNotIn("pub fn eval_kernel_work_size()", result.source)
+
+    def test_create_rust_project_accepts_backend_config(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+        config = (
+            RustBackendConfig()
+            .with_crate_name("my_kernel")
+            .with_function_name("eval_kernel")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "custom_project", config=config)
+
+            cargo_text = project.cargo_toml.read_text(encoding="utf-8")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn('name = "my_kernel"', cargo_text)
+            self.assertIn("pub fn eval_kernel(", lib_text)
+            self.assertEqual(project.codegen.function_name, "eval_kernel")
 
     def test_workspace_size_matches_number_of_non_leaf_nodes(self) -> None:
         x = SX.sym("x")

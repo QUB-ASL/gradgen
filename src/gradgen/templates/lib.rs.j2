@@ -2,6 +2,7 @@
 #![no_std]
 
 {% endif -%}
+{% if emit_metadata_helpers -%}
 /// Workspace length required by [`{{ function_name }}`].
 pub const {{ upper_name }}_WORK_SIZE: usize = {{ workspace_size }};
 
@@ -40,6 +41,7 @@ pub fn {{ function_name }}_output_{{ loop.index0 }}_size() -> usize {
 }
 
 {% endfor -%}
+{% endif -%}
 /// Evaluate the generated symbolic function `{{ function_name }}`.
 ///
 /// Inputs are passed as immutable slices, outputs are written into mutable slices,

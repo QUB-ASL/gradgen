@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader
@@ -12,6 +12,46 @@ from .sx import SX, SXNode, SXVector
 
 
 RustBackendMode = str
+
+
+@dataclass(frozen=True, slots=True)
+class RustBackendConfig:
+    """Configuration for generated Rust source and project layout.
+
+    The config object groups Rust backend options into a single immutable
+    value. Users can build it incrementally with ``with_...`` methods:
+
+    ``RustBackendConfig().with_backend_mode("no_std").with_math_lib("libm")``
+
+    The same config can be reused for both source generation and project
+    creation, which keeps backend behavior consistent as options grow.
+    """
+
+    backend_mode: RustBackendMode = "std"
+    math_library: str | None = None
+    crate_name: str | None = None
+    function_name: str | None = None
+    emit_metadata_helpers: bool = True
+
+    def with_backend_mode(self, backend_mode: RustBackendMode) -> RustBackendConfig:
+        """Return a copy with a different Rust backend mode."""
+        return replace(self, backend_mode=backend_mode)
+
+    def with_math_lib(self, math_library: str | None) -> RustBackendConfig:
+        """Return a copy with a different ``no_std`` math namespace."""
+        return replace(self, math_library=math_library)
+
+    def with_crate_name(self, crate_name: str | None) -> RustBackendConfig:
+        """Return a copy with a different generated crate name."""
+        return replace(self, crate_name=crate_name)
+
+    def with_function_name(self, function_name: str | None) -> RustBackendConfig:
+        """Return a copy with a different generated Rust function name."""
+        return replace(self, function_name=function_name)
+
+    def with_emit_metadata_helpers(self, emit_metadata_helpers: bool) -> RustBackendConfig:
+        """Return a copy with metadata helper emission enabled or disabled."""
+        return replace(self, emit_metadata_helpers=emit_metadata_helpers)
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,15 +90,25 @@ class _ArgSpec:
 def generate_rust(
     function: Function,
     *,
+    config: RustBackendConfig | None = None,
     function_name: str | None = None,
     backend_mode: RustBackendMode = "std",
     math_library: str | None = None,
 ) -> RustCodegenResult:
     """Generate Rust source code for primal function evaluation."""
-    _validate_backend_mode(backend_mode)
-    resolved_math_library = _resolve_math_library(backend_mode, math_library)
+    resolved_config = _resolve_backend_config(
+        config,
+        function_name=function_name,
+        backend_mode=backend_mode,
+        math_library=math_library,
+    )
+    _validate_backend_mode(resolved_config.backend_mode)
+    resolved_math_library = _resolve_math_library(
+        resolved_config.backend_mode,
+        resolved_config.math_library,
+    )
 
-    name = _sanitize_ident(function_name or function.name)
+    name = _sanitize_ident(resolved_config.function_name or function.name)
     input_sizes = tuple(_arg_size(arg) for arg in function.inputs)
     output_sizes = tuple(_arg_size(arg) for arg in function.outputs)
     input_specs = tuple(
@@ -91,7 +141,7 @@ def generate_rust(
             SX(node),
             scalar_bindings,
             workspace_map,
-            backend_mode,
+            resolved_config.backend_mode,
             resolved_math_library,
         )
         computation_lines.append(f"work[{work_index}] = {rhs};")
@@ -105,7 +155,7 @@ def generate_rust(
                 scalar,
                 scalar_bindings,
                 workspace_map,
-                backend_mode,
+                resolved_config.backend_mode,
                 resolved_math_library,
             )
             output_write_lines.append(
@@ -123,9 +173,10 @@ def generate_rust(
     source = _get_template("lib.rs.j2").render(
         function_name=name,
         upper_name=name.upper(),
-        backend_mode=backend_mode,
+        backend_mode=resolved_config.backend_mode,
         math_library=resolved_math_library,
         workspace_size=len(workspace_map),
+        emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
         parameters=parameters,
@@ -141,7 +192,7 @@ def generate_rust(
         workspace_size=len(workspace_map),
         input_sizes=input_sizes,
         output_sizes=output_sizes,
-        backend_mode=backend_mode,
+        backend_mode=resolved_config.backend_mode,
         math_library=resolved_math_library,
     )
 
@@ -150,21 +201,27 @@ def create_rust_project(
     function: Function,
     path: str | Path,
     *,
+    config: RustBackendConfig | None = None,
     crate_name: str | None = None,
     function_name: str | None = None,
     backend_mode: RustBackendMode = "std",
     math_library: str | None = None,
 ) -> RustProjectResult:
     """Create a minimal Rust library project containing generated code."""
-    _validate_backend_mode(backend_mode)
-
-    project_dir = Path(path).expanduser().resolve()
-    crate = _sanitize_ident(crate_name or function.name)
-    codegen = generate_rust(
-        function,
+    resolved_config = _resolve_backend_config(
+        config,
+        crate_name=crate_name,
         function_name=function_name,
         backend_mode=backend_mode,
         math_library=math_library,
+    )
+    _validate_backend_mode(resolved_config.backend_mode)
+
+    project_dir = Path(path).expanduser().resolve()
+    crate = _sanitize_ident(resolved_config.crate_name or function.name)
+    codegen = generate_rust(
+        function,
+        config=resolved_config,
     )
 
     src_dir = project_dir / "src"
@@ -176,7 +233,7 @@ def create_rust_project(
     cargo_toml.write_text(
         _get_template("Cargo.toml.j2").render(
             crate_name=crate,
-            backend_mode=backend_mode,
+            backend_mode=resolved_config.backend_mode,
             math_library=codegen.math_library,
         ),
         encoding="utf-8",
@@ -185,7 +242,7 @@ def create_rust_project(
         _get_template("rust_project_README.md.j2").render(
             crate_name=crate,
             codegen=codegen,
-            backend_mode=backend_mode,
+            backend_mode=resolved_config.backend_mode,
             math_library=codegen.math_library,
         ),
         encoding="utf-8",
@@ -333,6 +390,32 @@ def _resolve_math_library(
     if backend_mode == "std":
         return math_library
     return math_library or "libm"
+
+
+def _resolve_backend_config(
+    config: RustBackendConfig | None,
+    *,
+    crate_name: str | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    math_library: str | None = None,
+) -> RustBackendConfig:
+    """Merge explicit keyword arguments with an optional backend config.
+
+    Explicit keyword arguments override the values carried in ``config``.
+    This preserves backward compatibility while allowing callers to adopt
+    the structured configuration object gradually.
+    """
+    resolved = config or RustBackendConfig()
+    if crate_name is not None:
+        resolved = resolved.with_crate_name(crate_name)
+    if function_name is not None:
+        resolved = resolved.with_function_name(function_name)
+    if backend_mode != "std":
+        resolved = resolved.with_backend_mode(backend_mode)
+    if math_library is not None:
+        resolved = resolved.with_math_lib(math_library)
+    return resolved
 
 
 def _get_template(name: str):

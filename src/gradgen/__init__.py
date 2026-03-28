@@ -5,6 +5,7 @@ from .cse import CSEAssignment, CSEPlan, cse
 from .function import Function
 from .rust_codegen import (
     RustBackendMode,
+    RustBackendConfig,
     RustCodegenResult,
     RustProjectResult,
     create_rust_project,
@@ -18,6 +19,7 @@ __all__ = [
     "CSEPlan",
     "Function",
     "RustBackendMode",
+    "RustBackendConfig",
     "RustCodegenResult",
     "RustProjectResult",
     "SX",

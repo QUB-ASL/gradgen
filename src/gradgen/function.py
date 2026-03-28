@@ -103,6 +103,7 @@ class Function:
     def generate_rust(
         self,
         *,
+        config=None,
         function_name: str | None = None,
         backend_mode: str = "std",
         math_library: str | None = None,
@@ -112,6 +113,7 @@ class Function:
 
         return generate_rust(
             self,
+            config=config,
             function_name=function_name,
             backend_mode=backend_mode,
             math_library=math_library,
@@ -121,6 +123,7 @@ class Function:
         self,
         path: str,
         *,
+        config=None,
         crate_name: str | None = None,
         function_name: str | None = None,
         backend_mode: str = "std",
@@ -132,6 +135,7 @@ class Function:
         return create_rust_project(
             self,
             path,
+            config=config,
             crate_name=crate_name,
             function_name=function_name,
             backend_mode=backend_mode,
