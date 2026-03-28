@@ -7,6 +7,7 @@ from .sx import SX, SXNode, SXVector, vector
 
 ADExpr = SX | SXVector
 JacobianExpr = SX | SXVector | tuple[SXVector, ...]
+HessianExpr = SX | tuple[SXVector, ...]
 ADSeed = SX | SXVector | float | int | list[object] | tuple[object, ...]
 
 
@@ -97,6 +98,20 @@ def jacobian(expr: ADExpr, wrt: ADExpr) -> JacobianExpr:
         return SXVector(tuple(derivative(element, wrt) for element in expr))
 
     return tuple(gradient(element, wrt) for element in expr)
+
+
+def hessian(expr: SX, wrt: ADExpr) -> HessianExpr:
+    """Compute a symbolic Hessian for a scalar expression.
+
+    The current return shape follows the vector-first representation:
+
+    - scalar wrt scalar -> ``SX``
+    - scalar wrt vector -> ``tuple[SXVector, ...]``, one row per variable
+    """
+    if isinstance(wrt, SX):
+        return derivative(derivative(expr, wrt), wrt)
+
+    return tuple(gradient(component, wrt) for component in gradient(expr, wrt))
 
 
 def _build_tangent_map(wrt: ADExpr, tangent: ADSeed | None) -> dict[SXNode, SX]:

@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from gradgen import Function, SX, SXVector, derivative, gradient, jacobian, jvp, vjp
+from gradgen import Function, SX, SXVector, derivative, gradient, hessian, jacobian, jvp, vjp
 
 
 class ForwardADTests(unittest.TestCase):
@@ -291,6 +291,74 @@ class JacobianTests(unittest.TestCase):
 
         with self.assertRaises(IndexError):
             f.jacobian(1)
+
+
+class HessianTests(unittest.TestCase):
+    def test_scalar_scalar_hessian_matches_second_derivative(self) -> None:
+        x = SX.sym("x")
+        hes = hessian(x**3, x)
+        evaluator = Function("hes", [x], [hes])
+
+        self.assertEqual(evaluator(2.0), 12.0)
+
+    def test_scalar_vector_hessian_returns_rows(self) -> None:
+        x = SXVector.sym("x", 2)
+        expr = (x[0] * x[0]) + (x[0] * x[1]) + (x[1] * x[1])
+        hes = hessian(expr, x)
+
+        self.assertEqual(len(hes), 2)
+
+        evaluator = Function("hes", [x], list(hes))
+        result = evaluator([3.0, 4.0])
+
+        self.assertEqual(result[0], (2.0, 1.0))
+        self.assertEqual(result[1], (1.0, 2.0))
+
+    def test_hessian_of_separable_expression_is_diagonal(self) -> None:
+        x = SXVector.sym("x", 2)
+        expr = (x[0] * x[0]) + (x[1] * x[1])
+        hes = hessian(expr, x)
+        evaluator = Function("hes", [x], list(hes))
+
+        result = evaluator([3.0, 4.0])
+
+        self.assertEqual(result[0], (2.0, 0.0))
+        self.assertEqual(result[1], (0.0, 2.0))
+
+    def test_function_hessian_for_scalar_input_block(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x**3])
+        hes = f.hessian(0)
+
+        self.assertEqual(hes.name, "f_hessian_i0")
+        self.assertEqual(hes(2.0), 12.0)
+
+    def test_function_hessian_for_vector_input_block(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [(x[0] * x[0]) + (x[0] * x[1]) + (x[1] * x[1])])
+        hes = f.hessian(0)
+
+        result = hes([3.0, 4.0])
+
+        self.assertEqual(result[0], (2.0, 1.0))
+        self.assertEqual(result[1], (1.0, 2.0))
+
+    def test_function_hessian_validates_index(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x])
+
+        with self.assertRaises(IndexError):
+            f.hessian(1)
+
+    def test_function_hessian_requires_single_scalar_output(self) -> None:
+        x = SX.sym("x")
+        y = SXVector.sym("y", 2)
+
+        with self.assertRaises(ValueError):
+            Function("f", [x], [x, x]).hessian(0)
+
+        with self.assertRaises(ValueError):
+            Function("g", [y], [y]).hessian(0)
 
 
 if __name__ == "__main__":

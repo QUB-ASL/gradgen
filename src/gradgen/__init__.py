@@ -1,6 +1,6 @@
 """gradgen package."""
 
-from .ad import derivative, gradient, jacobian, jvp, vjp
+from .ad import derivative, gradient, hessian, jacobian, jvp, vjp
 from .function import Function
 from .sx import SX, SXNode, SXVector, const, vector
 
@@ -12,6 +12,7 @@ __all__ = [
     "const",
     "derivative",
     "gradient",
+    "hessian",
     "jacobian",
     "jvp",
     "vector",

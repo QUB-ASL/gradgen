@@ -249,6 +249,51 @@ class Function:
             output_names=differentiated_names,
         )
 
+    def hessian(self, wrt_index: int = 0, name: str | None = None) -> Function:
+        """Build a new function representing a Hessian block.
+
+        Args:
+            wrt_index: Index of the declared input with respect to which the
+                Hessian is computed.
+            name: Optional name for the differentiated function.
+
+        Returns:
+            A new ``Function`` with the same primal inputs and outputs equal
+            to the Hessian of the scalar output with respect to the selected
+            input block.
+
+        Notes:
+            Hessians are currently defined only for single scalar-output
+            functions. For vector inputs, the Hessian is returned as one
+            ``SXVector`` row per variable.
+        """
+        from .ad import hessian
+
+        if not 0 <= wrt_index < len(self.inputs):
+            raise IndexError("wrt_index is out of range")
+        if len(self.outputs) != 1 or not isinstance(self.outputs[0], SX):
+            raise ValueError("Function.hessian requires exactly one scalar output")
+
+        wrt = self.inputs[wrt_index]
+        block = hessian(self.outputs[0], wrt)
+
+        if isinstance(block, tuple):
+            differentiated_outputs = list(block)
+            differentiated_names = [
+                f"{self.output_names[0]}_row{index}" for index in range(len(block))
+            ]
+        else:
+            differentiated_outputs = [block]
+            differentiated_names = [self.output_names[0]]
+
+        return Function(
+            name or f"{self.name}_hessian_{self.input_names[wrt_index]}",
+            self.inputs,
+            differentiated_outputs,
+            input_names=self.input_names,
+            output_names=differentiated_names,
+        )
+
     def __repr__(self) -> str:
         return (
             f"Function(name={self.name!r}, input_names={self.input_names!r}, "
