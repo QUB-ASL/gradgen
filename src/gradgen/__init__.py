@@ -1,5 +1,6 @@
 """gradgen package."""
 
-from .sx import SX, SXNode, const
+from .function import Function
+from .sx import SX, SXNode, SXVector, const, vector
 
-__all__ = ["SX", "SXNode", "const"]
+__all__ = ["Function", "SX", "SXNode", "SXVector", "const", "vector"]

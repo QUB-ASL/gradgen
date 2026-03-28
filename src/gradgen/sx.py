@@ -1,9 +1,10 @@
-"""Core `SX` scalar expression types.
+"""Core `SX` scalar and vector expression types.
 
 This module provides the first symbolic building block for the library:
 
 - ``SXNode`` is the canonical internal graph node
-- ``SX`` is the small user-facing wrapper around a node
+- ``SX`` is the small user-facing wrapper around a scalar node
+- ``SXVector`` is a lightweight vector container built from ``SX`` values
 - helper functions such as :func:`sin` and :func:`sqrt` make expression
   construction feel natural from Python
 
@@ -18,7 +19,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import ClassVar
+from typing import ClassVar, Iterable, Iterator
 
 
 # Operations whose operands can be reordered without changing semantics.
@@ -222,6 +223,168 @@ class SX:
         return f"SX({self.node!r})"
 
 
+@dataclass(frozen=True, slots=True)
+class SXVector:
+    """Vector of scalar symbolic expressions.
+
+    ``SXVector`` intentionally stays small for the first iteration of the
+    library. It is a thin immutable container around a tuple of ``SX``
+    expressions and provides only vector operations that map cleanly onto
+    the current scalar graph implementation.
+
+    For now the class supports:
+
+    - symbolic vector construction
+    - indexing, iteration, and length
+    - elementwise addition, subtraction, and division
+    - scalar-vector multiplication
+    - elementwise unary functions
+    - dot products
+
+    Elementwise vector-vector multiplication is intentionally unsupported
+    at this stage so that ``*`` remains reserved for scalar-vector
+    multiplication.
+    """
+
+    elements: tuple[SX, ...]
+
+    @classmethod
+    def sym(cls, name: str, length: int) -> SXVector:
+        """Create a symbolic vector with indexed scalar element names.
+
+        Args:
+            name: Base name for the vector.
+            length: Number of scalar elements in the vector.
+
+        Returns:
+            An ``SXVector`` whose elements are named ``"{name}_{i}"``.
+        """
+        if length < 0:
+            raise ValueError("vector length must be non-negative")
+        return cls(tuple(SX.sym(f"{name}_{index}") for index in range(length)))
+
+    def __len__(self) -> int:
+        """Return the vector length."""
+        return len(self.elements)
+
+    def __iter__(self) -> Iterator[SX]:
+        """Iterate over the scalar elements of the vector."""
+        return iter(self.elements)
+
+    def __getitem__(self, index: int) -> SX:
+        """Return the scalar element at ``index``."""
+        return self.elements[index]
+
+    def __add__(self, other: object) -> SXVector:
+        """Return the elementwise sum of two vectors."""
+        return self._elementwise_binary("add", other)
+
+    def __radd__(self, other: object) -> SXVector:
+        """Return the elementwise sum of two vectors."""
+        return self._elementwise_binary("add", other, reverse=True)
+
+    def __sub__(self, other: object) -> SXVector:
+        """Return the elementwise difference of two vectors."""
+        return self._elementwise_binary("sub", other)
+
+    def __rsub__(self, other: object) -> SXVector:
+        """Return the reversed elementwise difference of two vectors."""
+        return self._elementwise_binary("sub", other, reverse=True)
+
+    def __mul__(self, other: object) -> SXVector:
+        """Return a scalar-vector product.
+
+        Vector-vector multiplication is intentionally unsupported for now.
+        Use :meth:`dot` for an inner product.
+        """
+        scalar = _coerce_scalar(other)
+        return SXVector(tuple(element * scalar for element in self.elements))
+
+    def __rmul__(self, other: object) -> SXVector:
+        """Return a scalar-vector product."""
+        scalar = _coerce_scalar(other)
+        return SXVector(tuple(scalar * element for element in self.elements))
+
+    def __truediv__(self, other: object) -> SXVector:
+        """Return elementwise division by a scalar or vector."""
+        if isinstance(other, SXVector):
+            return self._elementwise_binary("div", other)
+        scalar = _coerce_scalar(other)
+        return SXVector(tuple(element / scalar for element in self.elements))
+
+    def __rtruediv__(self, other: object) -> SXVector:
+        """Return scalar divided by each vector element."""
+        scalar = _coerce_scalar(other)
+        return SXVector(tuple(scalar / element for element in self.elements))
+
+    def __neg__(self) -> SXVector:
+        """Return the elementwise negation of the vector."""
+        return SXVector(tuple(-element for element in self.elements))
+
+    def sin(self) -> SXVector:
+        """Apply sine elementwise."""
+        return SXVector(tuple(element.sin() for element in self.elements))
+
+    def cos(self) -> SXVector:
+        """Apply cosine elementwise."""
+        return SXVector(tuple(element.cos() for element in self.elements))
+
+    def exp(self) -> SXVector:
+        """Apply exponential elementwise."""
+        return SXVector(tuple(element.exp() for element in self.elements))
+
+    def log(self) -> SXVector:
+        """Apply natural logarithm elementwise."""
+        return SXVector(tuple(element.log() for element in self.elements))
+
+    def sqrt(self) -> SXVector:
+        """Apply square root elementwise."""
+        return SXVector(tuple(element.sqrt() for element in self.elements))
+
+    def dot(self, other: object) -> SX:
+        """Return the symbolic dot product of two vectors."""
+        vector = _coerce_vector(other)
+        self._check_same_length(vector)
+
+        if len(self) == 0:
+            return SX.const(0.0)
+
+        pairs = iter(zip(self.elements, vector.elements))
+        first_left, first_right = next(pairs)
+        total = first_left * first_right
+
+        for left, right in pairs:
+            total = total + (left * right)
+        return total
+
+    def __repr__(self) -> str:
+        return f"SXVector(elements={self.elements!r})"
+
+    def _elementwise_binary(
+        self,
+        op: str,
+        other: object,
+        *,
+        reverse: bool = False,
+    ) -> SXVector:
+        """Apply a binary operation elementwise to two vectors."""
+        vector = _coerce_vector(other)
+        self._check_same_length(vector)
+
+        if reverse:
+            return SXVector(
+                tuple(_binary(op, rhs, lhs) for lhs, rhs in zip(self.elements, vector.elements))
+            )
+        return SXVector(
+            tuple(_binary(op, lhs, rhs) for lhs, rhs in zip(self.elements, vector.elements))
+        )
+
+    def _check_same_length(self, other: SXVector) -> None:
+        """Raise when two vectors do not have the same length."""
+        if len(self) != len(other):
+            raise ValueError("vector lengths must match")
+
+
 def const(value: float | int) -> SX:
     """Create a scalar constant expression.
 
@@ -255,6 +418,11 @@ def sqrt(expr: object) -> SX:
     return _unary("sqrt", expr)
 
 
+def vector(values: Iterable[object]) -> SXVector:
+    """Create a symbolic vector from a sequence of scalar-like values."""
+    return SXVector(tuple(_coerce(value) for value in values))
+
+
 def _binary(op: str, lhs: object, rhs: object) -> SX:
     """Build a binary symbolic expression after coercing operands."""
     left = _coerce(lhs)
@@ -280,3 +448,22 @@ def _coerce(value: object) -> SX:
     if isinstance(value, (int, float)):
         return SX.const(value)
     raise TypeError(f"cannot convert {type(value).__name__} to SX")
+
+
+def _coerce_scalar(value: object) -> SX:
+    """Convert a supported scalar-like value into ``SX``.
+
+    ``SXVector`` values are rejected here because some operators, such as
+    scalar-vector multiplication, intentionally only support scalar
+    operands on one side.
+    """
+    if isinstance(value, SXVector):
+        raise TypeError("expected a scalar-like value, got SXVector")
+    return _coerce(value)
+
+
+def _coerce_vector(value: object) -> SXVector:
+    """Convert a supported vector-like value into ``SXVector``."""
+    if isinstance(value, SXVector):
+        return value
+    raise TypeError(f"cannot convert {type(value).__name__} to SXVector")
