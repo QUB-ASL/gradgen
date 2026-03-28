@@ -60,6 +60,20 @@ class SimplifyTests(unittest.TestCase):
         self.assertEqual(simplified.op, "mul")
         self.assertEqual({arg.name for arg in simplified.args}, {"x", "y"})
 
+    def test_simplify_normalizes_single_negative_factors_in_products(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+
+        left_negative = simplify(x * (-y), max_effort="medium")
+        right_negative = simplify((-x) * y, max_effort="medium")
+        evaluator = Function("f", [x, y], [left_negative, right_negative])
+
+        self.assertEqual(evaluator(2.0, 3.0), (-6.0, -6.0))
+        self.assertEqual(left_negative.op, "neg")
+        self.assertEqual(right_negative.op, "neg")
+        self.assertEqual(left_negative.args[0].op, "mul")
+        self.assertEqual(right_negative.args[0].op, "mul")
+
     def test_simplify_combines_powers_with_same_base(self) -> None:
         x = SX.sym("x")
         simplified = simplify((x**2.0) * (x**3.0), max_effort="high")
@@ -69,6 +83,14 @@ class SimplifyTests(unittest.TestCase):
         self.assertEqual(simplified.op, "pow")
         self.assertIs(simplified.args[0].node, x.node)
         self.assertEqual(simplified.args[1].value, 5.0)
+
+    def test_simplify_rewrites_repeated_factor_as_square(self) -> None:
+        x = SX.sym("x")
+        simplified = simplify(x * x, max_effort="medium")
+
+        self.assertEqual(simplified.op, "pow")
+        self.assertIs(simplified.args[0].node, x.node)
+        self.assertEqual(simplified.args[1].value, 2.0)
 
     def test_simplify_reduces_zero_times_x_plus_one_times_y_to_y(self) -> None:
         x = SX.sym("x")
@@ -84,6 +106,28 @@ class SimplifyTests(unittest.TestCase):
         self.assertEqual(simplified.op, "const")
         self.assertEqual(simplified.value, 0.0)
 
+    def test_simplify_rewrites_subtract_negative_as_addition(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        simplified = simplify(x - (-y), max_effort="medium")
+        evaluator = Function("f", [x, y], [simplified])
+
+        self.assertEqual(evaluator(2.0, 3.0), 5.0)
+        self.assertEqual(simplified.op, "add")
+        self.assertEqual({arg.name for arg in simplified.args}, {"x", "y"})
+
+    def test_simplify_normalizes_signed_division(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        same_sign = simplify((-x) / (-y), max_effort="medium")
+        mixed_sign = simplify(x / (-y), max_effort="medium")
+        evaluator = Function("f", [x, y], [same_sign, mixed_sign])
+
+        self.assertEqual(evaluator(6.0, 3.0), (2.0, -2.0))
+        self.assertEqual(same_sign.op, "div")
+        self.assertEqual(mixed_sign.op, "neg")
+        self.assertEqual(mixed_sign.args[0].op, "div")
+
     def test_simplify_applies_safe_trigonometric_identity(self) -> None:
         x = SX.sym("x")
         expr = (x.sin() ** 2.0) + (x.cos() ** 2.0)
@@ -91,6 +135,26 @@ class SimplifyTests(unittest.TestCase):
 
         self.assertEqual(simplified.op, "const")
         self.assertEqual(simplified.value, 1.0)
+
+    def test_simplify_applies_trigonometric_parity_rules(self) -> None:
+        x = SX.sym("x")
+        sin_expr = simplify((-x).sin(), max_effort="medium")
+        cos_expr = simplify((-x).cos(), max_effort="medium")
+        evaluator = Function("f", [x], [sin_expr, cos_expr])
+
+        sin_value, cos_value = evaluator(0.5)
+
+        self.assertAlmostEqual(sin_value, -Function("s", [x], [x.sin()])(0.5))
+        self.assertAlmostEqual(cos_value, Function("c", [x], [x.cos()])(0.5))
+        self.assertEqual(sin_expr.op, "neg")
+        self.assertEqual(cos_expr.op, "cos")
+
+    def test_simplify_evaluates_safe_unary_constant_identities(self) -> None:
+        self.assertEqual(simplify(SX.const(0.0).sin()).value, 0.0)
+        self.assertEqual(simplify(SX.const(0.0).exp()).value, 1.0)
+        self.assertEqual(simplify(SX.const(1.0).log()).value, 0.0)
+        self.assertEqual(simplify(SX.const(1.0).sqrt()).value, 1.0)
+        self.assertEqual(simplify(SX.const(0.0).cos()).value, 1.0)
 
     def test_simplify_respects_effort_none(self) -> None:
         x = SX.sym("x")
