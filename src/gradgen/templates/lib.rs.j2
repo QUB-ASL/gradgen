@@ -1,3 +1,7 @@
+{% if backend_mode == "no_std" -%}
+#![no_std]
+
+{% endif -%}
 /// Workspace length required by [`{{ function_name }}`].
 pub const {{ upper_name }}_WORK_SIZE: usize = {{ workspace_size }};
 

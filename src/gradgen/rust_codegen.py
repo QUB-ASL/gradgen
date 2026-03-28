@@ -4,12 +4,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from jinja2 import Environment, FileSystemLoader
 
 from .function import Function
 from .sx import SX, SXNode, SXVector
+
+
+RustBackendMode = str
 
 
 @dataclass(frozen=True, slots=True)
@@ -21,6 +23,7 @@ class RustCodegenResult:
     workspace_size: int
     input_sizes: tuple[int, ...]
     output_sizes: tuple[int, ...]
+    backend_mode: RustBackendMode
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,15 +46,15 @@ class _ArgSpec:
     size: int
 
 
-def generate_rust(function: Function, *, function_name: str | None = None) -> RustCodegenResult:
-    """Generate Rust source code for primal function evaluation.
+def generate_rust(
+    function: Function,
+    *,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+) -> RustCodegenResult:
+    """Generate Rust source code for primal function evaluation."""
+    _validate_backend_mode(backend_mode)
 
-    The generated function uses a slice-based ABI:
-
-    - each scalar or vector input is passed as ``&[f64]``
-    - each scalar or vector output is passed as ``&mut [f64]``
-    - intermediate values are stored in ``work: &mut [f64]``
-    """
     name = _sanitize_ident(function_name or function.name)
     input_sizes = tuple(_arg_size(arg) for arg in function.inputs)
     output_sizes = tuple(_arg_size(arg) for arg in function.outputs)
@@ -65,35 +68,31 @@ def generate_rust(function: Function, *, function_name: str | None = None) -> Ru
     )
 
     scalar_bindings: dict[SXNode, str] = {}
-    input_access_lines: list[str] = []
+    input_assert_lines: list[str] = []
     output_assert_lines: list[str] = []
     output_write_lines: list[str] = []
     computation_lines: list[str] = []
 
-    for input_spec, input_arg in zip(
-        input_specs, function.inputs
-    ):
-        input_access_lines.append(f"assert_eq!({input_spec.rust_name}.len(), {input_spec.size});")
+    for input_spec, input_arg in zip(input_specs, function.inputs):
+        input_assert_lines.append(
+            f"assert_eq!({input_spec.rust_name}.len(), {input_spec.size});"
+        )
         for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
             scalar_bindings[scalar.node] = f"{input_spec.rust_name}[{scalar_index}]"
 
-    workspace_nodes = [
-        node for node in function.nodes if node.op not in {"symbol", "const"}
-    ]
+    workspace_nodes = [node for node in function.nodes if node.op not in {"symbol", "const"}]
     workspace_map = {node: index for index, node in enumerate(workspace_nodes)}
 
     for node, work_index in workspace_map.items():
-        rhs = _emit_node_expr(SX(node), scalar_bindings, workspace_map)
-        computation_lines.append(f"    work[{work_index}] = {rhs};")
+        rhs = _emit_node_expr(SX(node), scalar_bindings, workspace_map, backend_mode)
+        computation_lines.append(f"work[{work_index}] = {rhs};")
 
-    for output_spec, output_arg in zip(
-        output_specs, function.outputs
-    ):
+    for output_spec, output_arg in zip(output_specs, function.outputs):
         output_assert_lines.append(
             f"assert_eq!({output_spec.rust_name}.len(), {output_spec.size});"
         )
         for scalar_index, scalar in enumerate(_flatten_arg(output_arg)):
-            output_ref = _emit_expr_ref(scalar, scalar_bindings, workspace_map)
+            output_ref = _emit_expr_ref(scalar, scalar_bindings, workspace_map, backend_mode)
             output_write_lines.append(
                 f"{output_spec.rust_name}[{scalar_index}] = {output_ref};"
             )
@@ -106,15 +105,15 @@ def generate_rust(function: Function, *, function_name: str | None = None) -> Ru
         ]
     )
 
-    upper_name = name.upper()
     source = _get_template("lib.rs.j2").render(
         function_name=name,
-        upper_name=upper_name,
+        upper_name=name.upper(),
+        backend_mode=backend_mode,
         workspace_size=len(workspace_map),
         input_specs=input_specs,
         output_specs=output_specs,
         parameters=parameters,
-        input_assert_lines=input_access_lines,
+        input_assert_lines=input_assert_lines,
         output_assert_lines=output_assert_lines,
         computation_lines=computation_lines,
         output_write_lines=output_write_lines,
@@ -126,6 +125,7 @@ def generate_rust(function: Function, *, function_name: str | None = None) -> Ru
         workspace_size=len(workspace_map),
         input_sizes=input_sizes,
         output_sizes=output_sizes,
+        backend_mode=backend_mode,
     )
 
 
@@ -135,11 +135,18 @@ def create_rust_project(
     *,
     crate_name: str | None = None,
     function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
 ) -> RustProjectResult:
     """Create a minimal Rust library project containing generated code."""
+    _validate_backend_mode(backend_mode)
+
     project_dir = Path(path).expanduser().resolve()
     crate = _sanitize_ident(crate_name or function.name)
-    codegen = generate_rust(function, function_name=function_name)
+    codegen = generate_rust(
+        function,
+        function_name=function_name,
+        backend_mode=backend_mode,
+    )
 
     src_dir = project_dir / "src"
     cargo_toml = project_dir / "Cargo.toml"
@@ -148,13 +155,17 @@ def create_rust_project(
 
     src_dir.mkdir(parents=True, exist_ok=True)
     cargo_toml.write_text(
-        _get_template("Cargo.toml.j2").render(crate_name=crate),
+        _get_template("Cargo.toml.j2").render(
+            crate_name=crate,
+            backend_mode=backend_mode,
+        ),
         encoding="utf-8",
     )
     readme.write_text(
         _get_template("rust_project_README.md.j2").render(
             crate_name=crate,
             codegen=codegen,
+            backend_mode=backend_mode,
         ),
         encoding="utf-8",
     )
@@ -173,6 +184,7 @@ def _emit_node_expr(
     expr: SX,
     scalar_bindings: dict[SXNode, str],
     workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
 ) -> str:
     """Emit the Rust expression used to compute a workspace node."""
     if expr.op == "const":
@@ -180,7 +192,10 @@ def _emit_node_expr(
     if expr.op == "symbol":
         return scalar_bindings[expr.node]
 
-    args = tuple(_emit_expr_ref(arg, scalar_bindings, workspace_map) for arg in expr.args)
+    args = tuple(
+        _emit_expr_ref(arg, scalar_bindings, workspace_map, backend_mode)
+        for arg in expr.args
+    )
 
     if expr.op == "add":
         return f"{args[0]} + {args[1]}"
@@ -191,19 +206,19 @@ def _emit_node_expr(
     if expr.op == "div":
         return f"{args[0]} / {args[1]}"
     if expr.op == "pow":
-        return f"{args[0]}.powf({args[1]})"
+        return _emit_math_call("pow", args, backend_mode)
     if expr.op == "neg":
         return f"-{args[0]}"
     if expr.op == "sin":
-        return f"{args[0]}.sin()"
+        return _emit_math_call("sin", args, backend_mode)
     if expr.op == "cos":
-        return f"{args[0]}.cos()"
+        return _emit_math_call("cos", args, backend_mode)
     if expr.op == "exp":
-        return f"{args[0]}.exp()"
+        return _emit_math_call("exp", args, backend_mode)
     if expr.op == "log":
-        return f"{args[0]}.ln()"
+        return _emit_math_call("log", args, backend_mode)
     if expr.op == "sqrt":
-        return f"{args[0]}.sqrt()"
+        return _emit_math_call("sqrt", args, backend_mode)
 
     raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
 
@@ -212,6 +227,7 @@ def _emit_expr_ref(
     expr: SX,
     scalar_bindings: dict[SXNode, str],
     workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
 ) -> str:
     """Emit a Rust expression reference for an already-available value."""
     if expr.op == "const":
@@ -220,7 +236,21 @@ def _emit_expr_ref(
         return scalar_bindings[expr.node]
     if expr.node in workspace_map:
         return f"work[{workspace_map[expr.node]}]"
-    return _emit_node_expr(expr, scalar_bindings, workspace_map)
+    return _emit_node_expr(expr, scalar_bindings, workspace_map, backend_mode)
+
+
+def _emit_math_call(op: str, args: tuple[str, ...], backend_mode: RustBackendMode) -> str:
+    """Emit a Rust math call for the selected backend mode."""
+    if backend_mode == "std":
+        if op == "pow":
+            return f"{args[0]}.powf({args[1]})"
+        if op == "log":
+            return f"{args[0]}.ln()"
+        return f"{args[0]}.{op}()"
+
+    if op == "pow":
+        return f"libm::pow({args[0]}, {args[1]})"
+    return f"libm::{_LIBM_FUNCTIONS[op]}({args[0]})"
 
 
 def _flatten_arg(arg: SX | SXVector) -> tuple[SX, ...]:
@@ -253,6 +283,12 @@ def _sanitize_ident(name: str) -> str:
     return ident
 
 
+def _validate_backend_mode(backend_mode: RustBackendMode) -> None:
+    """Validate a Rust backend mode string."""
+    if backend_mode not in {"std", "no_std"}:
+        raise ValueError(f"unsupported Rust backend mode {backend_mode!r}")
+
+
 def _get_template(name: str):
     """Return a Jinja2 template from the package template directory."""
     return _template_environment().get_template(name)
@@ -267,3 +303,12 @@ def _template_environment() -> Environment:
         trim_blocks=True,
         lstrip_blocks=True,
     )
+
+
+_LIBM_FUNCTIONS = {
+    "sin": "sin",
+    "cos": "cos",
+    "exp": "exp",
+    "log": "log",
+    "sqrt": "sqrt",
+}

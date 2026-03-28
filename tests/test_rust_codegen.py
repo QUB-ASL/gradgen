@@ -114,6 +114,31 @@ class RustCodegenTests(unittest.TestCase):
         self.assertIn(".sqrt()", result.source)
         self.assertIn(".powf(2.0)", result.source)
 
+    def test_no_std_codegen_uses_libm_and_no_std_crate_attr(self) -> None:
+        x = SX.sym("x")
+        expr = x.sin() + x.cos() + x.exp() + x.log() + x.sqrt() + (x**2)
+        f = Function("f", [x], [expr], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust(backend_mode="no_std")
+
+        self.assertEqual(result.backend_mode, "no_std")
+        self.assertIn("#![no_std]", result.source)
+        self.assertIn("libm::sin(", result.source)
+        self.assertIn("libm::cos(", result.source)
+        self.assertIn("libm::exp(", result.source)
+        self.assertIn("libm::log(", result.source)
+        self.assertIn("libm::sqrt(", result.source)
+        self.assertIn("libm::pow(", result.source)
+
+    def test_no_std_codegen_supports_sine_explicitly(self) -> None:
+        x = SX.sym("x")
+        f = Function("sine_only", [x], [x.sin()], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust(backend_mode="no_std")
+
+        self.assertIn("#![no_std]", result.source)
+        self.assertIn("libm::sin(x[0])", result.source)
+
     def test_function_level_codegen_works_for_derived_functions(self) -> None:
         x = SX.sym("x")
         df = Function("df", [x], [derivative(x * x, x)], input_names=["x"], output_names=["dx"])
@@ -171,6 +196,40 @@ class RustCodegenTests(unittest.TestCase):
 
             completed = self._run_cargo(project.project_dir, "build", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    def test_no_std_project_builds(self) -> None:
+        x = SX.sym("x")
+        f = Function("trig_kernel", [x], [x.sin() + x.cos()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(
+                Path(tmpdir) / "trig_kernel",
+                backend_mode="no_std",
+            )
+
+            cargo_text = project.cargo_toml.read_text(encoding="utf-8")
+            readme_text = project.readme.read_text(encoding="utf-8")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn('libm = "0.2"', cargo_text)
+            self.assertIn("Backend mode: `no_std`", readme_text)
+            self.assertIn("uses `libm`", readme_text)
+            self.assertIn("#![no_std]", lib_text)
+
+            try:
+                completed = self._run_cargo(project.project_dir, "build", "--quiet")
+            except subprocess.CalledProcessError as exc:
+                if "Could not resolve host: index.crates.io" in exc.stderr:
+                    self.skipTest("cargo could not fetch libm in the offline test environment")
+                raise
+            self.assertEqual(completed.returncode, 0)
+
+    def test_invalid_backend_mode_is_rejected(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x], input_names=["x"], output_names=["y"])
+
+        with self.assertRaises(ValueError):
+            f.generate_rust(backend_mode="gpu")
 
     def test_generated_rust_project_runs_numeric_smoke_test(self) -> None:
         x = SX.sym("x")

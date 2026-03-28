@@ -100,11 +100,20 @@ class Function:
 
         return cse(self.outputs, prefix=prefix, min_uses=min_uses)
 
-    def generate_rust(self, *, function_name: str | None = None):
+    def generate_rust(
+        self,
+        *,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+    ):
         """Generate Rust source code for primal function evaluation."""
         from .rust_codegen import generate_rust
 
-        return generate_rust(self, function_name=function_name)
+        return generate_rust(
+            self,
+            function_name=function_name,
+            backend_mode=backend_mode,
+        )
 
     def create_rust_project(
         self,
@@ -112,6 +121,7 @@ class Function:
         *,
         crate_name: str | None = None,
         function_name: str | None = None,
+        backend_mode: str = "std",
     ):
         """Create a Rust project containing the generated primal code."""
         from .rust_codegen import create_rust_project
@@ -121,6 +131,7 @@ class Function:
             path,
             crate_name=crate_name,
             function_name=function_name,
+            backend_mode=backend_mode,
         )
 
     def __call__(self, *args: BoundValue) -> FunctionArg | tuple[FunctionArg, ...] | float | tuple[float, ...]:
