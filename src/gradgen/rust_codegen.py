@@ -111,6 +111,16 @@ class RustProjectResult:
 
 
 @dataclass(frozen=True, slots=True)
+class RustDerivativeBundleResult:
+    """Information about a generated directory of derivative Rust crates."""
+
+    bundle_dir: Path
+    primal: RustProjectResult | None
+    jacobians: tuple[RustProjectResult, ...]
+    hessians: tuple[RustProjectResult, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class _ArgSpec:
     """Rendered metadata for a generated Rust input or output."""
 
@@ -302,6 +312,60 @@ def create_rust_project(
     )
 
 
+def create_rust_derivative_bundle(
+    function: Function,
+    path: str | Path,
+    *,
+    config: RustBackendConfig | None = None,
+    include_primal: bool = True,
+    include_jacobians: bool = True,
+    include_hessians: bool = True,
+    simplify_derivatives: int | str | None = None,
+) -> RustDerivativeBundleResult:
+    """Create a directory containing Rust crates for primal and derivatives."""
+    bundle_dir = Path(path).expanduser().resolve()
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+
+    primal_project: RustProjectResult | None = None
+    if include_primal:
+        primal_project = create_rust_project(
+            function,
+            bundle_dir / "primal",
+            config=config,
+        )
+
+    jacobian_projects: list[RustProjectResult] = []
+    if include_jacobians:
+        for block in function.jacobian_blocks():
+            derivative_function = _maybe_simplify_derivative_function(block, simplify_derivatives)
+            jacobian_projects.append(
+                create_rust_project(
+                    derivative_function,
+                    bundle_dir / derivative_function.name,
+                    config=config,
+                )
+            )
+
+    hessian_projects: list[RustProjectResult] = []
+    if include_hessians and len(function.outputs) == 1 and isinstance(function.outputs[0], SX):
+        for block in function.hessian_blocks():
+            derivative_function = _maybe_simplify_derivative_function(block, simplify_derivatives)
+            hessian_projects.append(
+                create_rust_project(
+                    derivative_function,
+                    bundle_dir / derivative_function.name,
+                    config=config,
+                )
+            )
+
+    return RustDerivativeBundleResult(
+        bundle_dir=bundle_dir,
+        primal=primal_project,
+        jacobians=tuple(jacobian_projects),
+        hessians=tuple(hessian_projects),
+    )
+
+
 def _emit_node_expr(
     expr: SX,
     scalar_bindings: dict[SXNode, str],
@@ -489,6 +553,16 @@ def _resolve_backend_config(
     if math_library is not None:
         resolved = resolved.with_math_lib(math_library)
     return resolved
+
+
+def _maybe_simplify_derivative_function(
+    function: Function,
+    simplify_derivatives: int | str | None,
+) -> Function:
+    """Optionally simplify a derivative function before code generation."""
+    if simplify_derivatives is None:
+        return function
+    return function.simplify(max_effort=simplify_derivatives, name=function.name)
 
 
 def _math_function_name(op: str, scalar_type: RustScalarType) -> str:

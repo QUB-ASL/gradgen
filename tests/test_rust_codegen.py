@@ -3,7 +3,15 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from gradgen import Function, RustBackendConfig, SX, SXVector, create_rust_project, derivative
+from gradgen import (
+    Function,
+    RustBackendConfig,
+    SX,
+    SXVector,
+    create_rust_derivative_bundle,
+    create_rust_project,
+    derivative,
+)
 
 
 class RustCodegenTests(unittest.TestCase):
@@ -773,6 +781,43 @@ mod tests {
         self.assertIn("pub fn _123_kernel(", result.source)
         self.assertIn("_1_input: &[f64]", result.source)
         self.assertIn("out_value: &mut [f64]", result.source)
+
+    def test_create_rust_derivative_bundle_writes_expected_projects(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [x.dot(x)], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            bundle = f.create_rust_derivative_bundle(
+                Path(tmpdir) / "bundle",
+                simplify_derivatives="high",
+            )
+
+            self.assertTrue(bundle.bundle_dir.is_dir())
+            self.assertIsNotNone(bundle.primal)
+            self.assertEqual(len(bundle.jacobians), 1)
+            self.assertEqual(len(bundle.hessians), 1)
+            self.assertTrue((bundle.bundle_dir / "primal" / "Cargo.toml").is_file())
+            self.assertTrue((bundle.bundle_dir / "f_jacobian_x" / "Cargo.toml").is_file())
+            self.assertTrue((bundle.bundle_dir / "f_hessian_x" / "Cargo.toml").is_file())
+
+            self.assertEqual(self._run_cargo(bundle.primal.project_dir, "build", "--quiet").returncode, 0)
+            self.assertEqual(self._run_cargo(bundle.jacobians[0].project_dir, "build", "--quiet").returncode, 0)
+            self.assertEqual(self._run_cargo(bundle.hessians[0].project_dir, "build", "--quiet").returncode, 0)
+
+    def test_module_level_create_rust_derivative_bundle_works(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            bundle = create_rust_derivative_bundle(
+                f,
+                Path(tmpdir) / "bundle",
+                include_hessians=False,
+            )
+
+            self.assertIsNotNone(bundle.primal)
+            self.assertEqual(len(bundle.jacobians), 1)
+            self.assertEqual(len(bundle.hessians), 0)
 
 
 if __name__ == "__main__":

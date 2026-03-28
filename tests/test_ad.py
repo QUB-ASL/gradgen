@@ -222,6 +222,56 @@ class ReverseADTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             f.vjp()
 
+    def test_function_gradient_builds_scalar_output_gradient_function(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [x.dot(x)])
+        grad = f.gradient(0)
+
+        self.assertEqual(grad.name, "f_gradient_i0")
+        self.assertEqual(grad([3.0, 4.0]), (6.0, 8.0))
+
+    def test_function_gradient_requires_single_scalar_output(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        with self.assertRaises(ValueError):
+            Function("f", [x], [x]).gradient(0)
+
+    def test_jacobian_blocks_returns_requested_blocks(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        f = Function("f", [x, y], [x + y, x * y], input_names=["x", "y"], output_names=["sum", "prod"])
+        blocks = f.jacobian_blocks([1])
+
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0].name, "f_jacobian_y")
+        self.assertEqual(blocks[0](3.0, 4.0), (1.0, 3.0))
+
+    def test_hessian_blocks_returns_requested_blocks(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SX.sym("y")
+        f = Function(
+            "f",
+            [x, y],
+            [(x[0] * x[0]) + (x[1] * x[1]) + (y * y)],
+            input_names=["x", "y"],
+            output_names=["cost"],
+        )
+        blocks = f.hessian_blocks([1])
+
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0].name, "f_hessian_y")
+        self.assertEqual(blocks[0]([3.0, 4.0], 2.0), 2.0)
+
+    def test_block_helpers_validate_indices(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x])
+
+        with self.assertRaises(IndexError):
+            f.jacobian_blocks([1])
+
+        with self.assertRaises(IndexError):
+            f.hessian_blocks([1])
+
 
 class JacobianTests(unittest.TestCase):
     def test_scalar_scalar_jacobian_matches_derivative(self) -> None:
@@ -292,6 +342,12 @@ class JacobianTests(unittest.TestCase):
         with self.assertRaises(IndexError):
             f.jacobian(1)
 
+    def test_gradient_matches_jacobian_for_scalar_output(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [x.dot(x)])
+
+        self.assertEqual(f.gradient(0)([3.0, 4.0]), f.jacobian(0)([3.0, 4.0]))
+
 
 class HessianTests(unittest.TestCase):
     def test_scalar_scalar_hessian_matches_second_derivative(self) -> None:
@@ -359,6 +415,23 @@ class HessianTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             Function("g", [y], [y]).hessian(0)
+
+    def test_hessian_matches_jacobian_of_gradient(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [(x[0] * x[0]) + (x[0] * x[1]) + (x[1] * x[1])])
+
+        hessian_function = f.hessian(0)
+        jacobian_of_gradient = f.gradient(0).jacobian(0)
+
+        self.assertEqual(hessian_function([3.0, 4.0]), jacobian_of_gradient([3.0, 4.0]))
+
+    def test_hessian_is_symmetric_for_scalar_real_function(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [(x[0] * x[0]) + (x[0] * x[1]) + (x[1] * x[1])])
+        hes = f.hessian(0)
+
+        row0, row1 = hes([3.0, 4.0])
+        self.assertEqual(row0[1], row1[0])
 
 
 if __name__ == "__main__":

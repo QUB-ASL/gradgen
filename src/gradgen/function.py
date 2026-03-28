@@ -146,6 +146,29 @@ class Function:
             math_library=math_library,
         )
 
+    def create_rust_derivative_bundle(
+        self,
+        path: str,
+        *,
+        config=None,
+        include_primal: bool = True,
+        include_jacobians: bool = True,
+        include_hessians: bool = True,
+        simplify_derivatives: int | str | None = None,
+    ):
+        """Create a directory containing Rust projects for derivative kernels."""
+        from .rust_codegen import create_rust_derivative_bundle
+
+        return create_rust_derivative_bundle(
+            self,
+            path,
+            config=config,
+            include_primal=include_primal,
+            include_jacobians=include_jacobians,
+            include_hessians=include_hessians,
+            simplify_derivatives=simplify_derivatives,
+        )
+
     def __call__(self, *args: BoundValue) -> FunctionArg | tuple[FunctionArg, ...] | float | tuple[float, ...]:
         """Call the function with symbolic or numeric arguments.
 
@@ -213,6 +236,34 @@ class Function:
             differentiated_outputs,
             input_names=self.input_names,
             output_names=self.output_names,
+        )
+
+    def gradient(self, wrt_index: int = 0, name: str | None = None) -> Function:
+        """Build a gradient function for a scalar-output function."""
+        if not 0 <= wrt_index < len(self.inputs):
+            raise IndexError("wrt_index is out of range")
+        if len(self.outputs) != 1 or not isinstance(self.outputs[0], SX):
+            raise ValueError("Function.gradient requires exactly one scalar output")
+
+        from .ad import gradient
+
+        wrt = self.inputs[wrt_index]
+        grad = gradient(self.outputs[0], wrt)
+        output_name = self.output_names[0]
+
+        if isinstance(grad, SXVector):
+            outputs: list[FunctionArg] = [grad]
+            output_names = (output_name,)
+        else:
+            outputs = [grad]
+            output_names = (output_name,)
+
+        return Function(
+            name or f"{self.name}_gradient_{self.input_names[wrt_index]}",
+            self.inputs,
+            outputs,
+            input_names=self.input_names,
+            output_names=output_names,
         )
 
     def vjp(
@@ -301,6 +352,14 @@ class Function:
             output_names=differentiated_names,
         )
 
+    def jacobian_blocks(
+        self,
+        wrt_indices: Iterable[int] | None = None,
+    ) -> tuple[Function, ...]:
+        """Build Jacobian functions for one or more input blocks."""
+        indices = _resolve_block_indices(wrt_indices, len(self.inputs))
+        return tuple(self.jacobian(index) for index in indices)
+
     def hessian(self, wrt_index: int = 0, name: str | None = None) -> Function:
         """Build a new function representing a Hessian block.
 
@@ -345,6 +404,14 @@ class Function:
             input_names=self.input_names,
             output_names=differentiated_names,
         )
+
+    def hessian_blocks(
+        self,
+        wrt_indices: Iterable[int] | None = None,
+    ) -> tuple[Function, ...]:
+        """Build Hessian functions for one or more input blocks."""
+        indices = _resolve_block_indices(wrt_indices, len(self.inputs))
+        return tuple(self.hessian(index) for index in indices)
 
     def simplify(self, max_effort: int | str = "basic", name: str | None = None) -> Function:
         """Build a new function with simplified outputs.
@@ -403,6 +470,21 @@ def _resolve_names(
         raise ValueError(f"expected {count} {label} names, received {len(resolved)}")
     if len(set(resolved)) != len(resolved):
         raise ValueError(f"{label} names must be unique")
+    return resolved
+
+
+def _resolve_block_indices(
+    wrt_indices: Iterable[int] | None,
+    input_count: int,
+) -> tuple[int, ...]:
+    """Resolve and validate one or more input block indices."""
+    if wrt_indices is None:
+        return tuple(range(input_count))
+
+    resolved = tuple(wrt_indices)
+    for index in resolved:
+        if not 0 <= index < input_count:
+            raise IndexError("wrt_index is out of range")
     return resolved
 
 
