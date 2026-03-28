@@ -15,6 +15,13 @@ class RustCodegenTests(unittest.TestCase):
         self.assertEqual(result.function_name, "square_plus_one")
         self.assertEqual(result.input_sizes, (1,))
         self.assertEqual(result.output_sizes, (1,))
+        self.assertIn("/// Workspace length required by [`square_plus_one`].", result.source)
+        self.assertIn("pub const SQUARE_PLUS_ONE_WORK_SIZE: usize = 2;", result.source)
+        self.assertIn("pub fn square_plus_one_work_size() -> usize {", result.source)
+        self.assertIn("pub fn square_plus_one_num_inputs() -> usize {", result.source)
+        self.assertIn("pub fn square_plus_one_input_0_size() -> usize {", result.source)
+        self.assertIn("pub fn square_plus_one_num_outputs() -> usize {", result.source)
+        self.assertIn("pub fn square_plus_one_output_0_size() -> usize {", result.source)
         self.assertIn("pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
         self.assertIn("assert_eq!(x.len(), 1);", result.source)
         self.assertIn("assert_eq!(y.len(), 1);", result.source)
@@ -38,6 +45,11 @@ class RustCodegenTests(unittest.TestCase):
         self.assertEqual(result.function_name, "kernel")
         self.assertEqual(result.input_sizes, (2, 2))
         self.assertEqual(result.output_sizes, (1, 2))
+        self.assertIn("pub const KERNEL_WORK_SIZE: usize = 5;", result.source)
+        self.assertIn("pub fn kernel_input_0_size() -> usize {", result.source)
+        self.assertIn("pub fn kernel_input_1_size() -> usize {", result.source)
+        self.assertIn("pub fn kernel_output_0_size() -> usize {", result.source)
+        self.assertIn("pub fn kernel_output_1_size() -> usize {", result.source)
         self.assertIn(
             "pub fn kernel(x: &[f64], y: &[f64], dot: &mut [f64], sum: &mut [f64], work: &mut [f64]) {",
             result.source,
@@ -113,6 +125,8 @@ class RustCodegenTests(unittest.TestCase):
             self.assertIn('name = "square_plus_one"', cargo_text)
             self.assertIn("# square_plus_one", readme_text)
             self.assertIn("cargo build", readme_text)
+            self.assertIn("workspace, input, and output dimensions", readme_text)
+            self.assertIn("pub const SQUARE_PLUS_ONE_WORK_SIZE: usize = 2;", lib_text)
             self.assertIn("pub fn square_plus_one(", lib_text)
 
     def test_module_level_project_creation_supports_custom_names(self) -> None:

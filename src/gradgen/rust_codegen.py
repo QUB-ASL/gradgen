@@ -90,7 +90,37 @@ def generate_rust(function: Function, *, function_name: str | None = None) -> Ru
         ]
     )
 
+    upper_name = name.upper()
+    input_size_fn_lines = _render_size_functions(
+        base_name=name,
+        role="input",
+        names=function.input_names,
+        sizes=input_sizes,
+        prefix=upper_name,
+    )
+    output_size_fn_lines = _render_size_functions(
+        base_name=name,
+        role="output",
+        names=function.output_names,
+        sizes=output_sizes,
+        prefix=upper_name,
+    )
+
     lines = [
+        f"/// Workspace length required by [`{name}`].",
+        f"pub const {upper_name}_WORK_SIZE: usize = {len(workspace_map)};",
+        "",
+        f"/// Return the workspace length required by [`{name}`].",
+        f"pub fn {name}_work_size() -> usize {{",
+        f"    {upper_name}_WORK_SIZE",
+        "}",
+        "",
+        *input_size_fn_lines,
+        *output_size_fn_lines,
+        f"/// Evaluate the generated symbolic function `{name}`.",
+        "///",
+        "/// Inputs are passed as immutable slices, outputs are written into mutable slices,",
+        "/// and intermediate values are stored in `work`.",
         f"pub fn {name}({parameters}) {{",
         f"    assert!(work.len() >= {len(workspace_map)});",
         *input_access_lines,
@@ -269,6 +299,42 @@ def _render_project_readme(crate_name: str, codegen: RustCodegenResult) -> str:
             f"- Output sizes: `{codegen.output_sizes}`",
             "",
             "The generated ABI uses input slices, output slices, and a mutable workspace slice.",
+            "The generated Rust file also includes helper functions that return the required",
+            "workspace, input, and output dimensions.",
             "",
         ]
     )
+
+
+def _render_size_functions(
+    *,
+    base_name: str,
+    role: str,
+    names: tuple[str, ...],
+    sizes: tuple[int, ...],
+    prefix: str,
+) -> list[str]:
+    """Render Rust constants and helper functions for slice dimensions."""
+    lines: list[str] = []
+    plural = "inputs" if role == "input" else "outputs"
+    lines.append(f"/// Return the number of declared {plural} of [`{base_name}`].")
+    lines.append(f"pub fn {base_name}_num_{plural}() -> usize {{")
+    lines.append(f"    {len(sizes)}")
+    lines.append("}")
+    lines.append("")
+
+    for index, (raw_name, size) in enumerate(zip(names, sizes)):
+        ident = _sanitize_ident(raw_name)
+        const_name = f"{prefix}_{role.upper()}_{index}_SIZE"
+        lines.append(f"/// Length of the `{ident}` {role} slice for [`{base_name}`].")
+        lines.append(f"pub const {const_name}: usize = {size};")
+        lines.append("")
+        lines.append(
+            f"/// Return the length of the `{ident}` {role} slice for [`{base_name}`]."
+        )
+        lines.append(f"pub fn {base_name}_{role}_{index}_size() -> usize {{")
+        lines.append(f"    {const_name}")
+        lines.append("}")
+        lines.append("")
+
+    return lines

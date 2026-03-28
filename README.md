@@ -351,6 +351,95 @@ plan = f.cse(prefix="w", min_uses=2)
 
 This is intended to become the bridge between symbolic graphs and workspace-based Rust code generation.
 
+## Rust Code Generation
+
+The library can now generate primal Rust code for a `Function`.
+
+The generated Rust currently uses:
+
+- deterministic naming
+- a slice-based ABI
+- explicit workspace variables stored in a mutable `work` slice
+
+### Generate Rust source in memory
+
+```python
+from gradgen import Function, SX
+
+x = SX.sym("x")
+f = Function("square_plus_one", [x], [x * x + 1], input_names=["x"], output_names=["y"])
+
+result = f.generate_rust()
+print(result.source)
+print(result.workspace_size)
+```
+
+The generated function looks like a plain Rust function with this style of signature:
+
+```rust
+pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {
+    // ...
+}
+```
+
+For multiple inputs and outputs, each declared input and output becomes its own slice argument.
+
+### Create a Rust project on disk
+
+You can also create a minimal Cargo project at a user-specified path:
+
+```python
+from gradgen import Function, SX
+
+x = SX.sym("x")
+f = Function("square_plus_one", [x], [x * x + 1], input_names=["x"], output_names=["y"])
+
+project = f.create_rust_project("/tmp/square_plus_one")
+print(project.project_dir)
+```
+
+This writes:
+
+- `Cargo.toml`
+- `README.md`
+- `src/lib.rs`
+
+The generated `README.md` contains simple generic instructions such as:
+
+```bash
+cargo build
+```
+
+### Custom crate and function names
+
+```python
+project = f.create_rust_project(
+    "/tmp/my_kernel",
+    crate_name="my_kernel",
+    function_name="eval_kernel",
+)
+```
+
+There is also a module-level helper if you prefer:
+
+```python
+from gradgen import create_rust_project
+
+project = create_rust_project(f, "/tmp/my_kernel")
+```
+
+### Current ABI conventions
+
+At the moment the generated Rust code assumes:
+
+- scalar inputs are length-1 slices
+- vector inputs are dense `&[f64]` slices
+- scalar outputs are length-1 `&mut [f64]` slices
+- vector outputs are dense `&mut [f64]` slices
+- intermediate values live in `work: &mut [f64]`
+
+This is the current primal codegen target and the basis for later derivative code generation.
+
 ## Development
 
 Run the test suite locally with:
