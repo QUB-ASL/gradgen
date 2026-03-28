@@ -198,6 +198,17 @@ mod tests {{
         self.assertEqual(config.function_name, "eval_kernel")
         self.assertFalse(config.emit_metadata_helpers)
 
+    def test_backend_config_rejects_invalid_backend_mode(self) -> None:
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_backend_mode("gpu")
+
+    def test_backend_config_rejects_invalid_crate_name(self) -> None:
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_crate_name("my-kernel")
+
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_crate_name("123kernel")
+
     def test_generate_rust_accepts_backend_config(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [x.sin()], input_names=["x"], output_names=["y"])

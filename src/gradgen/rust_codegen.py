@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
+import re
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -34,7 +35,12 @@ class RustBackendConfig:
     emit_metadata_helpers: bool = True
 
     def with_backend_mode(self, backend_mode: RustBackendMode) -> RustBackendConfig:
-        """Return a copy with a different Rust backend mode."""
+        """Return a copy with a different Rust backend mode.
+
+        The backend mode must be one of the supported code-generation
+        targets, currently ``"std"`` or ``"no_std"``.
+        """
+        _validate_backend_mode(backend_mode)
         return replace(self, backend_mode=backend_mode)
 
     def with_math_lib(self, math_library: str | None) -> RustBackendConfig:
@@ -42,7 +48,13 @@ class RustBackendConfig:
         return replace(self, math_library=math_library)
 
     def with_crate_name(self, crate_name: str | None) -> RustBackendConfig:
-        """Return a copy with a different generated crate name."""
+        """Return a copy with a different generated crate name.
+
+        Crate names must already be valid simple Rust/Cargo identifiers.
+        This method intentionally rejects names that would need implicit
+        sanitization so configuration errors are caught early.
+        """
+        _validate_crate_name(crate_name)
         return replace(self, crate_name=crate_name)
 
     def with_function_name(self, function_name: str | None) -> RustBackendConfig:
@@ -50,7 +62,14 @@ class RustBackendConfig:
         return replace(self, function_name=function_name)
 
     def with_emit_metadata_helpers(self, emit_metadata_helpers: bool) -> RustBackendConfig:
-        """Return a copy with metadata helper emission enabled or disabled."""
+        """Return a copy with metadata helper emission enabled or disabled.
+
+        Metadata helpers are the generated constants and convenience
+        functions that describe the kernel shape, such as workspace size,
+        input dimensions, and output dimensions. Turning them off keeps the
+        emitted Rust smaller, but users then need to rely on Python-side
+        metadata or their own bookkeeping when allocating buffers.
+        """
         return replace(self, emit_metadata_helpers=emit_metadata_helpers)
 
 
@@ -380,6 +399,21 @@ def _validate_backend_mode(backend_mode: RustBackendMode) -> None:
     """Validate a Rust backend mode string."""
     if backend_mode not in {"std", "no_std"}:
         raise ValueError(f"unsupported Rust backend mode {backend_mode!r}")
+
+
+def _validate_crate_name(crate_name: str | None) -> None:
+    """Validate an explicitly configured crate name.
+
+    The backend currently requires simple identifier-like crate names so the
+    generated Cargo package name and emitted Rust module conventions stay
+    aligned and predictable.
+    """
+    if crate_name is None:
+        return
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", crate_name):
+        raise ValueError(
+            "crate_name must match the pattern [A-Za-z_][A-Za-z0-9_]*"
+        )
 
 
 def _resolve_math_library(
