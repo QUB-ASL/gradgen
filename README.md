@@ -569,6 +569,15 @@ constructs a combined symbolic function, simplifies it, and then generates Rust
 from that shared expression graph. This helps the generated kernel reuse
 intermediate work across the requested outputs.
 
+Builder-generated function names are prefixed with the crate name. For example,
+with crate name `my_kernel` the generated Rust API looks like:
+
+- `my_kernel_f`
+- `my_kernel_jf`
+- `my_kernel_hvp`
+- `my_kernel_f_jf`
+- `my_kernel_f_jf_hvp`
+
 You can also request a uniform simplification pass for every generated kernel:
 
 ```python

@@ -909,9 +909,9 @@ mod tests {
             self.assertTrue(project.project_dir.is_dir())
             self.assertEqual(len(project.codegens), 3)
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn f(", lib_text)
-            self.assertIn("pub fn f_gradient_x(", lib_text)
-            self.assertIn("pub fn f_hvp_x(", lib_text)
+            self.assertIn("pub fn single_crate_f(", lib_text)
+            self.assertIn("pub fn single_crate_grad(", lib_text)
+            self.assertIn("pub fn single_crate_hvp(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -929,13 +929,13 @@ mod tests {
         let mut y_grad = [0.0_f64, 0.0_f64];
         let mut y_hvp = [0.0_f64, 0.0_f64];
 
-        let mut work_f = [0.0_f64; F_WORK_SIZE];
-        let mut work_grad = [0.0_f64; F_GRADIENT_X_WORK_SIZE];
-        let mut work_hvp = [0.0_f64; F_HVP_X_WORK_SIZE];
+        let mut work_f = [0.0_f64; SINGLE_CRATE_F_WORK_SIZE];
+        let mut work_grad = [0.0_f64; SINGLE_CRATE_GRAD_WORK_SIZE];
+        let mut work_hvp = [0.0_f64; SINGLE_CRATE_HVP_WORK_SIZE];
 
-        f(&x, &mut y, &mut work_f);
-        f_gradient_x(&x, &mut y_grad, &mut work_grad);
-        f_hvp_x(&x, &v_x, &mut y_hvp, &mut work_hvp);
+        single_crate_f(&x, &mut y, &mut work_f);
+        single_crate_grad(&x, &mut y_grad, &mut work_grad);
+        single_crate_hvp(&x, &v_x, &mut y_hvp, &mut work_hvp);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(y_grad, [10.0_f64, 11.0_f64]);
@@ -965,7 +965,7 @@ mod tests {
             self.assertTrue(project.project_dir.is_dir())
             self.assertEqual(len(project.codegens), 1)
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn f_joint_f_jf_x(", lib_text)
+            self.assertIn("pub fn joint_f_jf(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -979,9 +979,9 @@ mod tests {
         let x = [3.0_f64, 4.0_f64];
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
-        let mut work = [0.0_f64; F_JOINT_F_JF_X_WORK_SIZE];
+        let mut work = [0.0_f64; JOINT_F_JF_WORK_SIZE];
 
-        f_joint_f_jf_x(&x, &mut y, &mut jacobian_y, &mut work);
+        joint_f_jf(&x, &mut y, &mut jacobian_y, &mut work);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
@@ -1008,7 +1008,7 @@ mod tests {
             project = builder.build(Path(tmpdir) / "joint_f_jf_hvp")
 
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn f_joint_f_jf_hvp_x(", lib_text)
+            self.assertIn("pub fn joint_f_jf_hvp_f_jf_hvp(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -1024,9 +1024,9 @@ mod tests {
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
         let mut hvp_y = [0.0_f64, 0.0_f64];
-        let mut work = [0.0_f64; F_JOINT_F_JF_HVP_X_WORK_SIZE];
+        let mut work = [0.0_f64; JOINT_F_JF_HVP_F_JF_HVP_WORK_SIZE];
 
-        f_joint_f_jf_hvp_x(&x, &v_x, &mut y, &mut jacobian_y, &mut hvp_y, &mut work);
+        joint_f_jf_hvp_f_jf_hvp(&x, &v_x, &mut y, &mut jacobian_y, &mut hvp_y, &mut work);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
@@ -1056,6 +1056,7 @@ mod tests {
             CodeGenerationBuilder(f)
             .with_backend_config(
                 RustBackendConfig()
+                .with_crate_name("my_kernel")
                 .with_backend_mode("no_std")
                 .with_scalar_type("f32")
             )
@@ -1071,10 +1072,11 @@ mod tests {
             cargo_text = project.cargo_toml.read_text(encoding="utf-8")
 
             self.assertIn("#![no_std]", lib_text)
-            self.assertIn("pub fn f(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
-            self.assertIn("pub fn f_gradient_x(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
-            self.assertIn("pub fn f_hvp_x(x: &[f32], v_x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_f(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_grad(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_hvp(x: &[f32], v_x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
             self.assertIn('libm = "0.2"', cargo_text)
+            self.assertIn('name = "my_kernel"', cargo_text)
 
             try:
                 completed = self._run_cargo(project.project_dir, "build", "--quiet")

@@ -192,16 +192,21 @@ class CodeGenerationBuilder:
 
     def build(self, path: str | Path) -> RustMultiFunctionProjectResult:
         """Generate a single Rust crate containing all requested kernels."""
+        resolved_config = self.config
+        if resolved_config.crate_name is None:
+            resolved_config = resolved_config.with_crate_name(
+                _sanitize_ident(Path(path).expanduser().resolve().name)
+            )
         functions = _resolve_builder_functions(
             self.function,
-            self.config,
+            resolved_config,
             self.requests,
             self.simplification,
         )
         return create_multi_function_rust_project(
             functions,
             path,
-            config=self.config,
+            config=resolved_config,
         )
 
     def _add_request(self, kind: str, *, components: tuple[str, ...] = ()) -> CodeGenerationBuilder:
@@ -749,46 +754,92 @@ def _resolve_builder_functions(
         raise ValueError("no kernels were requested; call add_primal() or another add_* method first")
 
     base_function = _apply_builder_base_name(function, config.function_name)
+    crate_prefix = _sanitize_ident(config.crate_name or base_function.name)
     resolved: list[Function] = []
 
     for request in requests:
         if request.kind == "primal":
-            resolved.append(_maybe_simplify_generated_function(base_function, simplification))
+            resolved.append(
+                _rename_generated_function(
+                    _maybe_simplify_generated_function(base_function, simplification),
+                    _builder_function_name(crate_prefix, "f"),
+                )
+            )
             continue
         if request.kind == "gradient":
             resolved.extend(
-                _maybe_simplify_generated_function(base_function.gradient(index), simplification)
+                _rename_generated_function(
+                    _maybe_simplify_generated_function(base_function.gradient(index), simplification),
+                    _builder_function_name(
+                        crate_prefix,
+                        "grad",
+                        input_name=base_function.input_names[index],
+                        include_input_name=len(base_function.inputs) > 1,
+                    ),
+                )
                 for index in range(len(base_function.inputs))
             )
             continue
         if request.kind == "jacobian":
             resolved.extend(
-                _maybe_simplify_generated_function(block, simplification)
-                for block in base_function.jacobian_blocks()
+                _rename_generated_function(
+                    _maybe_simplify_generated_function(block, simplification),
+                    _builder_function_name(
+                        crate_prefix,
+                        "jf",
+                        input_name=base_function.input_names[index],
+                        include_input_name=len(base_function.inputs) > 1,
+                    ),
+                )
+                for index, block in enumerate(base_function.jacobian_blocks())
             )
             continue
         if request.kind == "joint":
             resolved.extend(
-                _maybe_simplify_generated_function(
-                    base_function.joint(
-                        request.components,
-                        index,
+                _rename_generated_function(
+                    _maybe_simplify_generated_function(
+                        base_function.joint(
+                            request.components,
+                            index,
+                        ),
+                        simplification,
                     ),
-                    simplification,
+                    _builder_function_name(
+                        crate_prefix,
+                        *_builder_joint_labels(request.components),
+                        input_name=base_function.input_names[index],
+                        include_input_name=len(base_function.inputs) > 1,
+                    ),
                 )
                 for index in range(len(base_function.inputs))
             )
             continue
         if request.kind == "hessian":
             resolved.extend(
-                _maybe_simplify_generated_function(block, simplification)
-                for block in base_function.hessian_blocks()
+                _rename_generated_function(
+                    _maybe_simplify_generated_function(block, simplification),
+                    _builder_function_name(
+                        crate_prefix,
+                        "hessian",
+                        input_name=base_function.input_names[index],
+                        include_input_name=len(base_function.inputs) > 1,
+                    ),
+                )
+                for index, block in enumerate(base_function.hessian_blocks())
             )
             continue
         if request.kind == "hvp":
             resolved.extend(
-                _maybe_simplify_generated_function(block, simplification)
-                for block in base_function.hvp_blocks()
+                _rename_generated_function(
+                    _maybe_simplify_generated_function(block, simplification),
+                    _builder_function_name(
+                        crate_prefix,
+                        "hvp",
+                        input_name=base_function.input_names[index],
+                        include_input_name=len(base_function.inputs) > 1,
+                    ),
+                )
+                for index, block in enumerate(base_function.hvp_blocks())
             )
             continue
         raise ValueError(f"unsupported builder request kind {request.kind!r}")
@@ -807,6 +858,42 @@ def _apply_builder_base_name(function: Function, function_name: str | None) -> F
         input_names=function.input_names,
         output_names=function.output_names,
     )
+
+
+def _rename_generated_function(function: Function, name: str) -> Function:
+    """Return ``function`` with a different name while preserving its interface."""
+    if function.name == name:
+        return function
+    return Function(
+        name,
+        function.inputs,
+        function.outputs,
+        input_names=function.input_names,
+        output_names=function.output_names,
+    )
+
+
+def _builder_joint_labels(components: tuple[str, ...]) -> tuple[str, ...]:
+    """Map joint component shorthands to builder function-name labels."""
+    mapping = {
+        "f": "f",
+        "jf": "jf",
+        "hvp": "hvp",
+    }
+    return tuple(mapping[component] for component in components)
+
+
+def _builder_function_name(
+    crate_prefix: str,
+    *labels: str,
+    input_name: str | None = None,
+    include_input_name: bool = False,
+) -> str:
+    """Build a crate-prefixed Rust function name for builder-generated kernels."""
+    parts = [crate_prefix, *labels]
+    if include_input_name and input_name is not None:
+        parts.append(_sanitize_ident(input_name))
+    return "_".join(parts)
 
 
 def _maybe_simplify_generated_function(
