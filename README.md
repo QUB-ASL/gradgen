@@ -25,10 +25,10 @@ The library already supports:
 - forward-mode AD through scalar derivatives and Jacobian-vector products
 - reverse-mode AD through gradients and vector-Jacobian products
 - Jacobian and Hessian construction
-- `Function`-level gradient, Jacobian-block, and Hessian-block helpers
+- `Function`-level gradient, Jacobian-block, Hessian-block, HVP, and joint primal-Jacobian helpers
 - bounded symbolic simplification
 - common subexpression elimination plans for later code generation
-- Rust crate generation for primal functions and derivative bundles
+- Rust crate generation for primal functions, derivative bundles, and multi-kernel crates
 
 Some intentional limitations at this stage:
 
@@ -285,6 +285,17 @@ If you want multiple input blocks at once, use:
 blocks = some_function.jacobian_blocks()
 ```
 
+For Rust code generation workflows that want one kernel to compute both the
+primal outputs and a Jacobian block together, you can also build a combined
+symbolic function:
+
+```python
+joint = some_function.joint_primal_jacobian(0, simplify_joint="high")
+```
+
+This returns a new `Function` mapping the original inputs to `(f, Jf)` for the
+selected input block.
+
 ### Hessians
 
 Hessians are supported for scalar-output expressions.
@@ -310,6 +321,22 @@ For multiple input blocks:
 
 ```python
 blocks = some_scalar_function.hessian_blocks()
+```
+
+### Hessian-vector products
+
+For scalar-output functions, you can also build Hessian-vector product kernels.
+The resulting function keeps the original inputs and appends one extra tangent
+input block:
+
+```python
+hvp_f = some_scalar_function.hvp(0)
+```
+
+To build several blocks at once:
+
+```python
+blocks = some_scalar_function.hvp_blocks()
 ```
 
 ## Simplification
@@ -493,6 +520,45 @@ from gradgen import create_rust_derivative_bundle
 
 bundle = create_rust_derivative_bundle(f, "/tmp/my_bundle")
 ```
+
+### Build a single crate with multiple generated kernels
+
+If you want one Cargo crate containing several related kernels, use
+`CodeGenerationBuilder`:
+
+```python
+from gradgen import CodeGenerationBuilder, RustBackendConfig
+
+builder = (
+    CodeGenerationBuilder(f)
+    .with_backend_config(
+        RustBackendConfig()
+        .with_backend_mode("no_std")
+        .with_scalar_type("f32")
+    )
+    .add_primal()
+    .add_gradient()
+    .add_hvp()
+    .add_joint_primal_jacobian()
+)
+
+project = builder.build("/tmp/my_kernel")
+```
+
+Each `add_*` call contributes a separate generated Rust function inside the same
+crate. Currently supported builder requests include:
+
+- `add_primal()`
+- `add_gradient()`
+- `add_jacobian()`
+- `add_joint_primal_jacobian()`
+- `add_hessian()`
+- `add_hvp()`
+
+The joint primal-Jacobian request first constructs a symbolic function mapping
+the original inputs to `(f, Jf)`, simplifies it, and then generates Rust from
+that combined function. This helps the generated kernel share intermediate work
+between the primal and Jacobian outputs.
 
 ### Current ABI conventions
 
