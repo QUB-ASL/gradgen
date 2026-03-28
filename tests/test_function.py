@@ -163,7 +163,7 @@ class FunctionTests(unittest.TestCase):
             f.joint(("f", "f"))
 
         with self.assertRaises(ValueError):
-            f.joint(("f", "grad"))
+            f.joint(("f", "banana"))
 
     def test_function_numeric_multi_input_multi_output_call_returns_tuple(self) -> None:
         x = SX.sym("x")

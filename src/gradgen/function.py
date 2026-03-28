@@ -278,7 +278,9 @@ class Function:
         Supported component names are:
 
         - ``"f"`` for the primal outputs
+        - ``"grad"`` for the gradient block with respect to ``wrt_index``
         - ``"jf"`` for the Jacobian block with respect to ``wrt_index``
+        - ``"hessian"`` for the Hessian block with respect to ``wrt_index``
         - ``"hvp"`` for the Hessian-vector product with respect to ``wrt_index``
 
         The output order follows ``components`` exactly. If ``"hvp"`` is
@@ -310,6 +312,20 @@ class Function:
                 outputs.extend(jacobian_function.outputs)
                 output_names.extend(
                     f"jacobian_{output_name}" for output_name in jacobian_function.output_names
+                )
+                continue
+            if component == "grad":
+                gradient_function = self.gradient(wrt_index)
+                outputs.extend(gradient_function.outputs)
+                output_names.extend(
+                    f"gradient_{output_name}" for output_name in gradient_function.output_names
+                )
+                continue
+            if component == "hessian":
+                hessian_function = self.hessian(wrt_index)
+                outputs.extend(hessian_function.outputs)
+                output_names.extend(
+                    f"hessian_{output_name}" for output_name in hessian_function.output_names
                 )
                 continue
             if component == "hvp":
@@ -613,7 +629,7 @@ def _resolve_joint_components(components: Iterable[str]) -> tuple[str, ...]:
     resolved = tuple(components)
     if len(resolved) < 2:
         raise ValueError("joint functions require at least two components")
-    allowed = {"f", "jf", "hvp"}
+    allowed = {"f", "grad", "jf", "hessian", "hvp"}
     for component in resolved:
         if component not in allowed:
             raise ValueError(f"unsupported joint component {component!r}")

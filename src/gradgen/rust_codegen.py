@@ -137,6 +137,53 @@ class _BuilderRequest:
 
     kind: str
     components: tuple[str, ...] = ()
+    bundle: FunctionBundle | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class _BundleItem:
+    """One artifact entry inside a ``FunctionBundle``."""
+
+    kind: str
+    wrt_indices: tuple[int, ...] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionBundle:
+    """Fluent description of artifacts to compute together in one joint kernel."""
+
+    items: tuple[_BundleItem, ...] = ()
+
+    def add_f(self) -> FunctionBundle:
+        """Include the primal outputs."""
+        return self._add_item("f")
+
+    def add_gradient(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
+        """Include gradient blocks for one or more input indices."""
+        return self._add_item("grad", wrt)
+
+    def add_jf(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
+        """Include Jacobian blocks for one or more input indices."""
+        return self._add_item("jf", wrt)
+
+    def add_hessian(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
+        """Include Hessian blocks for one or more input indices."""
+        return self._add_item("hessian", wrt)
+
+    def add_hvp(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
+        """Include Hessian-vector-product blocks for one or more input indices."""
+        return self._add_item("hvp", wrt)
+
+    def _add_item(
+        self,
+        kind: str,
+        wrt: int | list[int] | tuple[int, ...] | None = None,
+    ) -> FunctionBundle:
+        wrt_indices = None if wrt is None else _normalize_wrt_indices(wrt)
+        candidate = _BundleItem(kind, wrt_indices)
+        if any(item == candidate for item in self.items):
+            return self
+        return replace(self, items=(*self.items, candidate))
 
 
 @dataclass(frozen=True, slots=True)
@@ -178,9 +225,9 @@ class CodeGenerationBuilder:
         """Include Jacobian kernels for all input blocks."""
         return self._add_request("jacobian")
 
-    def add_joint(self, components: tuple[str, ...]) -> CodeGenerationBuilder:
-        """Include kernels that compute several requested artifacts together."""
-        return self._add_request("joint", components=components)
+    def add_joint(self, bundle: FunctionBundle) -> CodeGenerationBuilder:
+        """Include kernels that compute bundled artifacts together."""
+        return self._add_request("joint", bundle=bundle)
 
     def add_hessian(self) -> CodeGenerationBuilder:
         """Include Hessian kernels for scalar-output functions."""
@@ -209,8 +256,14 @@ class CodeGenerationBuilder:
             config=resolved_config,
         )
 
-    def _add_request(self, kind: str, *, components: tuple[str, ...] = ()) -> CodeGenerationBuilder:
-        candidate = _BuilderRequest(kind, components)
+    def _add_request(
+        self,
+        kind: str,
+        *,
+        components: tuple[str, ...] = (),
+        bundle: FunctionBundle | None = None,
+    ) -> CodeGenerationBuilder:
+        candidate = _BuilderRequest(kind, components, bundle)
         if any(request == candidate for request in self.requests):
             return self
         return replace(self, requests=(*self.requests, candidate))
@@ -795,23 +848,28 @@ def _resolve_builder_functions(
             )
             continue
         if request.kind == "joint":
+            if request.bundle is None:
+                raise ValueError("joint builder requests require a FunctionBundle")
             resolved.extend(
                 _rename_generated_function(
                     _maybe_simplify_generated_function(
                         base_function.joint(
-                            request.components,
+                            components,
                             index,
                         ),
                         simplification,
                     ),
                     _builder_function_name(
                         crate_prefix,
-                        *_builder_joint_labels(request.components),
+                        *_builder_joint_labels(components),
                         input_name=base_function.input_names[index],
                         include_input_name=len(base_function.inputs) > 1,
                     ),
                 )
-                for index in range(len(base_function.inputs))
+                for index, components in _resolve_function_bundle(
+                    request.bundle,
+                    len(base_function.inputs),
+                )
             )
             continue
         if request.kind == "hessian":
@@ -877,7 +935,9 @@ def _builder_joint_labels(components: tuple[str, ...]) -> tuple[str, ...]:
     """Map joint component shorthands to builder function-name labels."""
     mapping = {
         "f": "f",
+        "grad": "grad",
         "jf": "jf",
+        "hessian": "hessian",
         "hvp": "hvp",
     }
     return tuple(mapping[component] for component in components)
@@ -894,6 +954,50 @@ def _builder_function_name(
     if include_input_name and input_name is not None:
         parts.append(_sanitize_ident(input_name))
     return "_".join(parts)
+
+
+def _normalize_wrt_indices(wrt: int | list[int] | tuple[int, ...]) -> tuple[int, ...]:
+    """Normalize a ``wrt`` specification to a tuple of indices."""
+    if isinstance(wrt, int):
+        return (wrt,)
+    return tuple(wrt)
+
+
+def _resolve_function_bundle(
+    bundle: FunctionBundle,
+    input_count: int,
+) -> tuple[tuple[int, tuple[str, ...]], ...]:
+    """Expand a ``FunctionBundle`` into one or more per-input joint requests."""
+    if not bundle.items:
+        raise ValueError("FunctionBundle must contain at least one item")
+
+    has_primal = any(item.kind == "f" for item in bundle.items)
+    grouped: dict[int, list[str]] = {}
+
+    for item in bundle.items:
+        if item.kind == "f":
+            continue
+        if item.wrt_indices is None:
+            raise ValueError(f"FunctionBundle item {item.kind!r} requires a wrt specification")
+        for index in item.wrt_indices:
+            if not 0 <= index < input_count:
+                raise IndexError("wrt_index is out of range")
+            grouped.setdefault(index, [])
+            if has_primal and "f" not in grouped[index]:
+                grouped[index].append("f")
+            if item.kind not in grouped[index]:
+                grouped[index].append(item.kind)
+
+    if not grouped:
+        raise ValueError("FunctionBundle must include at least one derivative-producing item")
+
+    resolved: list[tuple[int, tuple[str, ...]]] = []
+    for index in sorted(grouped):
+        components = tuple(grouped[index])
+        if len(components) < 2:
+            raise ValueError("joint functions require at least two components")
+        resolved.append((index, components))
+    return tuple(resolved)
 
 
 def _maybe_simplify_generated_function(

@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from gradgen import (
     CodeGenerationBuilder,
     Function,
+    FunctionBundle,
     RustBackendConfig,
     SX,
     SXVector,
@@ -223,6 +224,20 @@ mod tests {{
         self.assertEqual(config.function_name, "eval_kernel")
         self.assertFalse(config.emit_metadata_helpers)
 
+    def test_function_bundle_supports_chainable_updates(self) -> None:
+        bundle = (
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=[0, 2])
+            .add_hessian(wrt=1)
+            .add_hvp(wrt=(0, 1))
+        )
+
+        self.assertEqual(
+            [(item.kind, item.wrt_indices) for item in bundle.items],
+            [("f", None), ("jf", (0, 2)), ("hessian", (1,)), ("hvp", (0, 1))],
+        )
+
     def test_code_generation_builder_supports_simplification_setting(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
@@ -232,7 +247,12 @@ mod tests {{
             .add_primal()
             .add_jacobian()
             .add_hvp()
-            .add_joint(("f", "jf", "hvp"))
+            .add_joint(
+                FunctionBundle()
+                .add_f()
+                .add_jf(wrt=0)
+                .add_hvp(wrt=0)
+            )
             .with_simplification("medium")
         )
 
@@ -245,6 +265,16 @@ mod tests {{
             self.assertIn("work[0] = 2.0_f64 * v_x[0];", lib_text)
             self.assertIn("work[1] = 2.0_f64 * x[0];", lib_text)
             self.assertIn("work[2] = 2.0_f64 * v_x[0];", lib_text)
+
+    def test_code_generation_builder_rejects_invalid_function_bundle(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+
+        with self.assertRaises(ValueError):
+            CodeGenerationBuilder(f).add_joint(FunctionBundle().add_f()).build("/tmp/unused")
+
+        with self.assertRaises(IndexError):
+            CodeGenerationBuilder(f).add_joint(FunctionBundle().add_f().add_jf(wrt=3)).build("/tmp/unused")
 
     def test_backend_config_supports_scalar_type_updates(self) -> None:
         config = RustBackendConfig().with_scalar_type("f32")
@@ -957,7 +987,11 @@ mod tests {
             input_names=["x"],
             output_names=["y"],
         )
-        builder = CodeGenerationBuilder(f).add_joint(("f", "jf"))
+        builder = CodeGenerationBuilder(f).add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=0)
+        )
 
         with TemporaryDirectory() as tmpdir:
             project = builder.build(Path(tmpdir) / "joint")
@@ -1002,7 +1036,12 @@ mod tests {
             input_names=["x"],
             output_names=["y"],
         )
-        builder = CodeGenerationBuilder(f).add_joint(("f", "jf", "hvp"))
+        builder = CodeGenerationBuilder(f).add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=0)
+            .add_hvp(wrt=0)
+        )
 
         with TemporaryDirectory() as tmpdir:
             project = builder.build(Path(tmpdir) / "joint_f_jf_hvp")
@@ -1039,15 +1078,28 @@ mod tests {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
-    def test_code_generation_builder_rejects_invalid_joint_requests(self) -> None:
+    def test_code_generation_builder_expands_function_bundle_across_wrt_blocks(self) -> None:
         x = SX.sym("x")
-        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+        y = SX.sym("y")
+        f = Function(
+            "f",
+            [x, y],
+            [x * x + x * y + y * y],
+            input_names=["x", "y"],
+            output_names=["out"],
+        )
+        builder = CodeGenerationBuilder(f).add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=[0, 1])
+        )
 
-        with self.assertRaises(ValueError):
-            CodeGenerationBuilder(f).add_joint(("f",)).build("/tmp/unused")
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "multi_joint")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-        with self.assertRaises(ValueError):
-            CodeGenerationBuilder(f).add_joint(("f", "f")).build("/tmp/unused")
+            self.assertIn("pub fn multi_joint_f_jf_x(", lib_text)
+            self.assertIn("pub fn multi_joint_f_jf_y(", lib_text)
 
     def test_code_generation_builder_supports_no_std_f32_backend_config(self) -> None:
         x = SX.sym("x")

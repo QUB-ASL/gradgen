@@ -5,6 +5,7 @@ from .cse import CSEAssignment, CSEPlan, cse
 from .function import Function
 from .rust_codegen import (
     CodeGenerationBuilder,
+    FunctionBundle,
     RustBackendMode,
     RustBackendConfig,
     RustCodegenResult,
@@ -25,6 +26,7 @@ __all__ = [
     "CSEPlan",
     "CodeGenerationBuilder",
     "Function",
+    "FunctionBundle",
     "RustBackendMode",
     "RustBackendConfig",
     "RustCodegenResult",

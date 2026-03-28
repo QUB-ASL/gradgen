@@ -532,7 +532,7 @@ If you want one Cargo crate containing several related kernels, use
 `CodeGenerationBuilder`:
 
 ```python
-from gradgen import CodeGenerationBuilder, RustBackendConfig
+from gradgen import CodeGenerationBuilder, FunctionBundle, RustBackendConfig
 
 builder = (
     CodeGenerationBuilder(f)
@@ -544,7 +544,11 @@ builder = (
     .add_primal()
     .add_gradient()
     .add_hvp()
-    .add_joint(("f", "jf"))
+    .add_joint(
+        FunctionBundle()
+        .add_f()
+        .add_jf(wrt=0)
+    )
     .with_simplification("medium")
 )
 
@@ -557,17 +561,31 @@ crate. Currently supported builder requests include:
 - `add_primal()`
 - `add_gradient()`
 - `add_jacobian()`
-- `add_joint(("f", "jf"))`
-- `add_joint(("f", "hvp"))`
-- `add_joint(("f", "jf", "hvp"))`
+- `add_joint(FunctionBundle().add_f().add_jf(wrt=0))`
+- `add_joint(FunctionBundle().add_f().add_hvp(wrt=0))`
+- `add_joint(FunctionBundle().add_f().add_jf(wrt=0).add_hvp(wrt=0))`
 - `add_hessian()`
 - `add_hvp()`
 
-More generally, `add_joint(...)` accepts any ordered combination of `"f"`,
-`"jf"`, and `"hvp"` with at least two distinct entries. The builder first
-constructs a combined symbolic function, simplifies it, and then generates Rust
-from that shared expression graph. This helps the generated kernel reuse
-intermediate work across the requested outputs.
+More generally, `add_joint(...)` accepts a `FunctionBundle`, which can describe
+primal outputs plus one or more derivative artifacts for one or more `wrt`
+blocks. The builder expands that bundle into one or more combined symbolic
+functions, simplifies them, and then generates Rust from those shared
+expression graphs. This helps the generated kernels reuse intermediate work
+across the requested outputs.
+
+For example:
+
+```python
+bundle = (
+    FunctionBundle()
+    .add_f()
+    .add_jf(wrt=[0, 1, 2])
+    .add_hessian(wrt=[0, 1])
+)
+
+builder = CodeGenerationBuilder(f).add_joint(bundle)
+```
 
 Builder-generated function names are prefixed with the crate name. For example,
 with crate name `my_kernel` the generated Rust API looks like:
@@ -586,7 +604,12 @@ builder = (
     .add_primal()
     .add_jacobian()
     .add_hvp()
-    .add_joint(("f", "jf", "hvp"))
+    .add_joint(
+        FunctionBundle()
+        .add_f()
+        .add_jf(wrt=0)
+        .add_hvp(wrt=0)
+    )
     .with_simplification("medium")
 )
 ```
