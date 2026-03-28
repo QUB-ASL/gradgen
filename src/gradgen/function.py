@@ -294,6 +294,33 @@ class Function:
             output_names=differentiated_names,
         )
 
+    def simplify(self, max_effort: int | str = "basic", name: str | None = None) -> Function:
+        """Build a new function with simplified outputs.
+
+        Args:
+            max_effort: Maximum simplification effort. This can be an
+                integer pass count or one of the named presets supported by
+                :func:`gradgen.simplify`.
+            name: Optional name for the simplified function.
+
+        Returns:
+            A new ``Function`` with the same inputs and simplified outputs.
+        """
+        from .simplify import _resolve_effort, _simplify_value
+
+        effort = _resolve_effort(max_effort)
+        simplified_outputs = [
+            _simplify_value(output, effort) for output in self.outputs
+        ]
+
+        return Function(
+            name or f"{self.name}_simplified",
+            self.inputs,
+            simplified_outputs,
+            input_names=self.input_names,
+            output_names=self.output_names,
+        )
+
     def __repr__(self) -> str:
         return (
             f"Function(name={self.name!r}, input_names={self.input_names!r}, "

@@ -2,6 +2,7 @@
 
 from .ad import derivative, gradient, hessian, jacobian, jvp, vjp
 from .function import Function
+from .simplify import simplify
 from .sx import SX, SXNode, SXVector, const, vector
 
 __all__ = [
@@ -15,6 +16,7 @@ __all__ = [
     "hessian",
     "jacobian",
     "jvp",
+    "simplify",
     "vector",
     "vjp",
 ]
