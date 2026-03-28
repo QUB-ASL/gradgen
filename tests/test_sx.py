@@ -1,6 +1,7 @@
 import unittest
 
 from gradgen.sx import SX, SXVector, cos, exp, log, sin, sqrt, vector
+import gradgen
 
 
 class SXTests(unittest.TestCase):
@@ -55,6 +56,15 @@ class SXTests(unittest.TestCase):
         self.assertEqual(log(x).op, "log")
         self.assertEqual(sqrt(x).op, "sqrt")
         self.assertEqual((-x).op, "neg")
+
+    def test_top_level_package_exports_unary_helpers(self) -> None:
+        x = SX.sym("x")
+
+        self.assertEqual(gradgen.sin(x).op, "sin")
+        self.assertEqual(gradgen.cos(x).op, "cos")
+        self.assertEqual(gradgen.exp(x).op, "exp")
+        self.assertEqual(gradgen.log(x).op, "log")
+        self.assertEqual(gradgen.sqrt(x).op, "sqrt")
 
     def test_numeric_operands_are_coerced_for_binary_operations(self) -> None:
         x = SX.sym("x")

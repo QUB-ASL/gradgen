@@ -13,6 +13,7 @@ from .sx import SX, SXNode, SXVector
 
 
 RustBackendMode = str
+RustScalarType = str
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +30,7 @@ class RustBackendConfig:
     """
 
     backend_mode: RustBackendMode = "std"
+    scalar_type: RustScalarType = "f64"
     math_library: str | None = None
     crate_name: str | None = None
     function_name: str | None = None
@@ -46,6 +48,16 @@ class RustBackendConfig:
     def with_math_lib(self, math_library: str | None) -> RustBackendConfig:
         """Return a copy with a different ``no_std`` math namespace."""
         return replace(self, math_library=math_library)
+
+    def with_scalar_type(self, scalar_type: RustScalarType) -> RustBackendConfig:
+        """Return a copy with a different generated Rust scalar type.
+
+        Supported scalar types are currently ``"f64"`` and ``"f32"``.
+        The selected type affects slice signatures, floating-point
+        literals, and the emitted math calls for ``no_std`` backends.
+        """
+        _validate_scalar_type(scalar_type)
+        return replace(self, scalar_type=scalar_type)
 
     def with_crate_name(self, crate_name: str | None) -> RustBackendConfig:
         """Return a copy with a different generated crate name.
@@ -83,6 +95,7 @@ class RustCodegenResult:
     input_sizes: tuple[int, ...]
     output_sizes: tuple[int, ...]
     backend_mode: RustBackendMode
+    scalar_type: RustScalarType
     math_library: str | None
 
 
@@ -112,6 +125,7 @@ def generate_rust(
     config: RustBackendConfig | None = None,
     function_name: str | None = None,
     backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
     math_library: str | None = None,
 ) -> RustCodegenResult:
     """Generate Rust source code for primal function evaluation."""
@@ -119,9 +133,11 @@ def generate_rust(
         config,
         function_name=function_name,
         backend_mode=backend_mode,
+        scalar_type=scalar_type,
         math_library=math_library,
     )
     _validate_backend_mode(resolved_config.backend_mode)
+    _validate_scalar_type(resolved_config.scalar_type)
     resolved_math_library = _resolve_math_library(
         resolved_config.backend_mode,
         resolved_config.math_library,
@@ -161,6 +177,7 @@ def generate_rust(
             scalar_bindings,
             workspace_map,
             resolved_config.backend_mode,
+            resolved_config.scalar_type,
             resolved_math_library,
         )
         computation_lines.append(f"work[{work_index}] = {rhs};")
@@ -175,6 +192,7 @@ def generate_rust(
                 scalar_bindings,
                 workspace_map,
                 resolved_config.backend_mode,
+                resolved_config.scalar_type,
                 resolved_math_library,
             )
             output_write_lines.append(
@@ -183,9 +201,9 @@ def generate_rust(
 
     parameters = ", ".join(
         [
-            *[f"{spec.rust_name}: &[f64]" for spec in input_specs],
-            *[f"{spec.rust_name}: &mut [f64]" for spec in output_specs],
-            "work: &mut [f64]",
+            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
+            *[f"{spec.rust_name}: &mut [{resolved_config.scalar_type}]" for spec in output_specs],
+            f"work: &mut [{resolved_config.scalar_type}]",
         ]
     )
 
@@ -193,6 +211,7 @@ def generate_rust(
         function_name=name,
         upper_name=name.upper(),
         backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
         workspace_size=len(workspace_map),
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
@@ -212,6 +231,7 @@ def generate_rust(
         input_sizes=input_sizes,
         output_sizes=output_sizes,
         backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
     )
 
@@ -224,6 +244,7 @@ def create_rust_project(
     crate_name: str | None = None,
     function_name: str | None = None,
     backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
     math_library: str | None = None,
 ) -> RustProjectResult:
     """Create a minimal Rust library project containing generated code."""
@@ -232,9 +253,11 @@ def create_rust_project(
         crate_name=crate_name,
         function_name=function_name,
         backend_mode=backend_mode,
+        scalar_type=scalar_type,
         math_library=math_library,
     )
     _validate_backend_mode(resolved_config.backend_mode)
+    _validate_scalar_type(resolved_config.scalar_type)
 
     project_dir = Path(path).expanduser().resolve()
     crate = _sanitize_ident(resolved_config.crate_name or function.name)
@@ -253,6 +276,7 @@ def create_rust_project(
         _get_template("Cargo.toml.j2").render(
             crate_name=crate,
             backend_mode=resolved_config.backend_mode,
+            scalar_type=resolved_config.scalar_type,
             math_library=codegen.math_library,
         ),
         encoding="utf-8",
@@ -262,6 +286,7 @@ def create_rust_project(
             crate_name=crate,
             codegen=codegen,
             backend_mode=resolved_config.backend_mode,
+            scalar_type=resolved_config.scalar_type,
             math_library=codegen.math_library,
         ),
         encoding="utf-8",
@@ -282,16 +307,17 @@ def _emit_node_expr(
     scalar_bindings: dict[SXNode, str],
     workspace_map: dict[SXNode, int],
     backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
     math_library: str | None,
 ) -> str:
     """Emit the Rust expression used to compute a workspace node."""
     if expr.op == "const":
-        return _format_float(expr.value)
+        return _format_float(expr.value, scalar_type)
     if expr.op == "symbol":
         return scalar_bindings[expr.node]
 
     args = tuple(
-        _emit_expr_ref(arg, scalar_bindings, workspace_map, backend_mode, math_library)
+        _emit_expr_ref(arg, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
         for arg in expr.args
     )
 
@@ -304,19 +330,19 @@ def _emit_node_expr(
     if expr.op == "div":
         return f"{args[0]} / {args[1]}"
     if expr.op == "pow":
-        return _emit_math_call("pow", args, backend_mode, math_library)
+        return _emit_math_call("pow", args, backend_mode, scalar_type, math_library)
     if expr.op == "neg":
         return f"-{args[0]}"
     if expr.op == "sin":
-        return _emit_math_call("sin", args, backend_mode, math_library)
+        return _emit_math_call("sin", args, backend_mode, scalar_type, math_library)
     if expr.op == "cos":
-        return _emit_math_call("cos", args, backend_mode, math_library)
+        return _emit_math_call("cos", args, backend_mode, scalar_type, math_library)
     if expr.op == "exp":
-        return _emit_math_call("exp", args, backend_mode, math_library)
+        return _emit_math_call("exp", args, backend_mode, scalar_type, math_library)
     if expr.op == "log":
-        return _emit_math_call("log", args, backend_mode, math_library)
+        return _emit_math_call("log", args, backend_mode, scalar_type, math_library)
     if expr.op == "sqrt":
-        return _emit_math_call("sqrt", args, backend_mode, math_library)
+        return _emit_math_call("sqrt", args, backend_mode, scalar_type, math_library)
 
     raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
 
@@ -326,11 +352,12 @@ def _emit_expr_ref(
     scalar_bindings: dict[SXNode, str],
     workspace_map: dict[SXNode, int],
     backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
     math_library: str | None,
 ) -> str:
     """Emit a Rust expression reference for an already-available value."""
     if expr.op == "const":
-        return _format_float(expr.value)
+        return _format_float(expr.value, scalar_type)
     if expr.op == "symbol":
         return scalar_bindings[expr.node]
     if expr.node in workspace_map:
@@ -340,6 +367,7 @@ def _emit_expr_ref(
         scalar_bindings,
         workspace_map,
         backend_mode,
+        scalar_type,
         math_library,
     )
 
@@ -348,6 +376,7 @@ def _emit_math_call(
     op: str,
     args: tuple[str, ...],
     backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
     math_library: str | None,
 ) -> str:
     """Emit a Rust math call for the selected backend mode."""
@@ -361,8 +390,8 @@ def _emit_math_call(
     if math_library is None:
         raise ValueError("no_std math calls require a resolved math library")
     if op == "pow":
-        return f"{math_library}::pow({args[0]}, {args[1]})"
-    return f"{math_library}::{_LIBM_FUNCTIONS[op]}({args[0]})"
+        return f"{math_library}::{_math_function_name(op, scalar_type)}({args[0]}, {args[1]})"
+    return f"{math_library}::{_math_function_name(op, scalar_type)}({args[0]})"
 
 
 def _flatten_arg(arg: SX | SXVector) -> tuple[SX, ...]:
@@ -377,11 +406,12 @@ def _arg_size(arg: SX | SXVector) -> int:
     return len(_flatten_arg(arg))
 
 
-def _format_float(value: float | None) -> str:
-    """Format a Python float as a Rust ``f64`` literal."""
+def _format_float(value: float | None, scalar_type: RustScalarType) -> str:
+    """Format a Python float as a Rust floating-point literal."""
     if value is None:
         raise ValueError("expected a concrete floating-point value")
-    return repr(float(value))
+    _validate_scalar_type(scalar_type)
+    return f"{repr(float(value))}_{scalar_type}"
 
 
 def _sanitize_ident(name: str) -> str:
@@ -399,6 +429,12 @@ def _validate_backend_mode(backend_mode: RustBackendMode) -> None:
     """Validate a Rust backend mode string."""
     if backend_mode not in {"std", "no_std"}:
         raise ValueError(f"unsupported Rust backend mode {backend_mode!r}")
+
+
+def _validate_scalar_type(scalar_type: RustScalarType) -> None:
+    """Validate a generated Rust scalar type."""
+    if scalar_type not in {"f64", "f32"}:
+        raise ValueError(f"unsupported Rust scalar type {scalar_type!r}")
 
 
 def _validate_crate_name(crate_name: str | None) -> None:
@@ -432,6 +468,7 @@ def _resolve_backend_config(
     crate_name: str | None = None,
     function_name: str | None = None,
     backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
     math_library: str | None = None,
 ) -> RustBackendConfig:
     """Merge explicit keyword arguments with an optional backend config.
@@ -447,9 +484,20 @@ def _resolve_backend_config(
         resolved = resolved.with_function_name(function_name)
     if backend_mode != "std":
         resolved = resolved.with_backend_mode(backend_mode)
+    if scalar_type != "f64":
+        resolved = resolved.with_scalar_type(scalar_type)
     if math_library is not None:
         resolved = resolved.with_math_lib(math_library)
     return resolved
+
+
+def _math_function_name(op: str, scalar_type: RustScalarType) -> str:
+    """Return the backend math function name for a scalar type."""
+    _validate_scalar_type(scalar_type)
+    base_name = _LIBM_FUNCTIONS[op]
+    if scalar_type == "f32":
+        return f"{base_name}f"
+    return base_name
 
 
 def _get_template(name: str):
@@ -473,5 +521,6 @@ _LIBM_FUNCTIONS = {
     "cos": "cos",
     "exp": "exp",
     "log": "log",
+    "pow": "pow",
     "sqrt": "sqrt",
 }

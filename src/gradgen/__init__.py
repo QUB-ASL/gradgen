@@ -8,11 +8,12 @@ from .rust_codegen import (
     RustBackendConfig,
     RustCodegenResult,
     RustProjectResult,
+    RustScalarType,
     create_rust_project,
     generate_rust,
 )
 from .simplify import simplify
-from .sx import SX, SXNode, SXVector, const, vector
+from .sx import SX, SXNode, SXVector, const, cos, exp, log, sin, sqrt, vector
 
 __all__ = [
     "CSEAssignment",
@@ -22,19 +23,25 @@ __all__ = [
     "RustBackendConfig",
     "RustCodegenResult",
     "RustProjectResult",
+    "RustScalarType",
     "SX",
     "SXNode",
     "SXVector",
     "const",
+    "cos",
     "cse",
     "create_rust_project",
     "derivative",
+    "exp",
     "gradient",
     "hessian",
     "jacobian",
     "jvp",
+    "log",
     "generate_rust",
     "simplify",
+    "sin",
+    "sqrt",
     "vector",
     "vjp",
 ]

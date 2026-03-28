@@ -46,6 +46,7 @@ pub fn {{ function_name }}_output_{{ loop.index0 }}_size() -> usize {
 ///
 /// Inputs are passed as immutable slices, outputs are written into mutable slices,
 /// and intermediate values are stored in `work`.
+/// All numeric slices use the `{{ scalar_type }}` scalar type.
 pub fn {{ function_name }}({{ parameters }}) {
     assert!(work.len() >= {{ workspace_size }});
 {% for line in input_assert_lines %}

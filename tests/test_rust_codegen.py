@@ -46,8 +46,8 @@ class RustCodegenTests(unittest.TestCase):
         return flattened
 
     @staticmethod
-    def _rust_array_literal(values: list[float]) -> str:
-        return "[" + ", ".join(repr(float(value)) for value in values) + "]"
+    def _rust_array_literal(values: list[float], scalar_type: str) -> str:
+        return "[" + ", ".join(f"{repr(float(value))}_{scalar_type}" for value in values) + "]"
 
     @classmethod
     def _append_reference_test(
@@ -58,11 +58,14 @@ class RustCodegenTests(unittest.TestCase):
         function_name: str,
         inputs: object,
         test_name: str,
+        config: RustBackendConfig | None = None,
         tolerance: float = 1e-12,
     ) -> None:
-        codegen = function.generate_rust(function_name=function_name)
+        codegen = function.generate_rust(config=config, function_name=function_name)
         numeric_inputs = cls._normalize_inputs(inputs)
         expected = cls._flatten_runtime_output(function, function(*numeric_inputs))
+        rust_tolerance = float(tolerance)
+        scalar_type = codegen.scalar_type
 
         input_binding_lines: list[str] = []
         parameter_names: list[str] = []
@@ -74,7 +77,7 @@ class RustCodegenTests(unittest.TestCase):
             else:
                 rust_values = [float(values)]
             input_binding_lines.append(
-                f"        let {name} = {cls._rust_array_literal(rust_values)};"
+                f"        let {name} = {cls._rust_array_literal(rust_values, scalar_type)};"
             )
 
         output_binding_lines: list[str] = []
@@ -85,10 +88,10 @@ class RustCodegenTests(unittest.TestCase):
             expected_slice = expected[expected_offset : expected_offset + size]
             expected_offset += size
             output_binding_lines.append(
-                f"        let mut {output_name} = [0.0_f64; {size}];"
+                f"        let mut {output_name} = [0.0_{scalar_type}; {size}];"
             )
             output_assertion_lines.append(
-                f"        assert_close_slice(&{output_name}, &{cls._rust_array_literal(expected_slice)}, {tolerance});"
+                f"        assert_close_slice(&{output_name}, &{cls._rust_array_literal(expected_slice, scalar_type)}, {rust_tolerance}_{scalar_type});"
             )
 
         parameter_list = ", ".join(
@@ -106,7 +109,7 @@ class RustCodegenTests(unittest.TestCase):
 mod tests {{
     use super::*;
 
-    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+    fn assert_close_slice(actual: &[{scalar_type}], expected: &[{scalar_type}], tolerance: {scalar_type}) {{
         assert_eq!(actual.len(), expected.len());
         for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
             assert!(
@@ -120,7 +123,7 @@ mod tests {{
     fn {test_name}() {{
 {chr(10).join(input_binding_lines)}
 {chr(10).join(output_binding_lines)}
-        let mut work = [0.0_f64; {codegen.workspace_size}];
+        let mut work = [0.0_{scalar_type}; {codegen.workspace_size}];
         {function_name}({parameter_list});
 {chr(10).join(output_assertion_lines)}
     }}
@@ -148,7 +151,7 @@ mod tests {{
         self.assertIn("assert_eq!(x.len(), 1);", result.source)
         self.assertIn("assert_eq!(y.len(), 1);", result.source)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[1] = 1.0 + work[0];", result.source)
+        self.assertIn("work[1] = 1.0_f64 + work[0];", result.source)
         self.assertIn("y[0] = work[1];", result.source)
 
     def test_generates_vector_function_with_deterministic_workspace_layout(self) -> None:
@@ -193,10 +196,20 @@ mod tests {{
         )
 
         self.assertEqual(config.backend_mode, "no_std")
+        self.assertEqual(config.scalar_type, "f64")
         self.assertEqual(config.math_library, "libm")
         self.assertEqual(config.crate_name, "my_kernel")
         self.assertEqual(config.function_name, "eval_kernel")
         self.assertFalse(config.emit_metadata_helpers)
+
+    def test_backend_config_supports_scalar_type_updates(self) -> None:
+        config = RustBackendConfig().with_scalar_type("f32")
+
+        self.assertEqual(config.scalar_type, "f32")
+
+    def test_backend_config_rejects_invalid_scalar_type(self) -> None:
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_scalar_type("f16")
 
     def test_backend_config_rejects_invalid_backend_mode(self) -> None:
         with self.assertRaises(ValueError):
@@ -224,6 +237,7 @@ mod tests {{
 
         self.assertEqual(result.function_name, "eval_kernel")
         self.assertEqual(result.backend_mode, "no_std")
+        self.assertEqual(result.scalar_type, "f64")
         self.assertEqual(result.math_library, "libm")
         self.assertIn("#![no_std]", result.source)
         self.assertIn("pub fn eval_kernel(", result.source)
@@ -258,6 +272,32 @@ mod tests {{
 
         self.assertEqual(result.workspace_size, len([node for node in f.nodes if node.op not in {"symbol", "const"}]))
 
+    def test_f32_codegen_uses_f32_slice_abi_and_literals(self) -> None:
+        x = SX.sym("x")
+        f = Function("square_plus_one", [x], [x * x + 1], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust(scalar_type="f32")
+
+        self.assertEqual(result.scalar_type, "f32")
+        self.assertIn("pub fn square_plus_one(x: &[f32], y: &mut [f32], work: &mut [f32]) {", result.source)
+        self.assertIn("work[1] = 1.0_f32 + work[0];", result.source)
+
+    def test_no_std_f32_codegen_uses_libm_f32_entry_points(self) -> None:
+        x = SX.sym("x")
+        expr = x.sin() + x.cos() + x.exp() + x.log() + x.sqrt() + (x**2)
+        f = Function("f", [x], [expr], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust(backend_mode="no_std", scalar_type="f32")
+
+        self.assertEqual(result.scalar_type, "f32")
+        self.assertIn("#![no_std]", result.source)
+        self.assertIn("libm::sinf(", result.source)
+        self.assertIn("libm::cosf(", result.source)
+        self.assertIn("libm::expf(", result.source)
+        self.assertIn("libm::logf(", result.source)
+        self.assertIn("libm::sqrtf(", result.source)
+        self.assertIn("libm::powf(", result.source)
+
     def test_generated_code_reuses_shared_dag_nodes(self) -> None:
         x = SX.sym("x")
         z = (x * x) + 1
@@ -267,7 +307,7 @@ mod tests {{
 
         self.assertEqual(result.source.count("x[0] * x[0]"), 1)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[1] = 1.0 + work[0];", result.source)
+        self.assertIn("work[1] = 1.0_f64 + work[0];", result.source)
         self.assertIn("work[2] = work[1] * work[1];", result.source)
         self.assertIn("work[3] = work[1] + work[2];", result.source)
 
@@ -283,7 +323,7 @@ mod tests {{
         self.assertIn(".exp()", result.source)
         self.assertIn(".ln()", result.source)
         self.assertIn(".sqrt()", result.source)
-        self.assertIn(".powf(2.0)", result.source)
+        self.assertIn(".powf(2.0_f64)", result.source)
 
     def test_no_std_codegen_uses_libm_and_no_std_crate_attr(self) -> None:
         x = SX.sym("x")
@@ -525,6 +565,25 @@ mod math {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_generated_rust_project_runs_f32_reference_test(self) -> None:
+        x = SX.sym("x")
+        f = Function("square_plus_one", [x], [x.sin() + x * x + 1], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "f32_kernel", scalar_type="f32")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=1.25,
+                test_name="evaluates_f32_kernel_against_python_reference",
+                config=RustBackendConfig().with_scalar_type("f32"),
+                tolerance=1e-5,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_generated_rust_project_runs_jacobian_reference_test(self) -> None:
         x = SXVector.sym("x", 2)
         jac = Function("f", [x], [x.dot(x)], input_names=["x"], output_names=["y"]).jacobian(0)
@@ -605,6 +664,34 @@ mod math {
             )
             try:
                 completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            except subprocess.CalledProcessError as exc:
+                if "Could not resolve host: index.crates.io" in exc.stderr:
+                    self.skipTest("cargo could not fetch libm in the offline test environment")
+                raise
+            self.assertEqual(completed.returncode, 0)
+
+    def test_no_std_f32_project_builds(self) -> None:
+        x = SX.sym("x")
+        f = Function("trig_kernel", [x], [x.sin() + x.cos()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(
+                Path(tmpdir) / "trig_kernel_f32",
+                backend_mode="no_std",
+                scalar_type="f32",
+            )
+
+            cargo_text = project.cargo_toml.read_text(encoding="utf-8")
+            readme_text = project.readme.read_text(encoding="utf-8")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn('libm = "0.2"', cargo_text)
+            self.assertIn("Scalar type: `f32`", readme_text)
+            self.assertIn("libm::sinf(", lib_text)
+            self.assertIn("pub fn trig_kernel(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+
+            try:
+                completed = self._run_cargo(project.project_dir, "build", "--quiet")
             except subprocess.CalledProcessError as exc:
                 if "Could not resolve host: index.crates.io" in exc.stderr:
                     self.skipTest("cargo could not fetch libm in the offline test environment")

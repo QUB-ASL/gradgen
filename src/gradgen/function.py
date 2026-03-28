@@ -106,6 +106,7 @@ class Function:
         config=None,
         function_name: str | None = None,
         backend_mode: str = "std",
+        scalar_type: str = "f64",
         math_library: str | None = None,
     ):
         """Generate Rust source code for primal function evaluation."""
@@ -116,6 +117,7 @@ class Function:
             config=config,
             function_name=function_name,
             backend_mode=backend_mode,
+            scalar_type=scalar_type,
             math_library=math_library,
         )
 
@@ -127,6 +129,7 @@ class Function:
         crate_name: str | None = None,
         function_name: str | None = None,
         backend_mode: str = "std",
+        scalar_type: str = "f64",
         math_library: str | None = None,
     ):
         """Create a Rust project containing the generated primal code."""
@@ -139,6 +142,7 @@ class Function:
             crate_name=crate_name,
             function_name=function_name,
             backend_mode=backend_mode,
+            scalar_type=scalar_type,
             math_library=math_library,
         )
 
