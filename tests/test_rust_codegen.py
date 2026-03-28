@@ -925,7 +925,7 @@ mod tests {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
-    def test_code_generation_builder_supports_joint_primal_jacobian(self) -> None:
+    def test_code_generation_builder_supports_joint_requests(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function(
             "f",
@@ -934,15 +934,15 @@ mod tests {
             input_names=["x"],
             output_names=["y"],
         )
-        builder = CodeGenerationBuilder(f).add_joint_primal_jacobian()
+        builder = CodeGenerationBuilder(f).add_joint(("f", "jf"))
 
         with TemporaryDirectory() as tmpdir:
-            project = builder.build(Path(tmpdir) / "joint_primal_jacobian")
+            project = builder.build(Path(tmpdir) / "joint")
 
             self.assertTrue(project.project_dir.is_dir())
             self.assertEqual(len(project.codegens), 1)
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn f_primal_jacobian_x(", lib_text)
+            self.assertIn("pub fn f_joint_f_jf_x(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -956,9 +956,9 @@ mod tests {
         let x = [3.0_f64, 4.0_f64];
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
-        let mut work = [0.0_f64; F_PRIMAL_JACOBIAN_X_WORK_SIZE];
+        let mut work = [0.0_f64; F_JOINT_F_JF_X_WORK_SIZE];
 
-        f_primal_jacobian_x(&x, &mut y, &mut jacobian_y, &mut work);
+        f_joint_f_jf_x(&x, &mut y, &mut jacobian_y, &mut work);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
@@ -969,6 +969,62 @@ mod tests {
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_supports_joint_primal_jacobian_and_hvp(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "f",
+            [x],
+            [x[0] * x[0] + x[0] * x[1] + x[1] * x[1]],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        builder = CodeGenerationBuilder(f).add_joint(("f", "jf", "hvp"))
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "joint_f_jf_hvp")
+
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("pub fn f_joint_f_jf_hvp_x(", lib_text)
+
+            self._append_rust_test(
+                project.project_dir,
+                """
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn evaluates_joint_primal_jacobian_and_hvp() {
+        let x = [3.0_f64, 4.0_f64];
+        let v_x = [1.0_f64, 2.0_f64];
+        let mut y = [0.0_f64];
+        let mut jacobian_y = [0.0_f64, 0.0_f64];
+        let mut hvp_y = [0.0_f64, 0.0_f64];
+        let mut work = [0.0_f64; F_JOINT_F_JF_HVP_X_WORK_SIZE];
+
+        f_joint_f_jf_hvp_x(&x, &v_x, &mut y, &mut jacobian_y, &mut hvp_y, &mut work);
+
+        assert_eq!(y[0], 37.0_f64);
+        assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
+        assert_eq!(hvp_y, [4.0_f64, 5.0_f64]);
+    }
+}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_rejects_invalid_joint_requests(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+
+        with self.assertRaises(ValueError):
+            CodeGenerationBuilder(f).add_joint(("f",)).build("/tmp/unused")
+
+        with self.assertRaises(ValueError):
+            CodeGenerationBuilder(f).add_joint(("f", "f")).build("/tmp/unused")
 
     def test_code_generation_builder_supports_no_std_f32_backend_config(self) -> None:
         x = SX.sym("x")

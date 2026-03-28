@@ -315,12 +315,14 @@ class Function:
             if component == "hvp":
                 if tangent_input is None:
                     raise AssertionError("tangent input should have been created for hvp")
-                hvp_function = self.hvp(
-                    wrt_index,
-                    tangent_name=tangent_input_name,
-                )
-                outputs.extend(hvp_function.outputs)
-                output_names.extend(f"hvp_{output_name}" for output_name in hvp_function.output_names)
+                if len(self.outputs) != 1 or not isinstance(self.outputs[0], SX):
+                    raise ValueError("Function.joint requires exactly one scalar output when 'hvp' is requested")
+                from .ad import jvp
+
+                gradient_output = self.gradient(wrt_index).outputs[0]
+                hvp_output = jvp(gradient_output, self.inputs[wrt_index], tangent_input)
+                outputs.append(hvp_output)
+                output_names.append(f"hvp_{self.output_names[0]}")
                 continue
             raise AssertionError(f"unexpected joint component {component!r}")
 

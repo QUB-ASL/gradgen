@@ -285,16 +285,21 @@ If you want multiple input blocks at once, use:
 blocks = some_function.jacobian_blocks()
 ```
 
-For Rust code generation workflows that want one kernel to compute both the
-primal outputs and a Jacobian block together, you can also build a combined
-symbolic function:
+For Rust code generation workflows that want one kernel to compute several
+artifacts together, you can also build a combined symbolic function:
 
 ```python
-joint = some_function.joint_primal_jacobian(0, simplify_joint="high")
+joint = some_function.joint(("f", "jf"), 0, simplify_joint="high")
 ```
 
-This returns a new `Function` mapping the original inputs to `(f, Jf)` for the
-selected input block.
+Supported joint component names are:
+
+- `"f"` for the primal outputs
+- `"jf"` for the Jacobian block
+- `"hvp"` for the Hessian-vector product
+
+The output order follows the requested component tuple. If `"hvp"` is included,
+the returned function appends a tangent input block.
 
 ### Hessians
 
@@ -539,7 +544,7 @@ builder = (
     .add_primal()
     .add_gradient()
     .add_hvp()
-    .add_joint_primal_jacobian()
+    .add_joint(("f", "jf"))
 )
 
 project = builder.build("/tmp/my_kernel")
@@ -551,14 +556,17 @@ crate. Currently supported builder requests include:
 - `add_primal()`
 - `add_gradient()`
 - `add_jacobian()`
-- `add_joint_primal_jacobian()`
+- `add_joint(("f", "jf"))`
+- `add_joint(("f", "hvp"))`
+- `add_joint(("f", "jf", "hvp"))`
 - `add_hessian()`
 - `add_hvp()`
 
-The joint primal-Jacobian request first constructs a symbolic function mapping
-the original inputs to `(f, Jf)`, simplifies it, and then generates Rust from
-that combined function. This helps the generated kernel share intermediate work
-between the primal and Jacobian outputs.
+More generally, `add_joint(...)` accepts any ordered combination of `"f"`,
+`"jf"`, and `"hvp"` with at least two distinct entries. The builder first
+constructs a combined symbolic function, simplifies it, and then generates Rust
+from that shared expression graph. This helps the generated kernel reuse
+intermediate work across the requested outputs.
 
 ### Current ABI conventions
 
