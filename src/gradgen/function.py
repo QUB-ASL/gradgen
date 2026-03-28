@@ -266,6 +266,72 @@ class Function:
             output_names=output_names,
         )
 
+    def joint_primal_jacobian(
+        self,
+        wrt_index: int = 0,
+        name: str | None = None,
+        simplify_joint: int | str | None = None,
+    ) -> Function:
+        """Build a function that returns both the primal outputs and a Jacobian block.
+
+        The returned function keeps the original inputs and concatenates the
+        primal outputs with the Jacobian outputs computed with respect to the
+        selected input block. This is useful for code generation backends that
+        want to expose one kernel computing both values together.
+        """
+        if not 0 <= wrt_index < len(self.inputs):
+            raise IndexError("wrt_index is out of range")
+
+        jacobian_function = self.jacobian(wrt_index)
+        joint_name = name or f"{self.name}_primal_jacobian_{self.input_names[wrt_index]}"
+        jacobian_output_names = tuple(
+            f"jacobian_{output_name}" for output_name in jacobian_function.output_names
+        )
+        joint_function = Function(
+            joint_name,
+            self.inputs,
+            (*self.outputs, *jacobian_function.outputs),
+            input_names=self.input_names,
+            output_names=(*self.output_names, *jacobian_output_names),
+        )
+        if simplify_joint is None:
+            return joint_function
+        return joint_function.simplify(max_effort=simplify_joint, name=joint_name)
+
+    def hvp(
+        self,
+        wrt_index: int = 0,
+        name: str | None = None,
+        tangent_name: str | None = None,
+    ) -> Function:
+        """Build a Hessian-vector product function for a scalar-output function.
+
+        The returned function keeps the original primal inputs and appends
+        one additional tangent input matching the selected differentiation
+        block.
+        """
+        if not 0 <= wrt_index < len(self.inputs):
+            raise IndexError("wrt_index is out of range")
+        if len(self.outputs) != 1 or not isinstance(self.outputs[0], SX):
+            raise ValueError("Function.hvp requires exactly one scalar output")
+
+        wrt = self.inputs[wrt_index]
+        tangent_input_name = tangent_name or f"v_{self.input_names[wrt_index]}"
+        tangent_input = _make_symbolic_input_like(wrt, tangent_input_name)
+        gradient_output = self.gradient(wrt_index).outputs[0]
+
+        from .ad import jvp
+
+        hvp_output = jvp(gradient_output, wrt, tangent_input)
+
+        return Function(
+            name or f"{self.name}_hvp_{self.input_names[wrt_index]}",
+            (*self.inputs, tangent_input),
+            [hvp_output],
+            input_names=(*self.input_names, tangent_input_name),
+            output_names=(self.output_names[0],),
+        )
+
     def vjp(
         self,
         *cotangent_outputs: BoundValue,
@@ -413,6 +479,14 @@ class Function:
         indices = _resolve_block_indices(wrt_indices, len(self.inputs))
         return tuple(self.hessian(index) for index in indices)
 
+    def hvp_blocks(
+        self,
+        wrt_indices: Iterable[int] | None = None,
+    ) -> tuple[Function, ...]:
+        """Build Hessian-vector product functions for one or more input blocks."""
+        indices = _resolve_block_indices(wrt_indices, len(self.inputs))
+        return tuple(self.hvp(index) for index in indices)
+
     def simplify(self, max_effort: int | str = "basic", name: str | None = None) -> Function:
         """Build a new function with simplified outputs.
 
@@ -486,6 +560,13 @@ def _resolve_block_indices(
         if not 0 <= index < input_count:
             raise IndexError("wrt_index is out of range")
     return resolved
+
+
+def _make_symbolic_input_like(value: FunctionArg, base_name: str) -> FunctionArg:
+    """Create a fresh symbolic input with the same shape as ``value``."""
+    if isinstance(value, SX):
+        return SX.sym(base_name)
+    return SXVector.sym(base_name, len(value))
 
 
 def _validate_inputs(inputs: tuple[FunctionArg, ...]) -> None:

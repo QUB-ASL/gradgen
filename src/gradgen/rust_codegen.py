@@ -121,12 +121,81 @@ class RustDerivativeBundleResult:
 
 
 @dataclass(frozen=True, slots=True)
+class RustMultiFunctionProjectResult:
+    """Information about a generated single-crate multi-function project."""
+
+    project_dir: Path
+    cargo_toml: Path
+    readme: Path
+    lib_rs: Path
+    codegens: tuple[RustCodegenResult, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _BuilderRequest:
+    """A requested generated kernel kind."""
+
+    kind: str
+
+
+@dataclass(frozen=True, slots=True)
 class _ArgSpec:
     """Rendered metadata for a generated Rust input or output."""
 
     raw_name: str
     rust_name: str
     size: int
+
+
+@dataclass(frozen=True, slots=True)
+class CodeGenerationBuilder:
+    """Fluent builder for a single generated Rust crate with many kernels."""
+
+    function: Function
+    config: RustBackendConfig = RustBackendConfig()
+    requests: tuple[_BuilderRequest, ...] = ()
+
+    def with_backend_config(self, config: RustBackendConfig) -> CodeGenerationBuilder:
+        """Return a copy using ``config`` for generated Rust code."""
+        return replace(self, config=config)
+
+    def add_primal(self) -> CodeGenerationBuilder:
+        """Include the primal function in the generated crate."""
+        return self._add_request("primal")
+
+    def add_gradient(self) -> CodeGenerationBuilder:
+        """Include gradient kernels for scalar-output functions."""
+        return self._add_request("gradient")
+
+    def add_jacobian(self) -> CodeGenerationBuilder:
+        """Include Jacobian kernels for all input blocks."""
+        return self._add_request("jacobian")
+
+    def add_joint_primal_jacobian(self) -> CodeGenerationBuilder:
+        """Include kernels that compute both the primal outputs and a Jacobian block."""
+        return self._add_request("joint_primal_jacobian")
+
+    def add_hessian(self) -> CodeGenerationBuilder:
+        """Include Hessian kernels for scalar-output functions."""
+        return self._add_request("hessian")
+
+    def add_hvp(self) -> CodeGenerationBuilder:
+        """Include Hessian-vector product kernels for scalar-output functions."""
+        return self._add_request("hvp")
+
+    def build(self, path: str | Path) -> RustMultiFunctionProjectResult:
+        """Generate a single Rust crate containing all requested kernels."""
+        functions = _resolve_builder_functions(self.function, self.config, self.requests)
+        return create_multi_function_rust_project(
+            functions,
+            path,
+            config=self.config,
+        )
+
+    def _add_request(self, kind: str) -> CodeGenerationBuilder:
+        if any(request.kind == kind for request in self.requests):
+            return self
+        return replace(self, requests=(*self.requests, _BuilderRequest(kind)))
 
 
 def generate_rust(
@@ -366,6 +435,75 @@ def create_rust_derivative_bundle(
     )
 
 
+def create_multi_function_rust_project(
+    functions: tuple[Function, ...],
+    path: str | Path,
+    *,
+    config: RustBackendConfig | None = None,
+) -> RustMultiFunctionProjectResult:
+    """Create a single Rust crate containing multiple generated kernels."""
+    if not functions:
+        raise ValueError("at least one function must be generated")
+
+    resolved_config = config or RustBackendConfig()
+    _validate_backend_mode(resolved_config.backend_mode)
+    _validate_scalar_type(resolved_config.scalar_type)
+
+    project_dir = Path(path).expanduser().resolve()
+    crate = _sanitize_ident(resolved_config.crate_name or functions[0].name)
+
+    src_dir = project_dir / "src"
+    cargo_toml = project_dir / "Cargo.toml"
+    readme = project_dir / "README.md"
+    lib_rs = src_dir / "lib.rs"
+
+    src_dir.mkdir(parents=True, exist_ok=True)
+
+    codegens = tuple(
+        generate_rust(
+            function,
+            config=resolved_config,
+            function_name=function.name,
+        )
+        for function in functions
+    )
+
+    cargo_toml.write_text(
+        _get_template("Cargo.toml.j2").render(
+            crate_name=crate,
+            backend_mode=resolved_config.backend_mode,
+            scalar_type=resolved_config.scalar_type,
+            math_library=_resolve_math_library(
+                resolved_config.backend_mode,
+                resolved_config.math_library,
+            ),
+        ),
+        encoding="utf-8",
+    )
+    readme.write_text(
+        _get_template("rust_multi_project_README.md.j2").render(
+            crate_name=crate,
+            backend_mode=resolved_config.backend_mode,
+            scalar_type=resolved_config.scalar_type,
+            math_library=_resolve_math_library(
+                resolved_config.backend_mode,
+                resolved_config.math_library,
+            ),
+            codegens=codegens,
+        ),
+        encoding="utf-8",
+    )
+    lib_rs.write_text(_render_multi_function_lib(codegens, resolved_config), encoding="utf-8")
+
+    return RustMultiFunctionProjectResult(
+        project_dir=project_dir,
+        cargo_toml=cargo_toml,
+        readme=readme,
+        lib_rs=lib_rs,
+        codegens=codegens,
+    )
+
+
 def _emit_node_expr(
     expr: SX,
     scalar_bindings: dict[SXNode, str],
@@ -563,6 +701,79 @@ def _maybe_simplify_derivative_function(
     if simplify_derivatives is None:
         return function
     return function.simplify(max_effort=simplify_derivatives, name=function.name)
+
+
+def _resolve_builder_functions(
+    function: Function,
+    config: RustBackendConfig,
+    requests: tuple[_BuilderRequest, ...],
+) -> tuple[Function, ...]:
+    """Expand builder requests into concrete symbolic functions."""
+    if not requests:
+        raise ValueError("no kernels were requested; call add_primal() or another add_* method first")
+
+    base_function = _apply_builder_base_name(function, config.function_name)
+    resolved: list[Function] = []
+
+    for request in requests:
+        if request.kind == "primal":
+            resolved.append(base_function)
+            continue
+        if request.kind == "gradient":
+            resolved.extend(base_function.gradient(index) for index in range(len(base_function.inputs)))
+            continue
+        if request.kind == "jacobian":
+            resolved.extend(base_function.jacobian_blocks())
+            continue
+        if request.kind == "joint_primal_jacobian":
+            resolved.extend(
+                base_function.joint_primal_jacobian(index, simplify_joint="high")
+                for index in range(len(base_function.inputs))
+            )
+            continue
+        if request.kind == "hessian":
+            resolved.extend(base_function.hessian_blocks())
+            continue
+        if request.kind == "hvp":
+            resolved.extend(base_function.hvp_blocks())
+            continue
+        raise ValueError(f"unsupported builder request kind {request.kind!r}")
+
+    return tuple(resolved)
+
+
+def _apply_builder_base_name(function: Function, function_name: str | None) -> Function:
+    """Optionally rename the base function used by the builder."""
+    if function_name is None or function_name == function.name:
+        return function
+    return Function(
+        function_name,
+        function.inputs,
+        function.outputs,
+        input_names=function.input_names,
+        output_names=function.output_names,
+    )
+
+
+def _render_multi_function_lib(
+    codegens: tuple[RustCodegenResult, ...],
+    config: RustBackendConfig,
+) -> str:
+    """Render a crate source file containing many generated functions."""
+    sections: list[str] = []
+    if config.backend_mode == "no_std":
+        sections.append("#![no_std]")
+
+    for codegen in codegens:
+        source = codegen.source
+        if source.startswith("#![no_std]\n\n"):
+            source = source[len("#![no_std]\n\n") :]
+        elif source.startswith("#![no_std]\n"):
+            source = source[len("#![no_std]\n") :]
+        sections.append(source.rstrip())
+
+    rendered = "\n\n".join(section for section in sections if section)
+    return rendered if rendered.endswith("\n") else f"{rendered}\n"
 
 
 def _math_function_name(op: str, scalar_type: RustScalarType) -> str:

@@ -119,6 +119,22 @@ class FunctionTests(unittest.TestCase):
 
         self.assertEqual(result, 10.0)
 
+    def test_function_joint_primal_jacobian_returns_combined_outputs(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "f",
+            [x],
+            [x[0] * x[0] + x[0] * x[1] + x[1] * x[1]],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        joint = f.joint_primal_jacobian(0, simplify_joint="high")
+
+        self.assertEqual(joint.name, "f_primal_jacobian_x")
+        self.assertEqual(joint.output_names, ("y", "jacobian_y"))
+        self.assertEqual(joint([3.0, 4.0]), (37.0, (10.0, 11.0)))
+
     def test_function_numeric_multi_input_multi_output_call_returns_tuple(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")

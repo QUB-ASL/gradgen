@@ -1,5 +1,5 @@
 [package]
-name = "my_kernel"
+name = "square_plus_one"
 version = "0.1.0"
 edition = "2021"
 description = "Generated gradgen crate using f32"

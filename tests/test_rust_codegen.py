@@ -4,6 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from gradgen import (
+    CodeGenerationBuilder,
     Function,
     RustBackendConfig,
     SX,
@@ -818,6 +819,147 @@ mod tests {
             self.assertIsNotNone(bundle.primal)
             self.assertEqual(len(bundle.jacobians), 1)
             self.assertEqual(len(bundle.hessians), 0)
+
+    def test_code_generation_builder_creates_single_multi_function_crate(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "f",
+            [x],
+            [x[0] * x[0] + x[0] * x[1] + x[1] * x[1]],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        builder = (
+            CodeGenerationBuilder(f)
+            .add_primal()
+            .add_gradient()
+            .add_hvp()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "single_crate")
+
+            self.assertTrue(project.project_dir.is_dir())
+            self.assertEqual(len(project.codegens), 3)
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("pub fn f(", lib_text)
+            self.assertIn("pub fn f_gradient_x(", lib_text)
+            self.assertIn("pub fn f_hvp_x(", lib_text)
+
+            self._append_rust_test(
+                project.project_dir,
+                """
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn evaluates_primal_gradient_and_hvp() {
+        let x = [3.0_f64, 4.0_f64];
+        let v_x = [1.0_f64, 2.0_f64];
+
+        let mut y = [0.0_f64];
+        let mut y_grad = [0.0_f64, 0.0_f64];
+        let mut y_hvp = [0.0_f64, 0.0_f64];
+
+        let mut work_f = [0.0_f64; F_WORK_SIZE];
+        let mut work_grad = [0.0_f64; F_GRADIENT_X_WORK_SIZE];
+        let mut work_hvp = [0.0_f64; F_HVP_X_WORK_SIZE];
+
+        f(&x, &mut y, &mut work_f);
+        f_gradient_x(&x, &mut y_grad, &mut work_grad);
+        f_hvp_x(&x, &v_x, &mut y_hvp, &mut work_hvp);
+
+        assert_eq!(y[0], 37.0_f64);
+        assert_eq!(y_grad, [10.0_f64, 11.0_f64]);
+        assert_eq!(y_hvp, [4.0_f64, 5.0_f64]);
+    }
+}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_supports_joint_primal_jacobian(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "f",
+            [x],
+            [x[0] * x[0] + x[0] * x[1] + x[1] * x[1]],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        builder = CodeGenerationBuilder(f).add_joint_primal_jacobian()
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "joint_primal_jacobian")
+
+            self.assertTrue(project.project_dir.is_dir())
+            self.assertEqual(len(project.codegens), 1)
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("pub fn f_primal_jacobian_x(", lib_text)
+
+            self._append_rust_test(
+                project.project_dir,
+                """
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn evaluates_joint_primal_and_jacobian() {
+        let x = [3.0_f64, 4.0_f64];
+        let mut y = [0.0_f64];
+        let mut jacobian_y = [0.0_f64, 0.0_f64];
+        let mut work = [0.0_f64; F_PRIMAL_JACOBIAN_X_WORK_SIZE];
+
+        f_primal_jacobian_x(&x, &mut y, &mut jacobian_y, &mut work);
+
+        assert_eq!(y[0], 37.0_f64);
+        assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
+    }
+}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_supports_no_std_f32_backend_config(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x + 1], input_names=["x"], output_names=["y"])
+        builder = (
+            CodeGenerationBuilder(f)
+            .with_backend_config(
+                RustBackendConfig()
+                .with_backend_mode("no_std")
+                .with_scalar_type("f32")
+            )
+            .add_primal()
+            .add_gradient()
+            .add_hvp()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "builder_no_std_f32")
+
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            cargo_text = project.cargo_toml.read_text(encoding="utf-8")
+
+            self.assertIn("#![no_std]", lib_text)
+            self.assertIn("pub fn f(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn f_gradient_x(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn f_hvp_x(x: &[f32], v_x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn('libm = "0.2"', cargo_text)
+
+            try:
+                completed = self._run_cargo(project.project_dir, "build", "--quiet")
+            except subprocess.CalledProcessError as exc:
+                if "Could not resolve host: index.crates.io" in exc.stderr:
+                    self.skipTest("cargo could not fetch libm in the offline test environment")
+                raise
+            self.assertEqual(completed.returncode, 0)
 
 
 if __name__ == "__main__":

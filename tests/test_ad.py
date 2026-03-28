@@ -262,6 +262,21 @@ class ReverseADTests(unittest.TestCase):
         self.assertEqual(blocks[0].name, "f_hessian_y")
         self.assertEqual(blocks[0]([3.0, 4.0], 2.0), 2.0)
 
+    def test_function_hvp_builds_hessian_vector_product_function(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [x[0] * x[0] + x[0] * x[1] + x[1] * x[1]])
+        hvp = f.hvp(0)
+
+        self.assertEqual(hvp.name, "f_hvp_i0")
+        self.assertEqual(hvp.input_names, ("i0", "v_i0"))
+        self.assertEqual(hvp([3.0, 4.0], [1.0, 2.0]), (4.0, 5.0))
+
+    def test_function_hvp_requires_single_scalar_output(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        with self.assertRaises(ValueError):
+            Function("f", [x], [x]).hvp(0)
+
     def test_block_helpers_validate_indices(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [x * x])
