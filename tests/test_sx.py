@@ -10,6 +10,14 @@ class SXTests(unittest.TestCase):
 
         self.assertIs(x1.node, x2.node)
 
+    def test_symbol_metadata_participates_in_interning(self) -> None:
+        x1 = SX.sym("x", metadata={"domain": "real"})
+        x2 = SX.sym("x", metadata={"domain": "real"})
+        xc = SX.sym("x", metadata={"domain": "complex"})
+
+        self.assertIs(x1.node, x2.node)
+        self.assertIsNot(x1.node, xc.node)
+
     def test_identical_binary_expressions_are_interned(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")
@@ -89,31 +97,46 @@ class SXTests(unittest.TestCase):
             _ = sin("bad")
 
     def test_public_accessors_expose_node_metadata(self) -> None:
-        x = SX.sym("x")
+        x = SX.sym("x", metadata={"domain": "real"})
         c = SX.const(3)
         expr = x + c
 
         self.assertEqual(x.op, "symbol")
         self.assertEqual(x.name, "x")
+        self.assertEqual(x.metadata, {"domain": "real"})
         self.assertIsNone(x.value)
 
         self.assertEqual(c.op, "const")
         self.assertIsNone(c.name)
+        self.assertEqual(c.metadata, {})
         self.assertEqual(c.value, 3.0)
 
         self.assertEqual(expr.op, "add")
+        self.assertEqual(expr.metadata, {})
         self.assertEqual(len(expr.args), 2)
         self.assertEqual({arg.name for arg in expr.args}, {"x", None})
         self.assertEqual({arg.value for arg in expr.args}, {None, 3.0})
 
     def test_repr_is_informative_for_common_node_shapes(self) -> None:
         x = SX.sym("x")
+        xm = SX.sym("x", metadata={"domain": "real"})
         c = SX.const(2)
 
         self.assertEqual(repr(x), "SX.sym('x')")
+        self.assertEqual(repr(xm), "SX.sym('x', metadata={'domain': 'real'})")
         self.assertEqual(repr(c), "SX.const(2.0)")
         self.assertEqual(repr(-x), "neg(SX.sym('x'))")
         self.assertEqual(repr(x + c), "add(SX.const(2.0), SX.sym('x'))")
+
+    def test_symbol_metadata_is_validated(self) -> None:
+        with self.assertRaises(TypeError):
+            SX.sym("x", metadata="real")
+
+        with self.assertRaises(TypeError):
+            SX.sym("x", metadata={1: "real"})
+
+        with self.assertRaises(TypeError):
+            SX.sym("x", metadata={"tags": ["real"]})
 
     def test_nested_common_subexpressions_are_reused(self) -> None:
         x = SX.sym("x")
@@ -132,6 +155,11 @@ class SXVectorTests(unittest.TestCase):
 
         self.assertEqual(len(x), 3)
         self.assertEqual([item.name for item in x], ["x_0", "x_1", "x_2"])
+
+    def test_symbolic_vector_can_propagate_metadata(self) -> None:
+        x = SXVector.sym("x", 2, metadata={"domain": "real"})
+
+        self.assertEqual([item.metadata for item in x], [{"domain": "real"}, {"domain": "real"}])
 
     def test_empty_vectors_are_supported(self) -> None:
         x = SXVector.sym("x", 0)

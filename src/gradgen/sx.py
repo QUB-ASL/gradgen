@@ -17,6 +17,7 @@ subtrees.
 
 from __future__ import annotations
 
+from collections.abc import Hashable
 from dataclasses import dataclass, field
 from threading import Lock
 from typing import ClassVar, Iterable, Iterator
@@ -43,12 +44,14 @@ class SXNode:
             or ``"sin"``.
         args: Child nodes for non-leaf expressions.
         name: Symbol name for ``"symbol"`` nodes.
+        metadata: Optional symbol metadata for ``"symbol"`` nodes.
         value: Numeric literal for ``"const"`` nodes.
     """
 
     op: str
     args: tuple[SXNode, ...] = ()
     name: str | None = None
+    metadata: tuple[tuple[str, Hashable], ...] = ()
     value: float | None = None
     _cache: ClassVar[dict[tuple[object, ...], SXNode]] = {}
     _lock: ClassVar[Lock] = Lock()
@@ -60,6 +63,7 @@ class SXNode:
         args: tuple[SXNode, ...] = (),
         *,
         name: str | None = None,
+        metadata: dict[str, Hashable] | None = None,
         value: float | None = None,
     ) -> SXNode:
         """Create or reuse a structurally identical node.
@@ -72,20 +76,28 @@ class SXNode:
             op: Operation code for the node being created.
             args: Child nodes of the expression.
             name: Optional symbol name for ``"symbol"`` nodes.
+            metadata: Optional metadata attached to ``"symbol"`` nodes.
             value: Optional floating-point literal for ``"const"`` nodes.
 
         Returns:
             The unique canonical node matching the requested structure.
         """
         normalized_args = cls._normalize_args(op, args)
-        key = (op, normalized_args, name, value)
+        normalized_metadata = _normalize_metadata(metadata)
+        key = (op, normalized_args, name, normalized_metadata, value)
 
         with cls._lock:
             node = cls._cache.get(key)
             if node is not None:
                 return node
 
-            node = cls(op=op, args=normalized_args, name=name, value=value)
+            node = cls(
+                op=op,
+                args=normalized_args,
+                name=name,
+                metadata=normalized_metadata,
+                value=value,
+            )
             cls._cache[key] = node
             return node
 
@@ -103,6 +115,8 @@ class SXNode:
 
     def __repr__(self) -> str:
         if self.op == "symbol":
+            if self.metadata:
+                return f"SXNode(symbol={self.name!r}, metadata={dict(self.metadata)!r})"
             return f"SXNode(symbol={self.name!r})"
         if self.op == "const":
             return f"SXNode(const={self.value!r})"
@@ -122,16 +136,23 @@ class SX:
     node: SXNode = field(repr=False)
 
     @classmethod
-    def sym(cls, name: str) -> SX:
+    def sym(
+        cls,
+        name: str,
+        metadata: dict[str, Hashable] | None = None,
+    ) -> SX:
         """Create a symbolic scalar variable.
 
         Args:
             name: Symbol name used to identify the variable.
+            metadata: Optional metadata associated with the symbol. This
+                is recorded as part of the symbol identity but does not
+                yet change algebraic, AD, or code-generation semantics.
 
         Returns:
             An ``SX`` wrapper around a canonical ``"symbol"`` node.
         """
-        return cls(SXNode.make("symbol", name=name))
+        return cls(SXNode.make("symbol", name=name, metadata=metadata))
 
     @classmethod
     def const(cls, value: float | int) -> SX:
@@ -161,6 +182,15 @@ class SX:
     def value(self) -> float | None:
         """Return the numeric value, if this is a constant node."""
         return self.node.value
+
+    @property
+    def metadata(self) -> dict[str, Hashable]:
+        """Return symbol metadata as a plain dictionary.
+
+        Non-symbol expressions return an empty dictionary. The returned
+        dictionary is detached from the interned node state.
+        """
+        return dict(self.node.metadata)
 
     def __add__(self, other: object) -> SX:
         return _binary("add", self, other)
@@ -212,6 +242,8 @@ class SX:
 
     def __repr__(self) -> str:
         if self.op == "symbol":
+            if self.node.metadata:
+                return f"SX.sym({self.name!r}, metadata={dict(self.node.metadata)!r})"
             return f"SX.sym({self.name!r})"
         if self.op == "const":
             return f"SX.const({self.value!r})"
@@ -249,19 +281,26 @@ class SXVector:
     elements: tuple[SX, ...]
 
     @classmethod
-    def sym(cls, name: str, length: int) -> SXVector:
+    def sym(
+        cls,
+        name: str,
+        length: int,
+        metadata: dict[str, Hashable] | None = None,
+    ) -> SXVector:
         """Create a symbolic vector with indexed scalar element names.
 
         Args:
             name: Base name for the vector.
             length: Number of scalar elements in the vector.
+            metadata: Optional metadata copied onto each scalar symbol in
+                the vector.
 
         Returns:
             An ``SXVector`` whose elements are named ``"{name}_{i}"``.
         """
         if length < 0:
             raise ValueError("vector length must be non-negative")
-        return cls(tuple(SX.sym(f"{name}_{index}") for index in range(length)))
+        return cls(tuple(SX.sym(f"{name}_{index}", metadata=metadata) for index in range(length)))
 
     def __len__(self) -> int:
         """Return the vector length."""
@@ -467,3 +506,22 @@ def _coerce_vector(value: object) -> SXVector:
     if isinstance(value, SXVector):
         return value
     raise TypeError(f"cannot convert {type(value).__name__} to SXVector")
+
+
+def _normalize_metadata(
+    metadata: dict[str, Hashable] | None,
+) -> tuple[tuple[str, Hashable], ...]:
+    """Return a canonical immutable representation of symbol metadata."""
+    if metadata is None:
+        return ()
+    if not isinstance(metadata, dict):
+        raise TypeError("symbol metadata must be provided as a dictionary")
+
+    normalized: list[tuple[str, Hashable]] = []
+    for key, value in metadata.items():
+        if not isinstance(key, str):
+            raise TypeError("symbol metadata keys must be strings")
+        if not isinstance(value, Hashable):
+            raise TypeError("symbol metadata values must be hashable")
+        normalized.append((key, value))
+    return tuple(sorted(normalized))
