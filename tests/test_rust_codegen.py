@@ -223,6 +223,29 @@ mod tests {{
         self.assertEqual(config.function_name, "eval_kernel")
         self.assertFalse(config.emit_metadata_helpers)
 
+    def test_code_generation_builder_supports_simplification_setting(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+
+        builder = (
+            CodeGenerationBuilder(f)
+            .add_primal()
+            .add_jacobian()
+            .add_hvp()
+            .add_joint(("f", "jf", "hvp"))
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "simplified_builder")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("work[0] = x[0].powf(2.0_f64);", lib_text)
+            self.assertIn("work[0] = 2.0_f64 * x[0];", lib_text)
+            self.assertIn("work[0] = 2.0_f64 * v_x[0];", lib_text)
+            self.assertIn("work[1] = 2.0_f64 * x[0];", lib_text)
+            self.assertIn("work[2] = 2.0_f64 * v_x[0];", lib_text)
+
     def test_backend_config_supports_scalar_type_updates(self) -> None:
         config = RustBackendConfig().with_scalar_type("f32")
 

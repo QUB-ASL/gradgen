@@ -156,10 +156,15 @@ class CodeGenerationBuilder:
     function: Function
     config: RustBackendConfig = RustBackendConfig()
     requests: tuple[_BuilderRequest, ...] = ()
+    simplification: int | str | None = None
 
     def with_backend_config(self, config: RustBackendConfig) -> CodeGenerationBuilder:
         """Return a copy using ``config`` for generated Rust code."""
         return replace(self, config=config)
+
+    def with_simplification(self, max_effort: int | str | None) -> CodeGenerationBuilder:
+        """Return a copy applying ``max_effort`` simplification to all generated kernels."""
+        return replace(self, simplification=max_effort)
 
     def add_primal(self) -> CodeGenerationBuilder:
         """Include the primal function in the generated crate."""
@@ -187,7 +192,12 @@ class CodeGenerationBuilder:
 
     def build(self, path: str | Path) -> RustMultiFunctionProjectResult:
         """Generate a single Rust crate containing all requested kernels."""
-        functions = _resolve_builder_functions(self.function, self.config, self.requests)
+        functions = _resolve_builder_functions(
+            self.function,
+            self.config,
+            self.requests,
+            self.simplification,
+        )
         return create_multi_function_rust_project(
             functions,
             path,
@@ -732,6 +742,7 @@ def _resolve_builder_functions(
     function: Function,
     config: RustBackendConfig,
     requests: tuple[_BuilderRequest, ...],
+    simplification: int | str | None,
 ) -> tuple[Function, ...]:
     """Expand builder requests into concrete symbolic functions."""
     if not requests:
@@ -742,29 +753,43 @@ def _resolve_builder_functions(
 
     for request in requests:
         if request.kind == "primal":
-            resolved.append(base_function)
+            resolved.append(_maybe_simplify_generated_function(base_function, simplification))
             continue
         if request.kind == "gradient":
-            resolved.extend(base_function.gradient(index) for index in range(len(base_function.inputs)))
+            resolved.extend(
+                _maybe_simplify_generated_function(base_function.gradient(index), simplification)
+                for index in range(len(base_function.inputs))
+            )
             continue
         if request.kind == "jacobian":
-            resolved.extend(base_function.jacobian_blocks())
+            resolved.extend(
+                _maybe_simplify_generated_function(block, simplification)
+                for block in base_function.jacobian_blocks()
+            )
             continue
         if request.kind == "joint":
             resolved.extend(
-                base_function.joint(
-                    request.components,
-                    index,
-                    simplify_joint="high",
+                _maybe_simplify_generated_function(
+                    base_function.joint(
+                        request.components,
+                        index,
+                    ),
+                    simplification,
                 )
                 for index in range(len(base_function.inputs))
             )
             continue
         if request.kind == "hessian":
-            resolved.extend(base_function.hessian_blocks())
+            resolved.extend(
+                _maybe_simplify_generated_function(block, simplification)
+                for block in base_function.hessian_blocks()
+            )
             continue
         if request.kind == "hvp":
-            resolved.extend(base_function.hvp_blocks())
+            resolved.extend(
+                _maybe_simplify_generated_function(block, simplification)
+                for block in base_function.hvp_blocks()
+            )
             continue
         raise ValueError(f"unsupported builder request kind {request.kind!r}")
 
@@ -782,6 +807,16 @@ def _apply_builder_base_name(function: Function, function_name: str | None) -> F
         input_names=function.input_names,
         output_names=function.output_names,
     )
+
+
+def _maybe_simplify_generated_function(
+    function: Function,
+    simplification: int | str | None,
+) -> Function:
+    """Optionally simplify a generated function while preserving its name."""
+    if simplification is None:
+        return function
+    return function.simplify(max_effort=simplification, name=function.name)
 
 
 def _render_multi_function_lib(

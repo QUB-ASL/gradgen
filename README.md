@@ -545,6 +545,7 @@ builder = (
     .add_gradient()
     .add_hvp()
     .add_joint(("f", "jf"))
+    .with_simplification("medium")
 )
 
 project = builder.build("/tmp/my_kernel")
@@ -567,6 +568,22 @@ More generally, `add_joint(...)` accepts any ordered combination of `"f"`,
 constructs a combined symbolic function, simplifies it, and then generates Rust
 from that shared expression graph. This helps the generated kernel reuse
 intermediate work across the requested outputs.
+
+You can also request a uniform simplification pass for every generated kernel:
+
+```python
+builder = (
+    CodeGenerationBuilder(f)
+    .add_primal()
+    .add_jacobian()
+    .add_hvp()
+    .add_joint(("f", "jf", "hvp"))
+    .with_simplification("medium")
+)
+```
+
+With this setting, simplification is applied to all generated functions,
+including the separate primal/Jacobian/HVP kernels and the joint kernel.
 
 ### Current ABI conventions
 
