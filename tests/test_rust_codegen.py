@@ -153,8 +153,14 @@ mod tests {{
         self.assertIn("pub const SQUARE_PLUS_ONE_WORK_SIZE: usize = 2;", result.source)
         self.assertIn("pub fn square_plus_one_work_size() -> usize {", result.source)
         self.assertIn("pub fn square_plus_one_num_inputs() -> usize {", result.source)
+        self.assertIn('pub const SQUARE_PLUS_ONE_INPUT_NAMES: &[&str] = &[', result.source)
+        self.assertIn('"x",', result.source)
+        self.assertIn("pub fn square_plus_one_input_names() -> &'static [&'static str] {", result.source)
         self.assertIn("pub fn square_plus_one_input_0_size() -> usize {", result.source)
         self.assertIn("pub fn square_plus_one_num_outputs() -> usize {", result.source)
+        self.assertIn('pub const SQUARE_PLUS_ONE_OUTPUT_NAMES: &[&str] = &[', result.source)
+        self.assertIn('"y",', result.source)
+        self.assertIn("pub fn square_plus_one_output_names() -> &'static [&'static str] {", result.source)
         self.assertIn("pub fn square_plus_one_output_0_size() -> usize {", result.source)
         self.assertIn("pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
         self.assertIn("assert_eq!(x.len(), 1);", result.source)
@@ -180,8 +186,14 @@ mod tests {{
         self.assertEqual(result.input_sizes, (2, 2))
         self.assertEqual(result.output_sizes, (1, 2))
         self.assertIn("pub const KERNEL_WORK_SIZE: usize = 5;", result.source)
+        self.assertIn('pub const KERNEL_INPUT_NAMES: &[&str] = &[', result.source)
+        self.assertIn('"x",', result.source)
+        self.assertIn('"y",', result.source)
         self.assertIn("pub fn kernel_input_0_size() -> usize {", result.source)
         self.assertIn("pub fn kernel_input_1_size() -> usize {", result.source)
+        self.assertIn('pub const KERNEL_OUTPUT_NAMES: &[&str] = &[', result.source)
+        self.assertIn('"dot",', result.source)
+        self.assertIn('"sum",', result.source)
         self.assertIn("pub fn kernel_output_0_size() -> usize {", result.source)
         self.assertIn("pub fn kernel_output_1_size() -> usize {", result.source)
         self.assertIn(
@@ -759,6 +771,38 @@ mod tests {
         let mut work = [0.0_f64; 2];
         square_plus_one(&x, &mut y, &mut work);
         assert_eq!(y[0], 10.0_f64);
+    }
+}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_exposes_input_and_output_name_helpers(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SX.sym("y")
+        f = Function(
+            "named_kernel",
+            [x, y],
+            [x.dot(x), y],
+            input_names=["state vector", "gain"],
+            output_names=["energy", "gain out"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "named_kernel")
+            self._append_rust_test(
+                project.project_dir,
+                """
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn exposes_declared_argument_names() {
+        assert_eq!(named_kernel_input_names(), ["state vector", "gain"]);
+        assert_eq!(named_kernel_output_names(), ["energy", "gain out"]);
     }
 }
 """.lstrip(),

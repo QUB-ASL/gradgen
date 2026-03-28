@@ -1,0 +1,11 @@
+[package]
+name = "square_plus_one"
+version = "0.1.0"
+edition = "2021"
+description = "Generated gradgen crate using f32"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+libm = "0.2"

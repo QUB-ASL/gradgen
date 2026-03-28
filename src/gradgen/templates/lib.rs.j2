@@ -16,6 +16,18 @@ pub fn {{ function_name }}_num_inputs() -> usize {
     {{ input_specs | length }}
 }
 
+/// Names of the declared inputs of [`{{ function_name }}`].
+pub const {{ upper_name }}_INPUT_NAMES: &[&str] = &[
+{% for spec in input_specs -%}
+    {{ spec.rust_label }},
+{% endfor -%}
+];
+
+/// Return the declared input names of [`{{ function_name }}`].
+pub fn {{ function_name }}_input_names() -> &'static [&'static str] {
+    {{ upper_name }}_INPUT_NAMES
+}
+
 {% for spec in input_specs -%}
 /// Length of the `{{ spec.rust_name }}` input slice for [`{{ function_name }}`].
 pub const {{ upper_name }}_INPUT_{{ loop.index0 }}_SIZE: usize = {{ spec.size }};
@@ -29,6 +41,18 @@ pub fn {{ function_name }}_input_{{ loop.index0 }}_size() -> usize {
 /// Return the number of declared outputs of [`{{ function_name }}`].
 pub fn {{ function_name }}_num_outputs() -> usize {
     {{ output_specs | length }}
+}
+
+/// Names of the declared outputs of [`{{ function_name }}`].
+pub const {{ upper_name }}_OUTPUT_NAMES: &[&str] = &[
+{% for spec in output_specs -%}
+    {{ spec.rust_label }},
+{% endfor -%}
+];
+
+/// Return the declared output names of [`{{ function_name }}`].
+pub fn {{ function_name }}_output_names() -> &'static [&'static str] {
+    {{ upper_name }}_OUTPUT_NAMES
 }
 
 {% for spec in output_specs -%}

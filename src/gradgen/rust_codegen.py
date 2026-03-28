@@ -144,6 +144,7 @@ class _ArgSpec:
 
     raw_name: str
     rust_name: str
+    rust_label: str
     size: int
 
 
@@ -226,11 +227,21 @@ def generate_rust(
     input_sizes = tuple(_arg_size(arg) for arg in function.inputs)
     output_sizes = tuple(_arg_size(arg) for arg in function.outputs)
     input_specs = tuple(
-        _ArgSpec(raw_name=raw_name, rust_name=_sanitize_ident(raw_name), size=size)
+        _ArgSpec(
+            raw_name=raw_name,
+            rust_name=_sanitize_ident(raw_name),
+            rust_label=_format_rust_string_literal(raw_name),
+            size=size,
+        )
         for raw_name, size in zip(function.input_names, input_sizes)
     )
     output_specs = tuple(
-        _ArgSpec(raw_name=raw_name, rust_name=_sanitize_ident(raw_name), size=size)
+        _ArgSpec(
+            raw_name=raw_name,
+            rust_name=_sanitize_ident(raw_name),
+            rust_label=_format_rust_string_literal(raw_name),
+            size=size,
+        )
         for raw_name, size in zip(function.output_names, output_sizes)
     )
 
@@ -614,6 +625,18 @@ def _format_float(value: float | None, scalar_type: RustScalarType) -> str:
         raise ValueError("expected a concrete floating-point value")
     _validate_scalar_type(scalar_type)
     return f"{repr(float(value))}_{scalar_type}"
+
+
+def _format_rust_string_literal(value: str) -> str:
+    """Format a Python string as a Rust string literal."""
+    escaped = (
+        value.replace("\\", "\\\\")
+        .replace('"', '\\"')
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+    )
+    return f'"{escaped}"'
 
 
 def _sanitize_ident(name: str) -> str:
