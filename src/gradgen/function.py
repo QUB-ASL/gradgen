@@ -124,6 +124,85 @@ class Function:
         )
         return _collapse_outputs(evaluated)
 
+    def jvp(
+        self,
+        *tangent_inputs: BoundValue,
+        name: str | None = None,
+    ) -> Function:
+        """Build a new function representing a forward-mode directional derivative.
+
+        Args:
+            *tangent_inputs: One tangent seed for each declared input. Seeds
+                must match the shape of the corresponding inputs.
+            name: Optional name for the differentiated function.
+
+        Returns:
+            A new ``Function`` with the same primal inputs and outputs equal
+            to the Jacobian-vector product in the supplied tangent
+            direction.
+        """
+        from .ad import jvp
+
+        if len(tangent_inputs) != len(self.inputs):
+            raise ValueError(
+                f"expected {len(self.inputs)} tangent arguments, received {len(tangent_inputs)}"
+            )
+
+        differentiated_outputs: list[FunctionArg] = []
+        for output in self.outputs:
+            total = _zero_like(output)
+            for wrt, tangent in zip(self.inputs, tangent_inputs):
+                total = _add_like(total, jvp(output, wrt, tangent))
+            differentiated_outputs.append(total)
+
+        return Function(
+            name or f"{self.name}_jvp",
+            self.inputs,
+            differentiated_outputs,
+            input_names=self.input_names,
+            output_names=self.output_names,
+        )
+
+    def vjp(
+        self,
+        *cotangent_outputs: BoundValue,
+        name: str | None = None,
+    ) -> Function:
+        """Build a new function representing a reverse-mode derivative.
+
+        Args:
+            *cotangent_outputs: One cotangent seed for each declared output.
+                Seeds must match the shape of the corresponding outputs.
+            name: Optional name for the differentiated function.
+
+        Returns:
+            A new ``Function`` with the same primal inputs and outputs equal
+            to the vector-Jacobian product in the supplied cotangent
+            direction. The returned outputs are ordered like the function
+            inputs.
+        """
+        from .ad import vjp
+
+        if len(cotangent_outputs) != len(self.outputs):
+            raise ValueError(
+                f"expected {len(self.outputs)} cotangent arguments, received {len(cotangent_outputs)}"
+            )
+
+        differentiated_inputs: list[FunctionArg] = []
+        for wrt in self.inputs:
+            total = _zero_like(wrt)
+            for output, cotangent in zip(self.outputs, cotangent_outputs):
+                total = _add_like(total, vjp(output, wrt, cotangent))
+            differentiated_inputs.append(total)
+
+        return Function(
+            name or f"{self.name}_vjp",
+            self.inputs,
+            differentiated_inputs,
+            input_names=self.input_names,
+            output_names=self.input_names,
+        )
+
     def __repr__(self) -> str:
         return (
             f"Function(name={self.name!r}, input_names={self.input_names!r}, "
@@ -257,6 +336,22 @@ def _collapse_outputs(
     if len(outputs) == 1:
         return outputs[0]
     return outputs
+
+
+def _zero_like(value: FunctionArg) -> FunctionArg:
+    """Create a zero expression with the same shape as ``value``."""
+    if isinstance(value, SX):
+        return SX.const(0.0)
+    return SXVector(tuple(SX.const(0.0) for _ in value))
+
+
+def _add_like(left: FunctionArg, right: FunctionArg) -> FunctionArg:
+    """Add scalar or vector expressions of matching shape."""
+    if isinstance(left, SX) and isinstance(right, SX):
+        return left + right
+    if isinstance(left, SXVector) and isinstance(right, SXVector):
+        return left + right
+    raise TypeError("cannot add derivative values with mismatched shapes")
 
 
 def _is_numeric_expr(expr: SX) -> bool:
