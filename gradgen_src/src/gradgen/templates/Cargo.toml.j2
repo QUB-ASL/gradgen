@@ -1,0 +1,15 @@
+[package]
+name = "{{ crate_name }}"
+version = "0.1.0"
+edition = "2021"
+description = "Generated gradgen crate using {{ scalar_type }}"
+
+[lib]
+path = "src/lib.rs"
+{% if backend_mode == "no_std" %}
+
+[dependencies]
+{% if math_library == "libm" %}
+libm = "0.2"
+{% endif %}
+{% endif %}

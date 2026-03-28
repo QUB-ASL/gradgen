@@ -1,0 +1,88 @@
+{% if backend_mode == "no_std" -%}
+#![no_std]
+
+{% endif -%}
+{% if emit_metadata_helpers -%}
+/// Workspace length required by [`{{ function_name }}`].
+pub const {{ upper_name }}_WORK_SIZE: usize = {{ workspace_size }};
+
+/// Return the workspace length required by [`{{ function_name }}`].
+pub fn {{ function_name }}_work_size() -> usize {
+    {{ upper_name }}_WORK_SIZE
+}
+
+/// Return the number of declared inputs of [`{{ function_name }}`].
+pub fn {{ function_name }}_num_inputs() -> usize {
+    {{ input_specs | length }}
+}
+
+/// Names of the declared inputs of [`{{ function_name }}`].
+pub const {{ upper_name }}_INPUT_NAMES: &[&str] = &[
+{% for spec in input_specs -%}
+    {{ spec.rust_label }},
+{% endfor -%}
+];
+
+/// Return the declared input names of [`{{ function_name }}`].
+pub fn {{ function_name }}_input_names() -> &'static [&'static str] {
+    {{ upper_name }}_INPUT_NAMES
+}
+
+{% for spec in input_specs -%}
+/// Length of the `{{ spec.rust_name }}` input slice for [`{{ function_name }}`].
+pub const {{ upper_name }}_INPUT_{{ loop.index0 }}_SIZE: usize = {{ spec.size }};
+
+/// Return the length of the `{{ spec.rust_name }}` input slice for [`{{ function_name }}`].
+pub fn {{ function_name }}_input_{{ loop.index0 }}_size() -> usize {
+    {{ upper_name }}_INPUT_{{ loop.index0 }}_SIZE
+}
+
+{% endfor -%}
+/// Return the number of declared outputs of [`{{ function_name }}`].
+pub fn {{ function_name }}_num_outputs() -> usize {
+    {{ output_specs | length }}
+}
+
+/// Names of the declared outputs of [`{{ function_name }}`].
+pub const {{ upper_name }}_OUTPUT_NAMES: &[&str] = &[
+{% for spec in output_specs -%}
+    {{ spec.rust_label }},
+{% endfor -%}
+];
+
+/// Return the declared output names of [`{{ function_name }}`].
+pub fn {{ function_name }}_output_names() -> &'static [&'static str] {
+    {{ upper_name }}_OUTPUT_NAMES
+}
+
+{% for spec in output_specs -%}
+/// Length of the `{{ spec.rust_name }}` output slice for [`{{ function_name }}`].
+pub const {{ upper_name }}_OUTPUT_{{ loop.index0 }}_SIZE: usize = {{ spec.size }};
+
+/// Return the length of the `{{ spec.rust_name }}` output slice for [`{{ function_name }}`].
+pub fn {{ function_name }}_output_{{ loop.index0 }}_size() -> usize {
+    {{ upper_name }}_OUTPUT_{{ loop.index0 }}_SIZE
+}
+
+{% endfor -%}
+{% endif -%}
+/// Evaluate the generated symbolic function `{{ function_name }}`.
+///
+/// Inputs are passed as immutable slices, outputs are written into mutable slices,
+/// and intermediate values are stored in `work`.
+/// All numeric slices use the `{{ scalar_type }}` scalar type.
+pub fn {{ function_name }}({{ parameters }}) {
+    assert!(work.len() >= {{ workspace_size }});
+{% for line in input_assert_lines %}
+    {{ line }}
+{% endfor %}
+{% for line in output_assert_lines %}
+    {{ line }}
+{% endfor %}
+{% for line in computation_lines %}
+    {{ line }}
+{% endfor %}
+{% for line in output_write_lines %}
+    {{ line }}
+{% endfor %}
+}
