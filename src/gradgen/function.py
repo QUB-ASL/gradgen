@@ -266,33 +266,77 @@ class Function:
             output_names=output_names,
         )
 
-    def joint_primal_jacobian(
+    def joint(
         self,
+        components: Iterable[str],
         wrt_index: int = 0,
         name: str | None = None,
         simplify_joint: int | str | None = None,
     ) -> Function:
-        """Build a function that returns both the primal outputs and a Jacobian block.
+        """Build a function that returns several requested artifacts together.
 
-        The returned function keeps the original inputs and concatenates the
-        primal outputs with the Jacobian outputs computed with respect to the
-        selected input block. This is useful for code generation backends that
-        want to expose one kernel computing both values together.
+        Supported component names are:
+
+        - ``"f"`` for the primal outputs
+        - ``"jf"`` for the Jacobian block with respect to ``wrt_index``
+        - ``"hvp"`` for the Hessian-vector product with respect to ``wrt_index``
+
+        The output order follows ``components`` exactly. If ``"hvp"`` is
+        requested, the returned function appends one tangent input matching the
+        selected differentiation block.
         """
         if not 0 <= wrt_index < len(self.inputs):
             raise IndexError("wrt_index is out of range")
 
-        jacobian_function = self.jacobian(wrt_index)
-        joint_name = name or f"{self.name}_primal_jacobian_{self.input_names[wrt_index]}"
-        jacobian_output_names = tuple(
-            f"jacobian_{output_name}" for output_name in jacobian_function.output_names
+        resolved_components = _resolve_joint_components(components)
+        tangent_input: FunctionArg | None = None
+        tangent_input_name: str | None = None
+        if "hvp" in resolved_components:
+            tangent_input_name = f"v_{self.input_names[wrt_index]}"
+            tangent_input = _make_symbolic_input_like(
+                self.inputs[wrt_index],
+                tangent_input_name,
+            )
+
+        outputs: list[FunctionArg] = []
+        output_names: list[str] = []
+        for component in resolved_components:
+            if component == "f":
+                outputs.extend(self.outputs)
+                output_names.extend(self.output_names)
+                continue
+            if component == "jf":
+                jacobian_function = self.jacobian(wrt_index)
+                outputs.extend(jacobian_function.outputs)
+                output_names.extend(
+                    f"jacobian_{output_name}" for output_name in jacobian_function.output_names
+                )
+                continue
+            if component == "hvp":
+                if tangent_input is None:
+                    raise AssertionError("tangent input should have been created for hvp")
+                hvp_function = self.hvp(
+                    wrt_index,
+                    tangent_name=tangent_input_name,
+                )
+                outputs.extend(hvp_function.outputs)
+                output_names.extend(f"hvp_{output_name}" for output_name in hvp_function.output_names)
+                continue
+            raise AssertionError(f"unexpected joint component {component!r}")
+
+        joint_name = name or _joint_function_name(
+            self.name,
+            self.input_names[wrt_index],
+            resolved_components,
         )
+        inputs = self.inputs if tangent_input is None else (*self.inputs, tangent_input)
+        input_names = self.input_names if tangent_input_name is None else (*self.input_names, tangent_input_name)
         joint_function = Function(
             joint_name,
-            self.inputs,
-            (*self.outputs, *jacobian_function.outputs),
-            input_names=self.input_names,
-            output_names=(*self.output_names, *jacobian_output_names),
+            inputs,
+            outputs,
+            input_names=input_names,
+            output_names=output_names,
         )
         if simplify_joint is None:
             return joint_function
@@ -560,6 +604,29 @@ def _resolve_block_indices(
         if not 0 <= index < input_count:
             raise IndexError("wrt_index is out of range")
     return resolved
+
+
+def _resolve_joint_components(components: Iterable[str]) -> tuple[str, ...]:
+    """Resolve and validate component names for a joint function."""
+    resolved = tuple(components)
+    if len(resolved) < 2:
+        raise ValueError("joint functions require at least two components")
+    allowed = {"f", "jf", "hvp"}
+    for component in resolved:
+        if component not in allowed:
+            raise ValueError(f"unsupported joint component {component!r}")
+    if len(set(resolved)) != len(resolved):
+        raise ValueError("joint components must be unique")
+    return resolved
+
+
+def _joint_function_name(
+    base_name: str,
+    input_name: str,
+    components: tuple[str, ...],
+) -> str:
+    """Build the default name for a joint function."""
+    return f"{base_name}_joint_{'_'.join(components)}_{input_name}"
 
 
 def _make_symbolic_input_like(value: FunctionArg, base_name: str) -> FunctionArg:

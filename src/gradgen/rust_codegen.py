@@ -136,6 +136,7 @@ class _BuilderRequest:
     """A requested generated kernel kind."""
 
     kind: str
+    components: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,9 +173,9 @@ class CodeGenerationBuilder:
         """Include Jacobian kernels for all input blocks."""
         return self._add_request("jacobian")
 
-    def add_joint_primal_jacobian(self) -> CodeGenerationBuilder:
-        """Include kernels that compute both the primal outputs and a Jacobian block."""
-        return self._add_request("joint_primal_jacobian")
+    def add_joint(self, components: tuple[str, ...]) -> CodeGenerationBuilder:
+        """Include kernels that compute several requested artifacts together."""
+        return self._add_request("joint", components=components)
 
     def add_hessian(self) -> CodeGenerationBuilder:
         """Include Hessian kernels for scalar-output functions."""
@@ -193,10 +194,11 @@ class CodeGenerationBuilder:
             config=self.config,
         )
 
-    def _add_request(self, kind: str) -> CodeGenerationBuilder:
-        if any(request.kind == kind for request in self.requests):
+    def _add_request(self, kind: str, *, components: tuple[str, ...] = ()) -> CodeGenerationBuilder:
+        candidate = _BuilderRequest(kind, components)
+        if any(request == candidate for request in self.requests):
             return self
-        return replace(self, requests=(*self.requests, _BuilderRequest(kind)))
+        return replace(self, requests=(*self.requests, candidate))
 
 
 def generate_rust(
@@ -748,9 +750,13 @@ def _resolve_builder_functions(
         if request.kind == "jacobian":
             resolved.extend(base_function.jacobian_blocks())
             continue
-        if request.kind == "joint_primal_jacobian":
+        if request.kind == "joint":
             resolved.extend(
-                base_function.joint_primal_jacobian(index, simplify_joint="high")
+                base_function.joint(
+                    request.components,
+                    index,
+                    simplify_joint="high",
+                )
                 for index in range(len(base_function.inputs))
             )
             continue
