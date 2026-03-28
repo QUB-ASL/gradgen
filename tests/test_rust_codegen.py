@@ -1,3 +1,4 @@
+import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -6,6 +7,23 @@ from gradgen import Function, SX, SXVector, create_rust_project, derivative
 
 
 class RustCodegenTests(unittest.TestCase):
+    @staticmethod
+    def _run_cargo(project_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["cargo", *args],
+            cwd=project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+
+    @staticmethod
+    def _append_rust_test(project_dir: Path, test_source: str) -> None:
+        lib_rs = project_dir / "src" / "lib.rs"
+        with lib_rs.open("a", encoding="utf-8") as handle:
+            handle.write("\n")
+            handle.write(test_source)
+
     def test_generates_scalar_function_with_slice_abi(self) -> None:
         x = SX.sym("x")
         f = Function("square_plus_one", [x], [x * x + 1], input_names=["x"], output_names=["y"])
@@ -129,6 +147,9 @@ class RustCodegenTests(unittest.TestCase):
             self.assertIn("pub const SQUARE_PLUS_ONE_WORK_SIZE: usize = 2;", lib_text)
             self.assertIn("pub fn square_plus_one(", lib_text)
 
+            completed = self._run_cargo(project.project_dir, "build", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_module_level_project_creation_supports_custom_names(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
@@ -147,6 +168,130 @@ class RustCodegenTests(unittest.TestCase):
             self.assertIn('name = "my_kernel"', cargo_text)
             self.assertIn("pub fn eval_kernel(", lib_text)
             self.assertEqual(project.codegen.function_name, "eval_kernel")
+
+            completed = self._run_cargo(project.project_dir, "build", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_numeric_smoke_test(self) -> None:
+        x = SX.sym("x")
+        f = Function("square_plus_one", [x], [x * x + 1], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "runtime_kernel")
+            self._append_rust_test(
+                project.project_dir,
+                """
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn evaluates_square_plus_one() {
+        let x = [3.0_f64];
+        let mut y = [0.0_f64];
+        let mut work = [0.0_f64; SQUARE_PLUS_ONE_WORK_SIZE];
+        square_plus_one(&x, &mut y, &mut work);
+        assert_eq!(y[0], 10.0);
+    }
+}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_vector_numeric_smoke_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("dot_and_shift", [x], [x.dot(x), x + SXVector((1 * x[0] * 0 + 1, 1 * x[1] * 0 + 1))], input_names=["x"], output_names=["dot", "shift"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "vector_kernel")
+            self._append_rust_test(
+                project.project_dir,
+                """
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn evaluates_vector_outputs() {
+        let x = [2.0_f64, 3.0_f64];
+        let mut dot = [0.0_f64];
+        let mut shift = [0.0_f64, 0.0_f64];
+        let mut work = [0.0_f64; DOT_AND_SHIFT_WORK_SIZE];
+        dot_and_shift(&x, &mut dot, &mut shift, &mut work);
+        assert_eq!(dot[0], 13.0);
+        assert_eq!(shift, [3.0, 4.0]);
+    }
+}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_builds_for_jacobian_function(self) -> None:
+        x = SXVector.sym("x", 2)
+        jac = Function("f", [x], [x.dot(x)], input_names=["x"], output_names=["y"]).jacobian(0)
+
+        with TemporaryDirectory() as tmpdir:
+            project = jac.create_rust_project(Path(tmpdir) / "jacobian_kernel")
+            completed = self._run_cargo(project.project_dir, "build", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_builds_for_hessian_function(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "f",
+            [x],
+            [(x[0] * x[0]) + (x[0] * x[1]) + (x[1] * x[1])],
+            input_names=["x"],
+            output_names=["y"],
+        ).hessian(0)
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "hessian_kernel")
+            completed = self._run_cargo(project.project_dir, "build", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_builds_for_simplified_function(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [derivative(x * x, x)], input_names=["x"], output_names=["dx"]).simplify(max_effort="medium")
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "simplified_kernel")
+            completed = self._run_cargo(project.project_dir, "build", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_zero_workspace_function_codegen_builds(self) -> None:
+        x = SX.sym("x")
+        f = Function("identity", [x], [x], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust()
+
+        self.assertEqual(result.workspace_size, 0)
+        self.assertIn("pub const IDENTITY_WORK_SIZE: usize = 0;", result.source)
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "identity_kernel")
+            completed = self._run_cargo(project.project_dir, "build", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_codegen_sanitizes_names_for_rust(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "my function",
+            [x],
+            [x * x],
+            input_names=["1-input"],
+            output_names=["out value"],
+        )
+
+        result = f.generate_rust(function_name="123 kernel")
+
+        self.assertIn("pub fn _123_kernel(", result.source)
+        self.assertIn("_1_input: &[f64]", result.source)
+        self.assertIn("out_value: &mut [f64]", result.source)
 
 
 if __name__ == "__main__":

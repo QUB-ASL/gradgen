@@ -394,7 +394,7 @@ from gradgen import Function, SX
 x = SX.sym("x")
 f = Function("square_plus_one", [x], [x * x + 1], input_names=["x"], output_names=["y"])
 
-project = f.create_rust_project("/tmp/square_plus_one")
+project = f.create_rust_project("./square_plus_one")
 print(project.project_dir)
 ```
 
