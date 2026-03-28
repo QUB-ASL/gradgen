@@ -7,9 +7,9 @@ The project is being built incrementally. The current implementation focuses on:
 - `SX`-style symbolic expressions
 - vector-first semantics
 - `Function` as a core abstraction
-- forward-mode automatic differentiation
+- forward-mode and reverse-mode automatic differentiation
 
-Rust code generation, reverse-mode AD, matrix operations, `MX`, and solver-related features are still to come.
+Rust code generation, matrix operations, `MX`, and solver-related features are still to come.
 
 ## Current Status
 
@@ -21,13 +21,13 @@ The library already supports:
 - vector operations including elementwise `+`, `-`, `/`, scalar-vector products, and dot products
 - symbolic and numeric `Function` calls
 - forward-mode AD through scalar derivatives and Jacobian-vector products
+- reverse-mode AD through gradients and vector-Jacobian products
 
 Some intentional limitations at this stage:
 
 - `SX` symbols are formal symbols representing real-valued scalar quantities
 - elementwise vector-vector multiplication with `x * y` is not supported yet
 - expression simplification is still minimal, so derivatives may be structurally correct without being algebraically simplified
-- only forward-mode AD is implemented so far
 
 ## Example
 
@@ -122,14 +122,21 @@ g = Function("g", [v], [v.dot(v)])
 print(g([2.0, 3.0]))  # 13.0
 ```
 
-## Forward-Mode AD
+## Automatic Differentiation
 
-The current AD layer is forward-mode only.
+The current AD layer supports both forward-mode and reverse-mode symbolic differentiation.
 
-Two main entry points are available:
+Forward-mode entry points:
 
 - `derivative(expr, wrt)` for scalar derivatives
 - `jvp(expr, wrt, tangent)` for Jacobian-vector products
+
+Reverse-mode entry points:
+
+- `gradient(expr, wrt)` for scalar-output reverse gradients
+- `vjp(expr, wrt, cotangent)` for vector-Jacobian products
+
+### Forward mode
 
 ### Scalar derivative
 
@@ -173,6 +180,60 @@ df_dy = f.jvp(0.0, 1.0)
 ```
 
 The returned object is another `Function` with the same primal inputs and differentiated outputs.
+
+### Reverse mode
+
+Reverse mode is especially useful for scalar-output expressions with many inputs.
+
+### Scalar gradient
+
+```python
+from gradgen import Function, SX, gradient
+
+x = SX.sym("x")
+y = SX.sym("y")
+expr = x * y + x.sin()
+
+grad_x = gradient(expr, x)
+grad_y = gradient(expr, y)
+
+g = Function("g", [x, y], [grad_x, grad_y])
+print(g(2.0, 5.0))
+```
+
+### Vector-Jacobian product
+
+```python
+from gradgen import Function, SX, SXVector, vjp
+
+x = SX.sym("x")
+outputs = SXVector((x.sin(), x * x))
+sensitivity = vjp(outputs, x, [2.0, 3.0])
+
+g = Function("g", [x], [sensitivity])
+print(g(2.0))
+```
+
+### Reverse-mode differentiation of a `Function`
+
+You can also build a reverse-mode differentiated function from cotangent seeds on the outputs:
+
+```python
+from gradgen import Function, SX
+
+x = SX.sym("x")
+y = SX.sym("y")
+f = Function("f", [x, y], [x * y + x.sin()])
+
+reverse = f.vjp(1.0)
+print(reverse(2.0, 5.0))
+```
+
+`Function.vjp(...)` returns a new `Function` with:
+
+- the same primal inputs as the original function
+- outputs ordered like the original inputs
+- values equal to the vector-Jacobian product for the supplied cotangent direction
 
 ## Development
 
