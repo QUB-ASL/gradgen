@@ -203,6 +203,52 @@ class Function:
             output_names=self.input_names,
         )
 
+    def jacobian(self, wrt_index: int = 0, name: str | None = None) -> Function:
+        """Build a new function representing a Jacobian block.
+
+        Args:
+            wrt_index: Index of the declared input with respect to which the
+                Jacobian is computed.
+            name: Optional name for the differentiated function.
+
+        Returns:
+            A new ``Function`` with the same primal inputs and outputs equal
+            to the Jacobian of each original output with respect to the
+            selected input block.
+
+        Notes:
+            Since full matrix types are not implemented yet, vector-output
+            by vector-input Jacobians are returned as one ``SXVector`` row
+            per output scalar.
+        """
+        from .ad import jacobian
+
+        if not 0 <= wrt_index < len(self.inputs):
+            raise IndexError("wrt_index is out of range")
+
+        wrt = self.inputs[wrt_index]
+        differentiated_outputs: list[FunctionArg] = []
+        differentiated_names: list[str] = []
+
+        for output_name, output in zip(self.output_names, self.outputs):
+            block = jacobian(output, wrt)
+            if isinstance(block, tuple):
+                differentiated_outputs.extend(block)
+                differentiated_names.extend(
+                    f"{output_name}_row{index}" for index in range(len(block))
+                )
+            else:
+                differentiated_outputs.append(block)
+                differentiated_names.append(output_name)
+
+        return Function(
+            name or f"{self.name}_jacobian_{self.input_names[wrt_index]}",
+            self.inputs,
+            differentiated_outputs,
+            input_names=self.input_names,
+            output_names=differentiated_names,
+        )
+
     def __repr__(self) -> str:
         return (
             f"Function(name={self.name!r}, input_names={self.input_names!r}, "

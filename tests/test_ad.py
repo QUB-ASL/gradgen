@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from gradgen import Function, SX, SXVector, derivative, gradient, jvp, vjp
+from gradgen import Function, SX, SXVector, derivative, gradient, jacobian, jvp, vjp
 
 
 class ForwardADTests(unittest.TestCase):
@@ -221,6 +221,76 @@ class ReverseADTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             f.vjp()
+
+
+class JacobianTests(unittest.TestCase):
+    def test_scalar_scalar_jacobian_matches_derivative(self) -> None:
+        x = SX.sym("x")
+        jac = jacobian(x * x, x)
+        evaluator = Function("jac", [x], [jac])
+
+        self.assertEqual(evaluator(3.0), 6.0)
+
+    def test_scalar_vector_jacobian_returns_gradient_vector(self) -> None:
+        x = SXVector.sym("x", 2)
+        expr = x.dot(x)
+        jac = jacobian(expr, x)
+        evaluator = Function("jac", [x], [jac])
+
+        self.assertEqual(evaluator([3.0, 4.0]), (6.0, 8.0))
+
+    def test_vector_scalar_jacobian_returns_vector(self) -> None:
+        x = SX.sym("x")
+        expr = SXVector((x.sin(), x * x))
+        jac = jacobian(expr, x)
+        evaluator = Function("jac", [x], [jac])
+
+        result = evaluator(2.0)
+
+        self.assertAlmostEqual(result[0], math.cos(2.0))
+        self.assertEqual(result[1], 4.0)
+
+    def test_vector_vector_jacobian_returns_rows(self) -> None:
+        x = SXVector.sym("x", 2)
+        expr = SXVector((x[0] + x[1], x[0] * x[1]))
+        jac = jacobian(expr, x)
+
+        self.assertEqual(len(jac), 2)
+
+        evaluator = Function("jac", [x], list(jac))
+        result = evaluator([3.0, 4.0])
+
+        self.assertEqual(result[0], (1.0, 1.0))
+        self.assertEqual(result[1], (4.0, 3.0))
+
+    def test_function_jacobian_for_scalar_input_block(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        f = Function("f", [x, y], [x + y, x * y])
+        jac = f.jacobian(0)
+
+        self.assertEqual(jac.name, "f_jacobian_i0")
+        self.assertEqual(jac(3.0, 4.0), (1.0, 4.0))
+
+    def test_function_jacobian_for_vector_input_block(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [x.dot(x), x.sin()])
+        jac = f.jacobian(0)
+
+        result = jac([3.0, 4.0])
+
+        self.assertEqual(result[0], (6.0, 8.0))
+        self.assertAlmostEqual(result[1][0], math.cos(3.0))
+        self.assertEqual(result[1][1], 0.0)
+        self.assertEqual(result[2][0], 0.0)
+        self.assertAlmostEqual(result[2][1], math.cos(4.0))
+
+    def test_function_jacobian_validates_index(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x])
+
+        with self.assertRaises(IndexError):
+            f.jacobian(1)
 
 
 if __name__ == "__main__":

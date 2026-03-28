@@ -6,6 +6,7 @@ from .sx import SX, SXNode, SXVector, vector
 
 
 ADExpr = SX | SXVector
+JacobianExpr = SX | SXVector | tuple[SXVector, ...]
 ADSeed = SX | SXVector | float | int | list[object] | tuple[object, ...]
 
 
@@ -75,6 +76,27 @@ def gradient(expr: SX, wrt: ADExpr, seed: SX | float | int = 1.0) -> ADExpr:
     """Compute a reverse-mode gradient of a scalar expression."""
     cotangent = seed if isinstance(seed, SX) else SX.const(seed)
     return vjp(expr, wrt, cotangent)
+
+
+def jacobian(expr: ADExpr, wrt: ADExpr) -> JacobianExpr:
+    """Compute a symbolic Jacobian with vector-first output structure.
+
+    The return shape follows the current no-matrix design:
+
+    - scalar wrt scalar -> ``SX``
+    - scalar wrt vector -> ``SXVector``
+    - vector wrt scalar -> ``SXVector``
+    - vector wrt vector -> ``tuple[SXVector, ...]``, one row per output
+    """
+    if isinstance(expr, SX):
+        if isinstance(wrt, SX):
+            return derivative(expr, wrt)
+        return gradient(expr, wrt)
+
+    if isinstance(wrt, SX):
+        return SXVector(tuple(derivative(element, wrt) for element in expr))
+
+    return tuple(gradient(element, wrt) for element in expr)
 
 
 def _build_tangent_map(wrt: ADExpr, tangent: ADSeed | None) -> dict[SXNode, SX]:
