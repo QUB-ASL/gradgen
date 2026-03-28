@@ -24,6 +24,7 @@ class RustCodegenResult:
     input_sizes: tuple[int, ...]
     output_sizes: tuple[int, ...]
     backend_mode: RustBackendMode
+    math_library: str | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,9 +52,11 @@ def generate_rust(
     *,
     function_name: str | None = None,
     backend_mode: RustBackendMode = "std",
+    math_library: str | None = None,
 ) -> RustCodegenResult:
     """Generate Rust source code for primal function evaluation."""
     _validate_backend_mode(backend_mode)
+    resolved_math_library = _resolve_math_library(backend_mode, math_library)
 
     name = _sanitize_ident(function_name or function.name)
     input_sizes = tuple(_arg_size(arg) for arg in function.inputs)
@@ -84,7 +87,13 @@ def generate_rust(
     workspace_map = {node: index for index, node in enumerate(workspace_nodes)}
 
     for node, work_index in workspace_map.items():
-        rhs = _emit_node_expr(SX(node), scalar_bindings, workspace_map, backend_mode)
+        rhs = _emit_node_expr(
+            SX(node),
+            scalar_bindings,
+            workspace_map,
+            backend_mode,
+            resolved_math_library,
+        )
         computation_lines.append(f"work[{work_index}] = {rhs};")
 
     for output_spec, output_arg in zip(output_specs, function.outputs):
@@ -92,7 +101,13 @@ def generate_rust(
             f"assert_eq!({output_spec.rust_name}.len(), {output_spec.size});"
         )
         for scalar_index, scalar in enumerate(_flatten_arg(output_arg)):
-            output_ref = _emit_expr_ref(scalar, scalar_bindings, workspace_map, backend_mode)
+            output_ref = _emit_expr_ref(
+                scalar,
+                scalar_bindings,
+                workspace_map,
+                backend_mode,
+                resolved_math_library,
+            )
             output_write_lines.append(
                 f"{output_spec.rust_name}[{scalar_index}] = {output_ref};"
             )
@@ -109,6 +124,7 @@ def generate_rust(
         function_name=name,
         upper_name=name.upper(),
         backend_mode=backend_mode,
+        math_library=resolved_math_library,
         workspace_size=len(workspace_map),
         input_specs=input_specs,
         output_specs=output_specs,
@@ -126,6 +142,7 @@ def generate_rust(
         input_sizes=input_sizes,
         output_sizes=output_sizes,
         backend_mode=backend_mode,
+        math_library=resolved_math_library,
     )
 
 
@@ -136,6 +153,7 @@ def create_rust_project(
     crate_name: str | None = None,
     function_name: str | None = None,
     backend_mode: RustBackendMode = "std",
+    math_library: str | None = None,
 ) -> RustProjectResult:
     """Create a minimal Rust library project containing generated code."""
     _validate_backend_mode(backend_mode)
@@ -146,6 +164,7 @@ def create_rust_project(
         function,
         function_name=function_name,
         backend_mode=backend_mode,
+        math_library=math_library,
     )
 
     src_dir = project_dir / "src"
@@ -158,6 +177,7 @@ def create_rust_project(
         _get_template("Cargo.toml.j2").render(
             crate_name=crate,
             backend_mode=backend_mode,
+            math_library=codegen.math_library,
         ),
         encoding="utf-8",
     )
@@ -166,6 +186,7 @@ def create_rust_project(
             crate_name=crate,
             codegen=codegen,
             backend_mode=backend_mode,
+            math_library=codegen.math_library,
         ),
         encoding="utf-8",
     )
@@ -185,6 +206,7 @@ def _emit_node_expr(
     scalar_bindings: dict[SXNode, str],
     workspace_map: dict[SXNode, int],
     backend_mode: RustBackendMode,
+    math_library: str | None,
 ) -> str:
     """Emit the Rust expression used to compute a workspace node."""
     if expr.op == "const":
@@ -193,7 +215,7 @@ def _emit_node_expr(
         return scalar_bindings[expr.node]
 
     args = tuple(
-        _emit_expr_ref(arg, scalar_bindings, workspace_map, backend_mode)
+        _emit_expr_ref(arg, scalar_bindings, workspace_map, backend_mode, math_library)
         for arg in expr.args
     )
 
@@ -206,19 +228,19 @@ def _emit_node_expr(
     if expr.op == "div":
         return f"{args[0]} / {args[1]}"
     if expr.op == "pow":
-        return _emit_math_call("pow", args, backend_mode)
+        return _emit_math_call("pow", args, backend_mode, math_library)
     if expr.op == "neg":
         return f"-{args[0]}"
     if expr.op == "sin":
-        return _emit_math_call("sin", args, backend_mode)
+        return _emit_math_call("sin", args, backend_mode, math_library)
     if expr.op == "cos":
-        return _emit_math_call("cos", args, backend_mode)
+        return _emit_math_call("cos", args, backend_mode, math_library)
     if expr.op == "exp":
-        return _emit_math_call("exp", args, backend_mode)
+        return _emit_math_call("exp", args, backend_mode, math_library)
     if expr.op == "log":
-        return _emit_math_call("log", args, backend_mode)
+        return _emit_math_call("log", args, backend_mode, math_library)
     if expr.op == "sqrt":
-        return _emit_math_call("sqrt", args, backend_mode)
+        return _emit_math_call("sqrt", args, backend_mode, math_library)
 
     raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
 
@@ -228,6 +250,7 @@ def _emit_expr_ref(
     scalar_bindings: dict[SXNode, str],
     workspace_map: dict[SXNode, int],
     backend_mode: RustBackendMode,
+    math_library: str | None,
 ) -> str:
     """Emit a Rust expression reference for an already-available value."""
     if expr.op == "const":
@@ -236,10 +259,21 @@ def _emit_expr_ref(
         return scalar_bindings[expr.node]
     if expr.node in workspace_map:
         return f"work[{workspace_map[expr.node]}]"
-    return _emit_node_expr(expr, scalar_bindings, workspace_map, backend_mode)
+    return _emit_node_expr(
+        expr,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        math_library,
+    )
 
 
-def _emit_math_call(op: str, args: tuple[str, ...], backend_mode: RustBackendMode) -> str:
+def _emit_math_call(
+    op: str,
+    args: tuple[str, ...],
+    backend_mode: RustBackendMode,
+    math_library: str | None,
+) -> str:
     """Emit a Rust math call for the selected backend mode."""
     if backend_mode == "std":
         if op == "pow":
@@ -248,9 +282,11 @@ def _emit_math_call(op: str, args: tuple[str, ...], backend_mode: RustBackendMod
             return f"{args[0]}.ln()"
         return f"{args[0]}.{op}()"
 
+    if math_library is None:
+        raise ValueError("no_std math calls require a resolved math library")
     if op == "pow":
-        return f"libm::pow({args[0]}, {args[1]})"
-    return f"libm::{_LIBM_FUNCTIONS[op]}({args[0]})"
+        return f"{math_library}::pow({args[0]}, {args[1]})"
+    return f"{math_library}::{_LIBM_FUNCTIONS[op]}({args[0]})"
 
 
 def _flatten_arg(arg: SX | SXVector) -> tuple[SX, ...]:
@@ -287,6 +323,16 @@ def _validate_backend_mode(backend_mode: RustBackendMode) -> None:
     """Validate a Rust backend mode string."""
     if backend_mode not in {"std", "no_std"}:
         raise ValueError(f"unsupported Rust backend mode {backend_mode!r}")
+
+
+def _resolve_math_library(
+    backend_mode: RustBackendMode,
+    math_library: str | None,
+) -> str | None:
+    """Resolve the math library namespace for the selected backend mode."""
+    if backend_mode == "std":
+        return math_library
+    return math_library or "libm"
 
 
 def _get_template(name: str):

@@ -139,6 +139,19 @@ class RustCodegenTests(unittest.TestCase):
         self.assertIn("#![no_std]", result.source)
         self.assertIn("libm::sin(x[0])", result.source)
 
+    def test_no_std_codegen_supports_custom_math_library_namespace(self) -> None:
+        x = SX.sym("x")
+        f = Function("custom_math", [x], [x.sin() + x.cos()], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust(backend_mode="no_std", math_library="xyz")
+
+        self.assertEqual(result.backend_mode, "no_std")
+        self.assertEqual(result.math_library, "xyz")
+        self.assertIn("#![no_std]", result.source)
+        self.assertIn("xyz::sin(x[0])", result.source)
+        self.assertIn("xyz::cos(x[0])", result.source)
+        self.assertNotIn('libm = "0.2"', result.source)
+
     def test_function_level_codegen_works_for_derived_functions(self) -> None:
         x = SX.sym("x")
         df = Function("df", [x], [derivative(x * x, x)], input_names=["x"], output_names=["dx"])
@@ -223,6 +236,26 @@ class RustCodegenTests(unittest.TestCase):
                     self.skipTest("cargo could not fetch libm in the offline test environment")
                 raise
             self.assertEqual(completed.returncode, 0)
+
+    def test_no_std_project_uses_custom_math_library_metadata(self) -> None:
+        x = SX.sym("x")
+        f = Function("custom_math", [x], [x.sin()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(
+                Path(tmpdir) / "custom_math",
+                backend_mode="no_std",
+                math_library="xyz",
+            )
+
+            cargo_text = project.cargo_toml.read_text(encoding="utf-8")
+            readme_text = project.readme.read_text(encoding="utf-8")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertNotIn('libm = "0.2"', cargo_text)
+            self.assertIn("Math library namespace: `xyz`", readme_text)
+            self.assertIn("uses `xyz`", readme_text)
+            self.assertIn("xyz::sin(x[0])", lib_text)
 
     def test_invalid_backend_mode_is_rejected(self) -> None:
         x = SX.sym("x")

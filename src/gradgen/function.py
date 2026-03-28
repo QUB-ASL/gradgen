@@ -105,6 +105,7 @@ class Function:
         *,
         function_name: str | None = None,
         backend_mode: str = "std",
+        math_library: str | None = None,
     ):
         """Generate Rust source code for primal function evaluation."""
         from .rust_codegen import generate_rust
@@ -113,6 +114,7 @@ class Function:
             self,
             function_name=function_name,
             backend_mode=backend_mode,
+            math_library=math_library,
         )
 
     def create_rust_project(
@@ -122,6 +124,7 @@ class Function:
         crate_name: str | None = None,
         function_name: str | None = None,
         backend_mode: str = "std",
+        math_library: str | None = None,
     ):
         """Create a Rust project containing the generated primal code."""
         from .rust_codegen import create_rust_project
@@ -132,6 +135,7 @@ class Function:
             crate_name=crate_name,
             function_name=function_name,
             backend_mode=backend_mode,
+            math_library=math_library,
         )
 
     def __call__(self, *args: BoundValue) -> FunctionArg | tuple[FunctionArg, ...] | float | tuple[float, ...]:

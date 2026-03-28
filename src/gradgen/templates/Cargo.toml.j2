@@ -8,5 +8,7 @@ path = "src/lib.rs"
 {% if backend_mode == "no_std" %}
 
 [dependencies]
+{% if math_library == "libm" %}
 libm = "0.2"
+{% endif %}
 {% endif %}
