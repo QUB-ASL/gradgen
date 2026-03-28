@@ -257,6 +257,50 @@ class RustCodegenTests(unittest.TestCase):
             self.assertIn("uses `xyz`", readme_text)
             self.assertIn("xyz::sin(x[0])", lib_text)
 
+    def test_no_std_project_builds_with_micromath_shim(self) -> None:
+        x = SX.sym("x")
+        f = Function("micro_kernel", [x], [x.sin() + x.cos()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(
+                Path(tmpdir) / "micro_kernel",
+                backend_mode="no_std",
+                math_library="crate::math",
+            )
+
+            cargo_toml = project.cargo_toml.read_text(encoding="utf-8")
+            cargo_toml += 'micromath = "2"\n'
+            project.cargo_toml.write_text(cargo_toml, encoding="utf-8")
+
+            shim = """
+mod math {
+    use micromath::F32Ext;
+
+    pub fn sin(x: f64) -> f64 {
+        (x as f32).sin() as f64
+    }
+
+    pub fn cos(x: f64) -> f64 {
+        (x as f32).cos() as f64
+    }
+}
+
+"""
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            if lib_text.startswith("#![no_std]\n"):
+                lib_text = lib_text.replace("#![no_std]\n", f"#![no_std]\n\n{shim}", 1)
+            else:
+                lib_text = shim + lib_text
+            project.lib_rs.write_text(lib_text, encoding="utf-8")
+
+            try:
+                completed = self._run_cargo(project.project_dir, "build", "--quiet")
+            except subprocess.CalledProcessError as exc:
+                if "Could not resolve host: index.crates.io" in exc.stderr:
+                    self.skipTest("cargo could not fetch micromath in the offline test environment")
+                raise
+            self.assertEqual(completed.returncode, 0)
+
     def test_invalid_backend_mode_is_rejected(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [x], input_names=["x"], output_names=["y"])
