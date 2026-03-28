@@ -246,8 +246,9 @@ def _simplify_mul(left: SX, right: SX) -> SX:
     if constant_product == 0.0:
         return SX.const(0.0)
 
+    leading_negation = constant_product == -1.0 and bool(ordered_bases)
     rebuilt_factors: list[SX] = []
-    if constant_product != 1.0 or not ordered_bases:
+    if not leading_negation and (constant_product != 1.0 or not ordered_bases):
         rebuilt_factors.append(SX.const(constant_product))
 
     for base in ordered_bases:
@@ -261,7 +262,10 @@ def _simplify_mul(left: SX, right: SX) -> SX:
 
     if not rebuilt_factors:
         return SX.const(1.0)
-    return _rebuild_mul(rebuilt_factors)
+    product = _rebuild_mul(rebuilt_factors)
+    if leading_negation:
+        return -product
+    return product
 
 
 def _evaluate_const_op(op: str, left: float, right: float) -> float:
