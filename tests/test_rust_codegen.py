@@ -698,6 +698,66 @@ mod math {
                 raise
             self.assertEqual(completed.returncode, 0)
 
+    def test_no_std_f32_project_runs_reference_test(self) -> None:
+        x = SX.sym("x")
+        f = Function("trig_kernel", [x], [x.sin() + x.cos()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(
+                Path(tmpdir) / "trig_kernel_f32_runtime",
+                backend_mode="no_std",
+                scalar_type="f32",
+            )
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=0.25,
+                test_name="evaluates_no_std_f32_kernel_against_python_reference",
+                config=RustBackendConfig().with_backend_mode("no_std").with_scalar_type("f32"),
+                tolerance=1e-5,
+            )
+            try:
+                completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            except subprocess.CalledProcessError as exc:
+                if "Could not resolve host: index.crates.io" in exc.stderr:
+                    self.skipTest("cargo could not fetch libm in the offline test environment")
+                raise
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_builds_without_metadata_helpers(self) -> None:
+        x = SX.sym("x")
+        f = Function("square_plus_one", [x], [x * x + 1], input_names=["x"], output_names=["y"])
+        config = RustBackendConfig().with_emit_metadata_helpers(False)
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(
+                Path(tmpdir) / "helperless_kernel",
+                config=config,
+            )
+            self.assertNotIn("WORK_SIZE", project.lib_rs.read_text(encoding="utf-8"))
+            self._append_rust_test(
+                project.project_dir,
+                """
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn evaluates_without_metadata_helpers() {
+        let x = [3.0_f64];
+        let mut y = [0.0_f64];
+        let mut work = [0.0_f64; 2];
+        square_plus_one(&x, &mut y, &mut work);
+        assert_eq!(y[0], 10.0_f64);
+    }
+}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_codegen_sanitizes_names_for_rust(self) -> None:
         x = SX.sym("x")
         f = Function(

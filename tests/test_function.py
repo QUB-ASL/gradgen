@@ -98,6 +98,19 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(result.op, "add")
         self.assertEqual({arg.name for arg in result.args}, {"z", "y"})
 
+    def test_function_symbolic_call_preserves_symbol_metadata(self) -> None:
+        x = SX.sym("x", metadata={"domain": "real"})
+        y = SX.sym("y", metadata={"domain": "complex"})
+        f = Function("f", [x], [x + y])
+
+        z = SX.sym("z", metadata={"domain": "real"})
+        result = f(z)
+
+        self.assertIsInstance(result, SX)
+        result_args = {arg.name: arg for arg in result.args if arg.name is not None}
+        self.assertEqual(result_args["z"].metadata, {"domain": "real"})
+        self.assertEqual(result_args["y"].metadata, {"domain": "complex"})
+
     def test_function_numeric_scalar_call_returns_float(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [(x * x) + 1])

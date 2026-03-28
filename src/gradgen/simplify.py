@@ -113,28 +113,15 @@ def _apply_rules(op: str, args: tuple[SX, ...]) -> SX:
             return SX.const(_evaluate_const_op(op, _const_value(left), _const_value(right)))
 
         if op == "add":
-            if _is_zero(left):
-                return right
-            if _is_zero(right):
-                return left
-            if left.node is right.node:
-                return SX.const(2.0) * left
+            return _simplify_add(left, right)
 
         if op == "sub":
-            if _is_zero(right):
-                return left
             if left.node is right.node:
                 return SX.const(0.0)
-            if _is_zero(left):
-                return -right
+            return _simplify_add(left, -right)
 
         if op == "mul":
-            if _is_zero(left) or _is_zero(right):
-                return SX.const(0.0)
-            if _is_one(left):
-                return right
-            if _is_one(right):
-                return left
+            return _simplify_mul(left, right)
 
         if op == "div":
             if _is_zero(left):
@@ -160,6 +147,106 @@ def _apply_rules(op: str, args: tuple[SX, ...]) -> SX:
     if _is_const(arg):
         return SX.const(_evaluate_const_unary(op, _const_value(arg)))
     return SX(SXNode.make(op, (arg.node,)))
+
+
+def _simplify_add(left: SX, right: SX) -> SX:
+    """Simplify an addition-like expression after child simplification."""
+    terms = _flatten_add_terms((left, right))
+    if not terms:
+        return SX.const(0.0)
+
+    simplified_terms = _apply_trig_identity_terms(terms)
+    if simplified_terms != terms:
+        terms = simplified_terms
+
+    constant_sum = 0.0
+    coefficients: dict[SXNode, float] = {}
+    ordered_bases: list[SX] = []
+    residual_terms: list[SX] = []
+
+    for term in terms:
+        if _is_zero(term):
+            continue
+        if _is_const(term):
+            constant_sum += _const_value(term)
+            continue
+
+        coefficient, base = _split_scalar_factor(term)
+        if base is None:
+            residual_terms.append(term)
+            continue
+        if base.node not in coefficients:
+            ordered_bases.append(base)
+            coefficients[base.node] = 0.0
+        coefficients[base.node] += coefficient
+
+    combined_terms: list[SX] = []
+    for base in ordered_bases:
+        coefficient = coefficients[base.node]
+        if coefficient == 0.0:
+            continue
+        if coefficient == 1.0:
+            combined_terms.append(base)
+        elif coefficient == -1.0:
+            combined_terms.append(-base)
+        else:
+            combined_terms.append(SX.const(coefficient) * base)
+
+    combined_terms.extend(residual_terms)
+    if constant_sum != 0.0:
+        combined_terms.append(SX.const(constant_sum))
+
+    if not combined_terms:
+        return SX.const(0.0)
+    if all(term.op == "neg" for term in combined_terms):
+        positive_terms = [term.args[0] for term in combined_terms]
+        return -_rebuild_add(positive_terms)
+    return _rebuild_add(combined_terms)
+
+
+def _simplify_mul(left: SX, right: SX) -> SX:
+    """Simplify a multiplication-like expression after child simplification."""
+    factors = _flatten_mul_factors((left, right))
+    if not factors:
+        return SX.const(1.0)
+
+    constant_product = 1.0
+    exponent_sums: dict[SXNode, float] = {}
+    ordered_bases: list[SX] = []
+    for factor in factors:
+        if _is_zero(factor):
+            return SX.const(0.0)
+        if _is_const(factor):
+            constant_product *= _const_value(factor)
+            continue
+
+        sign, normalized_factor = _strip_negation(factor)
+        constant_product *= sign
+        exponent, base = _split_power_factor(normalized_factor)
+        if base.node not in exponent_sums:
+            ordered_bases.append(base)
+            exponent_sums[base.node] = 0.0
+        exponent_sums[base.node] += exponent
+
+    if constant_product == 0.0:
+        return SX.const(0.0)
+
+    rebuilt_factors: list[SX] = []
+    if constant_product != 1.0 or not ordered_bases:
+        rebuilt_factors.append(SX.const(constant_product))
+
+    for base in ordered_bases:
+        exponent = exponent_sums[base.node]
+        if exponent == 0.0:
+            continue
+        if exponent == 1.0:
+            rebuilt_factors.append(base)
+        else:
+            rebuilt_factors.append(SX(SXNode.make("pow", (base.node, SX.const(exponent).node))))
+
+    if not rebuilt_factors:
+        return SX.const(1.0)
+    return _rebuild_mul(rebuilt_factors)
 
 
 def _evaluate_const_op(op: str, left: float, right: float) -> float:
@@ -212,3 +299,138 @@ def _is_zero(expr: SX) -> bool:
 def _is_one(expr: SX) -> bool:
     """Return ``True`` if the expression is the constant one."""
     return _is_const(expr) and _const_value(expr) == 1.0
+
+
+def _flatten_add_terms(args: tuple[SX, ...]) -> list[SX]:
+    """Return flattened additive terms from nested ``add`` nodes."""
+    terms: list[SX] = []
+    for arg in args:
+        if arg.op == "add":
+            terms.extend(_flatten_add_terms(arg.args))
+        else:
+            terms.append(arg)
+    return terms
+
+
+def _flatten_mul_factors(args: tuple[SX, ...]) -> list[SX]:
+    """Return flattened multiplicative factors from nested ``mul`` nodes."""
+    factors: list[SX] = []
+    for arg in args:
+        if arg.op == "mul":
+            factors.extend(_flatten_mul_factors(arg.args))
+        else:
+            factors.append(arg)
+    return factors
+
+
+def _rebuild_add(terms: list[SX]) -> SX:
+    """Rebuild an addition from a normalized term list."""
+    result = terms[0]
+    for term in terms[1:]:
+        result = SX(SXNode.make("add", (result.node, term.node)))
+    return result
+
+
+def _rebuild_mul(factors: list[SX]) -> SX:
+    """Rebuild a multiplication from a normalized factor list."""
+    result = factors[0]
+    for factor in factors[1:]:
+        result = SX(SXNode.make("mul", (result.node, factor.node)))
+    return result
+
+
+def _split_scalar_factor(term: SX) -> tuple[float, SX | None]:
+    """Split a term into a numeric coefficient and symbolic base.
+
+    Returns ``(coefficient, base)`` when the term can be interpreted as a
+    scalar multiple of a symbolic base. Constant terms return
+    ``(value, SX.const(1.0))`` only through the caller's constant path and
+    are therefore not expected here.
+    """
+    if _is_const(term):
+        return _const_value(term), SX.const(1.0)
+    if term.op == "neg":
+        return -1.0, term.args[0]
+    if term.op == "mul":
+        factors = _flatten_mul_factors((term,))
+        coefficient = 1.0
+        symbolic_factors: list[SX] = []
+        for factor in factors:
+            if _is_const(factor):
+                coefficient *= _const_value(factor)
+            else:
+                symbolic_factors.append(factor)
+        if not symbolic_factors:
+            return coefficient, SX.const(1.0)
+        return coefficient, _rebuild_mul(symbolic_factors)
+    return 1.0, term
+
+
+def _strip_negation(expr: SX) -> tuple[float, SX]:
+    """Return ``(sign, expr_without_outer_negation)``."""
+    sign = 1.0
+    current = expr
+    while current.op == "neg":
+        sign *= -1.0
+        current = current.args[0]
+    return sign, current
+
+
+def _split_power_factor(term: SX) -> tuple[float, SX]:
+    """Split a factor into a numeric exponent and symbolic base."""
+    if term.op == "pow":
+        base, exponent = term.args
+        if _is_const(exponent):
+            return _const_value(exponent), base
+    return 1.0, term
+
+
+def _apply_trig_identity_terms(terms: list[SX]) -> list[SX]:
+    """Apply safe trigonometric identities to a flattened add term list."""
+    remaining = list(terms)
+    index = 0
+    while index < len(remaining):
+        lhs = remaining[index]
+        lhs_sin_base = _match_square_of_unary(lhs, "sin")
+        lhs_cos_base = _match_square_of_unary(lhs, "cos")
+        if lhs_sin_base is not None:
+            partner_index = _find_matching_square(remaining, lhs_sin_base, "cos", index + 1)
+        elif lhs_cos_base is not None:
+            partner_index = _find_matching_square(remaining, lhs_cos_base, "sin", index + 1)
+        else:
+            index += 1
+            continue
+
+        if partner_index is None:
+            index += 1
+            continue
+
+        replacement_terms = remaining[:index] + [SX.const(1.0)] + remaining[index + 1 : partner_index] + remaining[partner_index + 1 :]
+        return replacement_terms
+    return terms
+
+
+def _find_matching_square(
+    terms: list[SX],
+    base: SX,
+    op: str,
+    start: int,
+) -> int | None:
+    """Find ``op(base)^2`` in a flattened term list."""
+    for index in range(start, len(terms)):
+        candidate_base = _match_square_of_unary(terms[index], op)
+        if candidate_base is not None and candidate_base.node is base.node:
+            return index
+    return None
+
+
+def _match_square_of_unary(expr: SX, op: str) -> SX | None:
+    """Match expressions of the form ``op(x)^2``."""
+    if expr.op != "pow":
+        return None
+    base, exponent = expr.args
+    if not (_is_const(exponent) and _const_value(exponent) == 2.0):
+        return None
+    if base.op != op:
+        return None
+    return base.args[0]
