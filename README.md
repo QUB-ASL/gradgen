@@ -9,8 +9,9 @@ The project is being built incrementally. The current implementation focuses on:
 - `Function` as a core abstraction
 - symbolic automatic differentiation
 - simplification and common subexpression extraction
+- Rust code generation for primal and derivative kernels
 
-Rust code generation, matrix operations, `MX`, and solver-related features are still to come.
+Matrix operations, `MX`, complex-domain semantics, and solver-related features are still to come.
 
 ## Current Status
 
@@ -24,8 +25,10 @@ The library already supports:
 - forward-mode AD through scalar derivatives and Jacobian-vector products
 - reverse-mode AD through gradients and vector-Jacobian products
 - Jacobian and Hessian construction
+- `Function`-level gradient, Jacobian-block, and Hessian-block helpers
 - bounded symbolic simplification
 - common subexpression elimination plans for later code generation
+- Rust crate generation for primal functions and derivative bundles
 
 Some intentional limitations at this stage:
 
@@ -245,6 +248,14 @@ print(reverse(2.0, 5.0))
 - outputs ordered like the original inputs
 - values equal to the vector-Jacobian product for the supplied cotangent direction
 
+For scalar-output functions, there is also a high-level `Function.gradient(...)` helper:
+
+```python
+grad_f = some_scalar_function.gradient(0)
+```
+
+This returns a new `Function` whose outputs represent the gradient with respect to the selected input block.
+
 ### Jacobians
 
 The library also supports symbolic Jacobian construction.
@@ -268,6 +279,12 @@ You can also derive a Jacobian block from a function:
 jac_f = some_function.jacobian(0)
 ```
 
+If you want multiple input blocks at once, use:
+
+```python
+blocks = some_function.jacobian_blocks()
+```
+
 ### Hessians
 
 Hessians are supported for scalar-output expressions.
@@ -287,6 +304,12 @@ At the function level:
 
 ```python
 hes_f = some_scalar_function.hessian(0)
+```
+
+For multiple input blocks:
+
+```python
+blocks = some_scalar_function.hessian_blocks()
 ```
 
 ## Simplification
@@ -360,6 +383,8 @@ The generated Rust currently uses:
 - deterministic naming
 - a slice-based ABI
 - explicit workspace variables stored in a mutable `work` slice
+- configurable scalar types (`f64` or `f32`)
+- `std` and `no_std` backend modes
 
 ### Generate Rust source in memory
 
@@ -383,6 +408,22 @@ pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {
 ```
 
 For multiple inputs and outputs, each declared input and output becomes its own slice argument.
+
+You can also configure the backend explicitly:
+
+```python
+from gradgen import RustBackendConfig
+
+config = (
+    RustBackendConfig()
+    .with_backend_mode("no_std")
+    .with_scalar_type("f32")
+    .with_math_lib("libm")
+    .with_function_name("eval_kernel")
+)
+
+result = f.generate_rust(config=config)
+```
 
 ### Create a Rust project on disk
 
@@ -428,17 +469,42 @@ from gradgen import create_rust_project
 project = create_rust_project(f, "/tmp/my_kernel")
 ```
 
+### Create a derivative Rust bundle
+
+You can generate a directory containing Rust crates for the primal function, Jacobians, and Hessians:
+
+```python
+bundle = f.create_rust_derivative_bundle(
+    "/tmp/my_bundle",
+    simplify_derivatives="high",
+)
+```
+
+This creates a bundle directory with entries such as:
+
+- `primal/`
+- `f_jacobian_<input_name>/`
+- `f_hessian_<input_name>/` for scalar-output functions
+
+There is also a module-level helper:
+
+```python
+from gradgen import create_rust_derivative_bundle
+
+bundle = create_rust_derivative_bundle(f, "/tmp/my_bundle")
+```
+
 ### Current ABI conventions
 
 At the moment the generated Rust code assumes:
 
 - scalar inputs are length-1 slices
-- vector inputs are dense `&[f64]` slices
-- scalar outputs are length-1 `&mut [f64]` slices
-- vector outputs are dense `&mut [f64]` slices
-- intermediate values live in `work: &mut [f64]`
+- vector inputs are dense `&[T]` slices where `T` is `f64` or `f32`
+- scalar outputs are length-1 `&mut [T]` slices
+- vector outputs are dense `&mut [T]` slices
+- intermediate values live in `work: &mut [T]`
 
-This is the current primal codegen target and the basis for later derivative code generation.
+The `no_std` backend uses a configurable math namespace and defaults to `libm`.
 
 ## Development
 
