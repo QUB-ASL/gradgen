@@ -130,6 +130,13 @@ def _apply_rules(op: str, args: tuple[SX, ...]) -> SX:
                 return left
             if left.node is right.node:
                 return SX.const(1.0)
+            left_sign, left_base = _strip_negation(left)
+            right_sign, right_base = _strip_negation(right)
+            sign = left_sign * right_sign
+            quotient = SX(SXNode.make("div", (left_base.node, right_base.node)))
+            if sign == -1.0:
+                return -quotient
+            return quotient
 
         if op == "pow":
             if _is_zero(right):
@@ -146,6 +153,14 @@ def _apply_rules(op: str, args: tuple[SX, ...]) -> SX:
     arg = args[0]
     if _is_const(arg):
         return SX.const(_evaluate_const_unary(op, _const_value(arg)))
+    if op == "sin":
+        sign, base = _strip_negation(arg)
+        if sign == -1.0:
+            return -base.sin()
+    if op == "cos":
+        sign, base = _strip_negation(arg)
+        if sign == -1.0:
+            return base.cos()
     return SX(SXNode.make(op, (arg.node,)))
 
 
