@@ -100,6 +100,29 @@ class Function:
 
         return cse(self.outputs, prefix=prefix, min_uses=min_uses)
 
+    def generate_rust(self, *, function_name: str | None = None):
+        """Generate Rust source code for primal function evaluation."""
+        from .rust_codegen import generate_rust
+
+        return generate_rust(self, function_name=function_name)
+
+    def create_rust_project(
+        self,
+        path: str,
+        *,
+        crate_name: str | None = None,
+        function_name: str | None = None,
+    ):
+        """Create a Rust project containing the generated primal code."""
+        from .rust_codegen import create_rust_project
+
+        return create_rust_project(
+            self,
+            path,
+            crate_name=crate_name,
+            function_name=function_name,
+        )
+
     def __call__(self, *args: BoundValue) -> FunctionArg | tuple[FunctionArg, ...] | float | tuple[float, ...]:
         """Call the function with symbolic or numeric arguments.
 
