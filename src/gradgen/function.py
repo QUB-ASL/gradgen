@@ -94,6 +94,12 @@ class Function:
 
         return tuple(ordered)
 
+    def cse(self, *, prefix: str = "w", min_uses: int = 2):
+        """Build a common-subexpression elimination plan for the outputs."""
+        from .cse import cse
+
+        return cse(self.outputs, prefix=prefix, min_uses=min_uses)
+
     def __call__(self, *args: BoundValue) -> FunctionArg | tuple[FunctionArg, ...] | float | tuple[float, ...]:
         """Call the function with symbolic or numeric arguments.
 
