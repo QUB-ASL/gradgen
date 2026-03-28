@@ -7,7 +7,8 @@ The project is being built incrementally. The current implementation focuses on:
 - `SX`-style symbolic expressions
 - vector-first semantics
 - `Function` as a core abstraction
-- forward-mode and reverse-mode automatic differentiation
+- symbolic automatic differentiation
+- simplification and common subexpression extraction
 
 Rust code generation, matrix operations, `MX`, and solver-related features are still to come.
 
@@ -22,12 +23,16 @@ The library already supports:
 - symbolic and numeric `Function` calls
 - forward-mode AD through scalar derivatives and Jacobian-vector products
 - reverse-mode AD through gradients and vector-Jacobian products
+- Jacobian and Hessian construction
+- bounded symbolic simplification
+- common subexpression elimination plans for later code generation
 
 Some intentional limitations at this stage:
 
 - `SX` symbols are formal symbols representing real-valued scalar quantities
 - elementwise vector-vector multiplication with `x * y` is not supported yet
-- expression simplification is still minimal, so derivatives may be structurally correct without being algebraically simplified
+- simplification is still rule-based and bounded, not a full computer algebra system
+- full matrix types are not implemented yet, so Jacobians and Hessians use vector-first row-wise representations where needed
 
 ## Example
 
@@ -136,6 +141,11 @@ Reverse-mode entry points:
 - `gradient(expr, wrt)` for scalar-output reverse gradients
 - `vjp(expr, wrt, cotangent)` for vector-Jacobian products
 
+Higher-order helpers:
+
+- `jacobian(expr, wrt)`
+- `hessian(expr, wrt)` for scalar-output expressions
+
 ### Forward mode
 
 ### Scalar derivative
@@ -234,6 +244,112 @@ print(reverse(2.0, 5.0))
 - the same primal inputs as the original function
 - outputs ordered like the original inputs
 - values equal to the vector-Jacobian product for the supplied cotangent direction
+
+### Jacobians
+
+The library also supports symbolic Jacobian construction.
+
+```python
+from gradgen import Function, SXVector, jacobian
+
+x = SXVector.sym("x", 2)
+expr = x.dot(x)
+
+jac = jacobian(expr, x)
+f = Function("jac", [x], [jac])
+print(f([3.0, 4.0]))  # (6.0, 8.0)
+```
+
+For vector-output by vector-input cases, Jacobians are currently represented row by row because full matrix types are not implemented yet.
+
+You can also derive a Jacobian block from a function:
+
+```python
+jac_f = some_function.jacobian(0)
+```
+
+### Hessians
+
+Hessians are supported for scalar-output expressions.
+
+```python
+from gradgen import Function, SXVector, hessian
+
+x = SXVector.sym("x", 2)
+expr = x[0] * x[0] + x[0] * x[1] + x[1] * x[1]
+
+hes = hessian(expr, x)
+f = Function("hes", [x], list(hes))
+print(f([3.0, 4.0]))  # ((2.0, 1.0), (1.0, 2.0))
+```
+
+At the function level:
+
+```python
+hes_f = some_scalar_function.hessian(0)
+```
+
+## Simplification
+
+The library includes a bounded symbolic simplifier for expressions and functions.
+
+```python
+from gradgen import SX, derivative, simplify
+
+x = SX.sym("x")
+expr = derivative(x * x, x)
+
+print(expr)                         # unsimplified symbolic derivative
+print(simplify(expr, "medium"))     # cleaner symbolic expression
+```
+
+Supported simplification controls:
+
+- integer pass counts like `max_effort=5`
+- named effort presets:
+  - `"none"`
+  - `"basic"`
+  - `"medium"`
+  - `"high"`
+  - `"max"`
+
+Functions can also be simplified directly:
+
+```python
+f_simplified = f.simplify(max_effort="high")
+```
+
+This works for ordinary functions and derived ones such as Jacobians and Hessians.
+
+## Common Subexpression Elimination
+
+The library can extract reusable intermediate expressions into a computation plan, which is especially useful as a precursor to Rust code generation.
+
+```python
+from gradgen import SX, cse
+
+x = SX.sym("x")
+z = x * x + 1
+expr = z + z * z
+
+plan = cse([expr])
+for assignment in plan.assignments:
+    print(assignment.name, assignment.expr, assignment.use_count)
+```
+
+You can also build a plan directly from a function:
+
+```python
+plan = f.cse(prefix="w", min_uses=2)
+```
+
+`CSEPlan` currently contains:
+
+- `assignments`: named reusable intermediates in topological order
+- `outputs`: flattened scalar outputs
+- `use_counts`: DAG reference counts for all visited nodes
+
+This is intended to become the bridge between symbolic graphs and workspace-based Rust code generation.
 
 ## Development
 
