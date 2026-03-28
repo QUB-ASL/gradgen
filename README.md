@@ -292,10 +292,13 @@ artifacts together, you can also build a combined symbolic function:
 joint = some_function.joint(("f", "jf"), 0, simplify_joint="high")
 ```
 
-Supported joint component names are:
+This low-level `Function.joint(...)` API operates on one selected `wrt` block at
+a time. Supported component names are:
 
 - `"f"` for the primal outputs
+- `"grad"` for the gradient block
 - `"jf"` for the Jacobian block
+- `"hessian"` for the Hessian block
 - `"hvp"` for the Hessian-vector product
 
 The output order follows the requested component tuple. If `"hvp"` is included,
@@ -408,7 +411,8 @@ This is intended to become the bridge between symbolic graphs and workspace-base
 
 ## Rust Code Generation
 
-The library can now generate primal Rust code for a `Function`.
+The library can generate Rust code for primal functions, derivative functions,
+and combined multi-kernel crates.
 
 The generated Rust currently uses:
 
@@ -591,7 +595,9 @@ Builder-generated function names are prefixed with the crate name. For example,
 with crate name `my_kernel` the generated Rust API looks like:
 
 - `my_kernel_f`
+- `my_kernel_grad`
 - `my_kernel_jf`
+- `my_kernel_hessian`
 - `my_kernel_hvp`
 - `my_kernel_f_jf`
 - `my_kernel_f_jf_hvp`
@@ -616,6 +622,83 @@ builder = (
 
 With this setting, simplification is applied to all generated functions,
 including the separate primal/Jacobian/HVP kernels and the joint kernel.
+
+### Complete end-to-end example
+
+The example below:
+
+- defines a scalar function of a 3D input
+- evaluates it in Python
+- derives `jf` and `hvp`
+- generates one Rust crate containing:
+  - the primal function
+  - a Jacobian kernel
+  - an HVP kernel
+  - a joint kernel computing `(f, jf, hvp)`
+
+```python
+from gradgen import (
+    CodeGenerationBuilder,
+    Function,
+    FunctionBundle,
+    RustBackendConfig,
+    SXVector,
+)
+
+x = SXVector.sym("x", 3)
+
+f = Function(
+    "f",
+    [x],
+    [x[0] * x[0] + x[0] * x[1] + x[2].sin() + x[1] * x[2]],
+    input_names=["x"],
+    output_names=["y"],
+)
+
+# Try the symbolic functions in Python first.
+jf = f.jacobian(0)
+hvp = f.hvp(0)
+
+print("f([1,2,3]) =", f([1.0, 2.0, 3.0]))
+print("jf([1,2,3]) =", jf([1.0, 2.0, 3.0]))
+print("hvp([1,2,3], [1,0,-1]) =", hvp([1.0, 2.0, 3.0], [1.0, 0.0, -1.0]))
+
+config = (
+    RustBackendConfig()
+    .with_crate_name("my_kernel")
+    .with_backend_mode("std")
+    .with_scalar_type("f64")
+)
+
+builder = (
+    CodeGenerationBuilder(f)
+    .with_backend_config(config)
+    .add_primal()
+    .add_jacobian()
+    .add_hvp()
+    .add_joint(
+        FunctionBundle()
+        .add_f()
+        .add_jf(wrt=0)
+        .add_hvp(wrt=0)
+    )
+    .with_simplification("medium")
+)
+
+project = builder.build("./my_kernel")
+
+print("Generated crate:", project.project_dir)
+print("Generated Rust functions:")
+for codegen in project.codegens:
+    print(" -", codegen.function_name)
+```
+
+Then build the generated crate with:
+
+```bash
+cd my_kernel
+cargo build
+```
 
 ### Current ABI conventions
 
