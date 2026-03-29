@@ -220,8 +220,8 @@ class SimplifyTests(unittest.TestCase):
         self.assertEqual(hes([3.0, 4.0]), simplified([3.0, 4.0]))
         self.assertEqual(simplified.outputs[0][0].value, 2.0)
         self.assertEqual(simplified.outputs[0][1].value, 1.0)
-        self.assertEqual(simplified.outputs[1][0].value, 1.0)
-        self.assertEqual(simplified.outputs[1][1].value, 2.0)
+        self.assertEqual(simplified.outputs[0][2].value, 1.0)
+        self.assertEqual(simplified.outputs[0][3].value, 2.0)
 
     def test_simplify_supports_hessian_rows_directly(self) -> None:
         x = SXVector.sym("x", 2)

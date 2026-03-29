@@ -15,6 +15,20 @@ from .sx import (
     parse_quadform_args,
     vector,
 )
+from .custom_elementary import (
+    custom_scalar_hessian,
+    custom_scalar_hvp,
+    custom_scalar_jacobian,
+    custom_vector_hessian_entry,
+    custom_vector_hvp_component,
+    custom_vector_jacobian_component,
+    parse_custom_scalar_args,
+    parse_custom_scalar_hvp_args,
+    parse_custom_vector_args,
+    parse_custom_vector_hessian_entry_args,
+    parse_custom_vector_hvp_component_args,
+    parse_custom_vector_jacobian_component_args,
+)
 
 
 ADExpr = SX | SXVector
@@ -195,6 +209,33 @@ def _forward_scalar(
 
 def _differentiate_op(expr: SX, args: tuple[SX, ...], tangents: tuple[SX, ...]) -> SX:
     """Apply forward-mode differentiation rules for a single operation."""
+    if expr.op == "custom_scalar":
+        _spec, value, params = parse_custom_scalar_args(expr.name, args)
+        return custom_scalar_jacobian(expr.name or "", value, params) * tangents[0]
+    if expr.op == "custom_scalar_jacobian":
+        _spec, value, params = parse_custom_scalar_args(expr.name, args)
+        return custom_scalar_hvp(expr.name or "", value, tangents[0], params)
+    if expr.op == "custom_scalar_hvp":
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
+    if expr.op == "custom_scalar_hessian":
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
+    if expr.op == "custom_vector":
+        _spec, value, params = parse_custom_vector_args(expr.name, args)
+        total = SX.const(0.0)
+        for index in range(len(value)):
+            total = total + (
+                custom_vector_jacobian_component(expr.name or "", index, value, params)
+                * tangents[index]
+            )
+        return total
+    if expr.op == "custom_vector_jacobian_component":
+        _spec, index, value, params = parse_custom_vector_jacobian_component_args(expr.name, args)
+        tangent = SXVector(tangents[1 : 1 + len(value)])
+        return custom_vector_hvp_component(expr.name or "", index, value, tangent, params)
+    if expr.op == "custom_vector_hvp_component":
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
+    if expr.op == "custom_vector_hessian_entry":
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
     if expr.op == "matvec_component":
         rows, cols, row, matrix_values, _x_values = parse_matvec_component_args(args)
         tangent_values = tangents[3 + (rows * cols) :]
@@ -404,6 +445,36 @@ def _propagate_reverse(
 
     if node.op in {"const", "symbol"}:
         return
+    if node.op == "custom_scalar":
+        _spec, value, params = parse_custom_scalar_args(node.name, args)
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * custom_scalar_jacobian(node.name or "", value, params))
+        return
+    if node.op == "custom_scalar_jacobian":
+        _spec, value, params = parse_custom_scalar_args(node.name, args)
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * custom_scalar_hessian(node.name or "", value, params))
+        return
+    if node.op in {"custom_scalar_hvp", "custom_scalar_hessian"}:
+        raise ValueError(f"cannot differentiate operation {node.op!r}")
+    if node.op == "custom_vector":
+        _spec, value, params = parse_custom_vector_args(node.name, args)
+        for index in range(len(value)):
+            _accumulate_adjoint(
+                adjoints,
+                node.args[index],
+                adjoint * custom_vector_jacobian_component(node.name or "", index, value, params),
+            )
+        return
+    if node.op == "custom_vector_jacobian_component":
+        _spec, row, value, params = parse_custom_vector_jacobian_component_args(node.name, args)
+        for column in range(len(value)):
+            _accumulate_adjoint(
+                adjoints,
+                node.args[1 + column],
+                adjoint * custom_vector_hessian_entry(node.name or "", row, column, value, params),
+            )
+        return
+    if node.op in {"custom_vector_hvp_component", "custom_vector_hessian_entry"}:
+        raise ValueError(f"cannot differentiate operation {node.op!r}")
     if node.op == "matvec_component":
         rows, cols, row, matrix_values, x_values = parse_matvec_component_args(args)
         _ = rows, x_values

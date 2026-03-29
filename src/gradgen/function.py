@@ -15,6 +15,17 @@ from .sx import (
     parse_quadform_args,
     vector,
 )
+from .custom_elementary import (
+    build_custom_hessian_expr,
+    build_custom_jacobian_expr,
+    get_registered_elementary_function,
+    parse_custom_scalar_args,
+    parse_custom_scalar_hvp_args,
+    parse_custom_vector_args,
+    parse_custom_vector_hessian_entry_args,
+    parse_custom_vector_hvp_component_args,
+    parse_custom_vector_jacobian_component_args,
+)
 
 
 FunctionArg = SX | SXVector
@@ -511,8 +522,8 @@ class Function:
 
         Notes:
             Hessians are currently defined only for single scalar-output
-            functions. For vector inputs, the Hessian is returned as one
-            ``SXVector`` row per variable.
+            functions. For vector inputs, the Hessian is returned as a
+            single flat ``SXVector`` in row-major order.
         """
         from .ad import hessian
 
@@ -525,10 +536,10 @@ class Function:
         block = hessian(self.outputs[0], wrt)
 
         if isinstance(block, tuple):
-            differentiated_outputs = list(block)
-            differentiated_names = [
-                f"{self.output_names[0]}_row{index}" for index in range(len(block))
+            differentiated_outputs = [
+                SXVector(tuple(entry for row in block for entry in row))
             ]
+            differentiated_names = [self.output_names[0]]
         else:
             differentiated_outputs = [block]
             differentiated_names = [self.output_names[0]]
@@ -808,6 +819,59 @@ def _evaluate_scalar(expr: SX) -> float:
         return args[0] / args[1]
     if expr.op == "pow":
         return args[0] ** args[1]
+    if expr.op == "custom_scalar":
+        spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
+        if spec.eval_python is None:
+            raise ValueError(f"custom function {spec.name!r} does not support numeric evaluation")
+        return spec.eval_python(
+            _evaluate_scalar(x_value),
+            **{name: _evaluate_scalar(param) for name, param in zip(spec.parameter_names, params)},
+        )
+    if expr.op == "custom_vector":
+        spec, x_value, params = parse_custom_vector_args(expr.name, expr.args)
+        if spec.eval_python is None:
+            raise ValueError(f"custom function {spec.name!r} does not support numeric evaluation")
+        return spec.eval_python(
+            tuple(_evaluate_scalar(value) for value in x_value),
+            **{name: _evaluate_scalar(param) for name, param in zip(spec.parameter_names, params)},
+        )
+    if expr.op == "custom_scalar_jacobian":
+        spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
+        derivative_expr = build_custom_jacobian_expr(spec, x_value, params)
+        return _evaluate_scalar(derivative_expr)
+    if expr.op == "custom_scalar_hessian":
+        spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
+        hessian_expr = build_custom_hessian_expr(spec, x_value, params)
+        if not isinstance(hessian_expr, SX):
+            raise TypeError("scalar custom Hessians must evaluate to SX")
+        return _evaluate_scalar(hessian_expr)
+    if expr.op == "custom_scalar_hvp":
+        spec, x_value, tangent, params = parse_custom_scalar_hvp_args(expr.name, expr.args)
+        hessian_expr = build_custom_hessian_expr(spec, x_value, params)
+        if not isinstance(hessian_expr, SX):
+            raise TypeError("scalar custom Hessians must evaluate to SX")
+        return _evaluate_scalar(hessian_expr) * _evaluate_scalar(tangent)
+    if expr.op == "custom_vector_jacobian_component":
+        spec, index, x_value, params = parse_custom_vector_jacobian_component_args(expr.name, expr.args)
+        gradient_expr = build_custom_jacobian_expr(spec, x_value, params)
+        if not isinstance(gradient_expr, SXVector):
+            raise TypeError("vector custom Jacobians must evaluate to SXVector")
+        return _evaluate_scalar(gradient_expr[index])
+    if expr.op == "custom_vector_hessian_entry":
+        spec, row, col, x_value, params = parse_custom_vector_hessian_entry_args(expr.name, expr.args)
+        hessian_expr = build_custom_hessian_expr(spec, x_value, params)
+        if not isinstance(hessian_expr, tuple):
+            raise TypeError("vector custom Hessians must evaluate to row tuples")
+        return _evaluate_scalar(hessian_expr[row][col])
+    if expr.op == "custom_vector_hvp_component":
+        spec, index, x_value, tangent, params = parse_custom_vector_hvp_component_args(expr.name, expr.args)
+        hessian_expr = build_custom_hessian_expr(spec, x_value, params)
+        if not isinstance(hessian_expr, tuple):
+            raise TypeError("vector custom Hessians must evaluate to row tuples")
+        return sum(
+            _evaluate_scalar(hessian_expr[index][column]) * _evaluate_scalar(tangent[column])
+            for column in range(len(tangent))
+        )
     if expr.op == "atan2":
         return math.atan2(args[0], args[1])
     if expr.op == "hypot":

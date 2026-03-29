@@ -2,6 +2,11 @@
 
 from .ad import derivative, gradient, hessian, jacobian, jvp, vjp
 from .cse import CSEAssignment, CSEPlan, cse
+from .custom_elementary import (
+    clear_registered_elementary_functions,
+    get_registered_elementary_function,
+    register_elementary_function,
+)
 from .function import Function
 from .rust_codegen import (
     CodeGenerationBuilder,
@@ -94,6 +99,7 @@ __all__ = [
     "create_rust_derivative_bundle",
     "create_multi_function_rust_project",
     "derivative",
+    "clear_registered_elementary_functions",
     "erf",
     "erfc",
     "exp",
@@ -101,6 +107,7 @@ __all__ = [
     "floor",
     "fract",
     "gradient",
+    "get_registered_elementary_function",
     "hessian",
     "hypot",
     "jacobian",
@@ -112,6 +119,7 @@ __all__ = [
     "minimum",
     "quadform",
     "round",
+    "register_elementary_function",
     "generate_rust",
     "signum",
     "simplify",
