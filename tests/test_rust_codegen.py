@@ -37,6 +37,10 @@ class RustCodegenTests(unittest.TestCase):
             text=True,
         )
 
+    @classmethod
+    def _run_cargo_clippy_clean(cls, project_dir: Path) -> subprocess.CompletedProcess[str]:
+        return cls._run_cargo(project_dir, "clippy", "--quiet", "--", "-D", "warnings")
+
     @staticmethod
     def _append_rust_test(project_dir: Path, test_source: str) -> None:
         lib_rs = project_dir / "src" / "lib.rs"
@@ -1156,6 +1160,23 @@ mod math {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_generated_rust_project_is_clippy_clean(self) -> None:
+        x = SXVector.sym("x", 3)
+        u = SXVector.sym("u", 1)
+        f = Function(
+            "energy",
+            [x, u],
+            [x.norm2sq() + u[0] * x[0].sin() + x[1] * x[2]],
+            input_names=["x", "u"],
+            output_names=["y"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "energy_kernel")
+
+            completed = self._run_cargo_clippy_clean(project.project_dir)
+            self.assertEqual(completed.returncode, 0)
+
     def test_generated_rust_project_runs_vector_numeric_smoke_test(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function(
@@ -1177,6 +1198,33 @@ mod math {
             )
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_multi_function_generated_rust_project_is_clippy_clean(self) -> None:
+        x = SXVector.sym("x", 2)
+        u = SXVector.sym("u", 1)
+        f1 = Function(
+            "energy",
+            [x, u],
+            [x.norm2sq() + u[0] * x[0]],
+            input_names=["x", "u"],
+            output_names=["y"],
+        )
+        f2 = Function(
+            "coupling",
+            [x, u],
+            [x[0] * x[1] + u[0].exp()],
+            input_names=["x", "u"],
+            output_names=["z"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_multi_function_rust_project(
+                (f1, f2),
+                Path(tmpdir) / "bundle_kernel",
+            )
+
+            completed = self._run_cargo_clippy_clean(project.project_dir)
             self.assertEqual(completed.returncode, 0)
 
     def test_generated_rust_project_runs_f32_reference_test(self) -> None:
