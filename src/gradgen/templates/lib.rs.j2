@@ -69,7 +69,9 @@ pub fn {{ function_name }}_meta() -> FunctionMetadata {
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least {{ workspace_size }}.
 pub fn {{ function_name }}({{ parameters }}) {
+{% if workspace_size > 0 %}
     assert!(work.len() >= {{ workspace_size }});
+{% endif %}
 {% for line in input_assert_lines %}
     {{ line }}
 {% endfor %}

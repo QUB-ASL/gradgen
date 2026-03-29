@@ -712,6 +712,9 @@ mod math {
 
         self.assertEqual(result.workspace_size, 0)
         self.assertIn("workspace_size: 0,", result.source)
+        self.assertIn("pub fn identity(x: &[f64], y: &mut [f64], _work: &mut [f64]) {", result.source)
+        self.assertNotIn("assert!(work.len() >= 0);", result.source)
+        self.assertNotIn("pub fn identity(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
 
         with TemporaryDirectory() as tmpdir:
             project = f.create_rust_project(Path(tmpdir) / "identity_kernel")

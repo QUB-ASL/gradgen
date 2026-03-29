@@ -363,11 +363,13 @@ def generate_rust(
                 f"{output_spec.rust_name}[{scalar_index}] = {output_ref};"
             )
 
+    workspace_name = "work" if workspace_map else "_work"
+
     parameters = ", ".join(
         [
             *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
             *[f"{spec.rust_name}: &mut [{resolved_config.scalar_type}]" for spec in output_specs],
-            f"work: &mut [{resolved_config.scalar_type}]",
+            f"{workspace_name}: &mut [{resolved_config.scalar_type}]",
         ]
     )
 
