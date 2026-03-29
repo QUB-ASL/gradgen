@@ -10,9 +10,13 @@ from gradgen import (
     RustBackendConfig,
     SX,
     SXVector,
+    bilinear_form,
+    create_multi_function_rust_project,
     create_rust_derivative_bundle,
     create_rust_project,
     derivative,
+    matvec,
+    quadform,
 )
 
 
@@ -154,7 +158,7 @@ mod tests {{
         self.assertIn('"y",', result.source)
         self.assertIn("pub struct FunctionMetadata {", result.source)
         self.assertIn("pub fn square_plus_one_meta() -> FunctionMetadata {", result.source)
-        self.assertIn("workspace_size: 2,", result.source)
+        self.assertIn("workspace_size: 1,", result.source)
         self.assertIn("/// Arguments:", result.source)
         self.assertIn("/// - `x`:", result.source)
         self.assertIn("///   input slice for the declared argument `x`", result.source)
@@ -163,13 +167,13 @@ mod tests {{
         self.assertIn("///   primal output slice for the declared result `y`", result.source)
         self.assertIn("///   Expected length: 1.", result.source)
         self.assertIn("/// - `work`: mutable workspace slice used to store intermediate values", result.source)
-        self.assertIn("///   while evaluating this kernel. Expected length: at least 2.", result.source)
+        self.assertIn("///   while evaluating this kernel. Expected length: at least 1.", result.source)
         self.assertIn("pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
         self.assertIn("assert_eq!(x.len(), 1);", result.source)
         self.assertIn("assert_eq!(y.len(), 1);", result.source)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[1] = 1.0_f64 + work[0];", result.source)
-        self.assertIn("y[0] = work[1];", result.source)
+        self.assertIn("work[0] = 1.0_f64 + work[0];", result.source)
+        self.assertIn("y[0] = work[0];", result.source)
 
     def test_generates_vector_function_with_deterministic_workspace_layout(self) -> None:
         x = SXVector.sym("x", 2)
@@ -193,16 +197,16 @@ mod tests {{
         self.assertIn('"sum",', result.source)
         self.assertIn("pub struct FunctionMetadata {", result.source)
         self.assertIn("pub fn kernel_meta() -> FunctionMetadata {", result.source)
-        self.assertIn("workspace_size: 5,", result.source)
+        self.assertIn("workspace_size: 3,", result.source)
         self.assertIn(
             "pub fn kernel(x: &[f64], y: &[f64], dot: &mut [f64], sum: &mut [f64], work: &mut [f64]) {",
             result.source,
         )
-        self.assertIn("assert!(work.len() >= 5);", result.source)
+        self.assertIn("assert!(work.len() >= 3);", result.source)
         self.assertIn("work[0] = x[0] * y[0];", result.source)
         self.assertIn("work[1] = x[1] * y[1];", result.source)
-        self.assertIn("work[2] = work[0] + work[1];", result.source)
-        self.assertIn("dot[0] = work[2];", result.source)
+        self.assertIn("work[0] = work[0] + work[1];", result.source)
+        self.assertIn("dot[0] = work[0];", result.source)
 
     def test_backend_config_supports_chainable_updates(self) -> None:
         config = (
@@ -336,14 +340,29 @@ mod tests {{
             self.assertIn("pub fn eval_kernel(", lib_text)
             self.assertEqual(project.codegen.function_name, "eval_kernel")
 
-    def test_workspace_size_matches_number_of_non_leaf_nodes(self) -> None:
+    def test_workspace_size_is_bounded_by_number_of_non_leaf_nodes(self) -> None:
         x = SX.sym("x")
         expr = (x * x + 1) + (x * x + 1) * (x * x + 1)
         f = Function("f", [x], [expr])
 
         result = f.generate_rust()
 
-        self.assertEqual(result.workspace_size, len([node for node in f.nodes if node.op not in {"symbol", "const"}]))
+        self.assertLessEqual(
+            result.workspace_size,
+            len([node for node in f.nodes if node.op not in {"symbol", "const"}]),
+        )
+
+    def test_workspace_slots_are_reused_when_intermediate_lifetimes_do_not_overlap(self) -> None:
+        x = SX.sym("x")
+        a = x + 1
+        b = a * 2
+        c = x + 3
+        expr = b + c
+        f = Function("f", [x], [expr])
+
+        result = f.generate_rust()
+
+        self.assertLess(result.workspace_size, len([node for node in f.nodes if node.op not in {"symbol", "const"}]))
 
     def test_f32_codegen_uses_f32_slice_abi_and_literals(self) -> None:
         x = SX.sym("x")
@@ -353,7 +372,7 @@ mod tests {{
 
         self.assertEqual(result.scalar_type, "f32")
         self.assertIn("pub fn square_plus_one(x: &[f32], y: &mut [f32], work: &mut [f32]) {", result.source)
-        self.assertIn("work[1] = 1.0_f32 + work[0];", result.source)
+        self.assertIn("work[0] = 1.0_f32 + work[0];", result.source)
 
     def test_no_std_f32_codegen_uses_libm_f32_entry_points(self) -> None:
         x = SX.sym("x")
@@ -371,6 +390,238 @@ mod tests {{
         self.assertIn("libm::sqrtf(", result.source)
         self.assertIn("libm::powf(", result.source)
 
+    def test_generated_code_supports_extended_math_methods(self) -> None:
+        x = SX.sym("x")
+        expr = (
+            x.tan()
+            + x.asin()
+            + x.acos()
+            + x.atan()
+            + x.sinh()
+            + x.cosh()
+            + x.tanh()
+            + x.expm1()
+            + x.log1p()
+            + x.abs()
+        )
+        f = Function("f", [x], [expr], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust()
+
+        self.assertIn(".tan()", result.source)
+        self.assertIn(".asin()", result.source)
+        self.assertIn(".acos()", result.source)
+        self.assertIn(".atan()", result.source)
+        self.assertIn(".sinh()", result.source)
+        self.assertIn(".cosh()", result.source)
+        self.assertIn(".tanh()", result.source)
+        self.assertIn(".exp_m1()", result.source)
+        self.assertIn(".ln_1p()", result.source)
+        self.assertIn(".abs()", result.source)
+
+    def test_generated_code_supports_additional_elementary_math_methods(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        expr = (
+            x.asinh()
+            + x.acosh()
+            + x.atanh()
+            + x.cbrt()
+            + x.erf()
+            + x.erfc()
+            + x.floor()
+            + x.ceil()
+            + x.round()
+            + x.trunc()
+            + x.fract()
+            + x.signum()
+            + x.atan2(y)
+            + x.hypot(y)
+            + x.minimum(y)
+        )
+        f = Function("f", [x, y], [expr], input_names=["x", "y"], output_names=["z"])
+
+        result = f.generate_rust()
+
+        self.assertIn(".asinh()", result.source)
+        self.assertIn(".acosh()", result.source)
+        self.assertIn(".atanh()", result.source)
+        self.assertIn(".cbrt()", result.source)
+        self.assertIn("erf(", result.source)
+        self.assertIn("erfc(", result.source)
+        self.assertIn(".floor()", result.source)
+        self.assertIn(".ceil()", result.source)
+        self.assertIn(".round()", result.source)
+        self.assertIn(".trunc()", result.source)
+        self.assertIn(".fract()", result.source)
+        self.assertIn(".signum()", result.source)
+        self.assertIn(".atan2(", result.source)
+        self.assertIn(".hypot(", result.source)
+        self.assertIn(".min(", result.source)
+
+    def test_no_std_codegen_supports_extended_libm_functions(self) -> None:
+        x = SX.sym("x")
+        expr = (
+            x.tan()
+            + x.asin()
+            + x.acos()
+            + x.atan()
+            + x.sinh()
+            + x.cosh()
+            + x.tanh()
+            + x.expm1()
+            + x.log1p()
+            + x.abs()
+        )
+        f = Function("f", [x], [expr], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust(backend_mode="no_std")
+
+        self.assertIn("libm::tan(", result.source)
+        self.assertIn("libm::asin(", result.source)
+        self.assertIn("libm::acos(", result.source)
+        self.assertIn("libm::atan(", result.source)
+        self.assertIn("libm::sinh(", result.source)
+        self.assertIn("libm::cosh(", result.source)
+        self.assertIn("libm::tanh(", result.source)
+        self.assertIn("libm::expm1(", result.source)
+        self.assertIn("libm::log1p(", result.source)
+        self.assertIn("libm::fabs(", result.source)
+
+    def test_generated_code_supports_vector_norms(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function(
+            "f",
+            [x],
+            [x.norm1(), x.norm2(), x.norm2sq(), x.norm_inf(), x.norm_p(3), x.norm_p_to_p(3)],
+            input_names=["x"],
+            output_names=["n1", "n2", "n2sq", "ni", "np", "npp"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("fn norm1(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn norm2(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn norm2sq(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn norm_inf(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn norm_p(values: &[f64], p: f64) -> f64 {", result.source)
+        self.assertIn("fn norm_p_to_p(values: &[f64], p: f64) -> f64 {", result.source)
+        self.assertIn("norm1(x)", result.source)
+        self.assertIn("norm2(x)", result.source)
+        self.assertIn("norm2sq(x)", result.source)
+        self.assertIn("norm_inf(x)", result.source)
+        self.assertIn("norm_p(x, 3.0_f64)", result.source)
+        self.assertIn("norm_p_to_p(x, 3.0_f64)", result.source)
+
+    def test_generated_code_supports_vector_reductions(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function(
+            "f",
+            [x],
+            [x.sum(), x.prod(), x.max(), x.min(), x.mean()],
+            input_names=["x"],
+            output_names=["sum", "prod", "max", "min", "mean"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("fn vec_sum(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn vec_prod(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn vec_max(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn vec_min(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn vec_mean(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("vec_sum(x)", result.source)
+        self.assertIn("vec_prod(x)", result.source)
+        self.assertIn("vec_max(x)", result.source)
+        self.assertIn("vec_min(x)", result.source)
+        self.assertIn("vec_mean(x)", result.source)
+
+    def test_generated_code_supports_constant_matrix_helpers(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "f",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {", result.source)
+        self.assertIn("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {", result.source)
+        self.assertIn("matvec(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, x, mx);", result.source)
+        self.assertIn("work[2] = quadform(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, x);", result.source)
+        self.assertIn("work[3] = bilinear_form(x, &[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, y);", result.source)
+
+    def test_generated_code_supports_f32_constant_matrix_helpers(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "f",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+
+        result = f.generate_rust(scalar_type="f32")
+
+        self.assertIn("fn matvec_component(matrix: &[f32], rows: usize, cols: usize, row: usize, x: &[f32]) -> f32 {", result.source)
+        self.assertIn("fn matvec(matrix: &[f32], rows: usize, cols: usize, x: &[f32], y: &mut [f32]) {", result.source)
+        self.assertIn("fn quadform(matrix: &[f32], size: usize, x: &[f32]) -> f32 {", result.source)
+        self.assertIn("fn bilinear_form(x: &[f32], matrix: &[f32], rows: usize, cols: usize, y: &[f32]) -> f32 {", result.source)
+        self.assertIn("matvec(&[2.0_f32, 1.0_f32, 1.0_f32, 3.0_f32], 2, 2, x, mx);", result.source)
+
+    def test_generated_code_uses_matvec_helpers_for_quadratic_form_derivatives(self) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function("f", [x], [quadform(matrix, x)], input_names=["x"], output_names=["y"])
+
+        gradient_result = f.gradient(0).generate_rust()
+        hvp_result = f.hvp(0).generate_rust()
+
+        self.assertIn("matvec(&[4.0_f64, 2.0_f64, 2.0_f64, 6.0_f64], 2, 2, x, y);", gradient_result.source)
+        self.assertIn("matvec(&[4.0_f64, 2.0_f64, 2.0_f64, 6.0_f64], 2, 2, v_x, y);", hvp_result.source)
+
+    def test_multi_function_project_emits_norm2_helper_once(self) -> None:
+        x = SXVector.sym("x", 3)
+        f1 = Function("f1", [x], [x.norm2()], input_names=["x"], output_names=["y1"])
+        f2 = Function("f2", [x], [x.norm2()], input_names=["x"], output_names=["y2"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_multi_function_rust_project((f1, f2), Path(tmpdir) / "norm2_bundle")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertEqual(lib_text.count("fn norm2(values: &[f64]) -> f64 {"), 1)
+
+    def test_multi_function_project_emits_matrix_helpers_once(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f1 = Function("f1", [x], [quadform(matrix, x)], input_names=["x"], output_names=["y1"])
+        f2 = Function(
+            "f2",
+            [x, y],
+            [matvec(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "bxy"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_multi_function_rust_project((f1, f2), Path(tmpdir) / "matrix_bundle")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertEqual(lib_text.count("fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {"), 1)
+            self.assertEqual(lib_text.count("fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {"), 1)
+            self.assertEqual(lib_text.count("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {"), 1)
+            self.assertEqual(lib_text.count("fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {"), 1)
+
     def test_generated_code_reuses_shared_dag_nodes(self) -> None:
         x = SX.sym("x")
         z = (x * x) + 1
@@ -380,9 +631,9 @@ mod tests {{
 
         self.assertEqual(result.source.count("x[0] * x[0]"), 1)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[1] = 1.0_f64 + work[0];", result.source)
-        self.assertIn("work[2] = work[1] * work[1];", result.source)
-        self.assertIn("work[3] = work[1] + work[2];", result.source)
+        self.assertIn("work[0] = 1.0_f64 + work[0];", result.source)
+        self.assertIn("work[1] = work[0] * work[0];", result.source)
+        self.assertIn("work[0] = work[0] + work[1];", result.source)
 
     def test_generated_code_uses_rust_math_methods(self) -> None:
         x = SX.sym("x")
@@ -657,6 +908,205 @@ mod math {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_generated_rust_project_runs_extended_unary_math_reference_test(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "extended_math",
+            [x],
+            [
+                x.tan()
+                + x.asin()
+                + x.acos()
+                + x.atan()
+                + x.sinh()
+                + x.cosh()
+                + x.tanh()
+                + x.expm1()
+                + x.log1p()
+                + x.abs()
+            ],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "extended_math_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=0.2,
+                test_name="evaluates_extended_unary_math_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_norm_reference_test(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function(
+            "norm_kernel",
+            [x],
+            [x.norm1(), x.norm2(), x.norm2sq(), x.norm_inf(), x.norm_p(3), x.norm_p_to_p(3)],
+            input_names=["x"],
+            output_names=["n1", "n2", "n2sq", "ni", "np", "npp"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "norm_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([3.0, -4.0, 1.0],),
+                test_name="evaluates_norm_helpers_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_reduction_reference_test(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function(
+            "reduction_kernel",
+            [x],
+            [x.sum(), x.prod(), x.max(), x.min(), x.mean()],
+            input_names=["x"],
+            output_names=["sum", "prod", "max", "min", "mean"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "reduction_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([3.0, -4.0, 1.0],),
+                test_name="evaluates_reduction_helpers_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_constant_matrix_helper_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "matrix_kernel",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "matrix_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0]),
+                test_name="evaluates_constant_matrix_helpers_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_non_square_matvec_reference_test(self) -> None:
+        x = SXVector.sym("x", 3)
+        matrix = [[2.0, -1.0, 0.5], [1.5, 0.0, 4.0]]
+        f = Function(
+            "rectangular_matvec_kernel",
+            [x],
+            [matvec(matrix, x)],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "rectangular_matvec_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([1.0, -2.0, 3.0],),
+                test_name="evaluates_rectangular_matvec_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_f32_constant_matrix_helper_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "matrix_kernel_f32",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+        config = RustBackendConfig().with_scalar_type("f32")
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "matrix_kernel_f32", config=config)
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0]),
+                test_name="evaluates_constant_matrix_helpers_against_python_reference_f32",
+                config=config,
+                tolerance=1e-5,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_no_std_rust_project_runs_constant_matrix_helper_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "matrix_kernel",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_math_lib("libm")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "matrix_kernel_no_std", config=config)
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0]),
+                test_name="evaluates_constant_matrix_helpers_against_python_reference_no_std",
+                config=config,
+                tolerance=1e-12,
+            )
+
+            try:
+                completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            except subprocess.CalledProcessError as exc:
+                if "Could not resolve host" in exc.stderr or "failed to get `libm` as a dependency" in exc.stderr:
+                    self.skipTest("no_std runtime test requires fetching libm from crates.io")
+                raise
+            self.assertEqual(completed.returncode, 0)
+
     def test_generated_rust_project_runs_jacobian_reference_test(self) -> None:
         x = SXVector.sym("x", 2)
         jac = Function("f", [x], [x.dot(x)], input_names=["x"], output_names=["y"]).jacobian(0)
@@ -692,6 +1142,25 @@ mod math {
                 inputs=([2.0, 3.0],),
                 test_name="evaluates_hessian_against_python_reference",
             )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_workspace_reuse_reference_test(self) -> None:
+        x = SX.sym("x")
+        z = (x * x) + 1
+        f = Function("reuse_kernel", [x], [z + z * z], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "reuse_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=2.5,
+                test_name="evaluates_reuse_heavy_kernel_against_python_reference",
+                tolerance=1e-12,
+            )
+
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
@@ -905,7 +1374,6 @@ mod tests {
     fn exposes_metadata_struct() {
         let meta = named_kernel_meta();
         assert_eq!(meta.function_name, "named_kernel");
-        assert_eq!(meta.workspace_size, 3);
         assert_eq!(meta.input_names, ["state vector", "gain"]);
         assert_eq!(meta.input_sizes, [2, 1]);
         assert_eq!(meta.output_names, ["energy", "gain out"]);
@@ -1191,6 +1659,38 @@ mod tests {
                     self.skipTest("cargo could not fetch libm in the offline test environment")
                 raise
             self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_supports_constant_matrix_helpers(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "f",
+            [x, y],
+            [quadform(matrix, x)],
+            input_names=["x", "y"],
+            output_names=["y_out"],
+        )
+        builder = (
+            CodeGenerationBuilder(f)
+            .with_backend_config(RustBackendConfig().with_crate_name("matrix_builder"))
+            .add_primal()
+            .add_gradient()
+            .add_hvp()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "matrix_builder")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {", lib_text)
+            self.assertIn("fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {", lib_text)
+            self.assertIn("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {", lib_text)
+            self.assertIn("pub fn matrix_builder_f(", lib_text)
+            self.assertIn("pub fn matrix_builder_grad_x(", lib_text)
+            self.assertIn("pub fn matrix_builder_grad_y(", lib_text)
+            self.assertIn("pub fn matrix_builder_hvp_x(", lib_text)
+            self.assertIn("pub fn matrix_builder_hvp_y(", lib_text)
 
 
 if __name__ == "__main__":

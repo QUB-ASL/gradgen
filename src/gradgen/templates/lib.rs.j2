@@ -2,6 +2,12 @@
 #![no_std]
 
 {% endif -%}
+{% if function_index == 0 and shared_helper_lines -%}
+{% for line in shared_helper_lines -%}
+{{ line }}
+{% endfor -%}
+
+{% endif -%}
 {% if emit_metadata_helpers -%}
 {% if function_index == 0 -%}
 /// Metadata describing a generated Rust function.
@@ -28,24 +34,24 @@ pub fn {{ function_name }}_meta() -> FunctionMetadata {
         function_name: {{ function_label }},
         workspace_size: {{ workspace_size }},
         input_names: &[
-{% for spec in input_specs -%}
+{% for spec in input_specs %}
             {{ spec.rust_label }},
-{% endfor -%}
+{% endfor %}
         ],
         input_sizes: &[
-{% for spec in input_specs -%}
+{% for spec in input_specs %}
             {{ spec.size }},
-{% endfor -%}
+{% endfor %}
         ],
         output_names: &[
-{% for spec in output_specs -%}
+{% for spec in output_specs %}
             {{ spec.rust_label }},
-{% endfor -%}
+{% endfor %}
         ],
         output_sizes: &[
-{% for spec in output_specs -%}
+{% for spec in output_specs %}
             {{ spec.size }},
-{% endfor -%}
+{% endfor %}
         ],
     }
 }

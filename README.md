@@ -28,8 +28,8 @@ The library already supports:
 
 - scalar symbolic expressions with hash-consed DAG nodes
 - symbolic vectors built from scalar `SX` expressions
-- basic scalar operations such as `+`, `-`, `*`, `/`, `**`, `sin`, `cos`, `exp`, `log`, and `sqrt`
-- vector operations including elementwise `+`, `-`, `/`, scalar-vector products, and dot products
+- scalar operations such as `+`, `-`, `*`, `/`, `**`, `min`, `max`, and a growing set of elementary functions
+- vector operations including elementwise `+`, `-`, `/`, scalar-vector products, dot products, slicing, and vector norms
 - symbolic and numeric `Function` calls
 - forward-mode AD through scalar derivatives and Jacobian-vector products
 - reverse-mode AD through gradients and vector-Jacobian products
@@ -45,6 +45,25 @@ Some intentional limitations at this stage:
 - elementwise vector-vector multiplication with `x * y` is not supported yet
 - simplification is still rule-based and bounded, not a full computer algebra system
 - full matrix types are not implemented yet, so Jacobians and Hessians use vector-first row-wise representations where needed
+
+Currently implemented elementary functions include:
+
+- `sin`, `cos`, `tan`
+- `asin`, `acos`, `atan`, `atan2`
+- `sinh`, `cosh`, `tanh`, `asinh`, `acosh`, `atanh`
+- `exp`, `expm1`, `log`, `log1p`
+- `sqrt`, `cbrt`, `hypot`
+- `erf`, `erfc`
+- `abs`, `floor`, `ceil`, `round`, `trunc`, `fract`, `signum`
+
+Current vector norm helpers include:
+
+- `norm2()`
+- `norm2sq()`
+- `norm1()`
+- `norm_inf()`
+- `norm_p(p)`
+- `norm_p_to_p(p)`
 
 ## Example
 
@@ -101,6 +120,20 @@ For now:
 - `x + y`, `x - y`, and `x / y` are elementwise
 - `2 * x` and `x * 2` are supported
 - `x * y` is intentionally not supported yet
+- `x[i]` returns an `SX`, while `x[a:b]` returns an `SXVector` view
+
+Example with slicing:
+
+```python
+from gradgen import Function, SXVector
+
+z = SXVector.sym("z", 4)
+x = z[0:3]
+u = z[3:4]
+
+f = Function("f", [z], [x.norm2() * u + x.norm2sq()])
+print(f([1.0, 2.0, 3.0, 4.0]))
+```
 
 ### `Function`
 
@@ -157,6 +190,12 @@ Higher-order helpers:
 
 - `jacobian(expr, wrt)`
 - `hessian(expr, wrt)` for scalar-output expressions
+
+Smooth elementary functions such as `atan2`, `hypot`, `asinh`, `acosh`,
+`atanh`, `cbrt`, `erf`, and `erfc` participate in AD. Nonsmooth functions such
+as `min`, `floor`, `ceil`, `round`, `trunc`, `fract`, `signum`, `norm1`, and
+`norm_inf` currently raise if differentiation is requested. `norm_p(...)` and
+`norm_p_to_p(...)` support AD when `p` is a constant greater than `1`.
 
 ### Forward mode
 
@@ -427,9 +466,14 @@ The generated Rust currently uses:
 
 - deterministic naming
 - a slice-based ABI
-- explicit workspace variables stored in a mutable `work` slice
+- explicit workspace variables stored in a mutable workspace slice
 - configurable scalar types (`f64` or `f32`)
 - `std` and `no_std` backend modes
+
+When the generated code uses vector norms or special functions that need shared
+support code, `gradgen` emits auxiliary Rust helpers once at module scope. This
+includes helpers such as `norm2`, `norm2sq`, `norm1`, `norm_inf`, `norm_p`,
+`norm_p_to_p`, `erf`, and `erfc` when they are required by the generated crate.
 
 ### Generate Rust source in memory
 
@@ -453,6 +497,8 @@ pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {
 ```
 
 For multiple inputs and outputs, each declared input and output becomes its own slice argument.
+If a generated kernel does not need workspace, the argument is still present but
+named `_work` to avoid an unused-variable warning in Rust.
 
 You can also configure the backend explicitly:
 

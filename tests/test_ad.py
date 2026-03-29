@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from gradgen import Function, SX, SXVector, derivative, gradient, hessian, jacobian, jvp, vjp
+from gradgen import Function, SX, SXVector, bilinear_form, derivative, gradient, hessian, jacobian, jvp, matvec, quadform, vjp
 
 
 class ForwardADTests(unittest.TestCase):
@@ -194,6 +194,135 @@ class ReverseADTests(unittest.TestCase):
         self.assertEqual(reverse.name, "f_vjp")
         self.assertAlmostEqual(result[0], 5.0 + math.cos(2.0))
         self.assertAlmostEqual(result[1], 2.0)
+
+    def test_derivative_supports_extended_smooth_unary_math(self) -> None:
+        x = SX.sym("x")
+        expr = x.tan() + x.cosh() + x.tanh() + x.log1p() + x.expm1() + x.atan()
+        df = derivative(expr, x)
+        f = Function("f", [x], [df])
+
+        value = 0.2
+        result = f(value)
+        expected = (
+            1.0 / (math.cos(value) ** 2)
+            + math.sinh(value)
+            + (1.0 - math.tanh(value) ** 2)
+            + 1.0 / (1.0 + value)
+            + math.exp(value)
+            + 1.0 / (1.0 + value * value)
+        )
+        self.assertAlmostEqual(result, expected)
+
+    def test_derivative_supports_additional_smooth_elementary_math(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        expr = x.asinh() + x.acosh() + x.atanh() + x.cbrt() + x.erf() + x.erfc() + x.atan2(y) + x.hypot(y)
+        dx = derivative(expr, x)
+        evaluator = Function("df", [x, y], [dx])
+
+        x_value = 1.5
+        y_value = 2.0
+        result = evaluator(x_value, y_value)
+        expected = (
+            1.0 / math.sqrt(x_value * x_value + 1.0)
+            + 1.0 / (math.sqrt(x_value - 1.0) * math.sqrt(x_value + 1.0))
+            + 1.0 / (1.0 - x_value * x_value)
+            + 1.0 / (3.0 * (math.copysign(abs(x_value) ** (1.0 / 3.0), x_value) ** 2))
+            + 1.1283791670955126 * math.exp(-(x_value * x_value))
+            - 1.1283791670955126 * math.exp(-(x_value * x_value))
+            + y_value / (x_value * x_value + y_value * y_value)
+            + x_value / math.hypot(x_value, y_value)
+        )
+        self.assertAlmostEqual(result, expected)
+
+    def test_ad_rejects_nonsmooth_elementary_math(self) -> None:
+        x = SX.sym("x")
+
+        for expr in (x.floor(), x.ceil(), x.round(), x.trunc(), x.fract(), x.signum()):
+            with self.assertRaises(ValueError):
+                _ = derivative(expr, x)
+
+    def test_gradient_supports_norm_p_to_p_for_constant_p_greater_than_one(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [x.norm_p_to_p(3)])
+        grad = f.gradient(0)
+
+        result = grad([3.0, -4.0])
+
+        self.assertAlmostEqual(result[0], 27.0)
+        self.assertAlmostEqual(result[1], -48.0)
+
+    def test_gradient_supports_norm_p_for_constant_p_greater_than_one(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [x.norm_p(3)])
+        grad = f.gradient(0)
+
+        result = grad([3.0, -4.0])
+        denom = 91.0 ** (2.0 / 3.0)
+
+        self.assertAlmostEqual(result[0], 9.0 / denom)
+        self.assertAlmostEqual(result[1], -16.0 / denom)
+
+    def test_ad_raises_for_norm_p_and_norm_p_to_p_when_p_is_one(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.norm_p(1), x)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.norm_p_to_p(1), x)
+
+    def test_gradient_supports_vector_sum_prod_and_mean(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function("f", [x], [x.sum(), x.prod(), x.mean()])
+        grad_sum = f.jacobian(0)
+
+        result = grad_sum([3.0, -4.0, 1.0])
+
+        self.assertEqual(result[0], (1.0, 1.0, 1.0))
+        self.assertEqual(result[1], (-4.0, 3.0, -12.0))
+        self.assertEqual(result[2], (1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0))
+
+    def test_ad_rejects_vector_max_and_min(self) -> None:
+        x = SXVector.sym("x", 3)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.max(), x)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.min(), x)
+
+    def test_quadratic_form_gradient_matches_two_p_x_for_symmetric_matrix(self) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function("f", [x], [quadform(matrix, x)])
+        grad = f.gradient(0)
+
+        result = grad([1.0, 2.0])
+
+        self.assertEqual(result, (8.0, 14.0))
+
+    def test_quadratic_form_hvp_matches_constant_hessian_action(self) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function("f", [x], [quadform(matrix, x)])
+        hvp = f.hvp(0)
+
+        result = hvp([1.0, 2.0], [3.0, 4.0])
+
+        self.assertEqual(result, (20.0, 30.0))
+
+    def test_bilinear_form_gradient_matches_expected_linear_maps(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function("f", [x, y], [bilinear_form(x, matrix, y)])
+
+        grad_x = f.gradient(0)
+        grad_y = f.gradient(1)
+
+        self.assertEqual(grad_x([1.0, 2.0], [3.0, 4.0]), (10.0, 15.0))
+        self.assertEqual(grad_y([1.0, 2.0], [3.0, 4.0]), (4.0, 7.0))
 
     def test_function_vjp_supports_multiple_outputs(self) -> None:
         x = SX.sym("x")

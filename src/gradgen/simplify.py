@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any
 
-from .sx import SX, SXNode, SXVector
+from .sx import SX, SXNode, SXVector, parse_bilinear_form_args, parse_matvec_component_args, parse_quadform_args
 
 if TYPE_CHECKING:
     from .function import Function
@@ -98,6 +98,121 @@ def _simplify_scalar_once(expr: SX, cache: dict[SXNode, SX]) -> SX:
 
 def _apply_rules(op: str, args: tuple[SX, ...]) -> SX:
     """Apply local algebraic simplification rules."""
+    if op == "matvec_component":
+        rows, cols, row, matrix_values, x_values = parse_matvec_component_args(args)
+        _ = rows
+        if all(_is_const(arg) for arg in x_values):
+            start = row * cols
+            total = sum(matrix_values[start + index] * _const_value(x_values[index]) for index in range(cols))
+            return SX.const(total)
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "quadform":
+        size, matrix_values, x_values = parse_quadform_args(args)
+        if all(_is_const(arg) for arg in x_values):
+            total = 0.0
+            for row in range(size):
+                for col in range(size):
+                    total += matrix_values[row * size + col] * _const_value(x_values[row]) * _const_value(x_values[col])
+            return SX.const(total)
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "bilinear_form":
+        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(args)
+        if all(_is_const(arg) for arg in (*x_values, *y_values)):
+            total = 0.0
+            for row in range(rows):
+                for col in range(cols):
+                    total += matrix_values[row * cols + col] * _const_value(x_values[row]) * _const_value(y_values[col])
+            return SX.const(total)
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "sum":
+        if not args:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            return SX.const(sum(_const_value(arg) for arg in args))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "prod":
+        if not args:
+            return SX.const(1.0)
+        if all(_is_const(arg) for arg in args):
+            total = 1.0
+            for arg in args:
+                total *= _const_value(arg)
+            return SX.const(total)
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "reduce_max":
+        if not args:
+            raise ValueError("vector max is undefined for empty vectors")
+        if all(_is_const(arg) for arg in args):
+            return SX.const(max(_const_value(arg) for arg in args))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "reduce_min":
+        if not args:
+            raise ValueError("vector min is undefined for empty vectors")
+        if all(_is_const(arg) for arg in args):
+            return SX.const(min(_const_value(arg) for arg in args))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "mean":
+        if not args:
+            raise ValueError("vector mean is undefined for empty vectors")
+        if all(_is_const(arg) for arg in args):
+            return SX.const(sum(_const_value(arg) for arg in args) / len(args))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm2":
+        if not args:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            total = sum(_const_value(arg) * _const_value(arg) for arg in args)
+            return SX.const(math.sqrt(total))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm2sq":
+        if not args:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            total = sum(_const_value(arg) * _const_value(arg) for arg in args)
+            return SX.const(total)
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm1":
+        if not args:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            return SX.const(sum(math.fabs(_const_value(arg)) for arg in args))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm_inf":
+        if not args:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            return SX.const(max(math.fabs(_const_value(arg)) for arg in args))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm_p_to_p":
+        if len(args) < 2:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            p = _const_value(args[-1])
+            total = sum(math.fabs(_const_value(arg)) ** p for arg in args[:-1])
+            return SX.const(total)
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm_p":
+        if len(args) < 2:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            p = _const_value(args[-1])
+            total = sum(math.fabs(_const_value(arg)) ** p for arg in args[:-1])
+            return SX.const(total ** (1.0 / p))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
     if op == "neg":
         arg = args[0]
         if _is_const(arg):
@@ -280,6 +395,14 @@ def _evaluate_const_op(op: str, left: float, right: float) -> float:
         return left / right
     if op == "pow":
         return left**right
+    if op == "atan2":
+        return math.atan2(left, right)
+    if op == "hypot":
+        return math.hypot(left, right)
+    if op == "min":
+        return min(left, right)
+    if op == "max":
+        return max(left, right)
     raise ValueError(f"cannot constant-fold operation {op!r}")
 
 
@@ -289,12 +412,62 @@ def _evaluate_const_unary(op: str, value: float) -> float:
         return math.sin(value)
     if op == "cos":
         return math.cos(value)
+    if op == "tan":
+        return math.tan(value)
+    if op == "asin":
+        return math.asin(value)
+    if op == "acos":
+        return math.acos(value)
+    if op == "atan":
+        return math.atan(value)
+    if op == "asinh":
+        return math.asinh(value)
+    if op == "acosh":
+        return math.acosh(value)
+    if op == "atanh":
+        return math.atanh(value)
+    if op == "sinh":
+        return math.sinh(value)
+    if op == "cosh":
+        return math.cosh(value)
+    if op == "tanh":
+        return math.tanh(value)
     if op == "exp":
         return math.exp(value)
+    if op == "expm1":
+        return math.expm1(value)
     if op == "log":
         return math.log(value)
+    if op == "log1p":
+        return math.log1p(value)
     if op == "sqrt":
         return math.sqrt(value)
+    if op == "cbrt":
+        return math.copysign(abs(value) ** (1.0 / 3.0), value)
+    if op == "erf":
+        return math.erf(value)
+    if op == "erfc":
+        return math.erfc(value)
+    if op == "floor":
+        return math.floor(value)
+    if op == "ceil":
+        return math.ceil(value)
+    if op == "round":
+        if value >= 0.0:
+            return math.floor(value + 0.5)
+        return math.ceil(value - 0.5)
+    if op == "trunc":
+        return math.trunc(value)
+    if op == "fract":
+        return value - math.trunc(value)
+    if op == "signum":
+        if value > 0.0:
+            return 1.0
+        if value < 0.0:
+            return -1.0
+        return 0.0
+    if op == "abs":
+        return math.fabs(value)
     raise ValueError(f"cannot constant-fold operation {op!r}")
 
 

@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
-from .sx import SX, SXNode, SXVector, vector
+from .sx import (
+    SX,
+    SXNode,
+    SXVector,
+    bilinear_form,
+    matrix_add,
+    matrix_transpose,
+    matvec,
+    parse_bilinear_form_args,
+    parse_matvec_component_args,
+    parse_quadform_args,
+    vector,
+)
 
 
 ADExpr = SX | SXVector
@@ -183,6 +195,68 @@ def _forward_scalar(
 
 def _differentiate_op(expr: SX, args: tuple[SX, ...], tangents: tuple[SX, ...]) -> SX:
     """Apply forward-mode differentiation rules for a single operation."""
+    if expr.op == "matvec_component":
+        rows, cols, row, matrix_values, _x_values = parse_matvec_component_args(args)
+        tangent_values = tangents[3 + (rows * cols) :]
+        return SX(
+            SXNode.make(
+                "matvec_component",
+                (
+                    SX.const(rows).node,
+                    SX.const(cols).node,
+                    SX.const(row).node,
+                    *(SX.const(value).node for value in matrix_values),
+                    *(value.node for value in tangent_values),
+                ),
+            )
+        )
+    if expr.op == "quadform":
+        size, matrix_values, x_values = parse_quadform_args(args)
+        x_tangents = tangents[1 + (size * size) :]
+        matrix = tuple(matrix_values)
+        total = bilinear_form(SXVector(x_tangents), [list(matrix[row * size : (row + 1) * size]) for row in range(size)], SXVector(x_values))
+        total = total + bilinear_form(SXVector(x_values), [list(matrix[row * size : (row + 1) * size]) for row in range(size)], SXVector(x_tangents))
+        return total
+    if expr.op == "bilinear_form":
+        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(args)
+        matrix = [list(matrix_values[row * cols : (row + 1) * cols]) for row in range(rows)]
+        x_tangents = SXVector(tangents[2 + (rows * cols) : 2 + (rows * cols) + rows])
+        y_tangents = SXVector(tangents[2 + (rows * cols) + rows :])
+        return bilinear_form(x_tangents, matrix, SXVector(y_values)) + bilinear_form(
+            SXVector(x_values), matrix, y_tangents
+        )
+    if expr.op == "sum":
+        total = SX.const(0.0)
+        for tangent in tangents:
+            total = total + tangent
+        return total
+    if expr.op == "prod":
+        total = SX.const(0.0)
+        for index, tangent in enumerate(tangents):
+            term = tangent
+            for other_index, arg in enumerate(args):
+                if other_index == index:
+                    continue
+                term = term * arg
+            total = total + term
+        return total
+    if expr.op == "mean":
+        total = SX.const(0.0)
+        for tangent in tangents:
+            total = total + tangent
+        return total / SX.const(float(len(args)))
+    if expr.op in {"reduce_max", "reduce_min"}:
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
+    if expr.op == "norm2sq":
+        total = SX.const(0.0)
+        for arg, tangent in zip(args, tangents):
+            total = total + (SX.const(2.0) * arg * tangent)
+        return total
+    if expr.op == "norm2":
+        numerator = SX.const(0.0)
+        for arg, tangent in zip(args, tangents):
+            numerator = numerator + (arg * tangent)
+        return numerator / expr
     if expr.op == "add":
         return tangents[0] + tangents[1]
     if expr.op == "sub":
@@ -198,18 +272,74 @@ def _differentiate_op(expr: SX, args: tuple[SX, ...], tangents: tuple[SX, ...]) 
         base_tangent = tangents[0]
         exponent_tangent = tangents[1]
         return expr * ((exponent_tangent * base.log()) + (exponent * (base_tangent / base)))
+    if expr.op == "atan2":
+        denominator = (args[0] * args[0]) + (args[1] * args[1])
+        return ((tangents[0] * args[1]) - (args[0] * tangents[1])) / denominator
+    if expr.op == "hypot":
+        return ((args[0] * tangents[0]) + (args[1] * tangents[1])) / expr
+    if expr.op == "min":
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
     if expr.op == "neg":
         return -tangents[0]
     if expr.op == "sin":
         return args[0].cos() * tangents[0]
     if expr.op == "cos":
         return -(args[0].sin() * tangents[0])
+    if expr.op == "tan":
+        return tangents[0] / (args[0].cos() * args[0].cos())
+    if expr.op == "asin":
+        return tangents[0] / (SX.const(1.0) - (args[0] * args[0])).sqrt()
+    if expr.op == "acos":
+        return -(tangents[0] / (SX.const(1.0) - (args[0] * args[0])).sqrt())
+    if expr.op == "atan":
+        return tangents[0] / (SX.const(1.0) + (args[0] * args[0]))
+    if expr.op == "asinh":
+        return tangents[0] / ((args[0] * args[0]) + SX.const(1.0)).sqrt()
+    if expr.op == "acosh":
+        return tangents[0] / ((args[0] - SX.const(1.0)).sqrt() * (args[0] + SX.const(1.0)).sqrt())
+    if expr.op == "atanh":
+        return tangents[0] / (SX.const(1.0) - (args[0] * args[0]))
+    if expr.op == "sinh":
+        return args[0].cosh() * tangents[0]
+    if expr.op == "cosh":
+        return args[0].sinh() * tangents[0]
+    if expr.op == "tanh":
+        return (SX.const(1.0) - (expr * expr)) * tangents[0]
     if expr.op == "exp":
         return expr * tangents[0]
+    if expr.op == "expm1":
+        return (expr + SX.const(1.0)) * tangents[0]
     if expr.op == "log":
         return tangents[0] / args[0]
+    if expr.op == "log1p":
+        return tangents[0] / (SX.const(1.0) + args[0])
     if expr.op == "sqrt":
         return tangents[0] / (SX.const(2.0) * expr)
+    if expr.op == "cbrt":
+        return tangents[0] / (SX.const(3.0) * expr * expr)
+    if expr.op == "erf":
+        return SX.const(1.1283791670955126) * (-(args[0] * args[0])).exp() * tangents[0]
+    if expr.op == "erfc":
+        return -(SX.const(1.1283791670955126) * (-(args[0] * args[0])).exp() * tangents[0])
+    if expr.op in {"floor", "ceil", "round", "trunc", "fract", "signum"}:
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
+    if expr.op == "norm_p_to_p":
+        p = _require_constant_norm_p(args, expr.op)
+        total = SX.const(0.0)
+        scale = SX.const(p)
+        exponent = SX.const(p - 2.0)
+        for arg, tangent in zip(args[:-1], tangents[:-1]):
+            total = total + (scale * (arg.abs() ** exponent) * arg * tangent)
+        return total
+    if expr.op == "norm_p":
+        p = _require_constant_norm_p(args, expr.op)
+        norm_p_to_p_expr = SX(SXNode.make("norm_p_to_p", tuple(arg.node for arg in args)))
+        norm_p_to_p_tangent = _differentiate_op(norm_p_to_p_expr, args, tangents)
+        return (SX.const(1.0 / p) * (norm_p_to_p_expr ** SX.const((1.0 / p) - 1.0))) * norm_p_to_p_tangent
+    if expr.op in {"norm1", "norm_inf"}:
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
+    if expr.op == "abs":
+        return (args[0] / expr) * tangents[0]
 
     raise ValueError(f"cannot differentiate operation {expr.op!r}")
 
@@ -274,6 +404,40 @@ def _propagate_reverse(
 
     if node.op in {"const", "symbol"}:
         return
+    if node.op == "matvec_component":
+        rows, cols, row, matrix_values, x_values = parse_matvec_component_args(args)
+        _ = rows, x_values
+        offset = 3 + (rows * cols)
+        start = row * cols
+        for index in range(cols):
+            _accumulate_adjoint(
+                adjoints,
+                node.args[offset + index],
+                adjoint * SX.const(matrix_values[start + index]),
+            )
+        return
+    if node.op == "quadform":
+        size, matrix_values, x_values = parse_quadform_args(args)
+        transposed = matrix_transpose(size, size, matrix_values)
+        sym_matrix = matrix_add(matrix_values, transposed)
+        sym_rows = [list(sym_matrix[row * size : (row + 1) * size]) for row in range(size)]
+        gradient_vec = matvec(sym_rows, SXVector(x_values)) * adjoint
+        offset = 1 + (size * size)
+        for index in range(size):
+            _accumulate_adjoint(adjoints, node.args[offset + index], gradient_vec[index])
+        return
+    if node.op == "bilinear_form":
+        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(args)
+        matrix = [list(matrix_values[row * cols : (row + 1) * cols]) for row in range(rows)]
+        transpose = [list(matrix_transpose(rows, cols, matrix_values)[row * rows : (row + 1) * rows]) for row in range(cols)]
+        grad_x = matvec(matrix, SXVector(y_values)) * adjoint
+        grad_y = matvec(transpose, SXVector(x_values)) * adjoint
+        offset = 2 + (rows * cols)
+        for index in range(rows):
+            _accumulate_adjoint(adjoints, node.args[offset + index], grad_x[index])
+        for index in range(cols):
+            _accumulate_adjoint(adjoints, node.args[offset + rows + index], grad_y[index])
+        return
     if node.op == "add":
         _accumulate_adjoint(adjoints, node.args[0], adjoint)
         _accumulate_adjoint(adjoints, node.args[1], adjoint)
@@ -298,6 +462,37 @@ def _propagate_reverse(
         _accumulate_adjoint(adjoints, node.args[0], adjoint * expr * (args[1] / args[0]))
         _accumulate_adjoint(adjoints, node.args[1], adjoint * expr * args[0].log())
         return
+    if node.op == "atan2":
+        denominator = (args[0] * args[0]) + (args[1] * args[1])
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * (args[1] / denominator))
+        _accumulate_adjoint(adjoints, node.args[1], adjoint * (-(args[0] / denominator)))
+        return
+    if node.op == "hypot":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * (args[0] / expr))
+        _accumulate_adjoint(adjoints, node.args[1], adjoint * (args[1] / expr))
+        return
+    if node.op == "sum":
+        for child_node in node.args:
+            _accumulate_adjoint(adjoints, child_node, adjoint)
+        return
+    if node.op == "prod":
+        for index, child_node in enumerate(node.args):
+            term = adjoint
+            for other_index, arg in enumerate(args):
+                if other_index == index:
+                    continue
+                term = term * arg
+            _accumulate_adjoint(adjoints, child_node, term)
+        return
+    if node.op == "mean":
+        scale = adjoint / SX.const(float(len(node.args)))
+        for child_node in node.args:
+            _accumulate_adjoint(adjoints, child_node, scale)
+        return
+    if node.op in {"reduce_max", "reduce_min"}:
+        raise ValueError(f"cannot differentiate operation {node.op!r}")
+    if node.op == "min":
+        raise ValueError(f"cannot differentiate operation {node.op!r}")
     if node.op == "neg":
         _accumulate_adjoint(adjoints, node.args[0], -adjoint)
         return
@@ -307,17 +502,151 @@ def _propagate_reverse(
     if node.op == "cos":
         _accumulate_adjoint(adjoints, node.args[0], -(adjoint * args[0].sin()))
         return
+    if node.op == "tan":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint / (args[0].cos() * args[0].cos()),
+        )
+        return
+    if node.op == "asin":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint / (SX.const(1.0) - (args[0] * args[0])).sqrt(),
+        )
+        return
+    if node.op == "acos":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            -(adjoint / (SX.const(1.0) - (args[0] * args[0])).sqrt()),
+        )
+        return
+    if node.op == "atan":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint / (SX.const(1.0) + (args[0] * args[0])),
+        )
+        return
+    if node.op == "asinh":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint / ((args[0] * args[0]) + SX.const(1.0)).sqrt(),
+        )
+        return
+    if node.op == "acosh":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint / ((args[0] - SX.const(1.0)).sqrt() * (args[0] + SX.const(1.0)).sqrt()),
+        )
+        return
+    if node.op == "atanh":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint / (SX.const(1.0) - (args[0] * args[0])),
+        )
+        return
+    if node.op == "sinh":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * args[0].cosh())
+        return
+    if node.op == "cosh":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * args[0].sinh())
+        return
+    if node.op == "tanh":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint * (SX.const(1.0) - (expr * expr)),
+        )
+        return
     if node.op == "exp":
         _accumulate_adjoint(adjoints, node.args[0], adjoint * expr)
+        return
+    if node.op == "expm1":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * (expr + SX.const(1.0)))
         return
     if node.op == "log":
         _accumulate_adjoint(adjoints, node.args[0], adjoint / args[0])
         return
+    if node.op == "log1p":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint / (SX.const(1.0) + args[0]))
+        return
     if node.op == "sqrt":
         _accumulate_adjoint(adjoints, node.args[0], adjoint / (SX.const(2.0) * expr))
         return
+    if node.op == "cbrt":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint / (SX.const(3.0) * expr * expr))
+        return
+    if node.op == "erf":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint * SX.const(1.1283791670955126) * (-(args[0] * args[0])).exp(),
+        )
+        return
+    if node.op == "erfc":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            -(adjoint * SX.const(1.1283791670955126) * (-(args[0] * args[0])).exp()),
+        )
+        return
+    if node.op in {"floor", "ceil", "round", "trunc", "fract", "signum"}:
+        raise ValueError(f"cannot differentiate operation {node.op!r}")
+    if node.op == "norm2":
+        for child_node, arg in zip(node.args, args):
+            _accumulate_adjoint(adjoints, child_node, adjoint * (arg / expr))
+        return
+    if node.op == "norm2sq":
+        for child_node, arg in zip(node.args, args):
+            _accumulate_adjoint(adjoints, child_node, adjoint * (SX.const(2.0) * arg))
+        return
+    if node.op == "norm_p_to_p":
+        p = _require_constant_norm_p(args, node.op)
+        scale = SX.const(p)
+        exponent = SX.const(p - 2.0)
+        for child_node, arg in zip(node.args[:-1], args[:-1]):
+            _accumulate_adjoint(
+                adjoints,
+                child_node,
+                adjoint * scale * (arg.abs() ** exponent) * arg,
+            )
+        return
+    if node.op == "norm_p":
+        p = _require_constant_norm_p(args, node.op)
+        norm_p_to_p_expr = SX(SXNode.make("norm_p_to_p", tuple(node.args)))
+        prefactor = adjoint * SX.const(1.0 / p) * (norm_p_to_p_expr ** SX.const((1.0 / p) - 1.0))
+        for child_node, arg in zip(node.args[:-1], args[:-1]):
+            _accumulate_adjoint(
+                adjoints,
+                child_node,
+                prefactor * SX.const(p) * (arg.abs() ** SX.const(p - 2.0)) * arg,
+            )
+        return
+    if node.op in {"norm1", "norm_inf"}:
+        raise ValueError(f"cannot differentiate operation {node.op!r}")
+    if node.op == "abs":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * (args[0] / expr))
+        return
 
     raise ValueError(f"cannot differentiate operation {node.op!r}")
+
+
+def _require_constant_norm_p(args: tuple[SX, ...], op: str) -> float:
+    """Return a validated constant ``p`` for p-norm differentiation rules."""
+    p = args[-1]
+    if p.op != "const" or p.value is None:
+        raise ValueError(f"cannot differentiate operation {op!r} with non-constant p")
+    if p.value == 1.0:
+        raise ValueError(f"cannot differentiate operation {op!r} when p == 1")
+    if p.value <= 1.0:
+        raise ValueError(f"cannot differentiate operation {op!r} when p <= 1")
+    return p.value
 
 
 def _accumulate_adjoint(adjoints: dict[SXNode, SX], node: SXNode, contribution: SX) -> None:

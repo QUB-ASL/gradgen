@@ -6,7 +6,15 @@ import math
 from dataclasses import dataclass
 from typing import Iterable
 
-from .sx import SX, SXNode, SXVector, vector
+from .sx import (
+    SX,
+    SXNode,
+    SXVector,
+    parse_bilinear_form_args,
+    parse_matvec_component_args,
+    parse_quadform_args,
+    vector,
+)
 
 
 FunctionArg = SX | SXVector
@@ -800,17 +808,124 @@ def _evaluate_scalar(expr: SX) -> float:
         return args[0] / args[1]
     if expr.op == "pow":
         return args[0] ** args[1]
+    if expr.op == "atan2":
+        return math.atan2(args[0], args[1])
+    if expr.op == "hypot":
+        return math.hypot(args[0], args[1])
+    if expr.op == "matvec_component":
+        rows, cols, row, matrix_values, x_values = parse_matvec_component_args(expr.args)
+        _ = rows
+        start = row * cols
+        return sum(matrix_values[start + index] * _evaluate_scalar(x_values[index]) for index in range(cols))
+    if expr.op == "quadform":
+        size, matrix_values, x_values = parse_quadform_args(expr.args)
+        x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
+        total = 0.0
+        for row in range(size):
+            for col in range(size):
+                total += matrix_values[row * size + col] * x_numeric[row] * x_numeric[col]
+        return total
+    if expr.op == "bilinear_form":
+        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(expr.args)
+        x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
+        y_numeric = tuple(_evaluate_scalar(value) for value in y_values)
+        total = 0.0
+        for row in range(rows):
+            for col in range(cols):
+                total += matrix_values[row * cols + col] * x_numeric[row] * y_numeric[col]
+        return total
+    if expr.op == "sum":
+        return sum(args)
+    if expr.op == "prod":
+        total = 1.0
+        for arg in args:
+            total *= arg
+        return total
+    if expr.op == "reduce_max":
+        return max(args)
+    if expr.op == "reduce_min":
+        return min(args)
+    if expr.op == "mean":
+        return sum(args) / len(args)
+    if expr.op == "min":
+        return min(args[0], args[1])
     if expr.op == "neg":
         return -args[0]
     if expr.op == "sin":
         return math.sin(args[0])
     if expr.op == "cos":
         return math.cos(args[0])
+    if expr.op == "tan":
+        return math.tan(args[0])
+    if expr.op == "asin":
+        return math.asin(args[0])
+    if expr.op == "acos":
+        return math.acos(args[0])
+    if expr.op == "atan":
+        return math.atan(args[0])
+    if expr.op == "asinh":
+        return math.asinh(args[0])
+    if expr.op == "acosh":
+        return math.acosh(args[0])
+    if expr.op == "atanh":
+        return math.atanh(args[0])
+    if expr.op == "sinh":
+        return math.sinh(args[0])
+    if expr.op == "cosh":
+        return math.cosh(args[0])
+    if expr.op == "tanh":
+        return math.tanh(args[0])
     if expr.op == "exp":
         return math.exp(args[0])
+    if expr.op == "expm1":
+        return math.expm1(args[0])
     if expr.op == "log":
         return math.log(args[0])
+    if expr.op == "log1p":
+        return math.log1p(args[0])
     if expr.op == "sqrt":
         return math.sqrt(args[0])
+    if expr.op == "cbrt":
+        return math.copysign(abs(args[0]) ** (1.0 / 3.0), args[0])
+    if expr.op == "erf":
+        return math.erf(args[0])
+    if expr.op == "erfc":
+        return math.erfc(args[0])
+    if expr.op == "floor":
+        return math.floor(args[0])
+    if expr.op == "ceil":
+        return math.ceil(args[0])
+    if expr.op == "round":
+        if args[0] >= 0.0:
+            return math.floor(args[0] + 0.5)
+        return math.ceil(args[0] - 0.5)
+    if expr.op == "trunc":
+        return math.trunc(args[0])
+    if expr.op == "fract":
+        return args[0] - math.trunc(args[0])
+    if expr.op == "signum":
+        if args[0] > 0.0:
+            return 1.0
+        if args[0] < 0.0:
+            return -1.0
+        return 0.0
+    if expr.op == "norm2":
+        return math.sqrt(sum(arg * arg for arg in args))
+    if expr.op == "norm2sq":
+        return sum(arg * arg for arg in args)
+    if expr.op == "norm1":
+        return sum(math.fabs(arg) for arg in args)
+    if expr.op == "norm_inf":
+        return max(math.fabs(arg) for arg in args)
+    if expr.op == "norm_p_to_p":
+        p = args[-1]
+        return sum(math.fabs(arg) ** p for arg in args[:-1])
+    if expr.op == "norm_p":
+        p = args[-1]
+        return sum(math.fabs(arg) ** p for arg in args[:-1]) ** (1.0 / p)
+    if expr.op == "abs":
+        return math.fabs(args[0])
+    if expr.op == "max":
+        return max(args[0], args[1])
 
     raise ValueError(f"cannot evaluate operation {expr.op!r}")
