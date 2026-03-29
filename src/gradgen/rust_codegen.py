@@ -19,6 +19,13 @@ from ._rust_codegen import (
     validate_unique_rust_names,
 )
 from .function import Function
+from .single_shooting import (
+    SingleShootingGradientFunction,
+    SingleShootingJointFunction,
+    SingleShootingPrimalFunction,
+    SingleShootingProblem,
+    _single_shooting_bundle_output_names,
+)
 from .sx import SX, SXNode, SXVector, parse_bilinear_form_args, parse_matvec_component_args, parse_quadform_args
 from .custom_elementary import (
     get_registered_elementary_function,
@@ -195,10 +202,27 @@ class _ComposedRepeatPlan:
     const_name: str
 
 
+@dataclass(frozen=True, slots=True)
+class _SingleShootingHelperBundle:
+    """Generated helper kernels for a single-shooting problem."""
+
+    dynamics_name: str
+    stage_cost_name: str
+    terminal_cost_name: str
+    dynamics_vjp_x_name: str | None
+    dynamics_vjp_u_name: str | None
+    stage_cost_grad_x_name: str | None
+    stage_cost_grad_u_name: str | None
+    terminal_cost_grad_x_name: str | None
+    sources: tuple[str, ...]
+    helper_nodes: tuple[SXNode, ...]
+    max_workspace_size: int
+
+
 
 
 def generate_rust(
-    function: Function,
+    function: object,
     *,
     config: RustBackendConfig | None = None,
     function_name: str | None = None,
@@ -227,6 +251,48 @@ def generate_rust(
         )
     if isinstance(function, ComposedGradientFunction):
         return _generate_composed_gradient_rust(
+            function,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+    if isinstance(function, SingleShootingProblem):
+        return _generate_single_shooting_primal_rust(
+            function,
+            include_states=False,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+    if isinstance(function, SingleShootingPrimalFunction):
+        return _generate_single_shooting_primal_rust(
+            function.problem,
+            include_states=function.include_states,
+            config=config,
+            function_name=function_name or function.name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+    if isinstance(function, SingleShootingGradientFunction):
+        return _generate_single_shooting_gradient_rust(
+            function,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+    if isinstance(function, SingleShootingJointFunction):
+        return _generate_single_shooting_joint_rust(
             function,
             config=config,
             function_name=function_name,
@@ -1304,6 +1370,577 @@ def _generate_composed_gradient_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
     )
+
+
+def _generate_single_shooting_primal_rust(
+    problem: SingleShootingProblem,
+    *,
+    include_states: bool,
+    config: RustBackendConfig | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
+    math_library: str | None = None,
+    function_index: int = 0,
+) -> RustCodegenResult:
+    """Generate compact Rust for a single-shooting primal kernel."""
+    return _generate_single_shooting_driver_rust(
+        problem,
+        include_cost=True,
+        include_gradient=False,
+        include_states=include_states,
+        config=config,
+        function_name=function_name,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+        function_index=function_index,
+    )
+
+
+def _generate_single_shooting_gradient_rust(
+    gradient: SingleShootingGradientFunction,
+    *,
+    config: RustBackendConfig | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
+    math_library: str | None = None,
+    function_index: int = 0,
+) -> RustCodegenResult:
+    """Generate compact Rust for a single-shooting gradient kernel."""
+    return _generate_single_shooting_driver_rust(
+        gradient.problem,
+        include_cost=False,
+        include_gradient=True,
+        include_states=gradient.include_states,
+        config=config,
+        function_name=function_name or gradient.name,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+        function_index=function_index,
+    )
+
+
+def _generate_single_shooting_joint_rust(
+    joint: SingleShootingJointFunction,
+    *,
+    config: RustBackendConfig | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
+    math_library: str | None = None,
+    function_index: int = 0,
+) -> RustCodegenResult:
+    """Generate compact Rust for a joint single-shooting kernel."""
+    return _generate_single_shooting_driver_rust(
+        joint.problem,
+        include_cost=joint.bundle.include_cost,
+        include_gradient=joint.bundle.include_gradient,
+        include_states=joint.bundle.include_states,
+        config=config,
+        function_name=function_name or joint.name,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+        function_index=function_index,
+    )
+
+
+def _generate_single_shooting_driver_rust(
+    problem: SingleShootingProblem,
+    *,
+    include_cost: bool,
+    include_gradient: bool,
+    include_states: bool,
+    config: RustBackendConfig | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
+    math_library: str | None = None,
+    function_index: int = 0,
+) -> RustCodegenResult:
+    """Generate a loop-based single-shooting Rust kernel."""
+    if not (include_cost or include_gradient):
+        raise ValueError("single-shooting kernels must compute cost or gradient")
+
+    resolved_config = _resolve_backend_config(
+        config,
+        function_name=function_name,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    _validate_backend_mode(resolved_config.backend_mode)
+    _validate_scalar_type(resolved_config.scalar_type)
+    resolved_math_library = _resolve_math_library(
+        resolved_config.backend_mode,
+        resolved_config.math_library,
+    )
+
+    name = sanitize_ident(resolved_config.function_name or problem.name)
+    helper_simplification = problem.simplification
+    helper_base_name = _compose_single_shooting_helper_base_name(
+        resolved_config.crate_name,
+        problem.name,
+    )
+    helpers = _build_single_shooting_helpers(
+        problem,
+        helper_base_name=helper_base_name,
+        config=resolved_config,
+        simplification=helper_simplification,
+        include_cost=include_cost,
+        include_gradient=include_gradient,
+    )
+
+    input_specs = _build_single_shooting_input_specs(problem)
+    output_specs = _build_single_shooting_output_specs(
+        problem,
+        include_cost=include_cost,
+        include_gradient=include_gradient,
+        include_states=include_states,
+    )
+    _validate_generated_argument_names(input_specs, output_specs)
+
+    state_size = problem.state_size
+    control_size = problem.control_size
+    horizon = problem.horizon
+
+    input_assert_lines = [
+        _emit_exact_length_assert(input_specs[0].rust_name, input_specs[0].raw_name, input_specs[0].size),
+        _emit_exact_length_assert(input_specs[1].rust_name, input_specs[1].raw_name, input_specs[1].size),
+        _emit_exact_length_assert(input_specs[2].rust_name, input_specs[2].raw_name, input_specs[2].size),
+    ]
+    output_assert_lines = [
+        _emit_exact_length_assert(output_spec.rust_name, output_spec.raw_name, output_spec.size)
+        for output_spec in output_specs
+    ]
+
+    state_history_size = (horizon * state_size) if include_gradient else 0
+    state_buffer_size = 2 * state_size
+    lambda_buffer_size = (2 * state_size) if include_gradient else 0
+    temp_state_size = state_size if include_gradient else 0
+    temp_control_size = control_size if include_gradient else 0
+    scalar_buffer_size = 1 if include_cost else 0
+    driver_workspace_size = (
+        state_history_size
+        + state_buffer_size
+        + lambda_buffer_size
+        + temp_state_size
+        + temp_control_size
+        + scalar_buffer_size
+    )
+    workspace_size = driver_workspace_size + helpers.max_workspace_size
+
+    output_names = {spec.raw_name: spec.rust_name for spec in output_specs}
+    x0_name = input_specs[0].rust_name
+    U_name = input_specs[1].rust_name
+    p_name = input_specs[2].rust_name
+    cost_output_name = output_names.get("cost")
+    gradient_output_name = output_names.get(f"gradient_{problem.control_sequence_name}")
+    states_output_name = output_names.get("x_traj")
+
+    computation_lines: list[str] = []
+    if include_gradient:
+        computation_lines.append(
+            f"let (state_history, rest) = work.split_at_mut({state_history_size});"
+        )
+    else:
+        computation_lines.append("let rest = work;")
+    computation_lines.append(
+        f"let (state_buffers, rest) = rest.split_at_mut({state_buffer_size});"
+    )
+    computation_lines.append(
+        f"let (current_state, next_state) = state_buffers.split_at_mut({state_size});"
+    )
+    if include_gradient:
+        computation_lines.append(
+            f"let (lambda_buffers, rest) = rest.split_at_mut({lambda_buffer_size});"
+        )
+        computation_lines.append(
+            f"let (lambda_current, lambda_next) = lambda_buffers.split_at_mut({state_size});"
+        )
+        computation_lines.append(
+            f"let (temp_state, rest) = rest.split_at_mut({temp_state_size});"
+        )
+        computation_lines.append(
+            f"let (temp_control, rest) = rest.split_at_mut({temp_control_size});"
+        )
+    if include_cost:
+        computation_lines.append("let (scalar_buffer, stage_work) = rest.split_at_mut(1);")
+    else:
+        computation_lines.append("let stage_work = rest;")
+    computation_lines.append(f"current_state.copy_from_slice({x0_name});")
+    if include_states and states_output_name is not None:
+        computation_lines.append(
+            f"{states_output_name}[0..{state_size}].copy_from_slice({x0_name});"
+        )
+    if include_cost:
+        computation_lines.append(f"let mut total_cost = { _format_float(0.0, resolved_config.scalar_type) };")
+
+    for_lines: list[str] = [
+        f"for stage_index in 0..{horizon} {{",
+        f"    let u_t = {_emit_single_shooting_control_slice(U_name, 'stage_index', control_size)};",
+    ]
+    if include_cost:
+        for_lines.extend(
+            [
+                f"    {helpers.stage_cost_name}(current_state, u_t, {p_name}, scalar_buffer, stage_work);",
+                "    total_cost += scalar_buffer[0];",
+            ]
+        )
+    for_lines.extend(
+        [
+            f"    {helpers.dynamics_name}(current_state, u_t, {p_name}, next_state, stage_work);",
+        ]
+    )
+    if include_gradient:
+        for_lines.append(
+            f"    state_history[(stage_index * {state_size})..((stage_index + 1) * {state_size})].copy_from_slice(next_state);"
+        )
+    for_lines.append("    current_state.copy_from_slice(next_state);")
+    if include_states and states_output_name is not None:
+        for_lines.append(
+            f"    {states_output_name}[((stage_index + 1) * {state_size})..((stage_index + 2) * {state_size})].copy_from_slice(next_state);"
+        )
+    for_lines.append("}")
+    computation_lines.extend(for_lines)
+
+    if include_cost:
+        computation_lines.append(
+            f"{helpers.terminal_cost_name}(current_state, {p_name}, scalar_buffer, stage_work);"
+        )
+        computation_lines.append("total_cost += scalar_buffer[0];")
+        if cost_output_name is not None:
+            computation_lines.append(f"{cost_output_name}[0] = total_cost;")
+
+    if include_gradient:
+        computation_lines.append(
+            f"{helpers.terminal_cost_grad_x_name}(current_state, {p_name}, lambda_current, stage_work);"
+        )
+        computation_lines.extend(
+            [
+                f"for stage_index in (1..{horizon}).rev() {{",
+                f"    let x_t = &state_history[((stage_index - 1) * {state_size})..(stage_index * {state_size})];",
+                f"    let u_t = {_emit_single_shooting_control_slice(U_name, 'stage_index', control_size)};",
+                f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
+                f"    {helpers.stage_cost_grad_u_name}(x_t, u_t, {p_name}, grad_u_t, stage_work);",
+                f"    {helpers.dynamics_vjp_u_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
+                f"    for control_index in 0..{control_size} {{",
+                "        grad_u_t[control_index] += temp_control[control_index];",
+                "    }",
+                f"    {helpers.stage_cost_grad_x_name}(x_t, u_t, {p_name}, lambda_next, stage_work);",
+                f"    {helpers.dynamics_vjp_x_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_state, stage_work);",
+                f"    for state_index in 0..{state_size} {{",
+                "        lambda_next[state_index] += temp_state[state_index];",
+                "    }",
+                "    lambda_current.copy_from_slice(lambda_next);",
+                "}",
+                f"let u_t = {_emit_single_shooting_control_slice(U_name, '0', control_size)};",
+                f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
+                f"{helpers.stage_cost_grad_u_name}({x0_name}, u_t, {p_name}, grad_u_t, stage_work);",
+                f"{helpers.dynamics_vjp_u_name}({x0_name}, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
+                f"for control_index in 0..{control_size} {{",
+                "    grad_u_t[control_index] += temp_control[control_index];",
+                "}",
+            ]
+        )
+
+    shared_helper_lines = list(
+        _build_shared_helper_lines(
+            helpers.helper_nodes,
+            resolved_config.backend_mode,
+            resolved_config.scalar_type,
+            resolved_math_library,
+        )
+    )
+    parameters = ", ".join(
+        [
+            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
+            *[f"{spec.rust_name}: &mut [{resolved_config.scalar_type}]" for spec in output_specs],
+            "work: &mut [{scalar_type}]".format(scalar_type=resolved_config.scalar_type),
+        ]
+    )
+    driver_source = _get_template("lib.rs.j2").render(
+        function_name=name,
+        function_label=_format_rust_string_literal(name),
+        function_index=function_index,
+        upper_name=name.upper(),
+        emit_crate_header=True,
+        emit_docs=True,
+        function_keyword="pub fn",
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+        workspace_size=workspace_size,
+        workspace_assert_line=_emit_min_length_assert("work", "work", workspace_size),
+        emit_metadata_helpers=resolved_config.emit_metadata_helpers,
+        input_specs=input_specs,
+        output_specs=output_specs,
+        parameters=parameters,
+        input_assert_lines=input_assert_lines,
+        output_assert_lines=output_assert_lines,
+        computation_lines=computation_lines,
+        output_write_lines=[],
+        shared_helper_lines=shared_helper_lines,
+    ).rstrip()
+    source_sections = [driver_source, *helpers.sources]
+    source = "\n\n".join(section for section in source_sections if section)
+
+    return RustCodegenResult(
+        source=source if source.endswith("\n") else f"{source}\n",
+        function_name=name,
+        workspace_size=workspace_size,
+        input_names=tuple(spec.raw_name for spec in input_specs),
+        input_sizes=tuple(spec.size for spec in input_specs),
+        output_names=tuple(spec.raw_name for spec in output_specs),
+        output_sizes=tuple(spec.size for spec in output_specs),
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+    )
+
+
+def _build_single_shooting_helpers(
+    problem: SingleShootingProblem,
+    *,
+    helper_base_name: str,
+    config: RustBackendConfig,
+    simplification: int | str | None,
+    include_cost: bool,
+    include_gradient: bool,
+) -> _SingleShootingHelperBundle:
+    """Generate stage helper kernels for a single-shooting problem."""
+    helper_config = config.with_emit_metadata_helpers(False)
+    helper_sources: list[str] = []
+    helper_nodes: list[SXNode] = []
+    max_workspace = 0
+
+    dynamics_name = sanitize_ident(f"{helper_base_name}_dynamics")
+    dynamics_function = _maybe_simplify_derivative_function(problem.dynamics, simplification)
+    dynamics_codegen = generate_rust(
+        dynamics_function,
+        config=helper_config,
+        function_name=dynamics_name,
+        function_index=1,
+        shared_helper_nodes=(),
+        emit_crate_header=False,
+        emit_docs=False,
+        function_keyword="fn",
+    )
+    helper_sources.append(dynamics_codegen.source.rstrip())
+    helper_nodes.extend(dynamics_function.nodes)
+    max_workspace = max(max_workspace, dynamics_codegen.workspace_size)
+
+    stage_cost_name = sanitize_ident(f"{helper_base_name}_stage_cost")
+    terminal_cost_name = sanitize_ident(f"{helper_base_name}_terminal_cost")
+    if include_cost:
+        stage_cost_function = _maybe_simplify_derivative_function(problem.stage_cost, simplification)
+        stage_cost_codegen = generate_rust(
+            stage_cost_function,
+            config=helper_config,
+            function_name=stage_cost_name,
+            function_index=1,
+            shared_helper_nodes=(),
+            emit_crate_header=False,
+            emit_docs=False,
+            function_keyword="fn",
+        )
+        helper_sources.append(stage_cost_codegen.source.rstrip())
+        helper_nodes.extend(stage_cost_function.nodes)
+        max_workspace = max(max_workspace, stage_cost_codegen.workspace_size)
+
+        terminal_cost_function = _maybe_simplify_derivative_function(problem.terminal_cost, simplification)
+        terminal_cost_codegen = generate_rust(
+            terminal_cost_function,
+            config=helper_config,
+            function_name=terminal_cost_name,
+            function_index=1,
+            shared_helper_nodes=(),
+            emit_crate_header=False,
+            emit_docs=False,
+            function_keyword="fn",
+        )
+        helper_sources.append(terminal_cost_codegen.source.rstrip())
+        helper_nodes.extend(terminal_cost_function.nodes)
+        max_workspace = max(max_workspace, terminal_cost_codegen.workspace_size)
+
+    dynamics_vjp_x_name: str | None = None
+    dynamics_vjp_u_name: str | None = None
+    stage_cost_grad_x_name: str | None = None
+    stage_cost_grad_u_name: str | None = None
+    terminal_cost_grad_x_name: str | None = None
+    if include_gradient:
+        dynamics_vjp_x_name = sanitize_ident(f"{helper_base_name}_dynamics_vjp_x")
+        dynamics_vjp_u_name = sanitize_ident(f"{helper_base_name}_dynamics_vjp_u")
+        stage_cost_grad_x_name = sanitize_ident(f"{helper_base_name}_stage_cost_grad_x")
+        stage_cost_grad_u_name = sanitize_ident(f"{helper_base_name}_stage_cost_grad_u")
+        terminal_cost_grad_x_name = sanitize_ident(f"{helper_base_name}_terminal_cost_grad_x")
+
+        helper_functions = (
+            _maybe_simplify_derivative_function(
+                problem.dynamics.vjp(wrt_index=0, name=dynamics_vjp_x_name),
+                simplification,
+            ),
+            _maybe_simplify_derivative_function(
+                problem.dynamics.vjp(wrt_index=1, name=dynamics_vjp_u_name),
+                simplification,
+            ),
+            _maybe_simplify_derivative_function(
+                problem.stage_cost.gradient(0, name=stage_cost_grad_x_name),
+                simplification,
+            ),
+            _maybe_simplify_derivative_function(
+                problem.stage_cost.gradient(1, name=stage_cost_grad_u_name),
+                simplification,
+            ),
+            _maybe_simplify_derivative_function(
+                problem.terminal_cost.gradient(0, name=terminal_cost_grad_x_name),
+                simplification,
+            ),
+        )
+        helper_names = (
+            dynamics_vjp_x_name,
+            dynamics_vjp_u_name,
+            stage_cost_grad_x_name,
+            stage_cost_grad_u_name,
+            terminal_cost_grad_x_name,
+        )
+        for helper_function, helper_name in zip(helper_functions, helper_names):
+            helper_codegen = generate_rust(
+                helper_function,
+                config=helper_config,
+                function_name=helper_name,
+                function_index=1,
+                shared_helper_nodes=(),
+                emit_crate_header=False,
+                emit_docs=False,
+                function_keyword="fn",
+            )
+            helper_sources.append(helper_codegen.source.rstrip())
+            helper_nodes.extend(helper_function.nodes)
+            max_workspace = max(max_workspace, helper_codegen.workspace_size)
+
+    return _SingleShootingHelperBundle(
+        dynamics_name=dynamics_name,
+        stage_cost_name=stage_cost_name,
+        terminal_cost_name=terminal_cost_name,
+        dynamics_vjp_x_name=dynamics_vjp_x_name,
+        dynamics_vjp_u_name=dynamics_vjp_u_name,
+        stage_cost_grad_x_name=stage_cost_grad_x_name,
+        stage_cost_grad_u_name=stage_cost_grad_u_name,
+        terminal_cost_grad_x_name=terminal_cost_grad_x_name,
+        sources=tuple(helper_sources),
+        helper_nodes=tuple(helper_nodes),
+        max_workspace_size=max_workspace,
+    )
+
+
+def _build_single_shooting_input_specs(
+    problem: SingleShootingProblem,
+) -> tuple[_ArgSpec, ...]:
+    """Build input metadata for a single-shooting driver kernel."""
+    return (
+        _ArgSpec(
+            raw_name=problem.initial_state_name,
+            rust_name=sanitize_ident(problem.initial_state_name),
+            rust_label=_format_rust_string_literal(problem.initial_state_name),
+            doc_description="initial state slice",
+            size=problem.state_size,
+        ),
+        _ArgSpec(
+            raw_name=problem.control_sequence_name,
+            rust_name=sanitize_ident(problem.control_sequence_name),
+            rust_label=_format_rust_string_literal(problem.control_sequence_name),
+            doc_description="packed control-sequence slice laid out stage-major over the horizon",
+            size=problem.horizon * problem.control_size,
+        ),
+        _ArgSpec(
+            raw_name=problem.parameter_name,
+            rust_name=sanitize_ident(problem.parameter_name),
+            rust_label=_format_rust_string_literal(problem.parameter_name),
+            doc_description="shared parameter slice used at every stage and terminal evaluation",
+            size=problem.parameter_size,
+        ),
+    )
+
+
+def _build_single_shooting_output_specs(
+    problem: SingleShootingProblem,
+    *,
+    include_cost: bool,
+    include_gradient: bool,
+    include_states: bool,
+) -> tuple[_ArgSpec, ...]:
+    """Build output metadata for a single-shooting driver kernel."""
+    specs: list[_ArgSpec] = []
+    if include_cost:
+        specs.append(
+            _ArgSpec(
+                raw_name="cost",
+                rust_name="cost",
+                rust_label=_format_rust_string_literal("cost"),
+                doc_description="total cost output",
+                size=1,
+            )
+        )
+    if include_gradient:
+        gradient_name = f"gradient_{problem.control_sequence_name}"
+        specs.append(
+            _ArgSpec(
+                raw_name=gradient_name,
+                rust_name=sanitize_ident(gradient_name),
+                rust_label=_format_rust_string_literal(gradient_name),
+                doc_description="gradient with respect to the packed control sequence",
+                size=problem.horizon * problem.control_size,
+            )
+        )
+    if include_states:
+        specs.append(
+            _ArgSpec(
+                raw_name="x_traj",
+                rust_name="x_traj",
+                rust_label=_format_rust_string_literal("x_traj"),
+                doc_description="packed rollout state trajectory including x0 through xN",
+                size=(problem.horizon + 1) * problem.state_size,
+            )
+        )
+    return tuple(specs)
+
+
+def _compose_single_shooting_helper_base_name(crate_name: str | None, problem_name: str) -> str:
+    """Build the shared helper base name for a single-shooting problem."""
+    base_label = sanitize_ident(problem_name)
+    if crate_name is None:
+        return base_label
+    crate_label = sanitize_ident(crate_name)
+    if base_label == crate_label or base_label.startswith(f"{crate_label}_"):
+        return base_label
+    return sanitize_ident(f"{crate_label}_{base_label}")
+
+
+def _emit_single_shooting_control_slice(
+    sequence_name: str,
+    index_expr: str,
+    control_size: int,
+) -> str:
+    """Return the Rust slice expression for one stage control block."""
+    return f"&{sequence_name}[{_emit_single_shooting_stage_range(index_expr, control_size)}]"
+
+
+def _emit_single_shooting_stage_range(
+    index_expr: str,
+    block_size: int,
+) -> str:
+    """Return the Rust range expression for one packed stage block."""
+    if block_size == 1:
+        start = "0" if index_expr == "0" else index_expr
+        end = "1" if index_expr == "0" else f"({index_expr} + 1)"
+        return f"{start}..{end}"
+    start = "0" if index_expr == "0" else f"({index_expr} * {block_size})"
+    end = str(block_size) if index_expr == "0" else f"(({index_expr} + 1) * {block_size})"
+    return f"{start}..{end}"
 
 
 def _build_composed_input_specs(

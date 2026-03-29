@@ -1,9 +1,10 @@
-.PHONY: all codegen custom_function multi_function vjp composed_function help
+.PHONY: all codegen custom_function multi_function vjp composed_function single_shooting help
 
 PYTHON ?= python
 REPEATS ?= 5
+HORIZON ?= 5
 
-all: codegen custom_function multi_function vjp composed_function
+all: codegen custom_function multi_function vjp composed_function single_shooting
 
 help:
 	@echo "Available targets:"
@@ -13,6 +14,7 @@ help:
 	@echo "  make multi_function"
 	@echo "  make vjp"
 	@echo "  make composed_function REPEATS=$(REPEATS)"
+	@echo "  make single_shooting HORIZON=$(HORIZON)"
 
 codegen:
 	$(PYTHON) codegen/main.py
@@ -28,3 +30,6 @@ vjp:
 
 composed_function:
 	$(PYTHON) composed_function/main.py --repeats $(REPEATS)
+
+single_shooting:
+	$(PYTHON) single_shooting/main.py --horizon $(HORIZON)

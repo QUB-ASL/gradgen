@@ -1,0 +1,75 @@
+{
+  "crate_name": "single_shooting_kernel",
+  "created_at": "2026-03-29T22:46:52.108923Z",
+  "gradgen_version": "0.3.1",
+  "functions": [
+    {
+      "function_name": "single_shooting_kernel_mpc_cost_f_states",
+      "workspace_size": 8,
+      "input_names": [
+        "x0",
+        "u_seq",
+        "p"
+      ],
+      "input_sizes": [
+        2,
+        5,
+        2
+      ],
+      "output_names": [
+        "cost",
+        "x_traj"
+      ],
+      "output_sizes": [
+        1,
+        12
+      ]
+    },
+    {
+      "function_name": "single_shooting_kernel_mpc_cost_grad_states_u_seq",
+      "workspace_size": 24,
+      "input_names": [
+        "x0",
+        "u_seq",
+        "p"
+      ],
+      "input_sizes": [
+        2,
+        5,
+        2
+      ],
+      "output_names": [
+        "gradient_u_seq",
+        "x_traj"
+      ],
+      "output_sizes": [
+        5,
+        12
+      ]
+    },
+    {
+      "function_name": "single_shooting_kernel_mpc_cost_f_grad_states_u_seq",
+      "workspace_size": 25,
+      "input_names": [
+        "x0",
+        "u_seq",
+        "p"
+      ],
+      "input_sizes": [
+        2,
+        5,
+        2
+      ],
+      "output_names": [
+        "cost",
+        "gradient_u_seq",
+        "x_traj"
+      ],
+      "output_sizes": [
+        1,
+        5,
+        12
+      ]
+    }
+  ]
+}
