@@ -155,12 +155,12 @@ pub fn vjp_kernel_g_vjp(x: &[f64], cotangent_y: &[f64], vjp_x: &mut [f64], work:
     assert_eq!(cotangent_y.len(), 3);
     assert_eq!(vjp_x.len(), 2);
     work[0] = cotangent_y[1] * x[1];
-    work[0] = work[0] + cotangent_y[0];
+    work[0] += None;
     work[1] = libm::cos(x[1]);
-    work[1] = work[1] * cotangent_y[2];
-    work[1] = work[1] + cotangent_y[0];
+    work[1] *= None;
+    work[1] += None;
     work[2] = cotangent_y[1] * x[0];
-    work[1] = work[1] + work[2];
+    work[1] += work[2];
     vjp_x[0] = work[0];
     vjp_x[1] = work[1];
 }

@@ -338,7 +338,7 @@ def generate_rust(
             resolved_config.scalar_type,
             resolved_math_library,
         )
-        computation_lines.append(f"work[{work_index}] = {rhs};")
+        computation_lines.append(_emit_workspace_assignment(node, work_index, rhs, workspace_map))
 
     for output_spec, output_arg, direct_helper_call in zip(output_specs, function.outputs, direct_output_helpers):
         output_assert_lines.append(
@@ -1755,6 +1755,46 @@ def _emit_node_expr(
         return _emit_math_call("min", args, backend_mode, scalar_type, math_library)
 
     raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
+
+
+def _emit_workspace_assignment(
+    node: SXNode,
+    work_index: int,
+    rhs: str,
+    workspace_map: dict[SXNode, int],
+) -> str:
+    """Emit one workspace assignment, using compound operators when safe."""
+    target = f"work[{work_index}]"
+    expr = SX(node)
+
+    if expr.op in {"add", "sub", "mul", "div"}:
+        left, right = expr.args
+        left_ref = _workspace_ref_for_node(left.node, workspace_map)
+        right_ref = _workspace_ref_for_node(right.node, workspace_map)
+        if left_ref == target:
+            operator = {
+                "add": "+=",
+                "sub": "-=",
+                "mul": "*=",
+                "div": "/=",
+            }[expr.op]
+            return f"{target} {operator} {right_ref};"
+        if expr.op in {"add", "mul"} and right_ref == target:
+            operator = {
+                "add": "+=",
+                "mul": "*=",
+            }[expr.op]
+            return f"{target} {operator} {left_ref};"
+
+    return f"{target} = {rhs};"
+
+
+def _workspace_ref_for_node(node: SXNode, workspace_map: dict[SXNode, int]) -> str | None:
+    """Return the workspace reference for ``node`` when it already has one."""
+    work_index = workspace_map.get(node)
+    if work_index is None:
+        return None
+    return f"work[{work_index}]"
 
 
 def _allocate_workspace_slots(

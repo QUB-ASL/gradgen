@@ -127,27 +127,35 @@ custom_energy = register_elementary_function(
 
 # Build a gradgen Function using the custom primitive.
 x = SXVector.sym("x", 2)
+w = SXVector.sym("w", 2)
 f = Function(
     "custom_energy",
-    [x],
-    [custom_energy(x, w=[1.5, 3.0])],
-    input_names=["x"],
+    [x, w],
+    [custom_energy(x, w=w)],
+    input_names=["x", "w"],
     output_names=["y"],
 )
 
+grad_x = f.gradient(0, name="custom_energy_grad_x")
+hessian_x = f.hessian(0, name="custom_energy_hessian_x")
+hvp_x = f.hvp(0, name="custom_energy_hvp_x")
+
 
 # Evaluate the primal and derivative kernels on one concrete point so the demo
-# shows what the opaque Python callbacks do.
+# shows what the opaque Python callbacks do. The custom derivative callbacks are
+# defined with respect to x, so this demo generates derivatives only with
+# respect to the symbolic state vector x.
 x_value = [1.2, -0.7]
+w_value = [1.5, 3.0]
 v_value = [0.5, -1.0]
-print("f(x) =", f(x_value))
-print("grad f(x) =", f.gradient(0)(x_value))
-print("hessian f(x) =", f.hessian(0)(x_value))
-print("hvp f(x, v) =", f.hvp(0)(x_value, v_value))
+print("f(x, w) =", f(x_value, w_value))
+print("grad_x f(x, w) =", grad_x(x_value, w_value))
+print("hessian_x f(x, w) =", hessian_x(x_value, w_value))
+print("hvp_x f(x, w, v) =", hvp_x(x_value, w_value, v_value))
 
 
-# Generate one Rust crate in this demo folder containing the primal, gradient,
-# Hessian, and HVP kernels for the custom source function.
+# Generate one Rust crate in this demo folder containing the primal kernel and
+# the x-derivative kernels for the custom source function.
 project = (
     CodeGenerationBuilder()
     .with_backend_config(
@@ -156,16 +164,10 @@ project = (
         .with_backend_mode("no_std")
         .with_scalar_type("f64")
     )
-    .for_function(
-        f,
-        lambda b: (
-            b.add_primal()
-            .add_gradient()
-            .add_hessian()
-            .add_hvp()
-            .with_simplification("medium")
-        ),
-    )
+    .for_function(f, lambda b: b.add_primal().with_simplification("medium"))
+    .for_function(grad_x, lambda b: b.add_primal().with_simplification("medium"))
+    .for_function(hessian_x, lambda b: b.add_primal().with_simplification("medium"))
+    .for_function(hvp_x, lambda b: b.add_primal().with_simplification("medium"))
     .build(Path(__file__).resolve().parent / "custom_function_kernel")
 )
 

@@ -70,8 +70,10 @@ pub fn custom_function_kernel_custom_energy_f_meta() -> FunctionMetadata {
         workspace_size: 1,
         input_names: &[
             "x",
+            "w",
         ],
         input_sizes: &[
+            2,
             2,
         ],
         output_names: &[
@@ -91,28 +93,34 @@ pub fn custom_function_kernel_custom_energy_f_meta() -> FunctionMetadata {
 /// - `x`:
 ///   input slice for the declared argument `x`
 ///   Expected length: 2.
+/// - `w`:
+///   input slice for the declared argument `w`
+///   Expected length: 2.
 /// - `y`:
 ///   primal output slice for the declared result `y`
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
-pub fn custom_function_kernel_custom_energy_f(x: &[f64], y: &mut [f64], work: &mut [f64]) {
+pub fn custom_function_kernel_custom_energy_f(x: &[f64], w: &[f64], y: &mut [f64], work: &mut [f64]) {
     assert!(work.len() >= 1);
     assert_eq!(x.len(), 2);
+    assert_eq!(w.len(), 2);
     assert_eq!(y.len(), 1);
-    work[0] = custom_energy_demo(x, &[1.5_f64, 3.0_f64]);
+    work[0] = custom_energy_demo(x, w);
     y[0] = work[0];
 }
 
-/// Return metadata describing [`custom_function_kernel_custom_energy_grad`].
-pub fn custom_function_kernel_custom_energy_grad_meta() -> FunctionMetadata {
+/// Return metadata describing [`custom_function_kernel_custom_energy_grad_x_f`].
+pub fn custom_function_kernel_custom_energy_grad_x_f_meta() -> FunctionMetadata {
     FunctionMetadata {
-        function_name: "custom_function_kernel_custom_energy_grad",
+        function_name: "custom_function_kernel_custom_energy_grad_x_f",
         workspace_size: 0,
         input_names: &[
             "x",
+            "w",
         ],
         input_sizes: &[
+            2,
             2,
         ],
         output_names: &[
@@ -124,7 +132,7 @@ pub fn custom_function_kernel_custom_energy_grad_meta() -> FunctionMetadata {
     }
 }
 
-/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_grad`.
+/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_grad_x_f`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
@@ -132,26 +140,32 @@ pub fn custom_function_kernel_custom_energy_grad_meta() -> FunctionMetadata {
 /// - `x`:
 ///   input slice for the declared argument `x`
 ///   Expected length: 2.
+/// - `w`:
+///   input slice for the declared argument `w`
+///   Expected length: 2.
 /// - `y`:
 ///   primal output slice for the declared result `y`
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
-pub fn custom_function_kernel_custom_energy_grad(x: &[f64], y: &mut [f64], _work: &mut [f64]) {
+pub fn custom_function_kernel_custom_energy_grad_x_f(x: &[f64], w: &[f64], y: &mut [f64], _work: &mut [f64]) {
     assert_eq!(x.len(), 2);
+    assert_eq!(w.len(), 2);
     assert_eq!(y.len(), 2);
-    custom_energy_demo_jacobian(x, &[1.5_f64, 3.0_f64], y);
+    custom_energy_demo_jacobian(x, w, y);
 }
 
-/// Return metadata describing [`custom_function_kernel_custom_energy_hessian`].
-pub fn custom_function_kernel_custom_energy_hessian_meta() -> FunctionMetadata {
+/// Return metadata describing [`custom_function_kernel_custom_energy_hessian_x_f`].
+pub fn custom_function_kernel_custom_energy_hessian_x_f_meta() -> FunctionMetadata {
     FunctionMetadata {
-        function_name: "custom_function_kernel_custom_energy_hessian",
+        function_name: "custom_function_kernel_custom_energy_hessian_x_f",
         workspace_size: 0,
         input_names: &[
             "x",
+            "w",
         ],
         input_sizes: &[
+            2,
             2,
         ],
         output_names: &[
@@ -163,7 +177,7 @@ pub fn custom_function_kernel_custom_energy_hessian_meta() -> FunctionMetadata {
     }
 }
 
-/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_hessian`.
+/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_hessian_x_f`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
@@ -171,27 +185,33 @@ pub fn custom_function_kernel_custom_energy_hessian_meta() -> FunctionMetadata {
 /// - `x`:
 ///   input slice for the declared argument `x`
 ///   Expected length: 2.
+/// - `w`:
+///   input slice for the declared argument `w`
+///   Expected length: 2.
 /// - `y`:
 ///   primal output slice for the declared result `y`
 ///   Expected length: 4.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
-pub fn custom_function_kernel_custom_energy_hessian(x: &[f64], y: &mut [f64], _work: &mut [f64]) {
+pub fn custom_function_kernel_custom_energy_hessian_x_f(x: &[f64], w: &[f64], y: &mut [f64], _work: &mut [f64]) {
     assert_eq!(x.len(), 2);
+    assert_eq!(w.len(), 2);
     assert_eq!(y.len(), 4);
-    custom_energy_demo_hessian(x, &[1.5_f64, 3.0_f64], y);
+    custom_energy_demo_hessian(x, w, y);
 }
 
-/// Return metadata describing [`custom_function_kernel_custom_energy_hvp`].
-pub fn custom_function_kernel_custom_energy_hvp_meta() -> FunctionMetadata {
+/// Return metadata describing [`custom_function_kernel_custom_energy_hvp_x_f`].
+pub fn custom_function_kernel_custom_energy_hvp_x_f_meta() -> FunctionMetadata {
     FunctionMetadata {
-        function_name: "custom_function_kernel_custom_energy_hvp",
+        function_name: "custom_function_kernel_custom_energy_hvp_x_f",
         workspace_size: 0,
         input_names: &[
             "x",
+            "w",
             "v_x",
         ],
         input_sizes: &[
+            2,
             2,
             2,
         ],
@@ -204,13 +224,16 @@ pub fn custom_function_kernel_custom_energy_hvp_meta() -> FunctionMetadata {
     }
 }
 
-/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_hvp`.
+/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_hvp_x_f`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
 /// Arguments:
 /// - `x`:
 ///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `w`:
+///   input slice for the declared argument `w`
 ///   Expected length: 2.
 /// - `v_x`:
 ///   tangent or direction input associated with declared argument `x`;
@@ -222,9 +245,10 @@ pub fn custom_function_kernel_custom_energy_hvp_meta() -> FunctionMetadata {
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
-pub fn custom_function_kernel_custom_energy_hvp(x: &[f64], v_x: &[f64], y: &mut [f64], _work: &mut [f64]) {
+pub fn custom_function_kernel_custom_energy_hvp_x_f(x: &[f64], w: &[f64], v_x: &[f64], y: &mut [f64], _work: &mut [f64]) {
     assert_eq!(x.len(), 2);
+    assert_eq!(w.len(), 2);
     assert_eq!(v_x.len(), 2);
     assert_eq!(y.len(), 2);
-    custom_energy_demo_hvp(x, v_x, &[1.5_f64, 3.0_f64], y);
+    custom_energy_demo_hvp(x, v_x, w, y);
 }

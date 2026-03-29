@@ -65,7 +65,7 @@ pub fn multi_function_kernel_energy_f(x: &[f64], u: &[f64], energy: &mut [f64], 
     assert_eq!(energy.len(), 1);
     work[0] = u[0] * x[0];
     work[1] = norm2sq(x);
-    work[0] = work[0] + work[1];
+    work[0] += work[1];
     energy[0] = work[0];
 }
 
@@ -114,7 +114,7 @@ pub fn multi_function_kernel_energy_jf_x(x: &[f64], u: &[f64], jacobian_energy: 
     assert_eq!(u.len(), 1);
     assert_eq!(jacobian_energy.len(), 2);
     work[0] = 2.0_f64 * x[0];
-    work[0] = work[0] + u[0];
+    work[0] += None;
     work[1] = 2.0_f64 * x[1];
     jacobian_energy[0] = work[0];
     jacobian_energy[1] = work[1];
@@ -211,7 +211,7 @@ pub fn multi_function_kernel_coupling_f(x: &[f64], u: &[f64], coupling: &mut [f6
     assert_eq!(coupling.len(), 1);
     work[0] = libm::cos(u[0]);
     work[1] = x[0] * x[1];
-    work[0] = work[0] + work[1];
+    work[0] += work[1];
     coupling[0] = work[0];
 }
 
@@ -415,7 +415,7 @@ pub fn multi_function_kernel_coupling_hvp_u(x: &[f64], u: &[f64], v_u: &[f64], c
     assert_eq!(v_u.len(), 1);
     assert_eq!(coupling.len(), 1);
     work[0] = libm::cos(u[0]);
-    work[0] = work[0] * v_u[0];
+    work[0] *= None;
     work[0] = -work[0];
     coupling[0] = work[0];
 }
@@ -472,7 +472,7 @@ pub fn multi_function_kernel_coupling_f_jf_x(x: &[f64], u: &[f64], coupling: &mu
     assert_eq!(jacobian_coupling.len(), 2);
     work[0] = libm::cos(u[0]);
     work[1] = x[0] * x[1];
-    work[0] = work[0] + work[1];
+    work[0] += work[1];
     coupling[0] = work[0];
     jacobian_coupling[0] = x[1];
     jacobian_coupling[1] = x[0];

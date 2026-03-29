@@ -122,6 +122,72 @@ fn weighted_sqnorm_hessian(
         self.assertEqual(f.hvp(0)([1.0, 2.0], [3.0, 4.0]), (12.0, 24.0))
         self.assertEqual(f.hessian(0)([1.0, 2.0]), (4.0, 0.0, 0.0, 6.0))
 
+    def test_register_vector_custom_function_accepts_symbolic_parameter_inputs(self) -> None:
+        weighted_sqnorm = register_elementary_function(
+            name="weighted_sqnorm_symbolic_w",
+            input_dimension=2,
+            parameter_dimension=2,
+            parameter_defaults=[1.0, 1.0],
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+            hessian=lambda x, w: [
+                [2 * w[0], 0.0],
+                [0.0, 2 * w[1]],
+            ],
+            hvp=lambda x, v, w: [2 * w[0] * v[0], 2 * w[1] * v[1]],
+            rust_primal="""
+fn weighted_sqnorm_symbolic_w(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+) -> {{ scalar_type }} {
+    w[0] * x[0] * x[0] + w[1] * x[1] * x[1]
+}
+""",
+            rust_jacobian="""
+fn weighted_sqnorm_symbolic_w_jacobian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    out[0] = 2.0_{{ scalar_type }} * w[0] * x[0];
+    out[1] = 2.0_{{ scalar_type }} * w[1] * x[1];
+}
+""",
+            rust_hvp="""
+fn weighted_sqnorm_symbolic_w_hvp(
+    x: &[{{ scalar_type }}],
+    v_x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w[0] * v_x[0];
+    out[1] = 2.0_{{ scalar_type }} * w[1] * v_x[1];
+}
+""",
+            rust_hessian="""
+fn weighted_sqnorm_symbolic_w_hessian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w[0];
+    out[1] = 0.0_{{ scalar_type }};
+    out[2] = 0.0_{{ scalar_type }};
+    out[3] = 2.0_{{ scalar_type }} * w[1];
+}
+""",
+        )
+
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 2)
+        f = Function("f", [x, w], [weighted_sqnorm(x, w=w)], input_names=["x", "w"], output_names=["y"])
+
+        self.assertEqual(f([1.0, 2.0], [2.0, 3.0]), 14.0)
+        self.assertEqual(f.gradient(0)([1.0, 2.0], [2.0, 3.0]), (4.0, 12.0))
+        self.assertIn("w: &[f64]", f.generate_rust(backend_mode="no_std").source)
+
     def test_register_vector_custom_function_accepts_plain_python_array_outputs(self) -> None:
         weighted_sqnorm = register_elementary_function(
             name="weighted_sqnorm_plain",

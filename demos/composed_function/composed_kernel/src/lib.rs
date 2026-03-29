@@ -78,9 +78,9 @@ fn composed_kernel_composed_demo_f_repeat_0_g(state: &[f64], p: &[f64], next_sta
     assert_eq!(p.len(), 2);
     assert_eq!(next_state.len(), 2);
     work[0] = 0.9_f64 * state[0];
-    work[0] = work[0] + p[0];
+    work[0] += None;
     work[1] = 0.1_f64 * state[1];
-    work[1] = work[1] * p[1];
+    work[1] *= None;
     next_state[0] = work[0];
     next_state[1] = work[1];
 }
@@ -92,8 +92,8 @@ fn composed_kernel_composed_demo_f_terminal_h(state: &[f64], pf: &[f64], y: &mut
     assert_eq!(y.len(), 1);
     work[0] = 2.0_f64 * state[0];
     work[1] = -state[1];
-    work[0] = work[0] + work[1];
-    work[0] = work[0] + pf[0];
+    work[0] += work[1];
+    work[0] += None;
     y[0] = work[0];
 }
 
@@ -188,9 +188,9 @@ fn composed_kernel_composed_demo_grad_x_repeat_0_g(state: &[f64], p: &[f64], nex
     assert_eq!(p.len(), 2);
     assert_eq!(next_state.len(), 2);
     work[0] = 0.9_f64 * state[0];
-    work[0] = work[0] + p[0];
+    work[0] += None;
     work[1] = 0.1_f64 * state[1];
-    work[1] = work[1] * p[1];
+    work[1] *= None;
     next_state[0] = work[0];
     next_state[1] = work[1];
 }
@@ -203,7 +203,7 @@ fn composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(state: &[f64], p: &[f64],
     assert_eq!(vjp_state.len(), 2);
     work[0] = 0.9_f64 * cotangent_next_state[0];
     work[1] = 0.1_f64 * cotangent_next_state[1];
-    work[1] = work[1] * p[1];
+    work[1] *= None;
     vjp_state[0] = work[0];
     vjp_state[1] = work[1];
 }

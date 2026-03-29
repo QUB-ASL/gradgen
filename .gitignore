@@ -33,3 +33,4 @@ target/
 
 # Custom
 private/
+tmp_*
