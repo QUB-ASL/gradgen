@@ -64,7 +64,7 @@ pub fn multi_function_kernel_energy_jf_x_meta() -> FunctionMetadata {
         workspace_size: 2,
         input_names: &["x", "u"],
         input_sizes: &[2, 1],
-        output_names: &["energy"],
+        output_names: &["jacobian_energy"],
         output_sizes: &[2],
     }
 }
@@ -80,26 +80,27 @@ pub fn multi_function_kernel_energy_jf_x_meta() -> FunctionMetadata {
 /// - `u`:
 ///   input slice for the declared argument `u`
 ///   Expected length: 1.
-/// - `energy`:
-///   primal output slice for the declared result `energy`
+/// - `jacobian_energy`:
+///   output slice receiving the Jacobian block for declared result
+///   `energy`
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
 pub fn multi_function_kernel_energy_jf_x(
     x: &[f64],
     u: &[f64],
-    energy: &mut [f64],
+    jacobian_energy: &mut [f64],
     work: &mut [f64],
 ) {
     assert!(work.len() >= 2);
     assert_eq!(x.len(), 2);
     assert_eq!(u.len(), 1);
-    assert_eq!(energy.len(), 2);
+    assert_eq!(jacobian_energy.len(), 2);
     work[0] = 2.0_f64 * x[0];
     work[0] = work[0] + u[0];
     work[1] = 2.0_f64 * x[1];
-    energy[0] = work[0];
-    energy[1] = work[1];
+    jacobian_energy[0] = work[0];
+    jacobian_energy[1] = work[1];
 }
 
 /// Return metadata describing [`multi_function_kernel_energy_jf_u`].
@@ -109,7 +110,7 @@ pub fn multi_function_kernel_energy_jf_u_meta() -> FunctionMetadata {
         workspace_size: 0,
         input_names: &["x", "u"],
         input_sizes: &[2, 1],
-        output_names: &["energy"],
+        output_names: &["jacobian_energy"],
         output_sizes: &[1],
     }
 }
@@ -125,21 +126,22 @@ pub fn multi_function_kernel_energy_jf_u_meta() -> FunctionMetadata {
 /// - `u`:
 ///   input slice for the declared argument `u`
 ///   Expected length: 1.
-/// - `energy`:
-///   primal output slice for the declared result `energy`
+/// - `jacobian_energy`:
+///   output slice receiving the Jacobian block for declared result
+///   `energy`
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
 pub fn multi_function_kernel_energy_jf_u(
     x: &[f64],
     u: &[f64],
-    energy: &mut [f64],
+    jacobian_energy: &mut [f64],
     _work: &mut [f64],
 ) {
     assert_eq!(x.len(), 2);
     assert_eq!(u.len(), 1);
-    assert_eq!(energy.len(), 1);
-    energy[0] = x[0];
+    assert_eq!(jacobian_energy.len(), 1);
+    jacobian_energy[0] = x[0];
 }
 
 /// Return metadata describing [`multi_function_kernel_coupling_f`].

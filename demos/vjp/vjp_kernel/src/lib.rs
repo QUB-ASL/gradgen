@@ -15,10 +15,10 @@ pub struct FunctionMetadata {
     pub output_sizes: &'static [usize],
 }
 
-/// Return metadata describing [`vjp_kernel_f`].
-pub fn vjp_kernel_f_meta() -> FunctionMetadata {
+/// Return metadata describing [`vjp_kernel_G_f`].
+pub fn vjp_kernel_G_f_meta() -> FunctionMetadata {
     FunctionMetadata {
-        function_name: "vjp_kernel_f",
+        function_name: "vjp_kernel_G_f",
         workspace_size: 3,
         input_names: &["x"],
         input_sizes: &[2],
@@ -27,7 +27,7 @@ pub fn vjp_kernel_f_meta() -> FunctionMetadata {
     }
 }
 
-/// Evaluate the generated symbolic function `vjp_kernel_f`.
+/// Evaluate the generated symbolic function `vjp_kernel_G_f`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
@@ -40,7 +40,7 @@ pub fn vjp_kernel_f_meta() -> FunctionMetadata {
 ///   Expected length: 3.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 3.
-pub fn vjp_kernel_f(x: &[f64], y: &mut [f64], work: &mut [f64]) {
+pub fn vjp_kernel_G_f(x: &[f64], y: &mut [f64], work: &mut [f64]) {
     assert!(work.len() >= 3);
     assert_eq!(x.len(), 2);
     assert_eq!(y.len(), 3);
@@ -52,10 +52,10 @@ pub fn vjp_kernel_f(x: &[f64], y: &mut [f64], work: &mut [f64]) {
     y[2] = work[2];
 }
 
-/// Return metadata describing [`vjp_kernel_jf`].
-pub fn vjp_kernel_jf_meta() -> FunctionMetadata {
+/// Return metadata describing [`vjp_kernel_G_jf`].
+pub fn vjp_kernel_G_jf_meta() -> FunctionMetadata {
     FunctionMetadata {
-        function_name: "vjp_kernel_jf",
+        function_name: "vjp_kernel_G_jf",
         workspace_size: 1,
         input_names: &["x"],
         input_sizes: &[2],
@@ -64,7 +64,7 @@ pub fn vjp_kernel_jf_meta() -> FunctionMetadata {
     }
 }
 
-/// Evaluate the generated symbolic function `vjp_kernel_jf`.
+/// Evaluate the generated symbolic function `vjp_kernel_G_jf`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
@@ -77,7 +77,7 @@ pub fn vjp_kernel_jf_meta() -> FunctionMetadata {
 ///   Expected length: 6.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
-pub fn vjp_kernel_jf(x: &[f64], jacobian_y: &mut [f64], work: &mut [f64]) {
+pub fn vjp_kernel_G_jf(x: &[f64], jacobian_y: &mut [f64], work: &mut [f64]) {
     assert!(work.len() >= 1);
     assert_eq!(x.len(), 2);
     assert_eq!(jacobian_y.len(), 6);
@@ -90,10 +90,10 @@ pub fn vjp_kernel_jf(x: &[f64], jacobian_y: &mut [f64], work: &mut [f64]) {
     jacobian_y[5] = work[0];
 }
 
-/// Return metadata describing [`vjp_kernel_vjp`].
-pub fn vjp_kernel_vjp_meta() -> FunctionMetadata {
+/// Return metadata describing [`vjp_kernel_G_vjp`].
+pub fn vjp_kernel_G_vjp_meta() -> FunctionMetadata {
     FunctionMetadata {
-        function_name: "vjp_kernel_vjp",
+        function_name: "vjp_kernel_G_vjp",
         workspace_size: 3,
         input_names: &["x", "cotangent_y"],
         input_sizes: &[2, 3],
@@ -102,7 +102,7 @@ pub fn vjp_kernel_vjp_meta() -> FunctionMetadata {
     }
 }
 
-/// Evaluate the generated symbolic function `vjp_kernel_vjp`.
+/// Evaluate the generated symbolic function `vjp_kernel_G_vjp`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
@@ -121,7 +121,7 @@ pub fn vjp_kernel_vjp_meta() -> FunctionMetadata {
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 3.
-pub fn vjp_kernel_vjp(x: &[f64], cotangent_y: &[f64], vjp_x: &mut [f64], work: &mut [f64]) {
+pub fn vjp_kernel_G_vjp(x: &[f64], cotangent_y: &[f64], vjp_x: &mut [f64], work: &mut [f64]) {
     assert!(work.len() >= 3);
     assert_eq!(x.len(), 2);
     assert_eq!(cotangent_y.len(), 3);
