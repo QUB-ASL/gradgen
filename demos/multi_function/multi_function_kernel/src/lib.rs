@@ -1,3 +1,5 @@
+#![no_std]
+
 fn norm2sq(values: &[f64]) -> f64 {
     values.iter().map(|value| *value * *value).sum()
 }
@@ -207,7 +209,7 @@ pub fn multi_function_kernel_coupling_f(x: &[f64], u: &[f64], coupling: &mut [f6
     assert_eq!(x.len(), 2);
     assert_eq!(u.len(), 1);
     assert_eq!(coupling.len(), 1);
-    work[0] = u[0].cos();
+    work[0] = libm::cos(u[0]);
     work[1] = x[0] * x[1];
     work[0] = work[0] + work[1];
     coupling[0] = work[0];
@@ -302,7 +304,7 @@ pub fn multi_function_kernel_coupling_grad_u(x: &[f64], u: &[f64], coupling: &mu
     assert_eq!(x.len(), 2);
     assert_eq!(u.len(), 1);
     assert_eq!(coupling.len(), 1);
-    work[0] = u[0].sin();
+    work[0] = libm::sin(u[0]);
     work[0] = -work[0];
     coupling[0] = work[0];
 }
@@ -412,7 +414,7 @@ pub fn multi_function_kernel_coupling_hvp_u(x: &[f64], u: &[f64], v_u: &[f64], c
     assert_eq!(u.len(), 1);
     assert_eq!(v_u.len(), 1);
     assert_eq!(coupling.len(), 1);
-    work[0] = u[0].cos();
+    work[0] = libm::cos(u[0]);
     work[0] = work[0] * v_u[0];
     work[0] = -work[0];
     coupling[0] = work[0];
@@ -468,7 +470,7 @@ pub fn multi_function_kernel_coupling_f_jf_x(x: &[f64], u: &[f64], coupling: &mu
     assert_eq!(u.len(), 1);
     assert_eq!(coupling.len(), 1);
     assert_eq!(jacobian_coupling.len(), 2);
-    work[0] = u[0].cos();
+    work[0] = libm::cos(u[0]);
     work[1] = x[0] * x[1];
     work[0] = work[0] + work[1];
     coupling[0] = work[0];

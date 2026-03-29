@@ -1,3 +1,5 @@
+#![no_std]
+
 fn norm2sq(values: &[f64]) -> f64 {
     values.iter().map(|value| *value * *value).sum()
 }
@@ -61,7 +63,7 @@ pub fn codegen_kernel_energy_f(x: &[f64], u: &[f64], energy: &mut [f64], work: &
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
     assert_eq!(energy.len(), 1);
-    work[0] = x[0].sin();
+    work[0] = libm::sin(x[0]);
     work[0] = work[0] * u[0];
     work[1] = norm2sq(x);
     work[0] = work[0] + work[1];
@@ -115,7 +117,7 @@ pub fn codegen_kernel_energy_jf_x(x: &[f64], u: &[f64], jacobian_energy: &mut [f
     assert_eq!(u.len(), 1);
     assert_eq!(jacobian_energy.len(), 3);
     work[0] = 2.0_f64 * x[0];
-    work[1] = x[0].cos();
+    work[1] = libm::cos(x[0]);
     work[1] = work[1] * u[0];
     work[0] = work[0] + work[1];
     work[1] = 2.0_f64 * x[1];
@@ -171,7 +173,7 @@ pub fn codegen_kernel_energy_jf_u(x: &[f64], u: &[f64], jacobian_energy: &mut [f
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
     assert_eq!(jacobian_energy.len(), 1);
-    work[0] = x[0].sin();
+    work[0] = libm::sin(x[0]);
     jacobian_energy[0] = work[0];
 }
 
@@ -218,7 +220,7 @@ pub fn codegen_kernel_coupling_f(x: &[f64], u: &[f64], coupling: &mut [f64], wor
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
     assert_eq!(coupling.len(), 1);
-    work[0] = u[0].exp();
+    work[0] = libm::exp(u[0]);
     work[1] = x[0] * x[1];
     work[0] = work[0] + work[1];
     coupling[0] = work[0];
@@ -316,6 +318,6 @@ pub fn codegen_kernel_coupling_jf_u(x: &[f64], u: &[f64], jacobian_coupling: &mu
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
     assert_eq!(jacobian_coupling.len(), 1);
-    work[0] = u[0].exp();
+    work[0] = libm::exp(u[0]);
     jacobian_coupling[0] = work[0];
 }

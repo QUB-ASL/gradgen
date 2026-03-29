@@ -1,8 +1,12 @@
+#![no_std]
+
 fn custom_energy_demo(
     x: &[f64],
     w: &[f64],
 ) -> f64 {
-    w[0].exp2() * x[0] * x[0] + w[1] * x[1] * x[1] + (x[0] * x[1]).sin()
+    libm::exp2(w[0]) * x[0] * x[0]
+        + w[1] * x[1] * x[1]
+        + libm::sin(x[0] * x[1])
 }
 fn custom_energy_demo_jacobian(
     x: &[f64],
@@ -10,8 +14,10 @@ fn custom_energy_demo_jacobian(
     out: &mut [f64],
 ) {
     let xy = x[0] * x[1];
-    out[0] = 2.0_f64 * w[0].exp2() * x[0] + x[1] * xy.cos();
-    out[1] = 2.0_f64 * w[1] * x[1] + x[0] * xy.cos();
+    out[0] = 2.0_f64 * libm::exp2(w[0]) * x[0]
+        + x[1] * libm::cos(xy);
+    out[1] = 2.0_f64 * w[1] * x[1]
+        + x[0] * libm::cos(xy);
 }
 fn custom_energy_demo_jacobian_component(index: usize, x: &[f64], w: &[f64]) -> f64 {
     let mut out = [0.0_f64; 2];
@@ -24,9 +30,9 @@ fn custom_energy_demo_hessian(
     out: &mut [f64],
 ) {
     let xy = x[0] * x[1];
-    let sin_xy = xy.sin();
-    let cross = xy.cos() - x[0] * x[1] * sin_xy;
-    out[0] = 2.0_f64 * w[0].exp2() - x[1] * x[1] * sin_xy;
+    let sin_xy = libm::sin(xy);
+    let cross = libm::cos(xy) - x[0] * x[1] * sin_xy;
+    out[0] = 2.0_f64 * libm::exp2(w[0]) - x[1] * x[1] * sin_xy;
     out[1] = cross;
     out[2] = cross;
     out[3] = 2.0_f64 * w[1] - x[0] * x[0] * sin_xy;
@@ -43,9 +49,9 @@ fn custom_energy_demo_hvp(
     out: &mut [f64],
 ) {
     let xy = x[0] * x[1];
-    let sin_xy = xy.sin();
-    let cross = xy.cos() - x[0] * x[1] * sin_xy;
-    let h00 = 2.0_f64 * w[0].exp2() - x[1] * x[1] * sin_xy;
+    let sin_xy = libm::sin(xy);
+    let cross = libm::cos(xy) - x[0] * x[1] * sin_xy;
+    let h00 = 2.0_f64 * libm::exp2(w[0]) - x[1] * x[1] * sin_xy;
     let h11 = 2.0_f64 * w[1] - x[0] * x[0] * sin_xy;
     out[0] = h00 * v_x[0] + cross * v_x[1];
     out[1] = cross * v_x[0] + h11 * v_x[1];

@@ -51,7 +51,9 @@ fn custom_energy_demo(
     x: &[{{ scalar_type }}],
     w: &[{{ scalar_type }}],
 ) -> {{ scalar_type }} {
-    w[0].exp2() * x[0] * x[0] + w[1] * x[1] * x[1] + (x[0] * x[1]).sin()
+    {{ math_library }}::exp2(w[0]) * x[0] * x[0]
+        + w[1] * x[1] * x[1]
+        + {{ math_library }}::sin(x[0] * x[1])
 }
 """
 
@@ -63,8 +65,10 @@ fn custom_energy_demo_jacobian(
     out: &mut [{{ scalar_type }}],
 ) {
     let xy = x[0] * x[1];
-    out[0] = 2.0_{{ scalar_type }} * w[0].exp2() * x[0] + x[1] * xy.cos();
-    out[1] = 2.0_{{ scalar_type }} * w[1] * x[1] + x[0] * xy.cos();
+    out[0] = 2.0_{{ scalar_type }} * {{ math_library }}::exp2(w[0]) * x[0]
+        + x[1] * {{ math_library }}::cos(xy);
+    out[1] = 2.0_{{ scalar_type }} * w[1] * x[1]
+        + x[0] * {{ math_library }}::cos(xy);
 }
 """
 
@@ -76,9 +80,9 @@ fn custom_energy_demo_hessian(
     out: &mut [{{ scalar_type }}],
 ) {
     let xy = x[0] * x[1];
-    let sin_xy = xy.sin();
-    let cross = xy.cos() - x[0] * x[1] * sin_xy;
-    out[0] = 2.0_{{ scalar_type }} * w[0].exp2() - x[1] * x[1] * sin_xy;
+    let sin_xy = {{ math_library }}::sin(xy);
+    let cross = {{ math_library }}::cos(xy) - x[0] * x[1] * sin_xy;
+    out[0] = 2.0_{{ scalar_type }} * {{ math_library }}::exp2(w[0]) - x[1] * x[1] * sin_xy;
     out[1] = cross;
     out[2] = cross;
     out[3] = 2.0_{{ scalar_type }} * w[1] - x[0] * x[0] * sin_xy;
@@ -94,9 +98,9 @@ fn custom_energy_demo_hvp(
     out: &mut [{{ scalar_type }}],
 ) {
     let xy = x[0] * x[1];
-    let sin_xy = xy.sin();
-    let cross = xy.cos() - x[0] * x[1] * sin_xy;
-    let h00 = 2.0_{{ scalar_type }} * w[0].exp2() - x[1] * x[1] * sin_xy;
+    let sin_xy = {{ math_library }}::sin(xy);
+    let cross = {{ math_library }}::cos(xy) - x[0] * x[1] * sin_xy;
+    let h00 = 2.0_{{ scalar_type }} * {{ math_library }}::exp2(w[0]) - x[1] * x[1] * sin_xy;
     let h11 = 2.0_{{ scalar_type }} * w[1] - x[0] * x[0] * sin_xy;
     out[0] = h00 * v_x[0] + cross * v_x[1];
     out[1] = cross * v_x[0] + h11 * v_x[1];
@@ -149,7 +153,7 @@ project = (
     .with_backend_config(
         RustBackendConfig()
         .with_crate_name("custom_function_kernel")
-        .with_backend_mode("std")
+        .with_backend_mode("no_std")
         .with_scalar_type("f64")
     )
     .for_function(

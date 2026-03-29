@@ -8,6 +8,11 @@ fn print_metadata(label: &str, metadata: FunctionMetadata) {
     println!("{label}: {metadata:#?}");
 }
 
+fn format_slice(values: &[f64]) -> String {
+    let items: Vec<String> = values.iter().map(|value| format!("{value:.4}")).collect();
+    format!("[{}]", items.join(", "))
+}
+
 fn main() {
     print_metadata(
         "composed_demo_f metadata",
@@ -27,10 +32,10 @@ fn main() {
     let mut y = [0.0_f64; 1];
     let mut work = vec![0.0_f64; composed_kernel_composed_demo_f_meta().workspace_size];
     composed_kernel_composed_demo_f(&x, &parameters, &mut y, &mut work);
-    println!("f(x, parameters) = {:?}", y);
+    println!("f(x, parameters) = {}", format_slice(&y));
 
     let mut grad = [0.0_f64; 2];
     let mut grad_work = vec![0.0_f64; composed_kernel_composed_demo_grad_x_meta().workspace_size];
     composed_kernel_composed_demo_grad_x(&x, &parameters, &mut grad, &mut grad_work);
-    println!("grad f(x, parameters) = {:?}", grad);
+    println!("grad f(x, parameters) = {}", format_slice(&grad));
 }
