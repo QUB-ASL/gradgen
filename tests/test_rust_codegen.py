@@ -178,10 +178,11 @@ mod tests {{
         self.assertIn("/// - `work`: mutable workspace slice used to store intermediate values", result.source)
         self.assertIn("///   while evaluating this kernel. Expected length: at least 1.", result.source)
         self.assertIn("pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
+        self.assertIn("assert!(!work.is_empty());", result.source)
         self.assertIn("assert_eq!(x.len(), 1);", result.source)
         self.assertIn("assert_eq!(y.len(), 1);", result.source)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[0] = 1.0_f64 + work[0];", result.source)
+        self.assertIn("work[0] += 1.0_f64;", result.source)
         self.assertIn("y[0] = work[0];", result.source)
 
     def test_generates_vector_function_with_deterministic_workspace_layout(self) -> None:
@@ -214,7 +215,7 @@ mod tests {{
         self.assertIn("assert!(work.len() >= 3);", result.source)
         self.assertIn("work[0] = x[0] * y[0];", result.source)
         self.assertIn("work[1] = x[1] * y[1];", result.source)
-        self.assertIn("work[0] = work[0] + work[1];", result.source)
+        self.assertIn("work[0] += work[1];", result.source)
         self.assertIn("dot[0] = work[0];", result.source)
 
     def test_backend_config_supports_chainable_updates(self) -> None:

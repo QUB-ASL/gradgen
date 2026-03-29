@@ -80,7 +80,7 @@ pub fn vjp_kernel_g_jf_meta() -> FunctionMetadata {
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
 pub fn vjp_kernel_g_jf(x: &[f64], jacobian_y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 1);
+    assert!(!work.is_empty());
     assert_eq!(x.len(), 2);
     assert_eq!(jacobian_y.len(), 6);
     work[0] = libm::cos(x[1]);

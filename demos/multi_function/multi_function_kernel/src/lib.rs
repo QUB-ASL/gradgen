@@ -265,7 +265,7 @@ pub fn multi_function_kernel_coupling_grad_u(
     coupling: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(work.len() >= 1);
+    assert!(!work.is_empty());
     assert_eq!(x.len(), 2);
     assert_eq!(u.len(), 1);
     assert_eq!(coupling.len(), 1);
@@ -362,7 +362,7 @@ pub fn multi_function_kernel_coupling_hvp_u(
     coupling: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(work.len() >= 1);
+    assert!(!work.is_empty());
     assert_eq!(x.len(), 2);
     assert_eq!(u.len(), 1);
     assert_eq!(v_u.len(), 1);

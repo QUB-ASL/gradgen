@@ -149,7 +149,7 @@ pub fn codegen_kernel_energy_jf_u(
     jacobian_energy: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(work.len() >= 1);
+    assert!(!work.is_empty());
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
     assert_eq!(jacobian_energy.len(), 1);
@@ -274,7 +274,7 @@ pub fn codegen_kernel_coupling_jf_u(
     jacobian_coupling: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(work.len() >= 1);
+    assert!(!work.is_empty());
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
     assert_eq!(jacobian_coupling.len(), 1);

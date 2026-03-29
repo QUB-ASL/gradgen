@@ -77,7 +77,7 @@ pub fn custom_function_kernel_custom_energy_f(
     y: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(work.len() >= 1);
+    assert!(!work.is_empty());
     assert_eq!(x.len(), 2);
     assert_eq!(w.len(), 2);
     assert_eq!(y.len(), 1);
