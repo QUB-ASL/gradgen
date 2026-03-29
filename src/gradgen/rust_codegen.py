@@ -695,6 +695,10 @@ def _generate_composed_primal_rust(
     helper_simplification = composed.simplification
 
     name = sanitize_ident(resolved_config.function_name or composed.name)
+    helper_base_name = _compose_composed_helper_base_name(
+        resolved_config.crate_name,
+        name,
+    )
     helper_config = resolved_config.with_emit_metadata_helpers(False)
     helper_sources: list[str] = []
     helper_nodes: list[SXNode] = []
@@ -706,7 +710,7 @@ def _generate_composed_primal_rust(
     max_helper_workspace = 0
     for block_index, step in enumerate(composed.steps):
         if isinstance(step, _SingleStage):
-            helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}")
+            helper_name = sanitize_ident(f"{helper_base_name}_stage_{block_index}_{step.function.name}")
             helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
             helper_codegen = generate_rust(
                 helper_function,
@@ -736,7 +740,7 @@ def _generate_composed_primal_rust(
             stage_index += 1
             continue
 
-        helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}")
+        helper_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_{step.function.name}")
         helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
         helper_codegen = generate_rust(
             helper_function,
@@ -752,7 +756,7 @@ def _generate_composed_primal_rust(
         helper_nodes.extend(helper_function.nodes)
         max_helper_workspace = max(max_helper_workspace, helper_codegen.workspace_size)
 
-        const_name = sanitize_ident(f"{name}_repeat_{block_index}_params").upper()
+        const_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_params").upper()
         parameter_kind = step.parameters[0].kind
         if parameter_kind == "fixed" and step.parameters[0].size > 0:
             constant_lines.extend(
@@ -779,7 +783,7 @@ def _generate_composed_primal_rust(
         parameter_offset += sum(parameter.symbolic_size for parameter in step.parameters)
         stage_index += len(step.parameters)
 
-    terminal_helper_name = sanitize_ident(f"{name}_terminal_{terminal.function.name}")
+    terminal_helper_name = sanitize_ident(f"{helper_base_name}_terminal_{terminal.function.name}")
     terminal_function = _maybe_simplify_derivative_function(terminal.function, helper_simplification)
     terminal_codegen = generate_rust(
         terminal_function,
@@ -962,6 +966,10 @@ def _generate_composed_gradient_rust(
     helper_simplification = gradient.simplification
 
     name = sanitize_ident(resolved_config.function_name or gradient.name)
+    helper_base_name = _compose_composed_helper_base_name(
+        resolved_config.crate_name,
+        name,
+    )
     helper_config = resolved_config.with_emit_metadata_helpers(False)
     helper_sources: list[str] = []
     helper_nodes: list[SXNode] = []
@@ -973,8 +981,8 @@ def _generate_composed_gradient_rust(
     max_helper_workspace = 0
     for block_index, step in enumerate(composed.steps):
         if isinstance(step, _SingleStage):
-            helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}")
-            vjp_helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}_vjp")
+            helper_name = sanitize_ident(f"{helper_base_name}_stage_{block_index}_{step.function.name}")
+            vjp_helper_name = sanitize_ident(f"{helper_base_name}_stage_{block_index}_{step.function.name}_vjp")
             helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
             vjp_function = _maybe_simplify_derivative_function(
                 step.function.vjp(wrt_index=0, name=vjp_helper_name),
@@ -1022,8 +1030,8 @@ def _generate_composed_gradient_rust(
             stage_index += 1
             continue
 
-        helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}")
-        vjp_helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}_vjp")
+        helper_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_{step.function.name}")
+        vjp_helper_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_{step.function.name}_vjp")
         helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
         vjp_function = _maybe_simplify_derivative_function(
             step.function.vjp(wrt_index=0, name=vjp_helper_name),
@@ -1057,7 +1065,7 @@ def _generate_composed_gradient_rust(
             vjp_codegen.workspace_size,
         )
 
-        const_name = sanitize_ident(f"{name}_repeat_{block_index}_params").upper()
+        const_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_params").upper()
         parameter_kind = step.parameters[0].kind
         if parameter_kind == "fixed" and step.parameters[0].size > 0:
             constant_lines.extend(
@@ -1084,7 +1092,7 @@ def _generate_composed_gradient_rust(
         parameter_offset += sum(parameter.symbolic_size for parameter in step.parameters)
         stage_index += len(step.parameters)
 
-    terminal_gradient_name = sanitize_ident(f"{name}_terminal_{terminal.function.name}_grad")
+    terminal_gradient_name = sanitize_ident(f"{helper_base_name}_terminal_{terminal.function.name}_grad")
     terminal_gradient_function = _maybe_simplify_derivative_function(
         terminal.function.gradient(0, name=terminal_gradient_name),
         helper_simplification,
@@ -1362,6 +1370,30 @@ def _compose_offset_expr(offset: int, expr: str) -> str:
     if offset == 0:
         return expr
     return f"{offset} + {expr}"
+
+
+def _composed_helper_base_label(name: str) -> str:
+    """Normalize a composed source name into the shared helper base used across artifacts."""
+    if name.endswith("_f"):
+        return name[:-2]
+    match = re.fullmatch(r"(.+)_grad_[A-Za-z0-9_]+", name)
+    if match is not None:
+        return match.group(1)
+    match = re.fullmatch(r"(.+)_gradient_[A-Za-z0-9_]+", name)
+    if match is not None:
+        return match.group(1)
+    return name
+
+
+def _compose_composed_helper_base_name(crate_name: str | None, source_name: str) -> str:
+    """Build the shared helper base name for a composed source within one crate."""
+    base_label = sanitize_ident(_composed_helper_base_label(source_name))
+    if crate_name is None:
+        return base_label
+    crate_label = sanitize_ident(crate_name)
+    if base_label == crate_label or base_label.startswith(f"{crate_label}_"):
+        return base_label
+    return sanitize_ident(f"{crate_label}_{base_label}")
 
 
 def _emit_composed_primal_single_block(
@@ -3182,6 +3214,7 @@ def _render_multi_function_lib(
 ) -> str:
     """Render a crate source file containing many generated functions."""
     sections: list[str] = []
+    seen_private_helpers: set[str] = set()
     if config.backend_mode == "no_std":
         sections.append("#![no_std]")
 
@@ -3191,7 +3224,13 @@ def _render_multi_function_lib(
             source = source[len("#![no_std]\n\n") :]
         elif source.startswith("#![no_std]\n"):
             source = source[len("#![no_std]\n") :]
-        sections.append(source.rstrip())
+        for section in (part.rstrip() for part in source.split("\n\n") if part.strip()):
+            stripped = section.lstrip()
+            if stripped.startswith("fn "):
+                if section in seen_private_helpers:
+                    continue
+                seen_private_helpers.add(section)
+            sections.append(section)
 
     rendered = "\n\n".join(section for section in sections if section)
     return rendered if rendered.endswith("\n") else f"{rendered}\n"

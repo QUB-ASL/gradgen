@@ -1,4 +1,5 @@
 import subprocess
+import re
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -556,6 +557,11 @@ mod tests {{
             self.assertIn("pub fn loop_demo_loop_demo_grad_x(", lib_text)
             self.assertIn("for repeat_index in 0..3 {", lib_text)
             self.assertIn("for repeat_index in (0..3).rev() {", lib_text)
+            self.assertEqual(
+                len(re.findall(r"^fn loop_demo_loop_demo_repeat_0_[A-Za-z0-9_]+\(", lib_text, flags=re.MULTILINE)),
+                2,
+            )
+            self.assertNotIn("loop_demo_loop_demo_f_repeat_0_", lib_text)
 
             primal_function = composed.to_function()
             gradient_function = composed.gradient().to_function()
