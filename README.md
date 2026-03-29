@@ -3,7 +3,7 @@
     
     
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/gradgen?color=blue&style=flat-square) 
-![CI](https://img.shields.io/badge/CI-pass-success?style=flat-square)    
+[![CI](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml/badge.svg)](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml)    
     
 </div>    
 
