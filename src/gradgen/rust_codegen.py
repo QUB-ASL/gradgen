@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 import re
+from typing import Callable
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -208,13 +209,23 @@ class _ArgSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class CodeGenerationBuilder:
-    """Fluent builder for a single generated Rust crate with many kernels."""
+class _BuilderFunctionSpec:
+    """One source function plus the kernels requested for it."""
 
     function: Function
+    requests: tuple[_BuilderRequest, ...] = ()
+    simplification: int | str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CodeGenerationBuilder:
+    """Fluent builder for a generated Rust crate with one or more functions."""
+
+    function: Function | None = None
     config: RustBackendConfig = RustBackendConfig()
     requests: tuple[_BuilderRequest, ...] = ()
     simplification: int | str | None = None
+    functions: tuple[_BuilderFunctionSpec, ...] = ()
 
     def with_backend_config(self, config: RustBackendConfig) -> CodeGenerationBuilder:
         """Return a copy using ``config`` for generated Rust code."""
@@ -248,6 +259,36 @@ class CodeGenerationBuilder:
         """Include Hessian-vector product kernels for scalar-output functions."""
         return self._add_request("hvp")
 
+    def for_function(
+        self,
+        function: Function,
+        configure: Callable[[CodeGenerationBuilder], CodeGenerationBuilder] | None = None,
+    ) -> CodeGenerationBuilder:
+        """Add ``function`` to the crate, optionally configuring its kernels.
+
+        The ``configure`` callback receives a single-function builder scoped to
+        ``function``. It should return the updated builder for that source
+        function, for example::
+
+            builder = (
+                CodeGenerationBuilder()
+                .for_function(
+                    f,
+                    lambda b: b.add_primal().add_jacobian().with_simplification("medium"),
+                )
+            )
+        """
+        scoped_builder = CodeGenerationBuilder(function=function, config=self.config)
+        configured_builder = configure(scoped_builder) if configure is not None else scoped_builder
+        if configured_builder.function is None:
+            raise ValueError("configured function builder must target a function")
+        entry = _BuilderFunctionSpec(
+            function=configured_builder.function,
+            requests=configured_builder.requests,
+            simplification=configured_builder.simplification,
+        )
+        return replace(self, functions=(*self.functions, entry))
+
     def build(self, path: str | Path) -> RustMultiFunctionProjectResult:
         """Generate a single Rust crate containing all requested kernels."""
         resolved_config = self.config
@@ -255,11 +296,9 @@ class CodeGenerationBuilder:
             resolved_config = resolved_config.with_crate_name(
                 _sanitize_ident(Path(path).expanduser().resolve().name)
             )
-        functions = _resolve_builder_functions(
-            self.function,
+        functions = _resolve_builder_function_specs(
+            self._resolved_function_specs(),
             resolved_config,
-            self.requests,
-            self.simplification,
         )
         return create_multi_function_rust_project(
             functions,
@@ -274,10 +313,33 @@ class CodeGenerationBuilder:
         components: tuple[str, ...] = (),
         bundle: FunctionBundle | None = None,
     ) -> CodeGenerationBuilder:
+        if self.function is None:
+            raise ValueError(
+                "no source function is selected; initialize CodeGenerationBuilder(function) "
+                "or use for_function(...)"
+            )
         candidate = _BuilderRequest(kind, components, bundle)
         if any(request == candidate for request in self.requests):
             return self
         return replace(self, requests=(*self.requests, candidate))
+
+    def _resolved_function_specs(self) -> tuple[_BuilderFunctionSpec, ...]:
+        """Return all source-function entries tracked by the builder."""
+        root_specs: tuple[_BuilderFunctionSpec, ...] = ()
+        if self.function is not None and self.requests:
+            root_specs = (
+                _BuilderFunctionSpec(
+                    function=self.function,
+                    requests=self.requests,
+                    simplification=self.simplification,
+                ),
+            )
+        specs = (*root_specs, *self.functions)
+        if not specs:
+            raise ValueError(
+                "no kernels were requested; call add_primal() or another add_* method first"
+            )
+        return specs
 
 
 def generate_rust(
@@ -2032,17 +2094,48 @@ def _maybe_simplify_derivative_function(
     return function.simplify(max_effort=simplify_derivatives, name=function.name)
 
 
+def _resolve_builder_function_specs(
+    specs: tuple[_BuilderFunctionSpec, ...],
+    config: RustBackendConfig,
+) -> tuple[Function, ...]:
+    """Expand builder function specs into concrete symbolic functions."""
+    if len(specs) > 1 and config.function_name is not None:
+        raise ValueError(
+            "RustBackendConfig.function_name is only supported when the builder targets "
+            "a single source function"
+        )
+
+    include_base_name = len(specs) > 1
+    resolved: list[Function] = []
+    for spec in specs:
+        base_name = config.function_name if len(specs) == 1 else None
+        resolved.extend(
+            _resolve_builder_functions(
+                spec.function,
+                config,
+                spec.requests,
+                spec.simplification,
+                include_base_name=include_base_name,
+                function_name=base_name,
+            )
+        )
+    return tuple(resolved)
+
+
 def _resolve_builder_functions(
     function: Function,
     config: RustBackendConfig,
     requests: tuple[_BuilderRequest, ...],
     simplification: int | str | None,
+    *,
+    include_base_name: bool = False,
+    function_name: str | None = None,
 ) -> tuple[Function, ...]:
     """Expand builder requests into concrete symbolic functions."""
     if not requests:
         raise ValueError("no kernels were requested; call add_primal() or another add_* method first")
 
-    base_function = _apply_builder_base_name(function, config.function_name)
+    base_function = _apply_builder_base_name(function, function_name)
     crate_prefix = _sanitize_ident(config.crate_name or base_function.name)
     resolved: list[Function] = []
 
@@ -2051,7 +2144,12 @@ def _resolve_builder_functions(
             resolved.append(
                 _rename_generated_function(
                     _maybe_simplify_generated_function(base_function, simplification),
-                    _builder_function_name(crate_prefix, "f"),
+                    _builder_function_name(
+                        crate_prefix,
+                        "f",
+                        base_name=base_function.name,
+                        include_base_name=include_base_name,
+                    ),
                 )
             )
             continue
@@ -2062,6 +2160,8 @@ def _resolve_builder_functions(
                     _builder_function_name(
                         crate_prefix,
                         "grad",
+                        base_name=base_function.name,
+                        include_base_name=include_base_name,
                         input_name=base_function.input_names[index],
                         include_input_name=len(base_function.inputs) > 1,
                     ),
@@ -2076,6 +2176,8 @@ def _resolve_builder_functions(
                     _builder_function_name(
                         crate_prefix,
                         "jf",
+                        base_name=base_function.name,
+                        include_base_name=include_base_name,
                         input_name=base_function.input_names[index],
                         include_input_name=len(base_function.inputs) > 1,
                     ),
@@ -2098,6 +2200,8 @@ def _resolve_builder_functions(
                     _builder_function_name(
                         crate_prefix,
                         *_builder_joint_labels(components),
+                        base_name=base_function.name,
+                        include_base_name=include_base_name,
                         input_name=base_function.input_names[index],
                         include_input_name=len(base_function.inputs) > 1,
                     ),
@@ -2115,6 +2219,8 @@ def _resolve_builder_functions(
                     _builder_function_name(
                         crate_prefix,
                         "hessian",
+                        base_name=base_function.name,
+                        include_base_name=include_base_name,
                         input_name=base_function.input_names[index],
                         include_input_name=len(base_function.inputs) > 1,
                     ),
@@ -2129,6 +2235,8 @@ def _resolve_builder_functions(
                     _builder_function_name(
                         crate_prefix,
                         "hvp",
+                        base_name=base_function.name,
+                        include_base_name=include_base_name,
                         input_name=base_function.input_names[index],
                         include_input_name=len(base_function.inputs) > 1,
                     ),
@@ -2182,11 +2290,16 @@ def _builder_joint_labels(components: tuple[str, ...]) -> tuple[str, ...]:
 def _builder_function_name(
     crate_prefix: str,
     *labels: str,
+    base_name: str | None = None,
+    include_base_name: bool = False,
     input_name: str | None = None,
     include_input_name: bool = False,
 ) -> str:
     """Build a crate-prefixed Rust function name for builder-generated kernels."""
-    parts = [crate_prefix, *labels]
+    parts = [crate_prefix]
+    if include_base_name and base_name is not None:
+        parts.append(_sanitize_ident(base_name))
+    parts.extend(labels)
     if include_input_name and input_name is not None:
         parts.append(_sanitize_ident(input_name))
     return "_".join(parts)

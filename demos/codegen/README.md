@@ -2,13 +2,17 @@
 
 This demo shows the basic gradgen workflow:
 
-1. define a symbolic function in Python
-2. evaluate it in Python
-3. generate a Rust crate that evaluates the same function
+1. define symbolic functions in Python
+2. evaluate them in Python
+3. generate one Rust crate that evaluates both functions
 
-The example function is
+The demo uses two scalar functions:
 
 $$f(x, u) = \Vert x \Vert_2^2 + u_1 \sin(x_1) + x_2 x_3,$$
+
+and
+
+$$g(x, u) = x_1 x_2 + e^{u_1},$$
 
 where:
 
@@ -20,6 +24,8 @@ This is a good minimal example because it includes:
 - a quadratic term, $\Vert x \Vert_2^2 = x_1^2 + x_2^2 + x_3^2$
 - a nonlinear term, $u_1 \sin(x_1)$
 - a simple cross term, $x_2 x_3$
+- a second source function so the demo shows how `CodeGenerationBuilder`
+  places several functions in the same generated Rust crate
 
 ## Files
 
@@ -38,7 +44,7 @@ python demos/codegen/main.py
 
 This will:
 
-- print the function value for one sample input
+- print the function values for one sample input
 - generate a Rust crate in:
 
 ```text

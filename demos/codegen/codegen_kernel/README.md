@@ -13,9 +13,12 @@ cargo build
 
 ## Generated Functions
 
-- `codegen_kernel_f`: workspace `2`, inputs `(3, 1)`, outputs `(1,)`
-- `codegen_kernel_jf_x`: workspace `3`, inputs `(3, 1)`, outputs `(3,)`
-- `codegen_kernel_jf_u`: workspace `1`, inputs `(3, 1)`, outputs `(1,)`
+- `codegen_kernel_energy_f`: workspace `2`, inputs `(3, 1)`, outputs `(1,)`
+- `codegen_kernel_energy_jf_x`: workspace `3`, inputs `(3, 1)`, outputs `(3,)`
+- `codegen_kernel_energy_jf_u`: workspace `1`, inputs `(3, 1)`, outputs `(1,)`
+- `codegen_kernel_coupling_f`: workspace `2`, inputs `(3, 1)`, outputs `(1,)`
+- `codegen_kernel_coupling_jf_x`: workspace `0`, inputs `(3, 1)`, outputs `(3,)`
+- `codegen_kernel_coupling_jf_u`: workspace `1`, inputs `(3, 1)`, outputs `(1,)`
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.

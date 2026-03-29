@@ -585,37 +585,42 @@ from gradgen import create_rust_derivative_bundle
 bundle = create_rust_derivative_bundle(f, "/tmp/my_bundle")
 ```
 
-### Build a single crate with multiple generated kernels
+### Build a single crate with one or more source functions
 
 If you want one Cargo crate containing several related kernels, use
-`CodeGenerationBuilder`:
+`CodeGenerationBuilder`. The builder can target one source function or many:
 
 ```python
 from gradgen import CodeGenerationBuilder, FunctionBundle, RustBackendConfig
 
 builder = (
-    CodeGenerationBuilder(f)
+    CodeGenerationBuilder()
     .with_backend_config(
         RustBackendConfig()
         .with_backend_mode("no_std")
         .with_scalar_type("f32")
     )
-    .add_primal()
-    .add_gradient()
-    .add_hvp()
-    .add_joint(
-        FunctionBundle()
-        .add_f()
-        .add_jf(wrt=0)
+    .for_function(
+        f,
+        lambda b: (
+            b.add_primal()
+             .add_gradient()
+             .add_hvp()
+             .add_joint(
+                 FunctionBundle()
+                 .add_f()
+                 .add_jf(wrt=0)
+             )
+             .with_simplification("medium")
+        ),
     )
-    .with_simplification("medium")
 )
 
 project = builder.build("/tmp/my_kernel")
 ```
 
-Each `add_*` call contributes a separate generated Rust function inside the same
-crate. Currently supported builder requests include:
+Each `for_function(...)` block configures the kernels generated for one source
+`Function`. Inside that block, currently supported builder requests include:
 
 - `add_primal()`
 - `add_gradient()`
@@ -625,6 +630,10 @@ crate. Currently supported builder requests include:
 - `add_joint(FunctionBundle().add_f().add_jf(wrt=0).add_hvp(wrt=0))`
 - `add_hessian()`
 - `add_hvp()`
+
+For backward compatibility, `CodeGenerationBuilder(f)` still works as a
+single-function shorthand. The examples below use the more general
+`for_function(...)` style.
 
 More generally, `add_joint(...)` accepts a `FunctionBundle`, which can describe
 primal outputs plus one or more derivative artifacts for one or more `wrt`
@@ -643,11 +652,15 @@ bundle = (
     .add_hessian(wrt=[0, 1])
 )
 
-builder = CodeGenerationBuilder(f).add_joint(bundle)
+builder = CodeGenerationBuilder().for_function(
+    f,
+    lambda b: b.add_joint(bundle),
+)
 ```
 
 Builder-generated function names are prefixed with the crate name. For example,
-with crate name `my_kernel` the generated Rust API looks like:
+with crate name `my_kernel` and a single source function the generated Rust API
+looks like:
 
 - `my_kernel_f`
 - `my_kernel_grad`
@@ -657,39 +670,48 @@ with crate name `my_kernel` the generated Rust API looks like:
 - `my_kernel_f_jf`
 - `my_kernel_f_jf_hvp`
 
+If the crate contains multiple source functions, the source function name is
+inserted to keep the Rust entrypoints distinct:
+
+- `my_kernel_f_f`
+- `my_kernel_f_jf`
+- `my_kernel_g_f`
+- `my_kernel_g_hvp`
+
 You can also request a uniform simplification pass for every generated kernel:
 
 ```python
 builder = (
-    CodeGenerationBuilder(f)
-    .add_primal()
-    .add_jacobian()
-    .add_hvp()
-    .add_joint(
-        FunctionBundle()
-        .add_f()
-        .add_jf(wrt=0)
-        .add_hvp(wrt=0)
+    CodeGenerationBuilder()
+    .for_function(
+        f,
+        lambda b: (
+            b.add_primal()
+             .add_jacobian()
+             .add_hvp()
+             .add_joint(
+                 FunctionBundle()
+                 .add_f()
+                 .add_jf(wrt=0)
+                 .add_hvp(wrt=0)
+             )
+             .with_simplification("medium")
+        )
     )
-    .with_simplification("medium")
 )
 ```
 
-With this setting, simplification is applied to all generated functions,
-including the separate primal/Jacobian/HVP kernels and the joint kernel.
+With this setting, simplification is applied to all generated kernels for that
+source function, including the separate primal/Jacobian/HVP kernels and the
+joint kernel.
 
 ### Complete end-to-end example
 
 The example below:
 
-- defines a scalar function of a 3D input
-- evaluates it in Python
-- derives `jf` and `hvp`
-- generates one Rust crate containing:
-  - the primal function
-  - a Jacobian kernel
-  - an HVP kernel
-  - a joint kernel computing `(f, jf, hvp)`
+- defines two scalar functions of the same 3D input
+- evaluates them in Python
+- generates one Rust crate containing kernels for both
 
 ```python
 from gradgen import (
@@ -710,6 +732,14 @@ f = Function(
     output_names=["y"],
 )
 
+g = Function(
+    "g",
+    [x],
+    [x.norm2() + x[0] * x[2]],
+    input_names=["x"],
+    output_names=["z"],
+)
+
 # Try the symbolic functions in Python first.
 jf = f.jacobian(0)
 hvp = f.hvp(0)
@@ -717,6 +747,7 @@ hvp = f.hvp(0)
 print("f([1,2,3]) =", f([1.0, 2.0, 3.0]))
 print("jf([1,2,3]) =", jf([1.0, 2.0, 3.0]))
 print("hvp([1,2,3], [1,0,-1]) =", hvp([1.0, 2.0, 3.0], [1.0, 0.0, -1.0]))
+print("g([1,2,3]) =", g([1.0, 2.0, 3.0]))
 
 config = (
     RustBackendConfig()
@@ -726,18 +757,31 @@ config = (
 )
 
 builder = (
-    CodeGenerationBuilder(f)
+    CodeGenerationBuilder()
     .with_backend_config(config)
-    .add_primal()
-    .add_jacobian()
-    .add_hvp()
-    .add_joint(
-        FunctionBundle()
-        .add_f()
-        .add_jf(wrt=0)
-        .add_hvp(wrt=0)
+    .for_function(
+        f,
+        lambda b: (
+            b.add_primal()
+             .add_jacobian()
+             .add_hvp()
+             .add_joint(
+                 FunctionBundle()
+                 .add_f()
+                 .add_jf(wrt=0)
+                 .add_hvp(wrt=0)
+             )
+             .with_simplification("medium")
+        ),
     )
-    .with_simplification("medium")
+    .for_function(
+        g,
+        lambda b: (
+            b.add_primal()
+             .add_gradient()
+             .with_simplification("medium")
+        ),
+    )
 )
 
 project = builder.build("./my_kernel")

@@ -143,20 +143,25 @@ print("hvp f(x, v) =", f.hvp(0)(x_value, v_value))
 
 
 # Generate one Rust crate in this demo folder containing the primal, gradient,
-# Hessian, and HVP kernels.
+# Hessian, and HVP kernels for the custom source function.
 project = (
-    CodeGenerationBuilder(f)
+    CodeGenerationBuilder()
     .with_backend_config(
         RustBackendConfig()
         .with_crate_name("custom_function_kernel")
         .with_backend_mode("std")
         .with_scalar_type("f64")
     )
-    .with_simplification("medium")
-    .add_primal()
-    .add_gradient()
-    .add_hessian()
-    .add_hvp()
+    .for_function(
+        f,
+        lambda b: (
+            b.add_primal()
+            .add_gradient()
+            .add_hessian()
+            .add_hvp()
+            .with_simplification("medium")
+        ),
+    )
     .build(Path(__file__).resolve().parent / "custom_function_kernel")
 )
 
