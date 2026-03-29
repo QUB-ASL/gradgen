@@ -243,6 +243,9 @@ class SX:
     def atan(self) -> SX:
         return _unary("atan", self)
 
+    def atan2(self, other: object) -> SX:
+        return _binary("atan2", self, other)
+
     def sinh(self) -> SX:
         return _unary("sinh", self)
 
@@ -251,6 +254,15 @@ class SX:
 
     def tanh(self) -> SX:
         return _unary("tanh", self)
+
+    def asinh(self) -> SX:
+        return _unary("asinh", self)
+
+    def acosh(self) -> SX:
+        return _unary("acosh", self)
+
+    def atanh(self) -> SX:
+        return _unary("atanh", self)
 
     def exp(self) -> SX:
         return _unary("exp", self)
@@ -267,11 +279,44 @@ class SX:
     def sqrt(self) -> SX:
         return _unary("sqrt", self)
 
+    def cbrt(self) -> SX:
+        return _unary("cbrt", self)
+
+    def erf(self) -> SX:
+        return _unary("erf", self)
+
+    def erfc(self) -> SX:
+        return _unary("erfc", self)
+
+    def floor(self) -> SX:
+        return _unary("floor", self)
+
+    def ceil(self) -> SX:
+        return _unary("ceil", self)
+
+    def round(self) -> SX:
+        return _unary("round", self)
+
+    def trunc(self) -> SX:
+        return _unary("trunc", self)
+
+    def fract(self) -> SX:
+        return _unary("fract", self)
+
+    def signum(self) -> SX:
+        return _unary("signum", self)
+
+    def hypot(self, other: object) -> SX:
+        return _binary("hypot", self, other)
+
     def abs(self) -> SX:
         return _unary("abs", self)
 
     def maximum(self, other: object) -> SX:
         return _binary("max", self, other)
+
+    def minimum(self, other: object) -> SX:
+        return _binary("min", self, other)
 
     def __repr__(self) -> str:
         if self.op == "symbol":
@@ -457,6 +502,18 @@ class SXVector:
         """Apply arctangent elementwise."""
         return SXVector(tuple(element.atan() for element in self.elements))
 
+    def asinh(self) -> SXVector:
+        """Apply inverse hyperbolic sine elementwise."""
+        return SXVector(tuple(element.asinh() for element in self.elements))
+
+    def acosh(self) -> SXVector:
+        """Apply inverse hyperbolic cosine elementwise."""
+        return SXVector(tuple(element.acosh() for element in self.elements))
+
+    def atanh(self) -> SXVector:
+        """Apply inverse hyperbolic tangent elementwise."""
+        return SXVector(tuple(element.atanh() for element in self.elements))
+
     def sinh(self) -> SXVector:
         """Apply hyperbolic sine elementwise."""
         return SXVector(tuple(element.sinh() for element in self.elements))
@@ -488,6 +545,42 @@ class SXVector:
     def sqrt(self) -> SXVector:
         """Apply square root elementwise."""
         return SXVector(tuple(element.sqrt() for element in self.elements))
+
+    def cbrt(self) -> SXVector:
+        """Apply cube root elementwise."""
+        return SXVector(tuple(element.cbrt() for element in self.elements))
+
+    def erf(self) -> SXVector:
+        """Apply error function elementwise."""
+        return SXVector(tuple(element.erf() for element in self.elements))
+
+    def erfc(self) -> SXVector:
+        """Apply complementary error function elementwise."""
+        return SXVector(tuple(element.erfc() for element in self.elements))
+
+    def floor(self) -> SXVector:
+        """Apply floor elementwise."""
+        return SXVector(tuple(element.floor() for element in self.elements))
+
+    def ceil(self) -> SXVector:
+        """Apply ceil elementwise."""
+        return SXVector(tuple(element.ceil() for element in self.elements))
+
+    def round(self) -> SXVector:
+        """Apply round elementwise."""
+        return SXVector(tuple(element.round() for element in self.elements))
+
+    def trunc(self) -> SXVector:
+        """Apply truncation elementwise."""
+        return SXVector(tuple(element.trunc() for element in self.elements))
+
+    def fract(self) -> SXVector:
+        """Apply fractional-part extraction elementwise."""
+        return SXVector(tuple(element.fract() for element in self.elements))
+
+    def signum(self) -> SXVector:
+        """Apply sign extraction elementwise."""
+        return SXVector(tuple(element.signum() for element in self.elements))
 
     def abs(self) -> SXVector:
         """Apply absolute value elementwise."""
@@ -619,6 +712,11 @@ def atan(expr: object) -> SX:
     return _unary("atan", expr)
 
 
+def atan2(lhs: object, rhs: object) -> SX:
+    """Return the symbolic arctangent of ``lhs / rhs`` with quadrant handling."""
+    return _binary("atan2", lhs, rhs)
+
+
 def sinh(expr: object) -> SX:
     """Return the symbolic hyperbolic sine of an expression."""
     return _unary("sinh", expr)
@@ -632,6 +730,21 @@ def cosh(expr: object) -> SX:
 def tanh(expr: object) -> SX:
     """Return the symbolic hyperbolic tangent of an expression."""
     return _unary("tanh", expr)
+
+
+def asinh(expr: object) -> SX:
+    """Return the symbolic inverse hyperbolic sine of an expression."""
+    return _unary("asinh", expr)
+
+
+def acosh(expr: object) -> SX:
+    """Return the symbolic inverse hyperbolic cosine of an expression."""
+    return _unary("acosh", expr)
+
+
+def atanh(expr: object) -> SX:
+    """Return the symbolic inverse hyperbolic tangent of an expression."""
+    return _unary("atanh", expr)
 
 
 def exp(expr: object) -> SX:
@@ -659,9 +772,64 @@ def sqrt(expr: object) -> SX:
     return _unary("sqrt", expr)
 
 
+def cbrt(expr: object) -> SX:
+    """Return the symbolic cube root of an expression."""
+    return _unary("cbrt", expr)
+
+
+def erf(expr: object) -> SX:
+    """Return the symbolic error function of an expression."""
+    return _unary("erf", expr)
+
+
+def erfc(expr: object) -> SX:
+    """Return the symbolic complementary error function of an expression."""
+    return _unary("erfc", expr)
+
+
+def floor(expr: object) -> SX:
+    """Return the symbolic floor of an expression."""
+    return _unary("floor", expr)
+
+
+def ceil(expr: object) -> SX:
+    """Return the symbolic ceil of an expression."""
+    return _unary("ceil", expr)
+
+
+def round(expr: object) -> SX:
+    """Return the symbolic nearest integer of an expression."""
+    return _unary("round", expr)
+
+
+def trunc(expr: object) -> SX:
+    """Return the symbolic truncation of an expression."""
+    return _unary("trunc", expr)
+
+
+def fract(expr: object) -> SX:
+    """Return the symbolic fractional part of an expression."""
+    return _unary("fract", expr)
+
+
+def signum(expr: object) -> SX:
+    """Return the symbolic sign of an expression."""
+    return _unary("signum", expr)
+
+
+def hypot(lhs: object, rhs: object) -> SX:
+    """Return the symbolic Euclidean norm of two scalar-like values."""
+    return _binary("hypot", lhs, rhs)
+
+
 def maximum(lhs: object, rhs: object) -> SX:
     """Return the symbolic maximum of two scalar-like expressions."""
     return _binary("max", lhs, rhs)
+
+
+def minimum(lhs: object, rhs: object) -> SX:
+    """Return the symbolic minimum of two scalar-like expressions."""
+    return _binary("min", lhs, rhs)
 
 
 def vector(values: Iterable[object]) -> SXVector:

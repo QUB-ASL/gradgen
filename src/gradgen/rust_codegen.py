@@ -636,6 +636,10 @@ def _emit_node_expr(
         return f"{args[0]} / {args[1]}"
     if expr.op == "pow":
         return _emit_math_call("pow", args, backend_mode, scalar_type, math_library)
+    if expr.op == "atan2":
+        return _emit_math_call("atan2", args, backend_mode, scalar_type, math_library)
+    if expr.op == "hypot":
+        return _emit_math_call("hypot", args, backend_mode, scalar_type, math_library)
     if expr.op == "neg":
         return f"-{args[0]}"
     if expr.op == "sin":
@@ -650,6 +654,12 @@ def _emit_node_expr(
         return _emit_math_call("acos", args, backend_mode, scalar_type, math_library)
     if expr.op == "atan":
         return _emit_math_call("atan", args, backend_mode, scalar_type, math_library)
+    if expr.op == "asinh":
+        return _emit_math_call("asinh", args, backend_mode, scalar_type, math_library)
+    if expr.op == "acosh":
+        return _emit_math_call("acosh", args, backend_mode, scalar_type, math_library)
+    if expr.op == "atanh":
+        return _emit_math_call("atanh", args, backend_mode, scalar_type, math_library)
     if expr.op == "sinh":
         return _emit_math_call("sinh", args, backend_mode, scalar_type, math_library)
     if expr.op == "cosh":
@@ -666,6 +676,24 @@ def _emit_node_expr(
         return _emit_math_call("log1p", args, backend_mode, scalar_type, math_library)
     if expr.op == "sqrt":
         return _emit_math_call("sqrt", args, backend_mode, scalar_type, math_library)
+    if expr.op == "cbrt":
+        return _emit_math_call("cbrt", args, backend_mode, scalar_type, math_library)
+    if expr.op == "erf":
+        return "erf(" + args[0] + ")"
+    if expr.op == "erfc":
+        return "erfc(" + args[0] + ")"
+    if expr.op == "floor":
+        return _emit_math_call("floor", args, backend_mode, scalar_type, math_library)
+    if expr.op == "ceil":
+        return _emit_math_call("ceil", args, backend_mode, scalar_type, math_library)
+    if expr.op == "round":
+        return _emit_math_call("round", args, backend_mode, scalar_type, math_library)
+    if expr.op == "trunc":
+        return _emit_math_call("trunc", args, backend_mode, scalar_type, math_library)
+    if expr.op == "fract":
+        return _emit_math_call("fract", args, backend_mode, scalar_type, math_library)
+    if expr.op == "signum":
+        return _emit_math_call("signum", args, backend_mode, scalar_type, math_library)
     if expr.op == "norm2":
         vector_ref = _emit_norm_slice_argument(
             expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
@@ -700,6 +728,8 @@ def _emit_node_expr(
         return _emit_math_call("abs", args, backend_mode, scalar_type, math_library)
     if expr.op == "max":
         return _emit_math_call("max", args, backend_mode, scalar_type, math_library)
+    if expr.op == "min":
+        return _emit_math_call("min", args, backend_mode, scalar_type, math_library)
 
     raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
 
@@ -782,6 +812,12 @@ def _emit_math_call(
     if backend_mode == "std":
         if op == "pow":
             return f"{args[0]}.powf({args[1]})"
+        if op == "atan2":
+            return f"{args[0]}.atan2({args[1]})"
+        if op == "hypot":
+            return f"{args[0]}.hypot({args[1]})"
+        if op == "min":
+            return f"{args[0]}.min({args[1]})"
         if op == "max":
             return f"{args[0]}.max({args[1]})"
         if op == "log":
@@ -792,11 +828,21 @@ def _emit_math_call(
             return f"{args[0]}.exp_m1()"
         return f"{args[0]}.{op}()"
 
+    if op == "fract":
+        trunc_expr = _emit_math_call("trunc", args, backend_mode, scalar_type, math_library)
+        return f"{args[0]} - {trunc_expr}"
+    if op == "signum":
+        return (
+            f"if {args[0]} > 0.0_{scalar_type} {{ 1.0_{scalar_type} }} "
+            f"else if {args[0]} < 0.0_{scalar_type} {{ -1.0_{scalar_type} }} "
+            f"else {{ 0.0_{scalar_type} }}"
+        )
+
     if math_library is None:
         raise ValueError("no_std math calls require a resolved math library")
     if op == "pow":
         return f"{math_library}::{_math_function_name(op, scalar_type)}({args[0]}, {args[1]})"
-    if op == "max":
+    if op in {"atan2", "hypot", "max", "min"}:
         return f"{math_library}::{_math_function_name(op, scalar_type)}({args[0]}, {args[1]})"
     return f"{math_library}::{_math_function_name(op, scalar_type)}({args[0]})"
 
@@ -939,6 +985,41 @@ def _build_shared_helper_lines(
             [
                 f"fn norm_p(values: &[{scalar_type}], p: {scalar_type}) -> {scalar_type} {{",
                 f"    {pow_expr}",
+                "}",
+            ]
+        )
+
+    if "erf" in used_ops or "erfc" in used_ops:
+        abs_expr = _emit_math_call("abs", ("x",), backend_mode, scalar_type, math_library)
+        exp_expr = _emit_math_call("exp", ("poly",), backend_mode, scalar_type, math_library)
+        lines.extend(
+            [
+                f"fn erf(x: {scalar_type}) -> {scalar_type} {{",
+                f"    let one = 1.0_{scalar_type};",
+                f"    let half = 0.5_{scalar_type};",
+                f"    let sign = if x < 0.0_{scalar_type} {{ -one }} else {{ one }};",
+                f"    let x_abs = {abs_expr};",
+                f"    let t = one / (one + half * x_abs);",
+                f"    let poly = -x_abs * x_abs - 1.26551223_{scalar_type}",
+                f"        + t * (1.00002368_{scalar_type}",
+                f"        + t * (0.37409196_{scalar_type}",
+                f"        + t * (0.09678418_{scalar_type}",
+                f"        + t * (-0.18628806_{scalar_type}",
+                f"        + t * (0.27886807_{scalar_type}",
+                f"        + t * (-1.13520398_{scalar_type}",
+                f"        + t * (1.48851587_{scalar_type}",
+                f"        + t * (-0.82215223_{scalar_type}",
+                f"        + t * 0.17087277_{scalar_type})))))))));",
+                f"    let tau = t * {exp_expr};",
+                f"    sign * (one - tau)",
+                "}",
+            ]
+        )
+    if "erfc" in used_ops:
+        lines.extend(
+            [
+                f"fn erfc(x: {scalar_type}) -> {scalar_type} {{",
+                f"    1.0_{scalar_type} - erf(x)",
                 "}",
             ]
         )
@@ -1374,15 +1455,26 @@ _LIBM_FUNCTIONS = {
     "asin": "asin",
     "acos": "acos",
     "atan": "atan",
+    "atan2": "atan2",
     "sinh": "sinh",
     "cosh": "cosh",
     "tanh": "tanh",
+    "asinh": "asinh",
+    "acosh": "acosh",
+    "atanh": "atanh",
     "exp": "exp",
     "expm1": "expm1",
     "log": "log",
     "log1p": "log1p",
     "pow": "pow",
     "sqrt": "sqrt",
+    "cbrt": "cbrt",
+    "floor": "floor",
+    "ceil": "ceil",
+    "round": "round",
+    "trunc": "trunc",
+    "hypot": "hypot",
     "abs": "fabs",
     "max": "fmax",
+    "min": "fmin",
 }

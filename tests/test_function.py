@@ -163,6 +163,47 @@ class FunctionTests(unittest.TestCase):
         )
         self.assertAlmostEqual(result, expected)
 
+    def test_function_numeric_call_supports_additional_elementary_math(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        expr = (
+            x.asinh()
+            + x.cbrt()
+            + x.erf()
+            + x.erfc()
+            + x.floor()
+            + x.ceil()
+            + x.round()
+            + x.trunc()
+            + x.fract()
+            + x.signum()
+            + x.hypot(y)
+            + x.atan2(y)
+            + x.minimum(y)
+        )
+        f = Function("f", [x, y], [expr])
+
+        x_value = 1.25
+        y_value = 2.0
+        result = f(x_value, y_value)
+
+        expected = (
+            math.asinh(x_value)
+            + math.copysign(abs(x_value) ** (1.0 / 3.0), x_value)
+            + math.erf(x_value)
+            + math.erfc(x_value)
+            + math.floor(x_value)
+            + math.ceil(x_value)
+            + math.floor(x_value + 0.5)
+            + math.trunc(x_value)
+            + (x_value - math.trunc(x_value))
+            + 1.0
+            + math.hypot(x_value, y_value)
+            + math.atan2(x_value, y_value)
+            + min(x_value, y_value)
+        )
+        self.assertAlmostEqual(result, expected)
+
     def test_function_numeric_vector_call_supports_norms(self) -> None:
         x = SXVector.sym("x", 3)
         f = Function("f", [x], [x.norm1(), x.norm2(), x.norm2sq(), x.norm_inf(), x.norm_p(3), x.norm_p_to_p(3)])

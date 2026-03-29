@@ -416,6 +416,46 @@ mod tests {{
         self.assertIn(".ln_1p()", result.source)
         self.assertIn(".abs()", result.source)
 
+    def test_generated_code_supports_additional_elementary_math_methods(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        expr = (
+            x.asinh()
+            + x.acosh()
+            + x.atanh()
+            + x.cbrt()
+            + x.erf()
+            + x.erfc()
+            + x.floor()
+            + x.ceil()
+            + x.round()
+            + x.trunc()
+            + x.fract()
+            + x.signum()
+            + x.atan2(y)
+            + x.hypot(y)
+            + x.minimum(y)
+        )
+        f = Function("f", [x, y], [expr], input_names=["x", "y"], output_names=["z"])
+
+        result = f.generate_rust()
+
+        self.assertIn(".asinh()", result.source)
+        self.assertIn(".acosh()", result.source)
+        self.assertIn(".atanh()", result.source)
+        self.assertIn(".cbrt()", result.source)
+        self.assertIn("erf(", result.source)
+        self.assertIn("erfc(", result.source)
+        self.assertIn(".floor()", result.source)
+        self.assertIn(".ceil()", result.source)
+        self.assertIn(".round()", result.source)
+        self.assertIn(".trunc()", result.source)
+        self.assertIn(".fract()", result.source)
+        self.assertIn(".signum()", result.source)
+        self.assertIn(".atan2(", result.source)
+        self.assertIn(".hypot(", result.source)
+        self.assertIn(".min(", result.source)
+
     def test_no_std_codegen_supports_extended_libm_functions(self) -> None:
         x = SX.sym("x")
         expr = (

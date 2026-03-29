@@ -213,6 +213,35 @@ class ReverseADTests(unittest.TestCase):
         )
         self.assertAlmostEqual(result, expected)
 
+    def test_derivative_supports_additional_smooth_elementary_math(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        expr = x.asinh() + x.acosh() + x.atanh() + x.cbrt() + x.erf() + x.erfc() + x.atan2(y) + x.hypot(y)
+        dx = derivative(expr, x)
+        evaluator = Function("df", [x, y], [dx])
+
+        x_value = 1.5
+        y_value = 2.0
+        result = evaluator(x_value, y_value)
+        expected = (
+            1.0 / math.sqrt(x_value * x_value + 1.0)
+            + 1.0 / (math.sqrt(x_value - 1.0) * math.sqrt(x_value + 1.0))
+            + 1.0 / (1.0 - x_value * x_value)
+            + 1.0 / (3.0 * (math.copysign(abs(x_value) ** (1.0 / 3.0), x_value) ** 2))
+            + 1.1283791670955126 * math.exp(-(x_value * x_value))
+            - 1.1283791670955126 * math.exp(-(x_value * x_value))
+            + y_value / (x_value * x_value + y_value * y_value)
+            + x_value / math.hypot(x_value, y_value)
+        )
+        self.assertAlmostEqual(result, expected)
+
+    def test_ad_rejects_nonsmooth_elementary_math(self) -> None:
+        x = SX.sym("x")
+
+        for expr in (x.floor(), x.ceil(), x.round(), x.trunc(), x.fract(), x.signum()):
+            with self.assertRaises(ValueError):
+                _ = derivative(expr, x)
+
     def test_gradient_supports_norm_p_to_p_for_constant_p_greater_than_one(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function("f", [x], [x.norm_p_to_p(3)])

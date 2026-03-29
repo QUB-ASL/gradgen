@@ -328,6 +328,12 @@ def _evaluate_const_op(op: str, left: float, right: float) -> float:
         return left / right
     if op == "pow":
         return left**right
+    if op == "atan2":
+        return math.atan2(left, right)
+    if op == "hypot":
+        return math.hypot(left, right)
+    if op == "min":
+        return min(left, right)
     if op == "max":
         return max(left, right)
     raise ValueError(f"cannot constant-fold operation {op!r}")
@@ -347,6 +353,12 @@ def _evaluate_const_unary(op: str, value: float) -> float:
         return math.acos(value)
     if op == "atan":
         return math.atan(value)
+    if op == "asinh":
+        return math.asinh(value)
+    if op == "acosh":
+        return math.acosh(value)
+    if op == "atanh":
+        return math.atanh(value)
     if op == "sinh":
         return math.sinh(value)
     if op == "cosh":
@@ -363,6 +375,30 @@ def _evaluate_const_unary(op: str, value: float) -> float:
         return math.log1p(value)
     if op == "sqrt":
         return math.sqrt(value)
+    if op == "cbrt":
+        return math.copysign(abs(value) ** (1.0 / 3.0), value)
+    if op == "erf":
+        return math.erf(value)
+    if op == "erfc":
+        return math.erfc(value)
+    if op == "floor":
+        return math.floor(value)
+    if op == "ceil":
+        return math.ceil(value)
+    if op == "round":
+        if value >= 0.0:
+            return math.floor(value + 0.5)
+        return math.ceil(value - 0.5)
+    if op == "trunc":
+        return math.trunc(value)
+    if op == "fract":
+        return value - math.trunc(value)
+    if op == "signum":
+        if value > 0.0:
+            return 1.0
+        if value < 0.0:
+            return -1.0
+        return 0.0
     if op == "abs":
         return math.fabs(value)
     raise ValueError(f"cannot constant-fold operation {op!r}")

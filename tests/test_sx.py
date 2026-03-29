@@ -3,21 +3,36 @@ import unittest
 from gradgen.sx import (
     SX,
     SXVector,
+    acosh,
     acos,
+    asinh,
     asin,
+    atan2,
     atan,
+    atanh,
+    cbrt,
+    ceil,
     cos,
     cosh,
+    erf,
+    erfc,
     exp,
     expm1,
+    floor,
+    fract,
+    hypot,
     log,
     log1p,
     maximum,
+    minimum,
+    round,
+    signum,
     sin,
     sinh,
     sqrt,
     tan,
     tanh,
+    trunc,
     vector,
 )
 import gradgen
@@ -75,6 +90,9 @@ class SXTests(unittest.TestCase):
         self.assertEqual(asin(x).op, "asin")
         self.assertEqual(acos(x).op, "acos")
         self.assertEqual(atan(x).op, "atan")
+        self.assertEqual(asinh(x).op, "asinh")
+        self.assertEqual(acosh(x).op, "acosh")
+        self.assertEqual(atanh(x).op, "atanh")
         self.assertEqual(sinh(x).op, "sinh")
         self.assertEqual(cosh(x).op, "cosh")
         self.assertEqual(tanh(x).op, "tanh")
@@ -83,8 +101,20 @@ class SXTests(unittest.TestCase):
         self.assertEqual(log(x).op, "log")
         self.assertEqual(log1p(x).op, "log1p")
         self.assertEqual(sqrt(x).op, "sqrt")
+        self.assertEqual(cbrt(x).op, "cbrt")
+        self.assertEqual(erf(x).op, "erf")
+        self.assertEqual(erfc(x).op, "erfc")
+        self.assertEqual(floor(x).op, "floor")
+        self.assertEqual(ceil(x).op, "ceil")
+        self.assertEqual(round(x).op, "round")
+        self.assertEqual(trunc(x).op, "trunc")
+        self.assertEqual(fract(x).op, "fract")
+        self.assertEqual(signum(x).op, "signum")
+        self.assertEqual(atan2(x, 1).op, "atan2")
+        self.assertEqual(hypot(x, 1).op, "hypot")
         self.assertEqual(x.abs().op, "abs")
         self.assertEqual(maximum(x, 1).op, "max")
+        self.assertEqual(minimum(x, 1).op, "min")
         self.assertEqual((-x).op, "neg")
 
     def test_top_level_package_exports_unary_helpers(self) -> None:
@@ -96,6 +126,9 @@ class SXTests(unittest.TestCase):
         self.assertEqual(gradgen.asin(x).op, "asin")
         self.assertEqual(gradgen.acos(x).op, "acos")
         self.assertEqual(gradgen.atan(x).op, "atan")
+        self.assertEqual(gradgen.asinh(x).op, "asinh")
+        self.assertEqual(gradgen.acosh(x).op, "acosh")
+        self.assertEqual(gradgen.atanh(x).op, "atanh")
         self.assertEqual(gradgen.sinh(x).op, "sinh")
         self.assertEqual(gradgen.cosh(x).op, "cosh")
         self.assertEqual(gradgen.tanh(x).op, "tanh")
@@ -104,7 +137,19 @@ class SXTests(unittest.TestCase):
         self.assertEqual(gradgen.log(x).op, "log")
         self.assertEqual(gradgen.log1p(x).op, "log1p")
         self.assertEqual(gradgen.sqrt(x).op, "sqrt")
+        self.assertEqual(gradgen.cbrt(x).op, "cbrt")
+        self.assertEqual(gradgen.erf(x).op, "erf")
+        self.assertEqual(gradgen.erfc(x).op, "erfc")
+        self.assertEqual(gradgen.floor(x).op, "floor")
+        self.assertEqual(gradgen.ceil(x).op, "ceil")
+        self.assertEqual(gradgen.round(x).op, "round")
+        self.assertEqual(gradgen.trunc(x).op, "trunc")
+        self.assertEqual(gradgen.fract(x).op, "fract")
+        self.assertEqual(gradgen.signum(x).op, "signum")
+        self.assertEqual(gradgen.atan2(x, 1).op, "atan2")
+        self.assertEqual(gradgen.hypot(x, 1).op, "hypot")
         self.assertEqual(gradgen.maximum(x, 1).op, "max")
+        self.assertEqual(gradgen.minimum(x, 1).op, "min")
 
     def test_numeric_operands_are_coerced_for_binary_operations(self) -> None:
         x = SX.sym("x")
@@ -331,6 +376,9 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(x.asin()[0].op, "asin")
         self.assertEqual(x.acos()[0].op, "acos")
         self.assertEqual(x.atan()[0].op, "atan")
+        self.assertEqual(x.asinh()[0].op, "asinh")
+        self.assertEqual(x.acosh()[0].op, "acosh")
+        self.assertEqual(x.atanh()[0].op, "atanh")
         self.assertEqual(x.sinh()[0].op, "sinh")
         self.assertEqual(x.cosh()[0].op, "cosh")
         self.assertEqual(x.tanh()[0].op, "tanh")
@@ -339,6 +387,15 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(x.log()[0].op, "log")
         self.assertEqual(x.log1p()[0].op, "log1p")
         self.assertEqual(x.sqrt()[0].op, "sqrt")
+        self.assertEqual(x.cbrt()[0].op, "cbrt")
+        self.assertEqual(x.erf()[0].op, "erf")
+        self.assertEqual(x.erfc()[0].op, "erfc")
+        self.assertEqual(x.floor()[0].op, "floor")
+        self.assertEqual(x.ceil()[0].op, "ceil")
+        self.assertEqual(x.round()[0].op, "round")
+        self.assertEqual(x.trunc()[0].op, "trunc")
+        self.assertEqual(x.fract()[0].op, "fract")
+        self.assertEqual(x.signum()[0].op, "signum")
         self.assertEqual(x.abs()[0].op, "abs")
         self.assertEqual((-x)[0].op, "neg")
 

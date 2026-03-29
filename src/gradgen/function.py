@@ -800,6 +800,12 @@ def _evaluate_scalar(expr: SX) -> float:
         return args[0] / args[1]
     if expr.op == "pow":
         return args[0] ** args[1]
+    if expr.op == "atan2":
+        return math.atan2(args[0], args[1])
+    if expr.op == "hypot":
+        return math.hypot(args[0], args[1])
+    if expr.op == "min":
+        return min(args[0], args[1])
     if expr.op == "neg":
         return -args[0]
     if expr.op == "sin":
@@ -814,6 +820,12 @@ def _evaluate_scalar(expr: SX) -> float:
         return math.acos(args[0])
     if expr.op == "atan":
         return math.atan(args[0])
+    if expr.op == "asinh":
+        return math.asinh(args[0])
+    if expr.op == "acosh":
+        return math.acosh(args[0])
+    if expr.op == "atanh":
+        return math.atanh(args[0])
     if expr.op == "sinh":
         return math.sinh(args[0])
     if expr.op == "cosh":
@@ -830,6 +842,30 @@ def _evaluate_scalar(expr: SX) -> float:
         return math.log1p(args[0])
     if expr.op == "sqrt":
         return math.sqrt(args[0])
+    if expr.op == "cbrt":
+        return math.copysign(abs(args[0]) ** (1.0 / 3.0), args[0])
+    if expr.op == "erf":
+        return math.erf(args[0])
+    if expr.op == "erfc":
+        return math.erfc(args[0])
+    if expr.op == "floor":
+        return math.floor(args[0])
+    if expr.op == "ceil":
+        return math.ceil(args[0])
+    if expr.op == "round":
+        if args[0] >= 0.0:
+            return math.floor(args[0] + 0.5)
+        return math.ceil(args[0] - 0.5)
+    if expr.op == "trunc":
+        return math.trunc(args[0])
+    if expr.op == "fract":
+        return args[0] - math.trunc(args[0])
+    if expr.op == "signum":
+        if args[0] > 0.0:
+            return 1.0
+        if args[0] < 0.0:
+            return -1.0
+        return 0.0
     if expr.op == "norm2":
         return math.sqrt(sum(arg * arg for arg in args))
     if expr.op == "norm2sq":
