@@ -28,7 +28,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `parameter_dimension` and `w=[...]`.
 - Added optional custom Python `hvp` callbacks for user-defined elementary
   functions.
-- Added runnable demos in `demos/codegen` and `demos/custom_function`.
+- Added support for generating one Rust crate from multiple source functions
+  through `CodeGenerationBuilder().for_function(...)`.
+- Added runnable demos in `demos/codegen`, `demos/custom_function`, and
+  `demos/multi_function`.
 - Added substantial regression and runtime coverage for symbolic math, AD, and
   generated Rust crates.
 
@@ -49,6 +52,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Updated custom primitive derivative handling so Jacobian, Hessian, and HVP
   callbacks are treated as opaque numeric Python callbacks during registration,
   evaluation, and simplification.
+- Updated `CodeGenerationBuilder` so it can manage one or more source
+  `Function`s in the same generated crate while preserving
+  `CodeGenerationBuilder(f)` as the single-function shorthand.
+- Updated builder-generated Rust naming so multi-function crates automatically
+  include the source function name in generated entrypoints to avoid collisions.
 - Updated vector Hessian APIs so `Function.hessian(...)` returns a single flat
   row-major output vector instead of one output row per variable.
 - Updated custom vector Rust derivative helpers so Jacobian, HVP, and Hessian
@@ -67,6 +75,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Fixed generated Rust custom Hessian emission so flat helper calls are used
   directly where possible, with compatibility wrappers retained for internal
   per-entry access.
+- Fixed repository noise from generated Rust crates by ignoring common Cargo
+  artifacts such as `Cargo.lock`, `target/`, backup files, and local `.cargo/`
+  directories.
 
 ### Automatic Differentiation
 
@@ -82,7 +93,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Documentation
 
 - Updated the main `README.md` to document the expanded elementary function
-  support, vector norms, `SXVector` slicing, AD behavior, and shared Rust
-  helper generation.
+  support, vector norms, `SXVector` slicing, AD behavior, shared Rust helper
+  generation, and the new multi-function `CodeGenerationBuilder` workflow.
 - Added and refined documentation for the new codegen and custom-function
   demos, including virtual-environment guidance.
+- Added a dedicated multi-function demo documenting how several source
+  functions can share the same generated Rust crate.

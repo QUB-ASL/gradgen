@@ -5,10 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from pathlib import Path
 import re
-from typing import Callable
 
 from jinja2 import Environment, FileSystemLoader
 
+from ._rust_codegen import CodeGenerationBuilder, FunctionBundle, sanitize_ident
 from .function import Function
 from .sx import SX, SXNode, SXVector, parse_bilinear_form_args, parse_matvec_component_args, parse_quadform_args
 from .custom_elementary import (
@@ -143,61 +143,6 @@ class RustMultiFunctionProjectResult:
 
 
 @dataclass(frozen=True, slots=True)
-class _BuilderRequest:
-    """A requested generated kernel kind."""
-
-    kind: str
-    components: tuple[str, ...] = ()
-    bundle: FunctionBundle | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class _BundleItem:
-    """One artifact entry inside a ``FunctionBundle``."""
-
-    kind: str
-    wrt_indices: tuple[int, ...] | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class FunctionBundle:
-    """Fluent description of artifacts to compute together in one joint kernel."""
-
-    items: tuple[_BundleItem, ...] = ()
-
-    def add_f(self) -> FunctionBundle:
-        """Include the primal outputs."""
-        return self._add_item("f")
-
-    def add_gradient(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
-        """Include gradient blocks for one or more input indices."""
-        return self._add_item("grad", wrt)
-
-    def add_jf(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
-        """Include Jacobian blocks for one or more input indices."""
-        return self._add_item("jf", wrt)
-
-    def add_hessian(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
-        """Include Hessian blocks for one or more input indices."""
-        return self._add_item("hessian", wrt)
-
-    def add_hvp(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
-        """Include Hessian-vector-product blocks for one or more input indices."""
-        return self._add_item("hvp", wrt)
-
-    def _add_item(
-        self,
-        kind: str,
-        wrt: int | list[int] | tuple[int, ...] | None = None,
-    ) -> FunctionBundle:
-        wrt_indices = None if wrt is None else _normalize_wrt_indices(wrt)
-        candidate = _BundleItem(kind, wrt_indices)
-        if any(item == candidate for item in self.items):
-            return self
-        return replace(self, items=(*self.items, candidate))
-
-
-@dataclass(frozen=True, slots=True)
 class _ArgSpec:
     """Rendered metadata for a generated Rust input or output."""
 
@@ -208,138 +153,6 @@ class _ArgSpec:
     size: int
 
 
-@dataclass(frozen=True, slots=True)
-class _BuilderFunctionSpec:
-    """One source function plus the kernels requested for it."""
-
-    function: Function
-    requests: tuple[_BuilderRequest, ...] = ()
-    simplification: int | str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class CodeGenerationBuilder:
-    """Fluent builder for a generated Rust crate with one or more functions."""
-
-    function: Function | None = None
-    config: RustBackendConfig = RustBackendConfig()
-    requests: tuple[_BuilderRequest, ...] = ()
-    simplification: int | str | None = None
-    functions: tuple[_BuilderFunctionSpec, ...] = ()
-
-    def with_backend_config(self, config: RustBackendConfig) -> CodeGenerationBuilder:
-        """Return a copy using ``config`` for generated Rust code."""
-        return replace(self, config=config)
-
-    def with_simplification(self, max_effort: int | str | None) -> CodeGenerationBuilder:
-        """Return a copy applying ``max_effort`` simplification to all generated kernels."""
-        return replace(self, simplification=max_effort)
-
-    def add_primal(self) -> CodeGenerationBuilder:
-        """Include the primal function in the generated crate."""
-        return self._add_request("primal")
-
-    def add_gradient(self) -> CodeGenerationBuilder:
-        """Include gradient kernels for scalar-output functions."""
-        return self._add_request("gradient")
-
-    def add_jacobian(self) -> CodeGenerationBuilder:
-        """Include Jacobian kernels for all input blocks."""
-        return self._add_request("jacobian")
-
-    def add_joint(self, bundle: FunctionBundle) -> CodeGenerationBuilder:
-        """Include kernels that compute bundled artifacts together."""
-        return self._add_request("joint", bundle=bundle)
-
-    def add_hessian(self) -> CodeGenerationBuilder:
-        """Include Hessian kernels for scalar-output functions."""
-        return self._add_request("hessian")
-
-    def add_hvp(self) -> CodeGenerationBuilder:
-        """Include Hessian-vector product kernels for scalar-output functions."""
-        return self._add_request("hvp")
-
-    def for_function(
-        self,
-        function: Function,
-        configure: Callable[[CodeGenerationBuilder], CodeGenerationBuilder] | None = None,
-    ) -> CodeGenerationBuilder:
-        """Add ``function`` to the crate, optionally configuring its kernels.
-
-        The ``configure`` callback receives a single-function builder scoped to
-        ``function``. It should return the updated builder for that source
-        function, for example::
-
-            builder = (
-                CodeGenerationBuilder()
-                .for_function(
-                    f,
-                    lambda b: b.add_primal().add_jacobian().with_simplification("medium"),
-                )
-            )
-        """
-        scoped_builder = CodeGenerationBuilder(function=function, config=self.config)
-        configured_builder = configure(scoped_builder) if configure is not None else scoped_builder
-        if configured_builder.function is None:
-            raise ValueError("configured function builder must target a function")
-        entry = _BuilderFunctionSpec(
-            function=configured_builder.function,
-            requests=configured_builder.requests,
-            simplification=configured_builder.simplification,
-        )
-        return replace(self, functions=(*self.functions, entry))
-
-    def build(self, path: str | Path) -> RustMultiFunctionProjectResult:
-        """Generate a single Rust crate containing all requested kernels."""
-        resolved_config = self.config
-        if resolved_config.crate_name is None:
-            resolved_config = resolved_config.with_crate_name(
-                _sanitize_ident(Path(path).expanduser().resolve().name)
-            )
-        functions = _resolve_builder_function_specs(
-            self._resolved_function_specs(),
-            resolved_config,
-        )
-        return create_multi_function_rust_project(
-            functions,
-            path,
-            config=resolved_config,
-        )
-
-    def _add_request(
-        self,
-        kind: str,
-        *,
-        components: tuple[str, ...] = (),
-        bundle: FunctionBundle | None = None,
-    ) -> CodeGenerationBuilder:
-        if self.function is None:
-            raise ValueError(
-                "no source function is selected; initialize CodeGenerationBuilder(function) "
-                "or use for_function(...)"
-            )
-        candidate = _BuilderRequest(kind, components, bundle)
-        if any(request == candidate for request in self.requests):
-            return self
-        return replace(self, requests=(*self.requests, candidate))
-
-    def _resolved_function_specs(self) -> tuple[_BuilderFunctionSpec, ...]:
-        """Return all source-function entries tracked by the builder."""
-        root_specs: tuple[_BuilderFunctionSpec, ...] = ()
-        if self.function is not None and self.requests:
-            root_specs = (
-                _BuilderFunctionSpec(
-                    function=self.function,
-                    requests=self.requests,
-                    simplification=self.simplification,
-                ),
-            )
-        specs = (*root_specs, *self.functions)
-        if not specs:
-            raise ValueError(
-                "no kernels were requested; call add_primal() or another add_* method first"
-            )
-        return specs
 
 
 def generate_rust(
@@ -368,13 +181,13 @@ def generate_rust(
         resolved_config.math_library,
     )
 
-    name = _sanitize_ident(resolved_config.function_name or function.name)
+    name = sanitize_ident(resolved_config.function_name or function.name)
     input_sizes = tuple(_arg_size(arg) for arg in function.inputs)
     output_sizes = tuple(_arg_size(arg) for arg in function.outputs)
     input_specs = tuple(
         _ArgSpec(
             raw_name=raw_name,
-            rust_name=_sanitize_ident(raw_name),
+            rust_name=sanitize_ident(raw_name),
             rust_label=_format_rust_string_literal(raw_name),
             doc_description=_describe_input_arg(raw_name),
             size=size,
@@ -384,7 +197,7 @@ def generate_rust(
     output_specs = tuple(
         _ArgSpec(
             raw_name=raw_name,
-            rust_name=_sanitize_ident(raw_name),
+            rust_name=sanitize_ident(raw_name),
             rust_label=_format_rust_string_literal(raw_name),
             doc_description=_describe_output_arg(raw_name),
             size=size,
@@ -530,7 +343,7 @@ def create_rust_project(
     _validate_scalar_type(resolved_config.scalar_type)
 
     project_dir = Path(path).expanduser().resolve()
-    crate = _sanitize_ident(resolved_config.crate_name or function.name)
+    crate = sanitize_ident(resolved_config.crate_name or function.name)
     codegen = generate_rust(
         function,
         config=resolved_config,
@@ -641,7 +454,7 @@ def create_multi_function_rust_project(
     _validate_scalar_type(resolved_config.scalar_type)
 
     project_dir = Path(path).expanduser().resolve()
-    crate = _sanitize_ident(resolved_config.crate_name or functions[0].name)
+    crate = sanitize_ident(resolved_config.crate_name or functions[0].name)
 
     src_dir = project_dir / "src"
     cargo_toml = project_dir / "Cargo.toml"
@@ -2006,18 +1819,6 @@ def _describe_output_arg(raw_name: str) -> str:
         return f"output slice receiving the Hessian-vector product for declared result `{base_name}`"
     return f"primal output slice for the declared result `{raw_name}`"
 
-
-def _sanitize_ident(name: str) -> str:
-    """Convert a user-facing name into a simple Rust identifier."""
-    chars = [character if character.isalnum() or character == "_" else "_" for character in name]
-    ident = "".join(chars)
-    if not ident:
-        ident = "value"
-    if ident[0].isdigit():
-        ident = f"_{ident}"
-    return ident
-
-
 def _validate_backend_mode(backend_mode: RustBackendMode) -> None:
     """Validate a Rust backend mode string."""
     if backend_mode not in {"std", "no_std"}:
@@ -2092,271 +1893,6 @@ def _maybe_simplify_derivative_function(
     if simplify_derivatives is None:
         return function
     return function.simplify(max_effort=simplify_derivatives, name=function.name)
-
-
-def _resolve_builder_function_specs(
-    specs: tuple[_BuilderFunctionSpec, ...],
-    config: RustBackendConfig,
-) -> tuple[Function, ...]:
-    """Expand builder function specs into concrete symbolic functions."""
-    if len(specs) > 1 and config.function_name is not None:
-        raise ValueError(
-            "RustBackendConfig.function_name is only supported when the builder targets "
-            "a single source function"
-        )
-
-    include_base_name = len(specs) > 1
-    resolved: list[Function] = []
-    for spec in specs:
-        base_name = config.function_name if len(specs) == 1 else None
-        resolved.extend(
-            _resolve_builder_functions(
-                spec.function,
-                config,
-                spec.requests,
-                spec.simplification,
-                include_base_name=include_base_name,
-                function_name=base_name,
-            )
-        )
-    return tuple(resolved)
-
-
-def _resolve_builder_functions(
-    function: Function,
-    config: RustBackendConfig,
-    requests: tuple[_BuilderRequest, ...],
-    simplification: int | str | None,
-    *,
-    include_base_name: bool = False,
-    function_name: str | None = None,
-) -> tuple[Function, ...]:
-    """Expand builder requests into concrete symbolic functions."""
-    if not requests:
-        raise ValueError("no kernels were requested; call add_primal() or another add_* method first")
-
-    base_function = _apply_builder_base_name(function, function_name)
-    crate_prefix = _sanitize_ident(config.crate_name or base_function.name)
-    resolved: list[Function] = []
-
-    for request in requests:
-        if request.kind == "primal":
-            resolved.append(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(base_function, simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "f",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                    ),
-                )
-            )
-            continue
-        if request.kind == "gradient":
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(base_function.gradient(index), simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "grad",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index in range(len(base_function.inputs))
-            )
-            continue
-        if request.kind == "jacobian":
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(block, simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "jf",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index, block in enumerate(base_function.jacobian_blocks())
-            )
-            continue
-        if request.kind == "joint":
-            if request.bundle is None:
-                raise ValueError("joint builder requests require a FunctionBundle")
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(
-                        base_function.joint(
-                            components,
-                            index,
-                        ),
-                        simplification,
-                    ),
-                    _builder_function_name(
-                        crate_prefix,
-                        *_builder_joint_labels(components),
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index, components in _resolve_function_bundle(
-                    request.bundle,
-                    len(base_function.inputs),
-                )
-            )
-            continue
-        if request.kind == "hessian":
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(block, simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "hessian",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index, block in enumerate(base_function.hessian_blocks())
-            )
-            continue
-        if request.kind == "hvp":
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(block, simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "hvp",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index, block in enumerate(base_function.hvp_blocks())
-            )
-            continue
-        raise ValueError(f"unsupported builder request kind {request.kind!r}")
-
-    return tuple(resolved)
-
-
-def _apply_builder_base_name(function: Function, function_name: str | None) -> Function:
-    """Optionally rename the base function used by the builder."""
-    if function_name is None or function_name == function.name:
-        return function
-    return Function(
-        function_name,
-        function.inputs,
-        function.outputs,
-        input_names=function.input_names,
-        output_names=function.output_names,
-    )
-
-
-def _rename_generated_function(function: Function, name: str) -> Function:
-    """Return ``function`` with a different name while preserving its interface."""
-    if function.name == name:
-        return function
-    return Function(
-        name,
-        function.inputs,
-        function.outputs,
-        input_names=function.input_names,
-        output_names=function.output_names,
-    )
-
-
-def _builder_joint_labels(components: tuple[str, ...]) -> tuple[str, ...]:
-    """Map joint component shorthands to builder function-name labels."""
-    mapping = {
-        "f": "f",
-        "grad": "grad",
-        "jf": "jf",
-        "hessian": "hessian",
-        "hvp": "hvp",
-    }
-    return tuple(mapping[component] for component in components)
-
-
-def _builder_function_name(
-    crate_prefix: str,
-    *labels: str,
-    base_name: str | None = None,
-    include_base_name: bool = False,
-    input_name: str | None = None,
-    include_input_name: bool = False,
-) -> str:
-    """Build a crate-prefixed Rust function name for builder-generated kernels."""
-    parts = [crate_prefix]
-    if include_base_name and base_name is not None:
-        parts.append(_sanitize_ident(base_name))
-    parts.extend(labels)
-    if include_input_name and input_name is not None:
-        parts.append(_sanitize_ident(input_name))
-    return "_".join(parts)
-
-
-def _normalize_wrt_indices(wrt: int | list[int] | tuple[int, ...]) -> tuple[int, ...]:
-    """Normalize a ``wrt`` specification to a tuple of indices."""
-    if isinstance(wrt, int):
-        return (wrt,)
-    return tuple(wrt)
-
-
-def _resolve_function_bundle(
-    bundle: FunctionBundle,
-    input_count: int,
-) -> tuple[tuple[int, tuple[str, ...]], ...]:
-    """Expand a ``FunctionBundle`` into one or more per-input joint requests."""
-    if not bundle.items:
-        raise ValueError("FunctionBundle must contain at least one item")
-
-    has_primal = any(item.kind == "f" for item in bundle.items)
-    grouped: dict[int, list[str]] = {}
-
-    for item in bundle.items:
-        if item.kind == "f":
-            continue
-        if item.wrt_indices is None:
-            raise ValueError(f"FunctionBundle item {item.kind!r} requires a wrt specification")
-        for index in item.wrt_indices:
-            if not 0 <= index < input_count:
-                raise IndexError("wrt_index is out of range")
-            grouped.setdefault(index, [])
-            if has_primal and "f" not in grouped[index]:
-                grouped[index].append("f")
-            if item.kind not in grouped[index]:
-                grouped[index].append(item.kind)
-
-    if not grouped:
-        raise ValueError("FunctionBundle must include at least one derivative-producing item")
-
-    resolved: list[tuple[int, tuple[str, ...]]] = []
-    for index in sorted(grouped):
-        components = tuple(grouped[index])
-        if len(components) < 2:
-            raise ValueError("joint functions require at least two components")
-        resolved.append((index, components))
-    return tuple(resolved)
-
-
-def _maybe_simplify_generated_function(
-    function: Function,
-    simplification: int | str | None,
-) -> Function:
-    """Optionally simplify a generated function while preserving its name."""
-    if simplification is None:
-        return function
-    return function.simplify(max_effort=simplification, name=function.name)
 
 
 def _render_multi_function_lib(

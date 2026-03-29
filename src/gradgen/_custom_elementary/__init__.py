@@ -1,11 +1,14 @@
-"""Public API for user-defined elementary functions.
+"""Internal helpers for custom elementary functions."""
 
-The implementation lives in :mod:`gradgen._custom_elementary`, while this
-module preserves the long-standing import surface used by the rest of the
-package and by downstream users.
-"""
-
-from ._custom_elementary import (
+from .callbacks import (
+    build_custom_hessian_expr,
+    build_custom_hvp_expr,
+    build_custom_jacobian_expr,
+    evaluate_custom_hessian,
+    evaluate_custom_hvp,
+    evaluate_custom_jacobian,
+)
+from .model import (
     PythonEvalBuilder,
     RegisteredElementaryFunction,
     ScalarHessianBuilder,
@@ -14,19 +17,15 @@ from ._custom_elementary import (
     VectorHessianBuilder,
     VectorHvpBuilder,
     VectorJacobianBuilder,
-    build_custom_hessian_expr,
-    build_custom_hvp_expr,
-    build_custom_jacobian_expr,
-    clear_registered_elementary_functions,
     custom_scalar_hessian,
     custom_scalar_hvp,
     custom_scalar_jacobian,
     custom_vector_hessian_entry,
     custom_vector_hvp_component,
     custom_vector_jacobian_component,
-    evaluate_custom_hessian,
-    evaluate_custom_hvp,
-    evaluate_custom_jacobian,
+)
+from .registry import (
+    clear_registered_elementary_functions,
     get_registered_elementary_function,
     parse_custom_scalar_args,
     parse_custom_scalar_hvp_args,
@@ -36,10 +35,6 @@ from ._custom_elementary import (
     parse_custom_vector_jacobian_component_args,
     register_elementary_function,
     render_custom_rust_snippet,
-)
-from ._custom_elementary.callbacks import (
-    invoke_custom_callback as _invoke_custom_callback,
-    invoke_custom_hvp_callback as _invoke_custom_hvp_callback,
 )
 
 __all__ = [
@@ -65,8 +60,6 @@ __all__ = [
     "evaluate_custom_hvp",
     "evaluate_custom_jacobian",
     "get_registered_elementary_function",
-    "_invoke_custom_callback",
-    "_invoke_custom_hvp_callback",
     "parse_custom_scalar_args",
     "parse_custom_scalar_hvp_args",
     "parse_custom_vector_args",
