@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added loop-based Rust code generation for fixed-horizon single-shooting
   problems, including total-cost kernels, gradients with respect to the packed
   control sequence, and joint kernels that can also return rollout states.
+- Added loop-based Hessian-vector-product kernels for fixed-horizon
+  single-shooting problems, including support for packed control-sequence
+  directions and optional rollout-state outputs.
 - Added a dedicated `demos/single_shooting` demo and runner crate showing how
   to generate and call the resulting Rust crate in practice.
 
@@ -28,6 +31,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   new scoped builder API.
 - Updated CI and demo tooling so the single-shooting demo is generated and run
   alongside the other demos.
+- Expanded the single-shooting test coverage with additional scalar, horizon-1,
+  multi-control, integration, and generated-Rust runtime checks.
+- Updated the single-shooting demo and runner to generate and execute the new
+  HVP kernel in addition to the cost and gradient kernels.
+- Updated the Rust template to allow generated helper functions with many
+  arguments only when required, keeping demo crates clippy-clean.
 
 
 
