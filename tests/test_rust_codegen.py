@@ -661,7 +661,8 @@ mod tests {{
 
         self.assertEqual(result.scalar_type, "f32")
         self.assertIn("pub fn square_plus_one(x: &[f32], y: &mut [f32], work: &mut [f32]) {", result.source)
-        self.assertIn("work[0] = 1.0_f32 + work[0];", result.source)
+        self.assertIn("assert!(!work.is_empty());", result.source)
+        self.assertIn("work[0] += 1.0_f32;", result.source)
 
     def test_no_std_f32_codegen_uses_libm_f32_entry_points(self) -> None:
         x = SX.sym("x")
@@ -920,9 +921,9 @@ mod tests {{
 
         self.assertEqual(result.source.count("x[0] * x[0]"), 1)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[0] = 1.0_f64 + work[0];", result.source)
+        self.assertIn("work[0] += 1.0_f64;", result.source)
         self.assertIn("work[1] = work[0] * work[0];", result.source)
-        self.assertIn("work[0] = work[0] + work[1];", result.source)
+        self.assertIn("work[0] += work[1];", result.source)
 
     def test_generated_code_uses_rust_math_methods(self) -> None:
         x = SX.sym("x")
