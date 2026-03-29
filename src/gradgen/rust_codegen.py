@@ -8,7 +8,13 @@ import re
 
 from jinja2 import Environment, FileSystemLoader
 
-from ._rust_codegen import CodeGenerationBuilder, FunctionBundle, sanitize_ident
+from ._rust_codegen import (
+    CodeGenerationBuilder,
+    FunctionBundle,
+    sanitize_ident,
+    validate_rust_ident,
+    validate_unique_rust_names,
+)
 from .function import Function
 from .sx import SX, SXNode, SXVector, parse_bilinear_form_args, parse_matvec_component_args, parse_quadform_args
 from .custom_elementary import (
@@ -82,6 +88,7 @@ class RustBackendConfig:
 
     def with_function_name(self, function_name: str | None) -> RustBackendConfig:
         """Return a copy with a different generated Rust function name."""
+        validate_rust_ident(function_name, label="function_name")
         return replace(self, function_name=function_name)
 
     def with_emit_metadata_helpers(self, emit_metadata_helpers: bool) -> RustBackendConfig:
@@ -258,6 +265,7 @@ def generate_rust(
         )
         for raw_name, size in zip(function.output_names, output_sizes)
     )
+    _validate_generated_argument_names(input_specs, output_specs)
 
     scalar_bindings: dict[SXNode, str] = {}
     input_assert_lines: list[str] = []
@@ -717,6 +725,7 @@ def _generate_composed_primal_rust(
             size=1,
         ),
     )
+    _validate_generated_argument_names(input_specs, output_specs)
     input_assert_lines = [f"assert_eq!({input_specs[0].rust_name}.len(), {state_size});"]
     if composed.parameter_size > 0:
         input_assert_lines.append(
@@ -993,6 +1002,7 @@ def _generate_composed_gradient_rust(
             size=state_size,
         ),
     )
+    _validate_generated_argument_names(input_specs, output_specs)
     input_assert_lines = [f"assert_eq!({input_specs[0].rust_name}.len(), {state_size});"]
     if composed.parameter_size > 0:
         input_assert_lines.append(
@@ -2726,12 +2736,22 @@ def _validate_crate_name(crate_name: str | None) -> None:
     generated Cargo package name and emitted Rust module conventions stay
     aligned and predictable.
     """
-    if crate_name is None:
-        return
-    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", crate_name):
-        raise ValueError(
-            "crate_name must match the pattern [A-Za-z_][A-Za-z0-9_]*"
-        )
+    validate_rust_ident(crate_name, label="crate_name")
+
+
+def _validate_generated_argument_names(
+    input_specs: tuple[_ArgSpec, ...],
+    output_specs: tuple[_ArgSpec, ...],
+) -> None:
+    """Validate Rust-facing argument names after sanitization."""
+    validate_unique_rust_names(
+        [(spec.raw_name, spec.rust_name) for spec in (*input_specs, *output_specs)],
+        label="generated argument",
+    )
+    validate_unique_rust_names(
+        [("work", "work"), *[(spec.raw_name, spec.rust_name) for spec in (*input_specs, *output_specs)]],
+        label="generated argument",
+    )
 
 
 def _resolve_math_library(

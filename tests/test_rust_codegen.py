@@ -575,6 +575,16 @@ mod tests {{
         with self.assertRaises(ValueError):
             RustBackendConfig().with_crate_name("123kernel")
 
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_crate_name("fn")
+
+    def test_backend_config_rejects_invalid_function_name(self) -> None:
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_function_name("123kernel")
+
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_function_name("fn")
+
     def test_generate_rust_accepts_backend_config(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [x.sin()], input_names=["x"], output_names=["y"])
@@ -1780,11 +1790,38 @@ mod tests {
             output_names=["out value"],
         )
 
-        result = f.generate_rust(function_name="123 kernel")
+        result = f.generate_rust()
 
-        self.assertIn("pub fn _123_kernel(", result.source)
+        self.assertIn("pub fn my_function(", result.source)
         self.assertIn("_1_input: &[f64]", result.source)
         self.assertIn("out_value: &mut [f64]", result.source)
+
+    def test_generate_rust_rejects_duplicate_sanitized_argument_names(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        f = Function(
+            "f",
+            [x, y],
+            [x + y],
+            input_names=["x-value", "x_value"],
+            output_names=["sum"],
+        )
+
+        with self.assertRaisesRegex(ValueError, "both map to the Rust identifier"):
+            f.generate_rust()
+
+    def test_generate_rust_rejects_collision_with_work_argument(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "f",
+            [x],
+            [x],
+            input_names=["x"],
+            output_names=["work"],
+        )
+
+        with self.assertRaisesRegex(ValueError, "both map to the Rust identifier 'work'"):
+            f.generate_rust()
 
     def test_create_rust_derivative_bundle_writes_expected_projects(self) -> None:
         x = SXVector.sym("x", 2)
