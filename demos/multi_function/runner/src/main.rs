@@ -1,13 +1,53 @@
 use multi_function_kernel::{
     multi_function_kernel_coupling_f, multi_function_kernel_coupling_f_jf_x,
     multi_function_kernel_coupling_f_jf_x_meta, multi_function_kernel_coupling_f_meta,
-    multi_function_kernel_coupling_grad_x, multi_function_kernel_coupling_grad_x_meta,
+    multi_function_kernel_coupling_grad_u_meta, multi_function_kernel_coupling_grad_x,
+    multi_function_kernel_coupling_grad_x_meta, multi_function_kernel_coupling_hvp_u_meta,
     multi_function_kernel_coupling_hvp_x, multi_function_kernel_coupling_hvp_x_meta,
     multi_function_kernel_energy_f, multi_function_kernel_energy_f_meta,
-    multi_function_kernel_energy_jf_x, multi_function_kernel_energy_jf_x_meta,
+    multi_function_kernel_energy_jf_u_meta, multi_function_kernel_energy_jf_x,
+    multi_function_kernel_energy_jf_x_meta, FunctionMetadata,
 };
 
+fn print_metadata(label: &str, metadata: FunctionMetadata) {
+    println!("{label}: {metadata:#?}");
+}
+
 fn main() {
+    print_metadata("energy_f metadata", multi_function_kernel_energy_f_meta());
+    print_metadata(
+        "energy_jf_x metadata",
+        multi_function_kernel_energy_jf_x_meta(),
+    );
+    print_metadata(
+        "energy_jf_u metadata",
+        multi_function_kernel_energy_jf_u_meta(),
+    );
+    print_metadata(
+        "coupling_f metadata",
+        multi_function_kernel_coupling_f_meta(),
+    );
+    print_metadata(
+        "coupling_grad_x metadata",
+        multi_function_kernel_coupling_grad_x_meta(),
+    );
+    print_metadata(
+        "coupling_grad_u metadata",
+        multi_function_kernel_coupling_grad_u_meta(),
+    );
+    print_metadata(
+        "coupling_hvp_x metadata",
+        multi_function_kernel_coupling_hvp_x_meta(),
+    );
+    print_metadata(
+        "coupling_hvp_u metadata",
+        multi_function_kernel_coupling_hvp_u_meta(),
+    );
+    print_metadata(
+        "coupling_f_jf_x metadata",
+        multi_function_kernel_coupling_f_jf_x_meta(),
+    );
+
     let x = [1.5_f64, -0.25_f64];
     let u = [0.75_f64];
     let v_x = [0.1_f64, -0.3_f64];

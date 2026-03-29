@@ -1,9 +1,17 @@
 use vjp_kernel::{
     vjp_kernel_g_f, vjp_kernel_g_f_meta, vjp_kernel_g_jf, vjp_kernel_g_jf_meta, vjp_kernel_g_vjp,
-    vjp_kernel_g_vjp_meta,
+    vjp_kernel_g_vjp_meta, FunctionMetadata,
 };
 
+fn print_metadata(label: &str, metadata: FunctionMetadata) {
+    println!("{label}: {metadata:#?}");
+}
+
 fn main() {
+    print_metadata("g_f metadata", vjp_kernel_g_f_meta());
+    print_metadata("g_jf metadata", vjp_kernel_g_jf_meta());
+    print_metadata("g_vjp metadata", vjp_kernel_g_vjp_meta());
+
     let x = [3.0_f64, 4.0_f64];
     let cotangent_y = [2.0_f64, -1.0_f64, 5.0_f64];
 

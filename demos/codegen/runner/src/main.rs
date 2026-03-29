@@ -1,11 +1,29 @@
 use codegen_kernel::{
-    codegen_kernel_coupling_f, codegen_kernel_coupling_jf_u, codegen_kernel_coupling_jf_u_meta,
-    codegen_kernel_coupling_jf_x, codegen_kernel_coupling_jf_x_meta, codegen_kernel_energy_f,
+    codegen_kernel_coupling_f, codegen_kernel_coupling_f_meta, codegen_kernel_coupling_jf_u,
+    codegen_kernel_coupling_jf_u_meta, codegen_kernel_coupling_jf_x,
+    codegen_kernel_coupling_jf_x_meta, codegen_kernel_energy_f, codegen_kernel_energy_f_meta,
     codegen_kernel_energy_jf_u, codegen_kernel_energy_jf_u_meta, codegen_kernel_energy_jf_x,
-    codegen_kernel_energy_jf_x_meta,
+    codegen_kernel_energy_jf_x_meta, FunctionMetadata,
 };
 
+fn print_metadata(label: &str, metadata: FunctionMetadata) {
+    println!("{label}: {metadata:#?}");
+}
+
 fn main() {
+    print_metadata("energy_f metadata", codegen_kernel_energy_f_meta());
+    print_metadata("energy_jf_x metadata", codegen_kernel_energy_jf_x_meta());
+    print_metadata("energy_jf_u metadata", codegen_kernel_energy_jf_u_meta());
+    print_metadata("coupling_f metadata", codegen_kernel_coupling_f_meta());
+    print_metadata(
+        "coupling_jf_x metadata",
+        codegen_kernel_coupling_jf_x_meta(),
+    );
+    print_metadata(
+        "coupling_jf_u metadata",
+        codegen_kernel_coupling_jf_u_meta(),
+    );
+
     let x = [1.0_f64, 2.0_f64, -0.5_f64];
     let u = [3.0_f64];
 

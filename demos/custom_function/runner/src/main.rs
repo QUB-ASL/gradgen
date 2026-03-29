@@ -3,10 +3,31 @@ use custom_function_kernel::{
     custom_function_kernel_custom_energy_grad, custom_function_kernel_custom_energy_grad_meta,
     custom_function_kernel_custom_energy_hessian,
     custom_function_kernel_custom_energy_hessian_meta, custom_function_kernel_custom_energy_hvp,
-    custom_function_kernel_custom_energy_hvp_meta,
+    custom_function_kernel_custom_energy_hvp_meta, FunctionMetadata,
 };
 
+fn print_metadata(label: &str, metadata: FunctionMetadata) {
+    println!("{label}: {metadata:#?}");
+}
+
 fn main() {
+    print_metadata(
+        "custom_energy_f metadata",
+        custom_function_kernel_custom_energy_f_meta(),
+    );
+    print_metadata(
+        "custom_energy_grad metadata",
+        custom_function_kernel_custom_energy_grad_meta(),
+    );
+    print_metadata(
+        "custom_energy_hessian metadata",
+        custom_function_kernel_custom_energy_hessian_meta(),
+    );
+    print_metadata(
+        "custom_energy_hvp metadata",
+        custom_function_kernel_custom_energy_hvp_meta(),
+    );
+
     let x = [1.2_f64, -0.7_f64];
     let v_x = [0.5_f64, -1.0_f64];
 
