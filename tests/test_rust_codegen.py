@@ -367,6 +367,104 @@ mod tests {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_composed_primal_codegen_handles_mixed_fixed_and_symbolic_stage_parameters(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p1 = SXVector.sym("p1", 2)
+        p2 = SXVector.sym("p2", 2)
+
+        g = Function(
+            "g",
+            [state, p1],
+            [SXVector((state[0] + p1[0], state[1] * p1[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, SXVector.sym("pf", 0)],
+            [state[0] - state[1]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+
+        composed = (
+            ComposedFunction("mixed_primal", x)
+            .then(g, p=[10.0, 20.0])
+            .repeat(g, params=[p1, p2])
+            .finish(h, p=[])
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(composed, Path(tmpdir) / "mixed_primal")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("parameters: &[f64]", lib_text)
+            self.assertIn("&[10.0_f64, 20.0_f64]", lib_text)
+            self.assertIn("for repeat_index in 0..2 {", lib_text)
+            self.assertIn("repeat_index * 2", lib_text)
+            self.assertIn("(repeat_index + 1) * 2", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                composed.to_function(),
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0]),
+                test_name="evaluates_mixed_fixed_and_symbolic_stages",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_composed_primal_codegen_packs_single_stage_and_terminal_symbolic_offsets_correctly(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p_stage = SXVector.sym("p_stage", 2)
+        p_terminal = SXVector.sym("p_terminal", 1)
+
+        g = Function(
+            "g",
+            [state, p_stage],
+            [SXVector((state[0] + p_stage[0], state[1] + p_stage[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, p_terminal],
+            [state[0] * state[1] + p_terminal[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+
+        composed = (
+            ComposedFunction("offset_demo", x)
+            .then(g, p=p_stage)
+            .finish(h, p=p_terminal)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(composed, Path(tmpdir) / "offset_demo")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("parameters: &[f64]", lib_text)
+            self.assertIn("parameters[0..2]", lib_text)
+            self.assertIn("parameters[2..3]", lib_text)
+            self.assertNotIn("for repeat_index", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                composed.to_function(),
+                function_name=project.codegen.function_name,
+                inputs=([2.0, 3.0], [5.0, 7.0, 11.0]),
+                test_name="evaluates_symbolic_stage_and_terminal_offsets",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_composed_gradient_codegen_packs_symbolic_parameters(self) -> None:
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)

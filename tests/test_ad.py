@@ -638,6 +638,53 @@ class JacobianTests(unittest.TestCase):
         self.assertEqual(bilinear_x_eval([1.0, 2.0], [3.0, 4.0]), (10.0, 15.0))
         self.assertEqual(bilinear_y_eval([1.0, 2.0], [3.0, 4.0]), (4.0, 7.0))
 
+    def test_reverse_gradient_supports_additional_smooth_elementary_math(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        expr = x.asinh() + x.acosh() + x.atanh() + x.cbrt() + x.erf() + x.erfc() + x.atan2(y) + x.hypot(y)
+        grad_x = gradient(expr, x)
+        grad_y = gradient(expr, y)
+        evaluator = Function("grad", [x, y], [grad_x, grad_y])
+
+        x_value = 1.5
+        y_value = 2.0
+        result = evaluator(x_value, y_value)
+        expected_x = (
+            1.0 / math.sqrt(x_value * x_value + 1.0)
+            + 1.0 / (math.sqrt(x_value - 1.0) * math.sqrt(x_value + 1.0))
+            + 1.0 / (1.0 - x_value * x_value)
+            + 1.0 / (3.0 * (math.copysign(abs(x_value) ** (1.0 / 3.0), x_value) ** 2))
+            + 1.1283791670955126 * math.exp(-(x_value * x_value))
+            - 1.1283791670955126 * math.exp(-(x_value * x_value))
+            + y_value / (x_value * x_value + y_value * y_value)
+            + x_value / math.hypot(x_value, y_value)
+        )
+        expected_y = (
+            -x_value / (x_value * x_value + y_value * y_value)
+            + y_value / math.hypot(x_value, y_value)
+        )
+
+        self.assertAlmostEqual(result[0], expected_x)
+        self.assertAlmostEqual(result[1], expected_y)
+
+    def test_reverse_gradient_of_power_with_variable_exponent_matches_closed_form(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        expr = x**y
+        grad_x = gradient(expr, x)
+        grad_y = gradient(expr, y)
+        evaluator = Function("grad_pow", [x, y], [grad_x, grad_y])
+
+        x_value = 2.5
+        y_value = 1.75
+        result = evaluator(x_value, y_value)
+
+        expected_x = y_value * (x_value ** (y_value - 1.0))
+        expected_y = (x_value**y_value) * math.log(x_value)
+
+        self.assertAlmostEqual(result[0], expected_x)
+        self.assertAlmostEqual(result[1], expected_y)
+
     def test_custom_scalar_hvp_falls_back_to_hessian_in_ad(self) -> None:
         cubic_shift = register_elementary_function(
             name="cubic_shift",
@@ -764,6 +811,23 @@ class HessianTests(unittest.TestCase):
 
         flat = hes([3.0, 4.0])
         self.assertEqual(flat[1], flat[2])
+
+    def test_hessian_of_nonsymmetric_quadratic_form_uses_p_plus_p_transpose(self) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[1.0, 2.0], [3.0, 4.0]]
+        f = Function("f", [x], [quadform(matrix, x)])
+        hes = f.hessian(0)
+
+        self.assertEqual(hes([2.0, 5.0]), (2.0, 5.0, 5.0, 8.0))
+
+    def test_hvp_of_bilinear_form_is_zero_for_each_argument_block(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function("f", [x, y], [bilinear_form(x, matrix, y)])
+
+        self.assertEqual(f.hvp(0)([1.0, 2.0], [3.0, 4.0], [5.0, 7.0]), (0.0, 0.0))
+        self.assertEqual(f.hvp(1)([1.0, 2.0], [3.0, 4.0], [11.0, 13.0]), (0.0, 0.0))
 
 
 if __name__ == "__main__":
