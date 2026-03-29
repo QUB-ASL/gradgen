@@ -150,19 +150,20 @@ mod tests {{
         self.assertEqual(result.function_name, "square_plus_one")
         self.assertEqual(result.input_sizes, (1,))
         self.assertEqual(result.output_sizes, (1,))
-        self.assertIn("/// Workspace length required by [`square_plus_one`].", result.source)
-        self.assertIn("pub const SQUARE_PLUS_ONE_WORK_SIZE: usize = 2;", result.source)
-        self.assertIn("pub fn square_plus_one_work_size() -> usize {", result.source)
-        self.assertIn("pub fn square_plus_one_num_inputs() -> usize {", result.source)
-        self.assertIn('pub const SQUARE_PLUS_ONE_INPUT_NAMES: &[&str] = &[', result.source)
         self.assertIn('"x",', result.source)
-        self.assertIn("pub fn square_plus_one_input_names() -> &'static [&'static str] {", result.source)
-        self.assertIn("pub fn square_plus_one_input_0_size() -> usize {", result.source)
-        self.assertIn("pub fn square_plus_one_num_outputs() -> usize {", result.source)
-        self.assertIn('pub const SQUARE_PLUS_ONE_OUTPUT_NAMES: &[&str] = &[', result.source)
         self.assertIn('"y",', result.source)
-        self.assertIn("pub fn square_plus_one_output_names() -> &'static [&'static str] {", result.source)
-        self.assertIn("pub fn square_plus_one_output_0_size() -> usize {", result.source)
+        self.assertIn("pub struct FunctionMetadata {", result.source)
+        self.assertIn("pub fn square_plus_one_meta() -> FunctionMetadata {", result.source)
+        self.assertIn("workspace_size: 2,", result.source)
+        self.assertIn("/// Arguments:", result.source)
+        self.assertIn("/// - `x`:", result.source)
+        self.assertIn("///   input slice for the declared argument `x`", result.source)
+        self.assertIn("///   Expected length: 1.", result.source)
+        self.assertIn("/// - `y`:", result.source)
+        self.assertIn("///   primal output slice for the declared result `y`", result.source)
+        self.assertIn("///   Expected length: 1.", result.source)
+        self.assertIn("/// - `work`: mutable workspace slice used to store intermediate values", result.source)
+        self.assertIn("///   while evaluating this kernel. Expected length: at least 2.", result.source)
         self.assertIn("pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
         self.assertIn("assert_eq!(x.len(), 1);", result.source)
         self.assertIn("assert_eq!(y.len(), 1);", result.source)
@@ -186,17 +187,13 @@ mod tests {{
         self.assertEqual(result.function_name, "kernel")
         self.assertEqual(result.input_sizes, (2, 2))
         self.assertEqual(result.output_sizes, (1, 2))
-        self.assertIn("pub const KERNEL_WORK_SIZE: usize = 5;", result.source)
-        self.assertIn('pub const KERNEL_INPUT_NAMES: &[&str] = &[', result.source)
         self.assertIn('"x",', result.source)
         self.assertIn('"y",', result.source)
-        self.assertIn("pub fn kernel_input_0_size() -> usize {", result.source)
-        self.assertIn("pub fn kernel_input_1_size() -> usize {", result.source)
-        self.assertIn('pub const KERNEL_OUTPUT_NAMES: &[&str] = &[', result.source)
         self.assertIn('"dot",', result.source)
         self.assertIn('"sum",', result.source)
-        self.assertIn("pub fn kernel_output_0_size() -> usize {", result.source)
-        self.assertIn("pub fn kernel_output_1_size() -> usize {", result.source)
+        self.assertIn("pub struct FunctionMetadata {", result.source)
+        self.assertIn("pub fn kernel_meta() -> FunctionMetadata {", result.source)
+        self.assertIn("workspace_size: 5,", result.source)
         self.assertIn(
             "pub fn kernel(x: &[f64], y: &[f64], dot: &mut [f64], sum: &mut [f64], work: &mut [f64]) {",
             result.source,
@@ -317,6 +314,8 @@ mod tests {{
         self.assertIn("pub fn eval_kernel(", result.source)
         self.assertNotIn("WORK_SIZE", result.source)
         self.assertNotIn("pub fn eval_kernel_work_size()", result.source)
+        self.assertNotIn("pub fn eval_kernel_input_names()", result.source)
+        self.assertNotIn("pub fn eval_kernel_output_names()", result.source)
 
     def test_create_rust_project_accepts_backend_config(self) -> None:
         x = SX.sym("x")
@@ -467,7 +466,7 @@ mod tests {{
             self.assertIn("# square_plus_one", readme_text)
             self.assertIn("cargo build", readme_text)
             self.assertIn("workspace, input, and output dimensions", readme_text)
-            self.assertIn("pub const SQUARE_PLUS_ONE_WORK_SIZE: usize = 2;", lib_text)
+            self.assertIn("pub fn square_plus_one_meta() -> FunctionMetadata {", lib_text)
             self.assertIn("pub fn square_plus_one(", lib_text)
 
             completed = self._run_cargo(project.project_dir, "build", "--quiet")
@@ -712,7 +711,7 @@ mod math {
         result = f.generate_rust()
 
         self.assertEqual(result.workspace_size, 0)
-        self.assertIn("pub const IDENTITY_WORK_SIZE: usize = 0;", result.source)
+        self.assertIn("workspace_size: 0,", result.source)
 
         with TemporaryDirectory() as tmpdir:
             project = f.create_rust_project(Path(tmpdir) / "identity_kernel")
@@ -832,6 +831,49 @@ mod tests {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_generated_rust_source_describes_joint_kernel_arguments_semantically(self) -> None:
+        x = SXVector.sym("x", 3)
+        u = SXVector.sym("u", 2)
+        f = Function(
+            "f",
+            [x, u],
+            [x.dot(x) + u[0]],
+            input_names=["x", "u"],
+            output_names=["y"],
+        )
+        builder = CodeGenerationBuilder(f).add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=0)
+            .add_hvp(wrt=0)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "my_kernel")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("/// - `x`:", lib_text)
+            self.assertIn("///   input slice for the declared argument `x`", lib_text)
+            self.assertIn("///   Expected length: 3.", lib_text)
+            self.assertIn("/// - `u`:", lib_text)
+            self.assertIn("///   input slice for the declared argument `u`", lib_text)
+            self.assertIn("///   Expected length: 2.", lib_text)
+            self.assertIn("/// - `v_x`:", lib_text)
+            self.assertIn("///   tangent or direction input associated with declared argument `x`;", lib_text)
+            self.assertIn("///   use this slice when forming Hessian-vector-product or", lib_text)
+            self.assertIn("///   derivative terms", lib_text)
+            self.assertIn("///   Expected length: 3.", lib_text)
+            self.assertIn("/// - `y`:", lib_text)
+            self.assertIn("///   primal output slice for the declared result `y`", lib_text)
+            self.assertIn("///   Expected length: 1.", lib_text)
+            self.assertIn("/// - `jacobian_y`:", lib_text)
+            self.assertIn("///   output slice receiving the Jacobian block for declared result `y`", lib_text)
+            self.assertIn("///   Expected length: 3.", lib_text)
+            self.assertIn("/// - `hvp_y`:", lib_text)
+            self.assertIn("///   output slice receiving the Hessian-vector product for declared", lib_text)
+            self.assertIn("///   result `y`", lib_text)
+            self.assertIn("///   Expected length: 3.", lib_text)
+
     def test_generated_rust_project_exposes_input_and_output_name_helpers(self) -> None:
         x = SXVector.sym("x", 2)
         y = SX.sym("y")
@@ -854,8 +896,17 @@ mod tests {
 
     #[test]
     fn exposes_declared_argument_names() {
-        assert_eq!(named_kernel_input_names(), ["state vector", "gain"]);
-        assert_eq!(named_kernel_output_names(), ["energy", "gain out"]);
+    }
+
+    #[test]
+    fn exposes_metadata_struct() {
+        let meta = named_kernel_meta();
+        assert_eq!(meta.function_name, "named_kernel");
+        assert_eq!(meta.workspace_size, 3);
+        assert_eq!(meta.input_names, ["state vector", "gain"]);
+        assert_eq!(meta.input_sizes, [2, 1]);
+        assert_eq!(meta.output_names, ["energy", "gain out"]);
+        assert_eq!(meta.output_sizes, [1, 1]);
     }
 }
 """.lstrip(),
@@ -959,9 +1010,9 @@ mod tests {
         let mut y_grad = [0.0_f64, 0.0_f64];
         let mut y_hvp = [0.0_f64, 0.0_f64];
 
-        let mut work_f = [0.0_f64; SINGLE_CRATE_F_WORK_SIZE];
-        let mut work_grad = [0.0_f64; SINGLE_CRATE_GRAD_WORK_SIZE];
-        let mut work_hvp = [0.0_f64; SINGLE_CRATE_HVP_WORK_SIZE];
+        let mut work_f = vec![0.0_f64; single_crate_f_meta().workspace_size];
+        let mut work_grad = vec![0.0_f64; single_crate_grad_meta().workspace_size];
+        let mut work_hvp = vec![0.0_f64; single_crate_hvp_meta().workspace_size];
 
         single_crate_f(&x, &mut y, &mut work_f);
         single_crate_grad(&x, &mut y_grad, &mut work_grad);
@@ -1013,7 +1064,7 @@ mod tests {
         let x = [3.0_f64, 4.0_f64];
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
-        let mut work = [0.0_f64; JOINT_F_JF_WORK_SIZE];
+        let mut work = vec![0.0_f64; joint_f_jf_meta().workspace_size];
 
         joint_f_jf(&x, &mut y, &mut jacobian_y, &mut work);
 
@@ -1063,7 +1114,7 @@ mod tests {
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
         let mut hvp_y = [0.0_f64, 0.0_f64];
-        let mut work = [0.0_f64; JOINT_F_JF_HVP_F_JF_HVP_WORK_SIZE];
+        let mut work = vec![0.0_f64; joint_f_jf_hvp_f_jf_hvp_meta().workspace_size];
 
         joint_f_jf_hvp_f_jf_hvp(&x, &v_x, &mut y, &mut jacobian_y, &mut hvp_y, &mut work);
 

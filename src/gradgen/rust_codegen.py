@@ -193,6 +193,7 @@ class _ArgSpec:
     raw_name: str
     rust_name: str
     rust_label: str
+    doc_description: str
     size: int
 
 
@@ -277,6 +278,7 @@ def generate_rust(
     backend_mode: RustBackendMode = "std",
     scalar_type: RustScalarType = "f64",
     math_library: str | None = None,
+    function_index: int = 0,
 ) -> RustCodegenResult:
     """Generate Rust source code for primal function evaluation."""
     resolved_config = _resolve_backend_config(
@@ -301,6 +303,7 @@ def generate_rust(
             raw_name=raw_name,
             rust_name=_sanitize_ident(raw_name),
             rust_label=_format_rust_string_literal(raw_name),
+            doc_description=_describe_input_arg(raw_name),
             size=size,
         )
         for raw_name, size in zip(function.input_names, input_sizes)
@@ -310,6 +313,7 @@ def generate_rust(
             raw_name=raw_name,
             rust_name=_sanitize_ident(raw_name),
             rust_label=_format_rust_string_literal(raw_name),
+            doc_description=_describe_output_arg(raw_name),
             size=size,
         )
         for raw_name, size in zip(function.output_names, output_sizes)
@@ -369,6 +373,8 @@ def generate_rust(
 
     source = _get_template("lib.rs.j2").render(
         function_name=name,
+        function_label=_format_rust_string_literal(name),
+        function_index=function_index,
         upper_name=name.upper(),
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
@@ -545,8 +551,9 @@ def create_multi_function_rust_project(
             function,
             config=resolved_config,
             function_name=function.name,
+            function_index=index,
         )
-        for function in functions
+        for index, function in enumerate(functions)
     )
 
     cargo_toml.write_text(
@@ -707,6 +714,34 @@ def _format_rust_string_literal(value: str) -> str:
         .replace("\t", "\\t")
     )
     return f'"{escaped}"'
+
+
+def _describe_input_arg(raw_name: str) -> str:
+    """Describe the semantic role of a generated Rust input slice."""
+    if raw_name.startswith("v_") and len(raw_name) > 2:
+        base_name = raw_name[2:]
+        return (
+            f"tangent or direction input associated with declared argument `{base_name}`; "
+            "use this slice when forming Hessian-vector-product or directional-derivative terms"
+        )
+    return f"input slice for the declared argument `{raw_name}`"
+
+
+def _describe_output_arg(raw_name: str) -> str:
+    """Describe the semantic role of a generated Rust output slice."""
+    if raw_name.startswith("jacobian_") and len(raw_name) > len("jacobian_"):
+        base_name = raw_name[len("jacobian_") :]
+        return f"output slice receiving the Jacobian block for declared result `{base_name}`"
+    if raw_name.startswith("gradient_") and len(raw_name) > len("gradient_"):
+        base_name = raw_name[len("gradient_") :]
+        return f"output slice receiving the gradient block for declared result `{base_name}`"
+    if raw_name.startswith("hessian_") and len(raw_name) > len("hessian_"):
+        base_name = raw_name[len("hessian_") :]
+        return f"output slice receiving the Hessian block for declared result `{base_name}`"
+    if raw_name.startswith("hvp_") and len(raw_name) > len("hvp_"):
+        base_name = raw_name[len("hvp_") :]
+        return f"output slice receiving the Hessian-vector product for declared result `{base_name}`"
+    return f"primal output slice for the declared result `{raw_name}`"
 
 
 def _sanitize_ident(name: str) -> str:
