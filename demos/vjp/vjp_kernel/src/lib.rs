@@ -20,18 +20,10 @@ pub fn vjp_kernel_f_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "vjp_kernel_f",
         workspace_size: 3,
-        input_names: &[
-            "x",
-        ],
-        input_sizes: &[
-            2,
-        ],
-        output_names: &[
-            "y",
-        ],
-        output_sizes: &[
-            3,
-        ],
+        input_names: &["x"],
+        input_sizes: &[2],
+        output_names: &["y"],
+        output_sizes: &[3],
     }
 }
 
@@ -65,18 +57,10 @@ pub fn vjp_kernel_jf_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "vjp_kernel_jf",
         workspace_size: 1,
-        input_names: &[
-            "x",
-        ],
-        input_sizes: &[
-            2,
-        ],
-        output_names: &[
-            "jacobian_y",
-        ],
-        output_sizes: &[
-            6,
-        ],
+        input_names: &["x"],
+        input_sizes: &[2],
+        output_names: &["jacobian_y"],
+        output_sizes: &[6],
     }
 }
 
@@ -111,20 +95,10 @@ pub fn vjp_kernel_vjp_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "vjp_kernel_vjp",
         workspace_size: 3,
-        input_names: &[
-            "x",
-            "cotangent_y",
-        ],
-        input_sizes: &[
-            2,
-            3,
-        ],
-        output_names: &[
-            "vjp_x",
-        ],
-        output_sizes: &[
-            2,
-        ],
+        input_names: &["x", "cotangent_y"],
+        input_sizes: &[2, 3],
+        output_names: &["vjp_x"],
+        output_sizes: &[2],
     }
 }
 
