@@ -182,9 +182,18 @@ mod tests {{
         self.assertIn("/// - `work`: mutable workspace slice used to store intermediate values", result.source)
         self.assertIn("///   while evaluating this kernel. Expected length: at least 1.", result.source)
         self.assertIn("pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
-        self.assertIn("assert!(!work.is_empty());", result.source)
-        self.assertIn("assert_eq!(x.len(), 1);", result.source)
-        self.assertIn("assert_eq!(y.len(), 1);", result.source)
+        self.assertIn(
+            'assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());',
+            result.source,
+        )
+        self.assertIn(
+            'assert_eq!(x.len(), 1, "x is length {} but should be 1", x.len());',
+            result.source,
+        )
+        self.assertIn(
+            'assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());',
+            result.source,
+        )
         self.assertIn("work[0] = x[0] * x[0];", result.source)
         self.assertIn("work[0] += 1.0_f64;", result.source)
         self.assertIn("y[0] = work[0];", result.source)
@@ -216,7 +225,10 @@ mod tests {{
             "pub fn kernel(x: &[f64], y: &[f64], dot: &mut [f64], sum: &mut [f64], work: &mut [f64]) {",
             result.source,
         )
-        self.assertIn("assert!(work.len() >= 3);", result.source)
+        self.assertIn(
+            'assert!(work.len() >= 3, "work is length {} but should be at least 3", work.len());',
+            result.source,
+        )
         self.assertIn("work[0] = x[0] * y[0];", result.source)
         self.assertIn("work[1] = x[1] * y[1];", result.source)
         self.assertIn("work[0] += work[1];", result.source)
@@ -665,7 +677,10 @@ mod tests {{
 
         self.assertEqual(result.scalar_type, "f32")
         self.assertIn("pub fn square_plus_one(x: &[f32], y: &mut [f32], work: &mut [f32]) {", result.source)
-        self.assertIn("assert!(!work.is_empty());", result.source)
+        self.assertIn(
+            'assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());',
+            result.source,
+        )
         self.assertIn("work[0] += 1.0_f32;", result.source)
 
     def test_no_std_f32_codegen_uses_libm_f32_entry_points(self) -> None:
@@ -2180,7 +2195,10 @@ mod tests {
 
             self.assertIn("pub fn joint_hessian_joint_hessian_f_hessian(", lib_text)
             self.assertIn("hessian_y: &mut [f64]", lib_text)
-            self.assertIn("assert_eq!(hessian_y.len(), 4);", lib_text)
+            self.assertIn(
+                'assert_eq!(hessian_y.len(), 4, "hessian_y is length {} but should be 4", hessian_y.len());',
+                lib_text,
+            )
 
             self._append_rust_test(
                 project.project_dir,

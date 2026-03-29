@@ -399,7 +399,7 @@ def _validate_state_input(state_input: FunctionArg) -> None:
             raise ValueError("ComposedFunction state_input must be a symbolic variable")
         return
     for element in state_input:
-        if element.op != "symbol":
+        if not isinstance(element, SX) or element.op != "symbol":
             raise ValueError("ComposedFunction state_input must contain symbolic variables only")
 
 

@@ -349,6 +349,64 @@ fn missing_vector_hessian(
         with self.assertRaises(ValueError):
             _ = f.hessian(0).generate_rust()
 
+    def test_registration_rejects_malformed_numeric_hessian_and_hvp_shapes(self) -> None:
+        with self.assertRaises(TypeError):
+            register_elementary_function(
+                name="bad_hessian_shape",
+                input_dimension=2,
+                parameter_dimension=2,
+                parameter_defaults=[1.0, 1.0],
+                eval_python=lambda x, w: w[0] * x[0] + w[1] * x[1],
+                jacobian=lambda x, w: [w[0], w[1]],
+                hessian=lambda x, w: [[0.0, 0.0]],
+            )
+
+        with self.assertRaises(TypeError):
+            register_elementary_function(
+                name="bad_hvp_shape",
+                input_dimension=2,
+                parameter_dimension=2,
+                parameter_defaults=[1.0, 1.0],
+                eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+                jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+                hessian=lambda x, w: [[2 * w[0], 0.0], [0.0, 2 * w[1]]],
+                hvp=lambda x, v, w: [2 * w[0] * v[0]],
+            )
+
+    def test_custom_hvp_accepts_alternative_argument_order(self) -> None:
+        weighted_sqnorm = register_elementary_function(
+            name="weighted_sqnorm_alt_hvp_order",
+            input_dimension=2,
+            parameter_dimension=2,
+            parameter_defaults=[1.0, 1.0],
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+            hessian=lambda x, w: [[2 * w[0], 0.0], [0.0, 2 * w[1]]],
+            hvp=lambda x, w, v_x: [2 * w[0] * v_x[0], 2 * w[1] * v_x[1]],
+        )
+
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [weighted_sqnorm(x, w=[2.0, 3.0])], input_names=["x"], output_names=["y"])
+
+        self.assertEqual(f.hvp(0)([1.0, 2.0], [3.0, 4.0]), (12.0, 24.0))
+
+    def test_zero_parameter_scalar_callbacks_can_omit_parameter_argument(self) -> None:
+        cubic = register_elementary_function(
+            name="cubic_no_params",
+            input_dimension=1,
+            parameter_dimension=0,
+            eval_python=lambda x: x * x * x,
+            jacobian=lambda x: 3 * x * x,
+            hessian=lambda x: 6 * x,
+        )
+
+        x = SX.sym("x")
+        f = Function("f", [x], [cubic(x)], input_names=["x"], output_names=["y"])
+
+        self.assertEqual(f(2.0), 8.0)
+        self.assertEqual(f.gradient(0)(2.0), 12.0)
+        self.assertEqual(f.hvp(0)(2.0, 5.0), 60.0)
+
     def test_rust_codegen_emits_registered_helpers(self) -> None:
         square_shift = register_elementary_function(
             name="square_shift_codegen",
