@@ -13,7 +13,7 @@
 ## What it does
 
 <p align="center">
-  <img src="docs/img/gradgen-what-it-does.png" alt="Gradgen overview" width="70%" />
+  <img src="https://raw.githubusercontent.com/QUB-ASL/gradgen/refs/heads/main/docs/img/gradgen-what-it-does.png" alt="Gradgen overview" width="80%" />
 </p>
 
 `gradgen` is a Python library for symbolic differentiation and Rust code generation.
