@@ -712,20 +712,20 @@ builder = CodeGenerationBuilder().for_function(
 )
 ```
 
-Builder-generated function names are prefixed with the crate name. For example,
-with crate name `my_kernel` and a single source function the generated Rust API
-looks like:
+Builder-generated function names are prefixed with the crate name and include
+the source function name. For example, with crate name `my_kernel` and a single
+source function named `f` the generated Rust API looks like:
 
-- `my_kernel_f`
-- `my_kernel_grad`
-- `my_kernel_jf`
-- `my_kernel_hessian`
-- `my_kernel_hvp`
+- `my_kernel_f_f`
+- `my_kernel_f_grad`
 - `my_kernel_f_jf`
-- `my_kernel_f_jf_hvp`
+- `my_kernel_f_hessian`
+- `my_kernel_f_hvp`
+- `my_kernel_f_f_jf`
+- `my_kernel_f_f_jf_hvp`
 
 If the crate contains multiple source functions, the source function name is
-inserted to keep the Rust entrypoints distinct:
+still used to keep the Rust entrypoints distinct:
 
 - `my_kernel_f_f`
 - `my_kernel_f_jf`

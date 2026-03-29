@@ -213,7 +213,7 @@ def resolve_builder_function_specs(
             "a single source function"
         )
 
-    include_base_name = len(specs) > 1
+    include_base_name = True
     resolved: list[Function] = []
     for spec in specs:
         base_name = config.function_name if len(specs) == 1 else None

@@ -294,9 +294,9 @@ mod tests {{
             project = builder.build(Path(tmpdir) / "vjp_builder")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("pub fn vjp_builder_f(", lib_text)
-            self.assertIn("pub fn vjp_builder_jf(", lib_text)
-            self.assertIn("pub fn vjp_builder_vjp(", lib_text)
+            self.assertIn("pub fn vjp_builder_G_f(", lib_text)
+            self.assertIn("pub fn vjp_builder_G_jf(", lib_text)
+            self.assertIn("pub fn vjp_builder_G_vjp(", lib_text)
             self.assertIn("cotangent_y", lib_text)
             self.assertNotIn("y_row0", lib_text)
 
@@ -1655,9 +1655,9 @@ mod tests {
             self.assertTrue(project.project_dir.is_dir())
             self.assertEqual(len(project.codegens), 3)
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn single_crate_f(", lib_text)
-            self.assertIn("pub fn single_crate_grad(", lib_text)
-            self.assertIn("pub fn single_crate_hvp(", lib_text)
+            self.assertIn("pub fn single_crate_f_f(", lib_text)
+            self.assertIn("pub fn single_crate_f_grad(", lib_text)
+            self.assertIn("pub fn single_crate_f_hvp(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -1675,13 +1675,13 @@ mod tests {
         let mut y_grad = [0.0_f64, 0.0_f64];
         let mut y_hvp = [0.0_f64, 0.0_f64];
 
-        let mut work_f = vec![0.0_f64; single_crate_f_meta().workspace_size];
-        let mut work_grad = vec![0.0_f64; single_crate_grad_meta().workspace_size];
-        let mut work_hvp = vec![0.0_f64; single_crate_hvp_meta().workspace_size];
+        let mut work_f = vec![0.0_f64; single_crate_f_f_meta().workspace_size];
+        let mut work_grad = vec![0.0_f64; single_crate_f_grad_meta().workspace_size];
+        let mut work_hvp = vec![0.0_f64; single_crate_f_hvp_meta().workspace_size];
 
-        single_crate_f(&x, &mut y, &mut work_f);
-        single_crate_grad(&x, &mut y_grad, &mut work_grad);
-        single_crate_hvp(&x, &v_x, &mut y_hvp, &mut work_hvp);
+        single_crate_f_f(&x, &mut y, &mut work_f);
+        single_crate_f_grad(&x, &mut y_grad, &mut work_grad);
+        single_crate_f_hvp(&x, &v_x, &mut y_hvp, &mut work_hvp);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(y_grad, [10.0_f64, 11.0_f64]);
@@ -1715,7 +1715,7 @@ mod tests {
             self.assertTrue(project.project_dir.is_dir())
             self.assertEqual(len(project.codegens), 1)
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn joint_f_jf(", lib_text)
+            self.assertIn("pub fn joint_f_f_jf(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -1729,9 +1729,9 @@ mod tests {
         let x = [3.0_f64, 4.0_f64];
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
-        let mut work = vec![0.0_f64; joint_f_jf_meta().workspace_size];
+        let mut work = vec![0.0_f64; joint_f_f_jf_meta().workspace_size];
 
-        joint_f_jf(&x, &mut y, &mut jacobian_y, &mut work);
+        joint_f_f_jf(&x, &mut y, &mut jacobian_y, &mut work);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
@@ -1763,7 +1763,7 @@ mod tests {
             project = builder.build(Path(tmpdir) / "joint_f_jf_hvp")
 
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn joint_f_jf_hvp_f_jf_hvp(", lib_text)
+            self.assertIn("pub fn joint_f_jf_hvp_f_f_jf_hvp(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -1779,9 +1779,9 @@ mod tests {
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
         let mut hvp_y = [0.0_f64, 0.0_f64];
-        let mut work = vec![0.0_f64; joint_f_jf_hvp_f_jf_hvp_meta().workspace_size];
+        let mut work = vec![0.0_f64; joint_f_jf_hvp_f_f_jf_hvp_meta().workspace_size];
 
-        joint_f_jf_hvp_f_jf_hvp(&x, &v_x, &mut y, &mut jacobian_y, &mut hvp_y, &mut work);
+        joint_f_jf_hvp_f_f_jf_hvp(&x, &v_x, &mut y, &mut jacobian_y, &mut hvp_y, &mut work);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
@@ -1813,7 +1813,7 @@ mod tests {
             project = builder.build(Path(tmpdir) / "joint_hessian")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("pub fn joint_hessian_f_hessian(", lib_text)
+            self.assertIn("pub fn joint_hessian_joint_hessian_f_hessian(", lib_text)
             self.assertIn("hessian_y: &mut [f64]", lib_text)
             self.assertIn("assert_eq!(hessian_y.len(), 4);", lib_text)
 
@@ -1829,9 +1829,9 @@ mod joint_hessian_tests {
         let x = [2.0_f64, 3.0_f64];
         let mut y = [0.0_f64; 1];
         let mut hessian_y = [0.0_f64; 4];
-        let mut work = vec![0.0_f64; joint_hessian_f_hessian_meta().workspace_size];
+        let mut work = vec![0.0_f64; joint_hessian_joint_hessian_f_hessian_meta().workspace_size];
 
-        joint_hessian_f_hessian(&x, &mut y, &mut hessian_y, &mut work);
+        joint_hessian_joint_hessian_f_hessian(&x, &mut y, &mut hessian_y, &mut work);
 
         assert_eq!(y, [19.0_f64]);
         assert_eq!(hessian_y, [2.0_f64, 1.0_f64, 1.0_f64, 2.0_f64]);
@@ -1863,8 +1863,8 @@ mod joint_hessian_tests {
             project = builder.build(Path(tmpdir) / "multi_joint")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("pub fn multi_joint_f_jf_x(", lib_text)
-            self.assertIn("pub fn multi_joint_f_jf_y(", lib_text)
+            self.assertIn("pub fn multi_joint_f_f_jf_x(", lib_text)
+            self.assertIn("pub fn multi_joint_f_f_jf_y(", lib_text)
 
     def test_code_generation_builder_supports_no_std_f32_backend_config(self) -> None:
         x = SX.sym("x")
@@ -1889,9 +1889,9 @@ mod joint_hessian_tests {
             cargo_text = project.cargo_toml.read_text(encoding="utf-8")
 
             self.assertIn("#![no_std]", lib_text)
-            self.assertIn("pub fn my_kernel_f(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
-            self.assertIn("pub fn my_kernel_grad(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
-            self.assertIn("pub fn my_kernel_hvp(x: &[f32], v_x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_f_f(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_f_grad(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_f_hvp(x: &[f32], v_x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
             self.assertIn('libm = "0.2"', cargo_text)
             self.assertIn('name = "my_kernel"', cargo_text)
 
@@ -1929,11 +1929,11 @@ mod joint_hessian_tests {
             self.assertIn("fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {", lib_text)
             self.assertIn("fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {", lib_text)
             self.assertIn("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {", lib_text)
-            self.assertIn("pub fn matrix_builder_f(", lib_text)
-            self.assertIn("pub fn matrix_builder_grad_x(", lib_text)
-            self.assertIn("pub fn matrix_builder_grad_y(", lib_text)
-            self.assertIn("pub fn matrix_builder_hvp_x(", lib_text)
-            self.assertIn("pub fn matrix_builder_hvp_y(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_f(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_grad_x(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_grad_y(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_hvp_x(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_hvp_y(", lib_text)
 
 
 if __name__ == "__main__":
