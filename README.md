@@ -2,7 +2,7 @@
  <img alt="cgapp logo" src="https://i.postimg.cc/G3M2szz5/Logo-Makr-4z-HKa0.png" width="224px"/><br/>    
     
     
-![PyPI - Downloads](https://img.shields.io/pypi/dm/gradgen?color=blue&style=flat-square) 
+<!-- ![PyPI - Downloads](https://img.shields.io/pypi/dm/gradgen?color=blue&style=flat-square)  -->
 [![CI](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml/badge.svg)](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml)    
     
 </div>    
