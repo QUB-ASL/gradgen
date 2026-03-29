@@ -17,10 +17,10 @@ from gradgen import CodeGenerationBuilder, Function, RustBackendConfig, SXVector
 x = SXVector.sym("x", 2)
 
 
-# Define a vector-valued function G : R^2 -> R^3.
+# Define a vector-valued function g : R^2 -> R^3.
 # G(x) = [x1 + x2, x1 * x2, sin(x2)]
 G = Function(
-    "G",
+    "g",
     [x],
     [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
     input_names=["x"],

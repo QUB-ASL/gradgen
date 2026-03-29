@@ -66,13 +66,13 @@ pub fn composed_kernel_composed_demo_f(x: &[f64], parameters: &[f64], y: &mut [f
     let (current_state, next_state) = state_buffers.split_at_mut(2);
     current_state.copy_from_slice(x);
     for repeat_index in 0..5 {
-        composed_kernel_composed_demo_f_repeat_0_G(current_state, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], next_state, stage_work);
+        composed_kernel_composed_demo_f_repeat_0_g(current_state, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], next_state, stage_work);
         current_state.copy_from_slice(next_state);
     }
     composed_kernel_composed_demo_f_terminal_h(current_state, &parameters[10..11], y, stage_work);
 }
 
-fn composed_kernel_composed_demo_f_repeat_0_G(state: &[f64], p: &[f64], next_state: &mut [f64], work: &mut [f64]) {
+fn composed_kernel_composed_demo_f_repeat_0_g(state: &[f64], p: &[f64], next_state: &mut [f64], work: &mut [f64]) {
     assert!(work.len() >= 2);
     assert_eq!(state.len(), 2);
     assert_eq!(p.len(), 2);
@@ -152,7 +152,7 @@ pub fn composed_kernel_composed_demo_grad_x(x: &[f64], parameters: &[f64], y: &m
         let stage_end = stage_start + 2;
         {
             let next_state = &mut state_history[stage_start..stage_end];
-            composed_kernel_composed_demo_grad_x_repeat_0_G(current_state, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], next_state, stage_work);
+            composed_kernel_composed_demo_grad_x_repeat_0_g(current_state, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], next_state, stage_work);
             current_state.copy_from_slice(next_state);
         }
     }
@@ -162,17 +162,17 @@ pub fn composed_kernel_composed_demo_grad_x(x: &[f64], parameters: &[f64], y: &m
         let stage_index = 0 + repeat_index;
         if stage_index == 0 {
             if current_lambda_is_a {
-                composed_kernel_composed_demo_grad_x_repeat_0_G_vjp(x, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_a[..], lambda_b, stage_work);
+                composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(x, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_a[..], lambda_b, stage_work);
             } else {
-                composed_kernel_composed_demo_grad_x_repeat_0_G_vjp(x, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_b[..], lambda_a, stage_work);
+                composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(x, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_b[..], lambda_a, stage_work);
             }
         } else {
             let prev_start = (stage_index - 1) * 2;
             let prev_end = prev_start + 2;
             if current_lambda_is_a {
-                composed_kernel_composed_demo_grad_x_repeat_0_G_vjp(&state_history[prev_start..prev_end], &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_a[..], lambda_b, stage_work);
+                composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(&state_history[prev_start..prev_end], &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_a[..], lambda_b, stage_work);
             } else {
-                composed_kernel_composed_demo_grad_x_repeat_0_G_vjp(&state_history[prev_start..prev_end], &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_b[..], lambda_a, stage_work);
+                composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(&state_history[prev_start..prev_end], &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_b[..], lambda_a, stage_work);
             }
         }
         current_lambda_is_a = !current_lambda_is_a;
@@ -181,7 +181,7 @@ pub fn composed_kernel_composed_demo_grad_x(x: &[f64], parameters: &[f64], y: &m
     y.copy_from_slice(gradient);
 }
 
-fn composed_kernel_composed_demo_grad_x_repeat_0_G(state: &[f64], p: &[f64], next_state: &mut [f64], work: &mut [f64]) {
+fn composed_kernel_composed_demo_grad_x_repeat_0_g(state: &[f64], p: &[f64], next_state: &mut [f64], work: &mut [f64]) {
     assert!(work.len() >= 2);
     assert_eq!(state.len(), 2);
     assert_eq!(p.len(), 2);
@@ -194,7 +194,7 @@ fn composed_kernel_composed_demo_grad_x_repeat_0_G(state: &[f64], p: &[f64], nex
     next_state[1] = work[1];
 }
 
-fn composed_kernel_composed_demo_grad_x_repeat_0_G_vjp(state: &[f64], p: &[f64], cotangent_next_state: &[f64], vjp_state: &mut [f64], work: &mut [f64]) {
+fn composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(state: &[f64], p: &[f64], cotangent_next_state: &[f64], vjp_state: &mut [f64], work: &mut [f64]) {
     assert!(work.len() >= 2);
     assert_eq!(state.len(), 2);
     assert_eq!(p.len(), 2);

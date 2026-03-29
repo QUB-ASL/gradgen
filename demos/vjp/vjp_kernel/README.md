@@ -13,9 +13,9 @@ cargo build
 
 ## Generated Functions
 
-- `vjp_kernel_G_f`: workspace `3`, inputs `(2,)`, outputs `(3,)`
-- `vjp_kernel_G_jf`: workspace `1`, inputs `(2,)`, outputs `(6,)`
-- `vjp_kernel_G_vjp`: workspace `3`, inputs `(2, 3)`, outputs `(2,)`
+- `vjp_kernel_g_f`: workspace `3`, inputs `(2,)`, outputs `(3,)`
+- `vjp_kernel_g_jf`: workspace `1`, inputs `(2,)`, outputs `(6,)`
+- `vjp_kernel_g_vjp`: workspace `3`, inputs `(2, 3)`, outputs `(2,)`
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.

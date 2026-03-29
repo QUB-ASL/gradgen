@@ -50,10 +50,10 @@ p = SXVector.sym("p", 2)
 pf = SXVector.sym("pf", 1)
 
 
-# G(a, p) = [0.9 * a_1 + p_1, 
+# G(a, p) = [0.9 * a_1 + p_1,
 #            0.1 * a_2 * p_2]
 stage = Function(
-    "G",
+    "g",
     [state, p],
     [SXVector((0.9 * state[0] + p[0], 0.1 * state[1] * p[1]))],
     input_names=["state", "p"],
