@@ -12,9 +12,8 @@ implementation for the derivatives.
 ## Function definition
 
 We define
-$$
-f(x, w) = 2^{w_1} x_1^2 + w_2 x_2^2 + \sin(x_1 x_2).
-$$
+
+$$f(x, w) = 2^{w_1} x_1^2 + w_2 x_2^2 + \sin(x_1 x_2).$$
 
 This combines:
 
@@ -26,26 +25,20 @@ This combines:
 
 Since $f$ is scalar-valued, its Jacobian with respect to $x$ is the row
 vector of first derivatives:
-$$
-J_x f(x, w) =
-\begin{bmatrix}
-2 \cdot 2^{w_1} x_1 + x_2 \cos(x_1 x_2) \\
-2 w_2 x_2 + x_1 \cos(x_1 x_2)
-\end{bmatrix}.
-$$
+
+$$J_x f(x, w) = \begin{bmatrix}2 \cdot 2^{w_1} x_1 + x_2 \cos(x_1 x_2) \\ 2 w_2 x_2 + x_1 \cos(x_1 x_2)\end{bmatrix}.$$
 
 ## Hessian
 
 The Hessian with respect to $x$ is
-$$
-H_x f(x, w) =
+
+$$H_x f(x, w) =
 \begin{bmatrix}
 2 \cdot 2^{w_1} - x_2^2 \sin(x_1 x_2) &
 \cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2) \\
 \cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2) &
 2 w_2 - x_1^2 \sin(x_1 x_2)
-\end{bmatrix}.
-$$
+\end{bmatrix}.$$
 
 ## Hessian-vector products
 

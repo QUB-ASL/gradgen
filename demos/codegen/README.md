@@ -7,9 +7,9 @@ This demo shows the basic gradgen workflow:
 3. generate a Rust crate that evaluates the same function
 
 The example function is
-$$
-f(x, u) = \|x\|_2^2 + u_1 \sin(x_1) + x_2 x_3,
-$$
+
+$$f(x, u) = \|x\|_2^2 + u_1 \sin(x_1) + x_2 x_3,$$
+
 where:
 
 - $x = (x_1, x_2, x_3)$ is a 3D input vector
