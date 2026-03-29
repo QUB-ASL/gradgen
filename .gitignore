@@ -24,5 +24,11 @@ env/
 .idea/
 .vscode/
 
-# Custom
+# Rust artifacts
+Cargo.lock
+target/
+**/target/
+**/*.rs.bk
+**/.cargo/
 
+# Custom
