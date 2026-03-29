@@ -331,9 +331,7 @@ class Function:
             if component == "jf":
                 jacobian_function = self.jacobian(wrt_index)
                 outputs.extend(jacobian_function.outputs)
-                output_names.extend(
-                    f"jacobian_{output_name}" for output_name in jacobian_function.output_names
-                )
+                output_names.extend(jacobian_function.output_names)
                 continue
             if component == "grad":
                 gradient_function = self.gradient(wrt_index)
@@ -512,8 +510,8 @@ class Function:
 
         Notes:
             Since full matrix types are not implemented yet, vector-output
-            by vector-input Jacobians are returned as one ``SXVector`` row
-            per output scalar.
+            by vector-input Jacobians are returned as one flat row-major
+            ``SXVector`` per original output.
         """
         from .ad import jacobian
 
@@ -526,14 +524,8 @@ class Function:
 
         for output_name, output in zip(self.output_names, self.outputs):
             block = jacobian(output, wrt)
-            if isinstance(block, tuple):
-                differentiated_outputs.extend(block)
-                differentiated_names.extend(
-                    f"{output_name}_row{index}" for index in range(len(block))
-                )
-            else:
-                differentiated_outputs.append(block)
-                differentiated_names.append(output_name)
+            differentiated_outputs.append(block)
+            differentiated_names.append(f"jacobian_{output_name}")
 
         return Function(
             name or f"{self.name}_jacobian_{self.input_names[wrt_index]}",

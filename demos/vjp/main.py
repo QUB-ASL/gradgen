@@ -28,8 +28,9 @@ G = Function(
 )
 
 
-# Build the Jacobian block J_G(x) and a runtime-seeded VJP helper
-# that computes J_G(x)^T v for a cotangent vector v supplied at runtime.
+# Build the Jacobian block J_G(x) as a flat row-major vector and a
+# runtime-seeded VJP helper that computes J_G(x)^T v for a cotangent vector v
+# supplied at runtime.
 JG = G.jacobian(0)
 reverse_x = G.vjp(wrt_index=0)
 
@@ -38,7 +39,7 @@ reverse_x = G.vjp(wrt_index=0)
 x_value = [3.0, 4.0]
 cotangent_y = [2.0, -1.0, 5.0]
 print("G(x) =", G(x_value))
-print("J_G(x) rows =", JG(x_value))
+print("J_G(x) flat row-major =", JG(x_value))
 print("J_G(x)^T v =", reverse_x(x_value, cotangent_y))
 
 

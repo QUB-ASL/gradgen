@@ -20,10 +20,18 @@ pub fn vjp_kernel_f_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "vjp_kernel_f",
         workspace_size: 3,
-        input_names: &["x"],
-        input_sizes: &[2],
-        output_names: &["y"],
-        output_sizes: &[3],
+        input_names: &[
+            "x",
+        ],
+        input_sizes: &[
+            2,
+        ],
+        output_names: &[
+            "y",
+        ],
+        output_sizes: &[
+            3,
+        ],
     }
 }
 
@@ -57,10 +65,18 @@ pub fn vjp_kernel_jf_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "vjp_kernel_jf",
         workspace_size: 1,
-        input_names: &["x"],
-        input_sizes: &[2],
-        output_names: &["y_row0", "y_row1", "y_row2"],
-        output_sizes: &[2, 2, 2],
+        input_names: &[
+            "x",
+        ],
+        input_sizes: &[
+            2,
+        ],
+        output_names: &[
+            "jacobian_y",
+        ],
+        output_sizes: &[
+            6,
+        ],
     }
 }
 
@@ -72,36 +88,22 @@ pub fn vjp_kernel_jf_meta() -> FunctionMetadata {
 /// - `x`:
 ///   input slice for the declared argument `x`
 ///   Expected length: 2.
-/// - `y_row0`:
-///   primal output slice for the declared result `y_row0`
-///   Expected length: 2.
-/// - `y_row1`:
-///   primal output slice for the declared result `y_row1`
-///   Expected length: 2.
-/// - `y_row2`:
-///   primal output slice for the declared result `y_row2`
-///   Expected length: 2.
+/// - `jacobian_y`:
+///   output slice receiving the Jacobian block for declared result `y`
+///   Expected length: 6.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
-pub fn vjp_kernel_jf(
-    x: &[f64],
-    y_row0: &mut [f64],
-    y_row1: &mut [f64],
-    y_row2: &mut [f64],
-    work: &mut [f64],
-) {
+pub fn vjp_kernel_jf(x: &[f64], jacobian_y: &mut [f64], work: &mut [f64]) {
     assert!(work.len() >= 1);
     assert_eq!(x.len(), 2);
-    assert_eq!(y_row0.len(), 2);
-    assert_eq!(y_row1.len(), 2);
-    assert_eq!(y_row2.len(), 2);
+    assert_eq!(jacobian_y.len(), 6);
     work[0] = x[1].cos();
-    y_row0[0] = 1.0_f64;
-    y_row0[1] = 1.0_f64;
-    y_row1[0] = x[1];
-    y_row1[1] = x[0];
-    y_row2[0] = 0.0_f64;
-    y_row2[1] = work[0];
+    jacobian_y[0] = 1.0_f64;
+    jacobian_y[1] = 1.0_f64;
+    jacobian_y[2] = x[1];
+    jacobian_y[3] = x[0];
+    jacobian_y[4] = 0.0_f64;
+    jacobian_y[5] = work[0];
 }
 
 /// Return metadata describing [`vjp_kernel_vjp`].
@@ -109,10 +111,20 @@ pub fn vjp_kernel_vjp_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "vjp_kernel_vjp",
         workspace_size: 3,
-        input_names: &["x", "cotangent_y"],
-        input_sizes: &[2, 3],
-        output_names: &["vjp_x"],
-        output_sizes: &[2],
+        input_names: &[
+            "x",
+            "cotangent_y",
+        ],
+        input_sizes: &[
+            2,
+            3,
+        ],
+        output_names: &[
+            "vjp_x",
+        ],
+        output_sizes: &[
+            2,
+        ],
     }
 }
 
@@ -130,7 +142,8 @@ pub fn vjp_kernel_vjp_meta() -> FunctionMetadata {
 ///   terms
 ///   Expected length: 3.
 /// - `vjp_x`:
-///   primal output slice for the declared result `vjp_x`
+///   output slice receiving the vector-Jacobian product for declared
+///   input `x`
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 3.

@@ -298,6 +298,7 @@ mod tests {{
             self.assertIn("pub fn vjp_builder_jf(", lib_text)
             self.assertIn("pub fn vjp_builder_vjp(", lib_text)
             self.assertIn("cotangent_y", lib_text)
+            self.assertNotIn("y_row0", lib_text)
 
     def test_code_generation_builder_supports_multiple_source_functions(self) -> None:
         x = SX.sym("x")
@@ -1206,6 +1207,34 @@ mod math {
                 function_name=project.codegen.function_name,
                 inputs=([2.0, 3.0],),
                 test_name="evaluates_jacobian_against_python_reference",
+            )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_vector_jacobian_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        jac = Function(
+            "G",
+            [x],
+            [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+            input_names=["x"],
+            output_names=["y"],
+        ).jacobian(0)
+
+        with TemporaryDirectory() as tmpdir:
+            project = jac.create_rust_project(Path(tmpdir) / "vector_jacobian_kernel")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("pub fn G_jacobian_x(", lib_text)
+            self.assertIn("jacobian_y: &mut [f64]", lib_text)
+            self.assertIn("output slice receiving the Jacobian block for declared result `y`", lib_text)
+            self.assertNotIn("y_row0", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                jac,
+                function_name=project.codegen.function_name,
+                inputs=([3.0, 4.0],),
+                test_name="evaluates_vector_jacobian_against_python_reference",
             )
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)

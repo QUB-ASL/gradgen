@@ -1811,6 +1811,9 @@ def _describe_input_arg(raw_name: str) -> str:
 
 def _describe_output_arg(raw_name: str) -> str:
     """Describe the semantic role of a generated Rust output slice."""
+    if raw_name.startswith("vjp_") and len(raw_name) > len("vjp_"):
+        base_name = raw_name[len("vjp_") :]
+        return f"output slice receiving the vector-Jacobian product for declared input `{base_name}`"
     if raw_name.startswith("jacobian_") and len(raw_name) > len("jacobian_"):
         base_name = raw_name[len("jacobian_") :]
         return f"output slice receiving the Jacobian block for declared result `{base_name}`"

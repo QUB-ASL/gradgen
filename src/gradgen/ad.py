@@ -32,7 +32,7 @@ from .custom_elementary import (
 
 
 ADExpr = SX | SXVector
-JacobianExpr = SX | SXVector | tuple[SXVector, ...]
+JacobianExpr = SX | SXVector
 HessianExpr = SX | tuple[SXVector, ...]
 ADSeed = SX | SXVector | float | int | list[object] | tuple[object, ...]
 
@@ -106,14 +106,14 @@ def gradient(expr: SX, wrt: ADExpr, seed: SX | float | int = 1.0) -> ADExpr:
 
 
 def jacobian(expr: ADExpr, wrt: ADExpr) -> JacobianExpr:
-    """Compute a symbolic Jacobian with vector-first output structure.
+    """Compute a symbolic Jacobian.
 
     The return shape follows the current no-matrix design:
 
     - scalar wrt scalar -> ``SX``
     - scalar wrt vector -> ``SXVector``
     - vector wrt scalar -> ``SXVector``
-    - vector wrt vector -> ``tuple[SXVector, ...]``, one row per output
+    - vector wrt vector -> flat row-major ``SXVector``
     """
     if isinstance(expr, SX):
         if isinstance(wrt, SX):
@@ -123,7 +123,8 @@ def jacobian(expr: ADExpr, wrt: ADExpr) -> JacobianExpr:
     if isinstance(wrt, SX):
         return SXVector(tuple(derivative(element, wrt) for element in expr))
 
-    return tuple(gradient(element, wrt) for element in expr)
+    rows = tuple(gradient(element, wrt) for element in expr)
+    return SXVector(tuple(entry for row in rows for entry in row))
 
 
 def hessian(expr: SX, wrt: ADExpr) -> HessianExpr:

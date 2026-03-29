@@ -44,7 +44,7 @@ Some intentional limitations at this stage:
 - `SX` symbols are formal symbols representing real-valued scalar quantities
 - elementwise vector-vector multiplication with `x * y` is not supported yet
 - simplification is still rule-based and bounded, not a full computer algebra system
-- full matrix types are not implemented yet, so Jacobians and Hessians use vector-first row-wise representations where needed
+- full matrix types are not implemented yet, so Jacobians and Hessians use flat row-major vector representations where needed
 
 Currently implemented elementary functions include:
 
@@ -343,7 +343,36 @@ f = Function("jac", [x], [jac])
 print(f([3.0, 4.0]))  # (6.0, 8.0)
 ```
 
-For vector-output by vector-input cases, Jacobians are currently represented row by row because full matrix types are not implemented yet.
+For vector-output by vector-input cases, Jacobians are currently represented as
+flat row-major vectors because full matrix types are not implemented yet.
+
+For example:
+
+```python
+from gradgen import Function, SXVector
+
+x = SXVector.sym("x", 2)
+G = Function(
+    "G",
+    [x],
+    [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+    input_names=["x"],
+    output_names=["y"],
+)
+
+JG = G.jacobian(0)
+print(JG([3.0, 4.0]))  # (1.0, 1.0, 4.0, 3.0, 0.0, cos(4.0))
+```
+
+This corresponds to the $3 \times 2$ matrix
+$$
+\begin{bmatrix}
+1 & 1 \\
+4 & 3 \\
+0 & \cos(4)
+\end{bmatrix}
+$$
+stored row by row.
 
 You can also derive a Jacobian block from a function:
 
