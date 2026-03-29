@@ -7,6 +7,18 @@ from gradgen import (
     clear_registered_elementary_functions,
     register_elementary_function,
 )
+from gradgen._custom_elementary.callbacks import (
+    coerce_numeric_matrix,
+    coerce_numeric_scalar,
+    coerce_numeric_vector,
+    coerce_symbolic_matrix,
+    coerce_symbolic_scalar,
+    coerce_symbolic_vector,
+    evaluate_custom_hvp,
+    invoke_custom_callback,
+    invoke_custom_hvp_callback,
+)
+from gradgen._custom_elementary.model import RegisteredElementaryFunction
 
 
 class CustomElementaryTests(unittest.TestCase):
@@ -406,6 +418,63 @@ fn missing_vector_hessian(
         self.assertEqual(f(2.0), 8.0)
         self.assertEqual(f.gradient(0)(2.0), 12.0)
         self.assertEqual(f.hvp(0)(2.0, 5.0), 60.0)
+
+    def test_callback_invocation_helpers_support_zero_parameter_omission(self) -> None:
+        self.assertEqual(invoke_custom_callback(lambda x: x + 1, 2.0, (), 0), 3.0)
+        self.assertEqual(invoke_custom_callback(lambda x, w: x + len(w), 2.0, (), 0), 2.0)
+        self.assertEqual(invoke_custom_hvp_callback(lambda x, v: x + v, 2.0, 3.0, (), 0), 5.0)
+        self.assertEqual(
+            invoke_custom_hvp_callback(lambda x, w, v_x: x + len(w) + v_x, 2.0, 3.0, (4.0,), 1),
+            6.0,
+        )
+
+    def test_callback_coercion_helpers_reject_bad_shapes_and_accept_numpy_scalars(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy is not installed")
+
+        self.assertEqual(coerce_numeric_scalar(np.array(2.5), "bad"), 2.5)
+        self.assertEqual(coerce_symbolic_scalar(np.array(2.5), "bad").value, 2.5)
+        self.assertEqual(coerce_numeric_vector(np.array([1.0, 2.0]), 2, "bad"), (1.0, 2.0))
+        self.assertEqual(
+            tuple(item.value for item in coerce_symbolic_vector(np.array([1.0, 2.0]), 2, "bad")),
+            (1.0, 2.0),
+        )
+        self.assertEqual(
+            coerce_numeric_matrix(np.array([[1.0, 2.0], [3.0, 4.0]]), 2, "bad"),
+            ((1.0, 2.0), (3.0, 4.0)),
+        )
+        symbolic_matrix = coerce_symbolic_matrix(np.array([[1.0, 2.0], [3.0, 4.0]]), 2, "bad")
+        self.assertEqual(tuple(item.value for item in symbolic_matrix[0]), (1.0, 2.0))
+
+        with self.assertRaises(TypeError):
+            coerce_numeric_vector([1.0], 2, "bad")
+        with self.assertRaises(TypeError):
+            coerce_symbolic_matrix([[1.0, 2.0]], 2, "bad")
+
+    def test_numeric_hvp_falls_back_to_hessian_and_validates_tangent_shape(self) -> None:
+        spec = RegisteredElementaryFunction(
+            name="fallback_hvp",
+            input_dimension=2,
+            parameter_dimension=2,
+            parameter_defaults=(2.0, 3.0),
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+            hessian=lambda x, w: [[2 * w[0], 0.0], [0.0, 2 * w[1]]],
+            hvp=None,
+            rust_primal=None,
+            rust_jacobian=None,
+            rust_hvp=None,
+            rust_hessian=None,
+        )
+
+        self.assertEqual(
+            evaluate_custom_hvp(spec, (1.0, 2.0), (3.0, 4.0), (2.0, 3.0)),
+            (12.0, 24.0),
+        )
+        with self.assertRaises(TypeError):
+            evaluate_custom_hvp(spec, (1.0, 2.0), [3.0, 4.0], (2.0, 3.0))
 
     def test_rust_codegen_emits_registered_helpers(self) -> None:
         square_shift = register_elementary_function(

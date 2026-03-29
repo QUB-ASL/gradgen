@@ -1,9 +1,29 @@
 import unittest
 
-from gradgen import Function, SX, SXVector, derivative, hessian, simplify
+from gradgen import (
+    Function,
+    SX,
+    SXVector,
+    derivative,
+    hessian,
+    matvec,
+    quadform,
+    bilinear_form,
+    register_elementary_function,
+    clear_registered_elementary_functions,
+    simplify,
+)
+from gradgen._custom_elementary.model import (
+    custom_vector_hessian_entry,
+    custom_vector_hvp_component,
+    custom_vector_jacobian_component,
+)
 
 
 class SimplifyTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        clear_registered_elementary_functions()
+
     def test_scalar_rules_simplify_basic_identities(self) -> None:
         x = SX.sym("x")
 
@@ -232,6 +252,86 @@ class SimplifyTests(unittest.TestCase):
         self.assertEqual(simplified[0][1].value, 0.0)
         self.assertEqual(simplified[1][0].value, 0.0)
         self.assertEqual(simplified[1][1].value, 2.0)
+
+    def test_simplify_constant_folds_vector_reductions_and_norms(self) -> None:
+        x = SXVector((SX.const(-3.0), SX.const(4.0)))
+
+        self.assertEqual(simplify(x.sum()).value, 1.0)
+        self.assertEqual(simplify(x.prod()).value, -12.0)
+        self.assertEqual(simplify(x.max()).value, 4.0)
+        self.assertEqual(simplify(x.min()).value, -3.0)
+        self.assertEqual(simplify(x.mean()).value, 0.5)
+        self.assertEqual(simplify(x.norm1()).value, 7.0)
+        self.assertEqual(simplify(x.norm2sq()).value, 25.0)
+        self.assertEqual(simplify(x.norm2()).value, 5.0)
+        self.assertEqual(simplify(x.norm_inf()).value, 4.0)
+        self.assertAlmostEqual(simplify(x.norm_p(3)).value, (27.0 + 64.0) ** (1.0 / 3.0))
+        self.assertEqual(simplify(x.norm_p_to_p(3)).value, 91.0)
+
+    def test_simplify_constant_folds_matrix_helpers(self) -> None:
+        x = SXVector((SX.const(2.0), SX.const(3.0)))
+        y = SXVector((SX.const(5.0), SX.const(7.0)))
+        matrix = [[1.0, 2.0], [3.0, 4.0]]
+
+        simplified_matvec = simplify(matvec(matrix, x))
+        simplified_quadform = simplify(quadform(matrix, x))
+        simplified_bilinear = simplify(bilinear_form(x, matrix, y))
+
+        self.assertEqual(tuple(element.value for element in simplified_matvec), (8.0, 18.0))
+        self.assertEqual(simplified_quadform.value, 70.0)
+        self.assertEqual(simplified_bilinear.value, 167.0)
+
+    def test_simplify_constant_folds_custom_function_derivatives(self) -> None:
+        weighted_sqnorm = register_elementary_function(
+            name="weighted_sqnorm_simplify",
+            input_dimension=2,
+            parameter_dimension=2,
+            parameter_defaults=[1.0, 1.0],
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+            hessian=lambda x, w: [[2 * w[0], 0.0], [0.0, 2 * w[1]]],
+            hvp=lambda x, v, w: [2 * w[0] * v[0], 2 * w[1] * v[1]],
+        )
+
+        x = SXVector((SX.const(1.0), SX.const(2.0)))
+        params = weighted_sqnorm.resolve_parameters([2.0, 3.0])
+        tangent = SXVector((SX.const(1.0), SX.const(1.0)))
+
+        simplified_output = simplify(weighted_sqnorm(x, w=[2.0, 3.0]), max_effort="medium")
+        simplified_grad = (
+            simplify(custom_vector_jacobian_component(weighted_sqnorm.name, 0, x, params), max_effort="medium"),
+            simplify(custom_vector_jacobian_component(weighted_sqnorm.name, 1, x, params), max_effort="medium"),
+        )
+        simplified_hessian = (
+            simplify(custom_vector_hessian_entry(weighted_sqnorm.name, 0, 0, x, params), max_effort="medium"),
+            simplify(custom_vector_hessian_entry(weighted_sqnorm.name, 0, 1, x, params), max_effort="medium"),
+            simplify(custom_vector_hessian_entry(weighted_sqnorm.name, 1, 0, x, params), max_effort="medium"),
+            simplify(custom_vector_hessian_entry(weighted_sqnorm.name, 1, 1, x, params), max_effort="medium"),
+        )
+        simplified_hvp = (
+            simplify(custom_vector_hvp_component(weighted_sqnorm.name, 0, x, tangent, params), max_effort="medium"),
+            simplify(custom_vector_hvp_component(weighted_sqnorm.name, 1, x, tangent, params), max_effort="medium"),
+        )
+
+        self.assertEqual(simplified_output.value, 14.0)
+        self.assertEqual(tuple(item.value for item in simplified_grad), (4.0, 12.0))
+        self.assertEqual(tuple(item.value for item in simplified_hessian), (4.0, 0.0, 0.0, 6.0))
+        self.assertEqual(tuple(item.value for item in simplified_hvp), (4.0, 6.0))
+
+    def test_simplify_constant_folds_extended_unary_and_binary_ops(self) -> None:
+        self.assertAlmostEqual(simplify(SX.const(0.5).asinh()).value, 0.48121182505960347)
+        self.assertAlmostEqual(simplify(SX.const(2.0).acosh()).value, 1.3169578969248166)
+        self.assertAlmostEqual(simplify(SX.const(0.25).atanh()).value, 0.25541281188299536)
+        self.assertEqual(simplify(SX.const(-8.0).cbrt()).value, -2.0)
+        self.assertEqual(simplify(SX.const(-3.25).floor()).value, -4.0)
+        self.assertEqual(simplify(SX.const(-3.25).ceil()).value, -3.0)
+        self.assertEqual(simplify(SX.const(-3.25).trunc()).value, -3.0)
+        self.assertEqual(simplify(SX.const(-3.25).fract()).value, -0.25)
+        self.assertEqual(simplify(SX.const(-3.25).signum()).value, -1.0)
+        self.assertEqual(simplify(SX.const(2.0).maximum(5.0)).value, 5.0)
+        self.assertEqual(simplify(SX.const(2.0).minimum(5.0)).value, 2.0)
+        self.assertEqual(simplify(SX.const(3.0).hypot(4.0)).value, 5.0)
+        self.assertEqual(simplify(SX.const(1.0).atan2(1.0)).op, "const")
 
     def test_simplify_rejects_unknown_effort(self) -> None:
         x = SX.sym("x")

@@ -1,10 +1,28 @@
 import math
 import unittest
 
-from gradgen import Function, SX, SXVector, bilinear_form, derivative, gradient, hessian, jacobian, jvp, matvec, quadform, vjp
+from gradgen import (
+    Function,
+    SX,
+    SXVector,
+    bilinear_form,
+    clear_registered_elementary_functions,
+    derivative,
+    gradient,
+    hessian,
+    jacobian,
+    jvp,
+    matvec,
+    quadform,
+    register_elementary_function,
+    vjp,
+)
 
 
 class ForwardADTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        clear_registered_elementary_functions()
+
     def test_derivative_of_symbol_is_one_by_default(self) -> None:
         x = SX.sym("x")
 
@@ -86,6 +104,32 @@ class ForwardADTests(unittest.TestCase):
 
         self.assertEqual(result, (1.0, 2.0))
 
+    def test_jvp_of_matrix_helpers_matches_expected_directional_derivatives(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+
+        quad_directional = jvp(quadform(matrix, x), x, [5.0, 7.0])
+        bilinear_directional_x = jvp(bilinear_form(x, matrix, y), x, [5.0, 7.0])
+        bilinear_directional_y = jvp(bilinear_form(x, matrix, y), y, [11.0, 13.0])
+        matvec_directional = jvp(matvec(matrix, x), x, [5.0, 7.0])
+
+        quad_eval = Function("quad_jvp", [x], [quad_directional])
+        bilinear_x_eval = Function("bilinear_x_jvp", [x, y], [bilinear_directional_x])
+        bilinear_y_eval = Function("bilinear_y_jvp", [x, y], [bilinear_directional_y])
+        matvec_eval = Function("matvec_jvp", [x], [matvec_directional])
+
+        self.assertEqual(quad_eval([1.0, 2.0]), 138.0)
+        self.assertEqual(bilinear_x_eval([1.0, 2.0], [3.0, 4.0]), 155.0)
+        self.assertEqual(bilinear_y_eval([1.0, 2.0], [3.0, 4.0]), 135.0)
+        self.assertEqual(matvec_eval([1.0, 2.0]), (17.0, 26.0))
+
+    def test_jvp_validates_vector_seed_length(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        with self.assertRaises(ValueError):
+            _ = jvp(x.dot(x), x, [1.0])
+
     def test_function_jvp_builds_directional_derivative_function(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")
@@ -117,6 +161,9 @@ class ForwardADTests(unittest.TestCase):
 
 
 class ReverseADTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        clear_registered_elementary_functions()
+
     def test_gradient_of_symbol_is_one_by_default(self) -> None:
         x = SX.sym("x")
 
@@ -508,6 +555,52 @@ class JacobianTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             f.vjp(1.0, wrt_index=0)
+
+    def test_vjp_validates_vector_cotangent_length(self) -> None:
+        x = SXVector.sym("x", 2)
+        expr = SXVector((x[0] + x[1], x[0] * x[1]))
+
+        with self.assertRaises(ValueError):
+            _ = vjp(expr, x, [1.0])
+
+    def test_reverse_gradient_of_matrix_helpers_matches_expected_maps(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [ 
+            [2.0, 1.0], 
+            [1.0, 3.0]
+        ]
+
+        matvec_component = matvec(matrix, x)[1]
+        grad_matvec = gradient(matvec_component, x)
+        grad_bilinear_x = gradient(bilinear_form(x, matrix, y), x)
+        grad_bilinear_y = gradient(bilinear_form(x, matrix, y), y)
+
+        matvec_eval = Function("grad_matvec", [x], [grad_matvec])
+        bilinear_x_eval = Function("grad_bilinear_x", [x, y], [grad_bilinear_x])
+        bilinear_y_eval = Function("grad_bilinear_y", [x, y], [grad_bilinear_y])
+
+        self.assertEqual(matvec_eval([1.0, 2.0]), (1.0, 3.0))
+        self.assertEqual(bilinear_x_eval([1.0, 2.0], [3.0, 4.0]), (10.0, 15.0))
+        self.assertEqual(bilinear_y_eval([1.0, 2.0], [3.0, 4.0]), (4.0, 7.0))
+
+    def test_custom_scalar_hvp_falls_back_to_hessian_in_ad(self) -> None:
+        cubic_shift = register_elementary_function(
+            name="cubic_shift",
+            input_dimension=1,
+            parameter_dimension=1,
+            parameter_defaults=[0.0],
+            eval_python=lambda x, w: x * x * x + w[0],
+            jacobian=lambda x, w: 3 * x * x,
+            hessian=lambda x, w: 6 * x,
+            hvp=None,
+        )
+
+        x = SX.sym("x")
+        f = Function("f", [x], [cubic_shift(x, w=[1.0])], input_names=["x"], output_names=["y"])
+
+        self.assertEqual(f.gradient(0)(2.0), 12.0)
+        self.assertEqual(f.hvp(0)(2.0, 5.0), 60.0)
 
     def test_gradient_matches_jacobian_for_scalar_output(self) -> None:
         x = SXVector.sym("x", 2)
