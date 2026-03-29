@@ -479,12 +479,38 @@ class JacobianTests(unittest.TestCase):
         self.assertEqual(result[2][0], 0.0)
         self.assertAlmostEqual(result[2][1], math.cos(4.0))
 
+    def test_function_vjp_supports_runtime_seed_for_vector_output_and_vector_input_block(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("G", [x], [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))])
+        reverse = f.vjp(wrt_index=0)
+
+        self.assertEqual(reverse.name, "G_vjp_i0")
+
+        result = reverse([3.0, 4.0], [2.0, -1.0, 5.0])
+
+        self.assertAlmostEqual(result[0], -2.0)
+        self.assertAlmostEqual(result[1], 1.0 + 5.0 * math.cos(4.0))
+
     def test_function_jacobian_validates_index(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [x])
 
         with self.assertRaises(IndexError):
             f.jacobian(1)
+
+    def test_function_vjp_runtime_seed_validates_index(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x])
+
+        with self.assertRaises(IndexError):
+            f.vjp(wrt_index=1)
+
+    def test_function_vjp_runtime_seed_rejects_explicit_cotangent_outputs(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x])
+
+        with self.assertRaises(ValueError):
+            f.vjp(1.0, wrt_index=0)
 
     def test_gradient_matches_jacobian_for_scalar_output(self) -> None:
         x = SXVector.sym("x", 2)

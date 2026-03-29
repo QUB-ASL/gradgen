@@ -114,6 +114,10 @@ class CodeGenerationBuilder:
         """Include Jacobian kernels for all input blocks."""
         return self._add_request("jacobian")
 
+    def add_vjp(self) -> CodeGenerationBuilder:
+        """Include runtime-seeded vector-Jacobian-product kernels for input blocks."""
+        return self._add_request("vjp")
+
     def add_joint(self, bundle: FunctionBundle) -> CodeGenerationBuilder:
         """Include kernels that compute bundled artifacts together."""
         return self._add_request("joint", bundle=bundle)
@@ -287,6 +291,22 @@ def _resolve_builder_functions(
                     ),
                 )
                 for index, block in enumerate(base_function.jacobian_blocks())
+            )
+            continue
+        if request.kind == "vjp":
+            resolved.extend(
+                _rename_generated_function(
+                    _maybe_simplify_generated_function(block, simplification),
+                    _builder_function_name(
+                        crate_prefix,
+                        "vjp",
+                        base_name=base_function.name,
+                        include_base_name=include_base_name,
+                        input_name=base_function.input_names[index],
+                        include_input_name=len(base_function.inputs) > 1,
+                    ),
+                )
+                for index, block in enumerate(base_function.vjp_blocks())
             )
             continue
         if request.kind == "joint":

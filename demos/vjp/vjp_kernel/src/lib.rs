@@ -1,0 +1,175 @@
+/// Metadata describing a generated Rust function.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FunctionMetadata {
+    /// Generated Rust function name.
+    pub function_name: &'static str,
+    /// Minimum required length of the mutable workspace slice.
+    pub workspace_size: usize,
+    /// Declared input names.
+    pub input_names: &'static [&'static str],
+    /// Declared input slice lengths.
+    pub input_sizes: &'static [usize],
+    /// Declared output names.
+    pub output_names: &'static [&'static str],
+    /// Declared output slice lengths.
+    pub output_sizes: &'static [usize],
+}
+
+/// Return metadata describing [`vjp_kernel_f`].
+pub fn vjp_kernel_f_meta() -> FunctionMetadata {
+    FunctionMetadata {
+        function_name: "vjp_kernel_f",
+        workspace_size: 3,
+        input_names: &[
+            "x",
+        ],
+        input_sizes: &[
+            2,
+        ],
+        output_names: &[
+            "y",
+        ],
+        output_sizes: &[
+            3,
+        ],
+    }
+}
+
+/// Evaluate the generated symbolic function `vjp_kernel_f`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `y`:
+///   primal output slice for the declared result `y`
+///   Expected length: 3.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 3.
+pub fn vjp_kernel_f(x: &[f64], y: &mut [f64], work: &mut [f64]) {
+    assert!(work.len() >= 3);
+    assert_eq!(x.len(), 2);
+    assert_eq!(y.len(), 3);
+    work[0] = x[0] + x[1];
+    work[1] = x[0] * x[1];
+    work[2] = x[1].sin();
+    y[0] = work[0];
+    y[1] = work[1];
+    y[2] = work[2];
+}
+
+/// Return metadata describing [`vjp_kernel_jf`].
+pub fn vjp_kernel_jf_meta() -> FunctionMetadata {
+    FunctionMetadata {
+        function_name: "vjp_kernel_jf",
+        workspace_size: 1,
+        input_names: &[
+            "x",
+        ],
+        input_sizes: &[
+            2,
+        ],
+        output_names: &[
+            "y_row0",
+            "y_row1",
+            "y_row2",
+        ],
+        output_sizes: &[
+            2,
+            2,
+            2,
+        ],
+    }
+}
+
+/// Evaluate the generated symbolic function `vjp_kernel_jf`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `y_row0`:
+///   primal output slice for the declared result `y_row0`
+///   Expected length: 2.
+/// - `y_row1`:
+///   primal output slice for the declared result `y_row1`
+///   Expected length: 2.
+/// - `y_row2`:
+///   primal output slice for the declared result `y_row2`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 1.
+pub fn vjp_kernel_jf(x: &[f64], y_row0: &mut [f64], y_row1: &mut [f64], y_row2: &mut [f64], work: &mut [f64]) {
+    assert!(work.len() >= 1);
+    assert_eq!(x.len(), 2);
+    assert_eq!(y_row0.len(), 2);
+    assert_eq!(y_row1.len(), 2);
+    assert_eq!(y_row2.len(), 2);
+    work[0] = x[1].cos();
+    y_row0[0] = 1.0_f64;
+    y_row0[1] = 1.0_f64;
+    y_row1[0] = x[1];
+    y_row1[1] = x[0];
+    y_row2[0] = 0.0_f64;
+    y_row2[1] = work[0];
+}
+
+/// Return metadata describing [`vjp_kernel_vjp`].
+pub fn vjp_kernel_vjp_meta() -> FunctionMetadata {
+    FunctionMetadata {
+        function_name: "vjp_kernel_vjp",
+        workspace_size: 3,
+        input_names: &[
+            "x",
+            "cotangent_y",
+        ],
+        input_sizes: &[
+            2,
+            3,
+        ],
+        output_names: &[
+            "x",
+        ],
+        output_sizes: &[
+            2,
+        ],
+    }
+}
+
+/// Evaluate the generated symbolic function `vjp_kernel_vjp`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `cotangent_y`:
+///   cotangent seed associated with declared result `y`; use this slice
+///   when forming Jacobian-transpose-vector or reverse-mode sensitivity
+///   terms
+///   Expected length: 3.
+/// - `x`:
+///   primal output slice for the declared result `x`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 3.
+pub fn vjp_kernel_vjp(x: &[f64], cotangent_y: &[f64], x: &mut [f64], work: &mut [f64]) {
+    assert!(work.len() >= 3);
+    assert_eq!(x.len(), 2);
+    assert_eq!(cotangent_y.len(), 3);
+    assert_eq!(x.len(), 2);
+    work[0] = cotangent_y[1] * x[1];
+    work[0] = work[0] + cotangent_y[0];
+    work[1] = x[1].cos();
+    work[1] = work[1] * cotangent_y[2];
+    work[1] = work[1] + cotangent_y[0];
+    work[2] = cotangent_y[1] * x[0];
+    work[1] = work[1] + work[2];
+    x[0] = work[0];
+    x[1] = work[1];
+}

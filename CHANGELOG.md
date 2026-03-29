@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 
-## Unreleased
+## 0.3.0 - Unreleased
 
 ### Added
 
@@ -99,3 +99,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   demos, including virtual-environment guidance.
 - Added a dedicated multi-function demo documenting how several source
   functions can share the same generated Rust crate.
+
+## 0.2.0 - 28-03-2026
+
+### Changed
+
+- Introducing an entirely new structure that supports automatic differentiation without casadi and generates Rust crates. For the time being, only a few elementary functions and operators are supported

@@ -1794,6 +1794,12 @@ def _format_rust_string_literal(value: str) -> str:
 
 def _describe_input_arg(raw_name: str) -> str:
     """Describe the semantic role of a generated Rust input slice."""
+    if raw_name.startswith("cotangent_") and len(raw_name) > len("cotangent_"):
+        base_name = raw_name[len("cotangent_") :]
+        return (
+            f"cotangent seed associated with declared result `{base_name}`; "
+            "use this slice when forming Jacobian-transpose-vector or reverse-mode sensitivity terms"
+        )
     if raw_name.startswith("v_") and len(raw_name) > 2:
         base_name = raw_name[2:]
         return (

@@ -272,6 +272,33 @@ mod tests {{
             self.assertIn("work[1] = 2.0_f64 * x[0];", lib_text)
             self.assertIn("work[2] = 2.0_f64 * v_x[0];", lib_text)
 
+    def test_code_generation_builder_supports_vjp_generation(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "G",
+            [x],
+            [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        builder = (
+            CodeGenerationBuilder(f)
+            .add_primal()
+            .add_jacobian()
+            .add_vjp()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "vjp_builder")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn vjp_builder_f(", lib_text)
+            self.assertIn("pub fn vjp_builder_jf(", lib_text)
+            self.assertIn("pub fn vjp_builder_vjp(", lib_text)
+            self.assertIn("cotangent_y", lib_text)
+
     def test_code_generation_builder_supports_multiple_source_functions(self) -> None:
         x = SX.sym("x")
         u = SX.sym("u")
@@ -1179,6 +1206,28 @@ mod math {
                 function_name=project.codegen.function_name,
                 inputs=([2.0, 3.0],),
                 test_name="evaluates_jacobian_against_python_reference",
+            )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_vjp_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        reverse = Function(
+            "G",
+            [x],
+            [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+            input_names=["x"],
+            output_names=["y"],
+        ).vjp(wrt_index=0)
+
+        with TemporaryDirectory() as tmpdir:
+            project = reverse.create_rust_project(Path(tmpdir) / "vjp_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                reverse,
+                function_name=project.codegen.function_name,
+                inputs=([3.0, 4.0], [2.0, -1.0, 5.0]),
+                test_name="evaluates_vjp_against_python_reference",
             )
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
