@@ -540,8 +540,7 @@ class HessianTests(unittest.TestCase):
 
         result = hes([3.0, 4.0])
 
-        self.assertEqual(result[0], (2.0, 1.0))
-        self.assertEqual(result[1], (1.0, 2.0))
+        self.assertEqual(result, (2.0, 1.0, 1.0, 2.0))
 
     def test_function_hessian_validates_index(self) -> None:
         x = SX.sym("x")
@@ -567,15 +566,17 @@ class HessianTests(unittest.TestCase):
         hessian_function = f.hessian(0)
         jacobian_of_gradient = f.gradient(0).jacobian(0)
 
-        self.assertEqual(hessian_function([3.0, 4.0]), jacobian_of_gradient([3.0, 4.0]))
+        jacobian_rows = jacobian_of_gradient([3.0, 4.0])
+        flattened_jacobian = tuple(entry for row in jacobian_rows for entry in row)
+        self.assertEqual(hessian_function([3.0, 4.0]), flattened_jacobian)
 
     def test_hessian_is_symmetric_for_scalar_real_function(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function("f", [x], [(x[0] * x[0]) + (x[0] * x[1]) + (x[1] * x[1])])
         hes = f.hessian(0)
 
-        row0, row1 = hes([3.0, 4.0])
-        self.assertEqual(row0[1], row1[0])
+        flat = hes([3.0, 4.0])
+        self.assertEqual(flat[1], flat[2])
 
 
 if __name__ == "__main__":

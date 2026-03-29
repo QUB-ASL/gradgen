@@ -11,16 +11,21 @@ from gradgen import (
     SX,
     SXVector,
     bilinear_form,
+    clear_registered_elementary_functions,
     create_multi_function_rust_project,
     create_rust_derivative_bundle,
     create_rust_project,
     derivative,
     matvec,
     quadform,
+    register_elementary_function,
 )
 
 
 class RustCodegenTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        clear_registered_elementary_functions()
+
     @staticmethod
     def _run_cargo(project_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
@@ -1145,6 +1150,62 @@ mod math {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_generated_rust_project_runs_custom_vector_hessian_reference_test(self) -> None:
+        weighted_sqnorm = register_elementary_function(
+            name="weighted_sqnorm_runtime",
+            input_dimension=2,
+            parameter_dimension=2,
+            parameter_defaults=[1.0, 1.0],
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: SXVector((2 * w[0] * x[0], 2 * w[1] * x[1])),
+            hessian=lambda x, w: (
+                SXVector((2 * w[0], SX.const(0.0))),
+                SXVector((SX.const(0.0), 2 * w[1])),
+            ),
+            rust_primal="""
+fn weighted_sqnorm_runtime(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+) -> {{ scalar_type }} {
+    w[0] * x[0] * x[0] + w[1] * x[1] * x[1]
+}
+""",
+            rust_hessian="""
+fn weighted_sqnorm_runtime_hessian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w[0];
+    out[1] = 0.0_{{ scalar_type }};
+    out[2] = 0.0_{{ scalar_type }};
+    out[3] = 2.0_{{ scalar_type }} * w[1];
+}
+""",
+        )
+
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "f",
+            [x],
+            [weighted_sqnorm(x, w=[2.0, 3.0])],
+            input_names=["x"],
+            output_names=["y"],
+        ).hessian(0)
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "custom_hessian_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0],),
+                test_name="evaluates_custom_vector_hessian_against_python_reference",
+            )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_generated_rust_project_runs_workspace_reuse_reference_test(self) -> None:
         x = SX.sym("x")
         z = (x * x) + 1
@@ -1592,6 +1653,55 @@ mod tests {
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
         assert_eq!(hvp_y, [4.0_f64, 5.0_f64]);
+    }
+}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_supports_joint_primal_and_flat_hessian(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "joint_hessian",
+            [x],
+            [(x[0] * x[0]) + (x[0] * x[1]) + (x[1] * x[1])],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        builder = CodeGenerationBuilder(f).add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_hessian(wrt=0)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "joint_hessian")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn joint_hessian_f_hessian(", lib_text)
+            self.assertIn("hessian_y: &mut [f64]", lib_text)
+            self.assertIn("assert_eq!(hessian_y.len(), 4);", lib_text)
+
+            self._append_rust_test(
+                project.project_dir,
+                """
+#[cfg(test)]
+mod joint_hessian_tests {
+    use super::*;
+
+    #[test]
+    fn evaluates_joint_primal_and_flat_hessian() {
+        let x = [2.0_f64, 3.0_f64];
+        let mut y = [0.0_f64; 1];
+        let mut hessian_y = [0.0_f64; 4];
+        let mut work = vec![0.0_f64; joint_hessian_f_hessian_meta().workspace_size];
+
+        joint_hessian_f_hessian(&x, &mut y, &mut hessian_y, &mut work);
+
+        assert_eq!(y, [19.0_f64]);
+        assert_eq!(hessian_y, [2.0_f64, 1.0_f64, 1.0_f64, 2.0_f64]);
     }
 }
 """.lstrip(),
