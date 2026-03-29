@@ -1,3 +1,6 @@
+use std::hint::black_box;
+use std::time::Instant;
+
 use single_shooting_kernel::*;
 
 fn print_metadata(label: &str, metadata: FunctionMetadata) {
@@ -5,7 +8,7 @@ fn print_metadata(label: &str, metadata: FunctionMetadata) {
 }
 
 fn format_slice(values: &[f64]) -> String {
-    let items: Vec<String> = values.iter().map(|value| format!("{value:.4}")).collect();
+    let items: Vec<String> = values.iter().map(|value| format!("{value:.3}")).collect();
     format!("[{}]", items.join(", "))
 }
 
@@ -107,5 +110,72 @@ fn main() {
     println!(
         "joint x_traj(x0, u_seq, p) = {}",
         format_slice(&joint_states)
+    );
+
+    let iterations = 1000_u32;
+    let mut benchmark_cost = vec![0.0_f64; joint_metadata.output_sizes[0]];
+    let mut benchmark_gradient = vec![0.0_f64; joint_metadata.output_sizes[1]];
+    let mut benchmark_states = vec![0.0_f64; joint_metadata.output_sizes[2]];
+    let mut benchmark_work = vec![0.0_f64; joint_metadata.workspace_size];
+    let mut checksum = 0.0_f64;
+
+    println!("\n---- BENCHMARKIGN gradient computation ----");
+
+    let started = Instant::now();
+    for _ in 0..iterations {
+        single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
+            black_box(&x0),
+            black_box(&controls),
+            black_box(&parameters),
+            black_box(&mut benchmark_cost),
+            black_box(&mut benchmark_gradient),
+            black_box(&mut benchmark_states),
+            black_box(&mut benchmark_work),
+        );
+        checksum += benchmark_cost[0] + benchmark_gradient[0] + benchmark_states[0];
+    }
+    let elapsed = started.elapsed();
+    let average_microseconds = (elapsed.as_secs_f64() * 1_000_000.0) / f64::from(iterations);
+
+    println!(
+        "benchmark: single_shooting_kernel_mpc_cost_f_grad_states_u_seq ran {} times",
+        iterations
+    );
+    println!(
+        "average runtime: {:.3} us per call (checksum = {:.4})",
+        average_microseconds, checksum
+    );
+
+    println!("\n---- BENCHMARKIGN HVP computation ---------");
+
+    let mut benchmark_hvp = vec![0.0_f64; hvp_metadata.output_sizes[0]];
+    let mut benchmark_hvp_states = vec![0.0_f64; hvp_metadata.output_sizes[1]];
+    let mut benchmark_hvp_work = vec![0.0_f64; hvp_metadata.workspace_size];
+    let mut hvp_checksum = 0.0_f64;
+
+    let hvp_started = Instant::now();
+    for _ in 0..iterations {
+        single_shooting_kernel_mpc_cost_hvp_states_u_seq(
+            black_box(&x0),
+            black_box(&controls),
+            black_box(&parameters),
+            black_box(&control_direction),
+            black_box(&mut benchmark_hvp),
+            black_box(&mut benchmark_hvp_states),
+            black_box(&mut benchmark_hvp_work),
+        );
+        hvp_checksum += benchmark_hvp[0] + benchmark_hvp_states[0];
+    }
+    let hvp_elapsed = hvp_started.elapsed();
+    let hvp_average_microseconds =
+        (hvp_elapsed.as_secs_f64() * 1_000_000.0) / f64::from(iterations);
+
+    println!(
+        "benchmark: single_shooting_kernel_mpc_cost_hvp_states_u_seq ran {} times",
+        iterations
+    );
+    println!(
+        "average runtime: {:.3} us per call (checksum = {:.4})\n",
+        hvp_average_microseconds, hvp_checksum
     );
 }
