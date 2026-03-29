@@ -897,7 +897,7 @@ def _build_shared_helper_lines(
         )
 
     if "norm1" in used_ops:
-        abs_term = _emit_math_call("abs", ("*value",), backend_mode, scalar_type, math_library)
+        abs_term = _emit_norm_abs_expr("value", backend_mode, scalar_type, math_library)
         lines.extend(
             [
                 f"fn norm1(values: &[{scalar_type}]) -> {scalar_type} {{",
@@ -907,7 +907,7 @@ def _build_shared_helper_lines(
         )
 
     if "norm_inf" in used_ops:
-        abs_term = _emit_math_call("abs", ("*value",), backend_mode, scalar_type, math_library)
+        abs_term = _emit_norm_abs_expr("value", backend_mode, scalar_type, math_library)
         lines.extend(
             [
                 f"fn norm_inf(values: &[{scalar_type}]) -> {scalar_type} {{",
@@ -917,7 +917,7 @@ def _build_shared_helper_lines(
         )
 
     if "norm_p_to_p" in used_ops:
-        abs_term = _emit_math_call("abs", ("*value",), backend_mode, scalar_type, math_library)
+        abs_term = _emit_norm_abs_expr("value", backend_mode, scalar_type, math_library)
         pow_term = _emit_math_call("pow", (abs_term, "p"), backend_mode, scalar_type, math_library)
         lines.extend(
             [
@@ -944,6 +944,20 @@ def _build_shared_helper_lines(
         )
 
     return tuple(lines)
+
+
+def _emit_norm_abs_expr(
+    value_ref: str,
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str:
+    """Return a valid Rust absolute-value expression for iterator items."""
+    if backend_mode == "std":
+        return f"{value_ref}.abs()"
+    if math_library is None:
+        raise ValueError("no_std math calls require a resolved math library")
+    return f"{math_library}::{_math_function_name('abs', scalar_type)}(*{value_ref})"
 
 
 def _flatten_arg(arg: SX | SXVector) -> tuple[SX, ...]:

@@ -767,6 +767,65 @@ mod math {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_generated_rust_project_runs_extended_unary_math_reference_test(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "extended_math",
+            [x],
+            [
+                x.tan()
+                + x.asin()
+                + x.acos()
+                + x.atan()
+                + x.sinh()
+                + x.cosh()
+                + x.tanh()
+                + x.expm1()
+                + x.log1p()
+                + x.abs()
+            ],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "extended_math_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=0.2,
+                test_name="evaluates_extended_unary_math_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_norm_reference_test(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function(
+            "norm_kernel",
+            [x],
+            [x.norm1(), x.norm2(), x.norm2sq(), x.norm_inf(), x.norm_p(3), x.norm_p_to_p(3)],
+            input_names=["x"],
+            output_names=["n1", "n2", "n2sq", "ni", "np", "npp"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "norm_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([3.0, -4.0, 1.0],),
+                test_name="evaluates_norm_helpers_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_generated_rust_project_runs_jacobian_reference_test(self) -> None:
         x = SXVector.sym("x", 2)
         jac = Function("f", [x], [x.dot(x)], input_names=["x"], output_names=["y"]).jacobian(0)
@@ -802,6 +861,25 @@ mod math {
                 inputs=([2.0, 3.0],),
                 test_name="evaluates_hessian_against_python_reference",
             )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_workspace_reuse_reference_test(self) -> None:
+        x = SX.sym("x")
+        z = (x * x) + 1
+        f = Function("reuse_kernel", [x], [z + z * z], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "reuse_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=2.5,
+                test_name="evaluates_reuse_heavy_kernel_against_python_reference",
+                tolerance=1e-12,
+            )
+
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
