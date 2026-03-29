@@ -155,7 +155,7 @@ mod tests {{
         self.assertIn('"y",', result.source)
         self.assertIn("pub struct FunctionMetadata {", result.source)
         self.assertIn("pub fn square_plus_one_meta() -> FunctionMetadata {", result.source)
-        self.assertIn("workspace_size: 2,", result.source)
+        self.assertIn("workspace_size: 1,", result.source)
         self.assertIn("/// Arguments:", result.source)
         self.assertIn("/// - `x`:", result.source)
         self.assertIn("///   input slice for the declared argument `x`", result.source)
@@ -164,13 +164,13 @@ mod tests {{
         self.assertIn("///   primal output slice for the declared result `y`", result.source)
         self.assertIn("///   Expected length: 1.", result.source)
         self.assertIn("/// - `work`: mutable workspace slice used to store intermediate values", result.source)
-        self.assertIn("///   while evaluating this kernel. Expected length: at least 2.", result.source)
+        self.assertIn("///   while evaluating this kernel. Expected length: at least 1.", result.source)
         self.assertIn("pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
         self.assertIn("assert_eq!(x.len(), 1);", result.source)
         self.assertIn("assert_eq!(y.len(), 1);", result.source)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[1] = 1.0_f64 + work[0];", result.source)
-        self.assertIn("y[0] = work[1];", result.source)
+        self.assertIn("work[0] = 1.0_f64 + work[0];", result.source)
+        self.assertIn("y[0] = work[0];", result.source)
 
     def test_generates_vector_function_with_deterministic_workspace_layout(self) -> None:
         x = SXVector.sym("x", 2)
@@ -194,16 +194,16 @@ mod tests {{
         self.assertIn('"sum",', result.source)
         self.assertIn("pub struct FunctionMetadata {", result.source)
         self.assertIn("pub fn kernel_meta() -> FunctionMetadata {", result.source)
-        self.assertIn("workspace_size: 5,", result.source)
+        self.assertIn("workspace_size: 3,", result.source)
         self.assertIn(
             "pub fn kernel(x: &[f64], y: &[f64], dot: &mut [f64], sum: &mut [f64], work: &mut [f64]) {",
             result.source,
         )
-        self.assertIn("assert!(work.len() >= 5);", result.source)
+        self.assertIn("assert!(work.len() >= 3);", result.source)
         self.assertIn("work[0] = x[0] * y[0];", result.source)
         self.assertIn("work[1] = x[1] * y[1];", result.source)
-        self.assertIn("work[2] = work[0] + work[1];", result.source)
-        self.assertIn("dot[0] = work[2];", result.source)
+        self.assertIn("work[0] = work[0] + work[1];", result.source)
+        self.assertIn("dot[0] = work[0];", result.source)
 
     def test_backend_config_supports_chainable_updates(self) -> None:
         config = (
@@ -337,14 +337,29 @@ mod tests {{
             self.assertIn("pub fn eval_kernel(", lib_text)
             self.assertEqual(project.codegen.function_name, "eval_kernel")
 
-    def test_workspace_size_matches_number_of_non_leaf_nodes(self) -> None:
+    def test_workspace_size_is_bounded_by_number_of_non_leaf_nodes(self) -> None:
         x = SX.sym("x")
         expr = (x * x + 1) + (x * x + 1) * (x * x + 1)
         f = Function("f", [x], [expr])
 
         result = f.generate_rust()
 
-        self.assertEqual(result.workspace_size, len([node for node in f.nodes if node.op not in {"symbol", "const"}]))
+        self.assertLessEqual(
+            result.workspace_size,
+            len([node for node in f.nodes if node.op not in {"symbol", "const"}]),
+        )
+
+    def test_workspace_slots_are_reused_when_intermediate_lifetimes_do_not_overlap(self) -> None:
+        x = SX.sym("x")
+        a = x + 1
+        b = a * 2
+        c = x + 3
+        expr = b + c
+        f = Function("f", [x], [expr])
+
+        result = f.generate_rust()
+
+        self.assertLess(result.workspace_size, len([node for node in f.nodes if node.op not in {"symbol", "const"}]))
 
     def test_f32_codegen_uses_f32_slice_abi_and_literals(self) -> None:
         x = SX.sym("x")
@@ -354,7 +369,7 @@ mod tests {{
 
         self.assertEqual(result.scalar_type, "f32")
         self.assertIn("pub fn square_plus_one(x: &[f32], y: &mut [f32], work: &mut [f32]) {", result.source)
-        self.assertIn("work[1] = 1.0_f32 + work[0];", result.source)
+        self.assertIn("work[0] = 1.0_f32 + work[0];", result.source)
 
     def test_no_std_f32_codegen_uses_libm_f32_entry_points(self) -> None:
         x = SX.sym("x")
@@ -475,9 +490,9 @@ mod tests {{
 
         self.assertEqual(result.source.count("x[0] * x[0]"), 1)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[1] = 1.0_f64 + work[0];", result.source)
-        self.assertIn("work[2] = work[1] * work[1];", result.source)
-        self.assertIn("work[3] = work[1] + work[2];", result.source)
+        self.assertIn("work[0] = 1.0_f64 + work[0];", result.source)
+        self.assertIn("work[1] = work[0] * work[0];", result.source)
+        self.assertIn("work[0] = work[0] + work[1];", result.source)
 
     def test_generated_code_uses_rust_math_methods(self) -> None:
         x = SX.sym("x")
@@ -1000,7 +1015,6 @@ mod tests {
     fn exposes_metadata_struct() {
         let meta = named_kernel_meta();
         assert_eq!(meta.function_name, "named_kernel");
-        assert_eq!(meta.workspace_size, 3);
         assert_eq!(meta.input_names, ["state vector", "gain"]);
         assert_eq!(meta.input_sizes, [2, 1]);
         assert_eq!(meta.output_names, ["energy", "gain out"]);

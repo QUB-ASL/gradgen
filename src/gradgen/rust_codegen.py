@@ -333,8 +333,7 @@ def generate_rust(
         for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
             scalar_bindings[scalar.node] = f"{input_spec.rust_name}[{scalar_index}]"
 
-    workspace_nodes = [node for node in function.nodes if node.op not in {"symbol", "const"}]
-    workspace_map = {node: index for index, node in enumerate(workspace_nodes)}
+    workspace_map, workspace_size = _allocate_workspace_slots(function)
 
     for node, work_index in workspace_map.items():
         rhs = _emit_node_expr(
@@ -382,7 +381,7 @@ def generate_rust(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
-        workspace_size=len(workspace_map),
+        workspace_size=workspace_size,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
@@ -402,7 +401,7 @@ def generate_rust(
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
         function_name=name,
-        workspace_size=len(workspace_map),
+        workspace_size=workspace_size,
         input_sizes=input_sizes,
         output_sizes=output_sizes,
         backend_mode=resolved_config.backend_mode,
@@ -703,6 +702,48 @@ def _emit_node_expr(
         return _emit_math_call("max", args, backend_mode, scalar_type, math_library)
 
     raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
+
+
+def _allocate_workspace_slots(function: Function) -> tuple[dict[SXNode, int], int]:
+    """Assign reusable workspace slots based on each node's last use."""
+    workspace_nodes = [node for node in function.nodes if node.op not in {"symbol", "const"}]
+    if not workspace_nodes:
+        return {}, 0
+
+    node_index = {node: index for index, node in enumerate(workspace_nodes)}
+    output_refs: list[SX] = [scalar for output in function.outputs for scalar in _flatten_arg(output)]
+    last_use = {node: index for index, node in enumerate(workspace_nodes)}
+
+    for index, node in enumerate(workspace_nodes):
+        for child in node.args:
+            if child in node_index:
+                last_use[child] = max(last_use[child], index)
+
+    output_base = len(workspace_nodes)
+    for offset, scalar in enumerate(output_refs):
+        if scalar.node in node_index:
+            last_use[scalar.node] = max(last_use[scalar.node], output_base + offset)
+
+    available_slots: list[int] = []
+    expiring_by_index: dict[int, list[int]] = {}
+    workspace_map: dict[SXNode, int] = {}
+    next_slot = 0
+
+    for index, node in enumerate(workspace_nodes):
+        for slot in expiring_by_index.pop(index, []):
+            available_slots.append(slot)
+
+        if available_slots:
+            slot = min(available_slots)
+            available_slots.remove(slot)
+        else:
+            slot = next_slot
+            next_slot += 1
+
+        workspace_map[node] = slot
+        expiring_by_index.setdefault(last_use[node], []).append(slot)
+
+    return workspace_map, next_slot
 
 
 def _emit_expr_ref(

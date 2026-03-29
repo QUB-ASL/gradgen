@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Hashable
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import ClassVar, Iterable, Iterator
+from typing import ClassVar, Iterable, Iterator, overload
 
 
 # Operations whose operands can be reordered without changing semantics.
@@ -344,8 +344,18 @@ class SXVector:
         """Iterate over the scalar elements of the vector."""
         return iter(self.elements)
 
+    @overload
     def __getitem__(self, index: int) -> SX:
-        """Return the scalar element at ``index``."""
+        ...
+
+    @overload
+    def __getitem__(self, index: slice) -> SXVector:
+        ...
+
+    def __getitem__(self, index: int | slice) -> SX | SXVector:
+        """Return either one scalar element or a sliced vector view."""
+        if isinstance(index, slice):
+            return SXVector(self.elements[index])
         return self.elements[index]
 
     def __add__(self, other: object) -> SXVector | SX:

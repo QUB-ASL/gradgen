@@ -206,6 +206,17 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(len(x), 3)
         self.assertEqual([item.name for item in x], ["x_0", "x_1", "x_2"])
 
+    def test_vector_slicing_returns_vector_view(self) -> None:
+        x = SXVector.sym("x", 4)
+
+        head = x[0:3]
+        tail = x[2:]
+
+        self.assertIsInstance(head, SXVector)
+        self.assertIsInstance(tail, SXVector)
+        self.assertEqual([item.name for item in head], ["x_0", "x_1", "x_2"])
+        self.assertEqual([item.name for item in tail], ["x_2", "x_3"])
+
     def test_symbolic_vector_can_propagate_metadata(self) -> None:
         x = SXVector.sym("x", 2, metadata={"domain": "real"})
 

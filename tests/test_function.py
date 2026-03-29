@@ -111,6 +111,17 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(result_args["z"].metadata, {"domain": "real"})
         self.assertEqual(result_args["y"].metadata, {"domain": "complex"})
 
+    def test_function_can_use_sliced_vector_views_from_packed_input(self) -> None:
+        z = SXVector.sym("z", 4)
+        x_view = z[0:3]
+        u_view = z[3:4]
+        f_expr = x_view.norm2() * u_view + x_view.norm2sq()
+        f = Function("f", [z], [f_expr], input_names=["z"], output_names=["y"])
+
+        result = f([3.0, 4.0, 1.0, 2.0])
+
+        self.assertAlmostEqual(result, 2.0 * math.sqrt(26.0) + 26.0)
+
     def test_function_numeric_scalar_call_returns_float(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [(x * x) + 1])
