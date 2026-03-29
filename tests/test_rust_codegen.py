@@ -272,6 +272,61 @@ mod tests {{
             self.assertIn("work[1] = 2.0_f64 * x[0];", lib_text)
             self.assertIn("work[2] = 2.0_f64 * v_x[0];", lib_text)
 
+    def test_code_generation_builder_supports_multiple_source_functions(self) -> None:
+        x = SX.sym("x")
+        u = SX.sym("u")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+        g = Function("g", [u], [u.sin()], input_names=["u"], output_names=["z"])
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("multi_demo"))
+            .for_function(
+                f,
+                lambda b: b.add_primal().add_jacobian().with_simplification("medium"),
+            )
+            .for_function(
+                g,
+                lambda b: b.add_primal().add_jacobian(),
+            )
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "multi_demo")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn multi_demo_f_f(", lib_text)
+            self.assertIn("pub fn multi_demo_f_jf(", lib_text)
+            self.assertIn("pub fn multi_demo_g_f(", lib_text)
+            self.assertIn("pub fn multi_demo_g_jf(", lib_text)
+            self.assertEqual(
+                tuple(codegen.function_name for codegen in project.codegens),
+                ("multi_demo_f_f", "multi_demo_f_jf", "multi_demo_g_f", "multi_demo_g_jf"),
+            )
+
+    def test_code_generation_builder_requires_a_selected_function_for_add_requests(self) -> None:
+        with self.assertRaises(ValueError):
+            CodeGenerationBuilder().add_primal()
+
+    def test_code_generation_builder_rejects_function_name_override_for_multiple_functions(self) -> None:
+        x = SX.sym("x")
+        u = SX.sym("u")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+        g = Function("g", [u], [u.sin()], input_names=["u"], output_names=["z"])
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("multi_demo")
+                .with_function_name("shared_name")
+            )
+            .for_function(f, lambda b: b.add_primal())
+            .for_function(g, lambda b: b.add_primal())
+        )
+
+        with self.assertRaises(ValueError):
+            builder.build("/tmp/unused")
+
     def test_code_generation_builder_rejects_invalid_function_bundle(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])

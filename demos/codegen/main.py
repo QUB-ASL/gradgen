@@ -1,4 +1,4 @@
-"""Minimal demo showing how gradgen generates a Rust crate."""
+"""Minimal demo showing how gradgen generates one Rust crate from two functions."""
 
 from __future__ import annotations
 
@@ -18,38 +18,56 @@ x = SXVector.sym("x", 3)
 u = SXVector.sym("u", 1)
 
 
-# Build a simple scalar-valued function of x and u.
+# Build two simple scalar-valued functions of x and u.
 # f(x, u) = ||x||_2^2 + u_1 * sin(x_1) + x_2 * x_3
+# g(x, u) = x_1 * x_2 + exp(u_1)
 f_expr = x.norm2sq() + u[0] * x[0].sin() + x[1] * x[2]
+g_expr = x[0] * x[1] + u[0].exp()
 
 f = Function(
-    "codegen_demo",
+    "energy",
     [x, u],
     [f_expr],
     input_names=["x", "u"],
-    output_names=["y"],
+    output_names=["energy"],
+)
+g = Function(
+    "coupling",
+    [x, u],
+    [g_expr],
+    input_names=["x", "u"],
+    output_names=["coupling"],
 )
 
 
-# Evaluate the function once in Python so the demo has a concrete reference.
+# Evaluate both functions once in Python so the demo has a concrete reference.
 x_value = [1.0, 2.0, -0.5]
 u_value = [3.0]
 print("f(x, u) =", f(x_value, u_value))
+print("g(x, u) =", g(x_value, u_value))
 
 
-# Generate one Rust crate containing the primal kernel and its Jacobian blocks.
+# Generate one Rust crate containing kernels for both source functions.
 project = (
-    CodeGenerationBuilder(f)
+    CodeGenerationBuilder()
     .with_backend_config(
         RustBackendConfig()
         .with_crate_name("codegen_kernel")
         .with_backend_mode("std")
         .with_scalar_type("f64")
     )
-    .with_simplification("medium")
-    .add_primal()
-    .add_jacobian()
+    .for_function(
+        f,
+        lambda b: b.add_primal().add_jacobian().with_simplification("medium"),
+    )
+    .for_function(
+        g,
+        lambda b: b.add_primal().add_jacobian().with_simplification("medium"),
+    )
     .build(Path(__file__).resolve().parent / "codegen_kernel")
 )
 
 print("Generated Rust crate:", project.project_dir)
+print("Generated Rust functions:")
+for codegen in project.codegens:
+    print(" -", codegen.function_name)
