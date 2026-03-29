@@ -759,6 +759,73 @@ With this setting, simplification is applied to all generated kernels for that
 source function, including the separate primal/Jacobian/HVP kernels and the
 joint kernel.
 
+### Staged Composition
+
+For long compositions of state-transform stages, `ComposedFunction` keeps the
+stage structure explicit instead of expanding everything into one large symbolic
+expression graph. This is especially useful when you want generated Rust to use
+separate stage helpers and loop-based repeated application.
+
+Each state-transform stage must have the signature:
+
+- `G(state, p) -> next_state`
+
+and the terminal function must have the signature:
+
+- `h(state, pf) -> scalar`
+
+You can build compositions with:
+
+- `.then(G, p=...)` for one stage
+- `.chain([...])` for several possibly different stages
+- `.repeat(G, params=[...])` for repeated application of the same stage
+- `.finish(h, p=...)` for the terminal scalar output
+
+Numeric stage parameters are embedded as constants. Symbolic stage parameters
+are packed into a single extra runtime input slice named `parameters`, ordered
+in forward stage order with the terminal parameter block last.
+
+```python
+from gradgen import ComposedFunction, Function, SXVector
+
+x = SXVector.sym("x", 2)
+state = SXVector.sym("state", 2)
+p = SXVector.sym("p", 2)
+pf = SXVector.sym("pf", 1)
+
+G = Function(
+    "G",
+    [state, p],
+    [SXVector((state[0] + p[0], state[1] * p[1]))],
+    input_names=["state", "p"],
+    output_names=["next_state"],
+)
+h = Function(
+    "h",
+    [state, pf],
+    [state[0] + state[1] + pf[0]],
+    input_names=["state", "pf"],
+    output_names=["y"],
+)
+
+composed = (
+    ComposedFunction("f_chain", x)
+    .then(G, p=p)
+    .repeat(G, params=[p, p])
+    .finish(h, p=pf)
+)
+
+expanded = composed.to_function()
+gradient = composed.gradient()
+```
+
+The expanded symbolic function has the inputs:
+
+- `x`
+- `parameters`
+
+where `parameters` contains the packed stage parameters for the composition.
+
 ### Complete end-to-end example
 
 The example below:

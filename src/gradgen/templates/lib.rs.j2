@@ -1,4 +1,4 @@
-{% if backend_mode == "no_std" -%}
+{% if emit_crate_header and backend_mode == "no_std" -%}
 #![no_std]
 
 {% endif -%}
@@ -9,6 +9,7 @@
 
 {% endif -%}
 {% if emit_metadata_helpers -%}
+{% if emit_docs -%}
 {% if function_index == 0 -%}
 /// Metadata describing a generated Rust function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -29,6 +30,7 @@ pub struct FunctionMetadata {
 
 {% endif -%}
 /// Return metadata describing [`{{ function_name }}`].
+{% endif -%}
 pub fn {{ function_name }}_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: {{ function_label }},
@@ -57,6 +59,7 @@ pub fn {{ function_name }}_meta() -> FunctionMetadata {
 }
 
 {% endif -%}
+{% if emit_docs -%}
 /// Evaluate the generated symbolic function `{{ function_name }}`.
 ///
 /// All numeric slices use the `{{ scalar_type }}` scalar type.
@@ -74,7 +77,8 @@ pub fn {{ function_name }}_meta() -> FunctionMetadata {
 {% endfor -%}
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least {{ workspace_size }}.
-pub fn {{ function_name }}({{ parameters }}) {
+{% endif -%}
+{{ function_keyword }} {{ function_name }}({{ parameters }}) {
 {% if workspace_size > 0 %}
     assert!(work.len() >= {{ workspace_size }});
 {% endif %}

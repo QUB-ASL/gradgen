@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 
 from gradgen import (
     CodeGenerationBuilder,
+    ComposedFunction,
     Function,
     FunctionBundle,
     RustBackendConfig,
@@ -79,6 +80,7 @@ class RustCodegenTests(unittest.TestCase):
         test_name: str,
         config: RustBackendConfig | None = None,
         tolerance: float = 1e-12,
+        workspace_size_override: int | None = None,
     ) -> None:
         codegen = function.generate_rust(config=config, function_name=function_name)
         numeric_inputs = cls._normalize_inputs(inputs)
@@ -121,6 +123,8 @@ class RustCodegenTests(unittest.TestCase):
             ]
         )
 
+        workspace_size = codegen.workspace_size if workspace_size_override is None else workspace_size_override
+
         cls._append_rust_test(
             project_dir,
             f"""
@@ -142,7 +146,7 @@ mod tests {{
     fn {test_name}() {{
 {chr(10).join(input_binding_lines)}
 {chr(10).join(output_binding_lines)}
-        let mut work = [0.0_{scalar_type}; {codegen.workspace_size}];
+        let mut work = [0.0_{scalar_type}; {workspace_size}];
         {function_name}({parameter_list});
 {chr(10).join(output_assertion_lines)}
     }}
@@ -299,6 +303,100 @@ mod tests {{
             self.assertIn("pub fn vjp_builder_G_vjp(", lib_text)
             self.assertIn("cotangent_y", lib_text)
             self.assertNotIn("y_row0", lib_text)
+
+    def test_composed_function_generates_loop_based_primal_kernel(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+        pf = SXVector.sym("pf", 1)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, pf],
+            [state[0] + state[1] + pf[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+        composed = (
+            ComposedFunction("repeat_demo", x)
+            .repeat(g, params=[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+            .finish(h, p=[7.0])
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(composed, Path(tmpdir) / "repeat_demo")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn repeat_demo(x: &[f64], y: &mut [f64], work: &mut [f64]) {", lib_text)
+            self.assertIn("for repeat_index in 0..3 {", lib_text)
+            self.assertNotIn("parameters: &[f64]", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                composed.to_function(),
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0],),
+                test_name="evaluates_composed_primal_reference",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_composed_gradient_codegen_packs_symbolic_parameters(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+        pf = SXVector.sym("pf", 1)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, pf],
+            [state[0] + state[1] + pf[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+        composed = (
+            ComposedFunction("packed_demo", x)
+            .then(g, p=p)
+            .repeat(g, params=[p, p])
+            .finish(h, p=pf)
+        )
+        gradient = composed.gradient()
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(gradient, Path(tmpdir) / "packed_demo_grad")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("parameters: &[f64]", lib_text)
+            self.assertIn("for repeat_index in (0..2).rev() {", lib_text)
+            self.assertIn("_vjp(", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                gradient.to_function(),
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+                test_name="evaluates_composed_gradient_reference",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
 
     def test_code_generation_builder_supports_multiple_source_functions(self) -> None:
         x = SX.sym("x")

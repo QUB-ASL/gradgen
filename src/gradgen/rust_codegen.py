@@ -153,6 +153,34 @@ class _ArgSpec:
     size: int
 
 
+@dataclass(frozen=True, slots=True)
+class _ComposedSinglePlan:
+    """Codegen metadata for one explicit composed stage."""
+
+    helper_name: str
+    vjp_helper_name: str
+    parameter_kind: str
+    parameter_size: int
+    parameter_offset: int
+    fixed_values: tuple[float, ...]
+    stage_index: int
+
+
+@dataclass(frozen=True, slots=True)
+class _ComposedRepeatPlan:
+    """Codegen metadata for one repeated composed stage block."""
+
+    helper_name: str
+    vjp_helper_name: str
+    parameter_kind: str
+    parameter_size: int
+    parameter_offset: int
+    fixed_values: tuple[tuple[float, ...], ...]
+    repeat_count: int
+    stage_start_index: int
+    const_name: str
+
+
 
 
 def generate_rust(
@@ -165,8 +193,34 @@ def generate_rust(
     math_library: str | None = None,
     function_index: int = 0,
     shared_helper_nodes: tuple[SXNode, ...] | None = None,
+    emit_crate_header: bool = True,
+    emit_docs: bool = True,
+    function_keyword: str = "pub fn",
 ) -> RustCodegenResult:
     """Generate Rust source code for primal function evaluation."""
+    from .composed_function import ComposedFunction, ComposedGradientFunction
+
+    if isinstance(function, ComposedFunction):
+        return _generate_composed_primal_rust(
+            function,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+    if isinstance(function, ComposedGradientFunction):
+        return _generate_composed_gradient_rust(
+            function,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+
     resolved_config = _resolve_backend_config(
         config,
         function_name=function_name,
@@ -287,6 +341,9 @@ def generate_rust(
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
         upper_name=name.upper(),
+        emit_crate_header=emit_crate_header,
+        emit_docs=emit_docs,
+        function_keyword=function_keyword,
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
@@ -514,6 +571,828 @@ def create_multi_function_rust_project(
         lib_rs=lib_rs,
         codegens=codegens,
     )
+
+
+def _generate_composed_primal_rust(
+    composed,
+    *,
+    config: RustBackendConfig | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
+    math_library: str | None = None,
+    function_index: int = 0,
+) -> RustCodegenResult:
+    """Generate compact Rust for a staged composed primal kernel."""
+    from .composed_function import _RepeatStage, _SingleStage
+
+    terminal = composed._require_terminal()
+    resolved_config = _resolve_backend_config(
+        config,
+        function_name=function_name,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    _validate_backend_mode(resolved_config.backend_mode)
+    _validate_scalar_type(resolved_config.scalar_type)
+    resolved_math_library = _resolve_math_library(
+        resolved_config.backend_mode,
+        resolved_config.math_library,
+    )
+
+    name = sanitize_ident(resolved_config.function_name or composed.name)
+    helper_config = resolved_config.with_emit_metadata_helpers(False)
+    helper_sources: list[str] = []
+    helper_nodes: list[SXNode] = []
+    constant_lines: list[str] = []
+    plans: list[_ComposedSinglePlan | _ComposedRepeatPlan] = []
+
+    stage_index = 0
+    parameter_offset = 0
+    max_helper_workspace = 0
+    for block_index, step in enumerate(composed.steps):
+        if isinstance(step, _SingleStage):
+            helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}")
+            helper_codegen = generate_rust(
+                step.function,
+                config=helper_config,
+                function_name=helper_name,
+                function_index=1,
+                shared_helper_nodes=(),
+                emit_crate_header=False,
+                emit_docs=False,
+                function_keyword="fn",
+            )
+            helper_sources.append(helper_codegen.source.rstrip())
+            helper_nodes.extend(step.function.nodes)
+            max_helper_workspace = max(max_helper_workspace, helper_codegen.workspace_size)
+            plans.append(
+                _ComposedSinglePlan(
+                    helper_name=helper_name,
+                    vjp_helper_name="",
+                    parameter_kind=step.parameter.kind,
+                    parameter_size=step.parameter.size,
+                    parameter_offset=parameter_offset,
+                    fixed_values=step.parameter.values,
+                    stage_index=stage_index,
+                )
+            )
+            parameter_offset += step.parameter.symbolic_size
+            stage_index += 1
+            continue
+
+        helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}")
+        helper_codegen = generate_rust(
+            step.function,
+            config=helper_config,
+            function_name=helper_name,
+            function_index=1,
+            shared_helper_nodes=(),
+            emit_crate_header=False,
+            emit_docs=False,
+            function_keyword="fn",
+        )
+        helper_sources.append(helper_codegen.source.rstrip())
+        helper_nodes.extend(step.function.nodes)
+        max_helper_workspace = max(max_helper_workspace, helper_codegen.workspace_size)
+
+        const_name = sanitize_ident(f"{name}_repeat_{block_index}_params").upper()
+        parameter_kind = step.parameters[0].kind
+        if parameter_kind == "fixed" and step.parameters[0].size > 0:
+            constant_lines.extend(
+                _emit_composed_fixed_repeat_constants(
+                    const_name,
+                    tuple(parameter.values for parameter in step.parameters),
+                    resolved_config.scalar_type,
+                )
+            )
+
+        plans.append(
+            _ComposedRepeatPlan(
+                helper_name=helper_name,
+                vjp_helper_name="",
+                parameter_kind=parameter_kind,
+                parameter_size=step.parameters[0].size,
+                parameter_offset=parameter_offset,
+                fixed_values=tuple(parameter.values for parameter in step.parameters),
+                repeat_count=len(step.parameters),
+                stage_start_index=stage_index,
+                const_name=const_name,
+            )
+        )
+        parameter_offset += sum(parameter.symbolic_size for parameter in step.parameters)
+        stage_index += len(step.parameters)
+
+    terminal_helper_name = sanitize_ident(f"{name}_terminal_{terminal.function.name}")
+    terminal_codegen = generate_rust(
+        terminal.function,
+        config=helper_config,
+        function_name=terminal_helper_name,
+        function_index=1,
+        shared_helper_nodes=(),
+        emit_crate_header=False,
+        emit_docs=False,
+        function_keyword="fn",
+    )
+    helper_sources.append(terminal_codegen.source.rstrip())
+    helper_nodes.extend(terminal.function.nodes)
+    max_helper_workspace = max(max_helper_workspace, terminal_codegen.workspace_size)
+    terminal_parameter_offset = parameter_offset
+
+    state_size = _arg_size(composed.state_input)
+    output_name = terminal.function.output_names[0]
+    input_specs = _build_composed_input_specs(
+        composed.input_name,
+        state_size,
+        composed.parameter_name,
+        composed.parameter_size,
+    )
+    output_specs = (
+        _ArgSpec(
+            raw_name=output_name,
+            rust_name=sanitize_ident(output_name),
+            rust_label=_format_rust_string_literal(output_name),
+            doc_description=_describe_output_arg(output_name),
+            size=1,
+        ),
+    )
+    input_assert_lines = [f"assert_eq!({input_specs[0].rust_name}.len(), {state_size});"]
+    if composed.parameter_size > 0:
+        input_assert_lines.append(
+            f"assert_eq!({input_specs[1].rust_name}.len(), {composed.parameter_size});"
+        )
+    output_assert_lines = [f"assert_eq!({output_specs[0].rust_name}.len(), 1);"]
+
+    state_work_size = 2 * state_size
+    workspace_size = state_work_size + max_helper_workspace
+    computation_lines = [
+        f"let (state_buffers, stage_work) = work.split_at_mut({state_work_size});",
+        f"let (current_state, next_state) = state_buffers.split_at_mut({state_size});",
+        f"current_state.copy_from_slice({input_specs[0].rust_name});",
+    ]
+    for plan in plans:
+        if isinstance(plan, _ComposedSinglePlan):
+            computation_lines.extend(
+                _emit_composed_primal_single_block(
+                    plan,
+                    parameters_name=input_specs[1].rust_name if composed.parameter_size > 0 else None,
+                    scalar_type=resolved_config.scalar_type,
+                )
+            )
+            continue
+        computation_lines.extend(
+            _emit_composed_primal_repeat_block(
+                plan,
+                parameters_name=input_specs[1].rust_name if composed.parameter_size > 0 else None,
+                scalar_type=resolved_config.scalar_type,
+            )
+        )
+
+    terminal_parameter_ref = _emit_composed_parameter_ref(
+        terminal.parameter.kind,
+        terminal.parameter.size,
+        terminal_parameter_offset,
+        terminal.parameter.values,
+        parameters_name=input_specs[1].rust_name if composed.parameter_size > 0 else None,
+        scalar_type=resolved_config.scalar_type,
+        const_name="",
+    )
+    computation_lines.append(
+        f"{terminal_helper_name}(current_state, {terminal_parameter_ref}, {output_specs[0].rust_name}, stage_work);"
+    )
+
+    shared_helper_lines = list(_build_shared_helper_lines(
+        tuple(helper_nodes),
+        resolved_config.backend_mode,
+        resolved_config.scalar_type,
+        resolved_math_library,
+    ))
+    if constant_lines:
+        if shared_helper_lines:
+            shared_helper_lines.append("")
+        shared_helper_lines.extend(constant_lines)
+
+    parameters = ", ".join(
+        [
+            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
+            f"{output_specs[0].rust_name}: &mut [{resolved_config.scalar_type}]",
+            f"work: &mut [{resolved_config.scalar_type}]",
+        ]
+    )
+    driver_source = _get_template("lib.rs.j2").render(
+        function_name=name,
+        function_label=_format_rust_string_literal(name),
+        function_index=function_index,
+        upper_name=name.upper(),
+        emit_crate_header=True,
+        emit_docs=True,
+        function_keyword="pub fn",
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+        workspace_size=workspace_size,
+        emit_metadata_helpers=resolved_config.emit_metadata_helpers,
+        input_specs=input_specs,
+        output_specs=output_specs,
+        parameters=parameters,
+        input_assert_lines=input_assert_lines,
+        output_assert_lines=output_assert_lines,
+        computation_lines=computation_lines,
+        output_write_lines=[],
+        shared_helper_lines=shared_helper_lines,
+    ).rstrip()
+    source_sections = [driver_source, *helper_sources]
+    source = "\n\n".join(section for section in source_sections if section)
+
+    return RustCodegenResult(
+        source=source if source.endswith("\n") else f"{source}\n",
+        function_name=name,
+        workspace_size=workspace_size,
+        input_sizes=tuple(spec.size for spec in input_specs),
+        output_sizes=(1,),
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+    )
+
+
+def _generate_composed_gradient_rust(
+    gradient,
+    *,
+    config: RustBackendConfig | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
+    math_library: str | None = None,
+    function_index: int = 0,
+) -> RustCodegenResult:
+    """Generate compact Rust for a staged composed gradient kernel."""
+    from .composed_function import _RepeatStage, _SingleStage
+
+    composed = gradient.composed
+    terminal = composed._require_terminal()
+    resolved_config = _resolve_backend_config(
+        config,
+        function_name=function_name,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    _validate_backend_mode(resolved_config.backend_mode)
+    _validate_scalar_type(resolved_config.scalar_type)
+    resolved_math_library = _resolve_math_library(
+        resolved_config.backend_mode,
+        resolved_config.math_library,
+    )
+
+    name = sanitize_ident(resolved_config.function_name or gradient.name)
+    helper_config = resolved_config.with_emit_metadata_helpers(False)
+    helper_sources: list[str] = []
+    helper_nodes: list[SXNode] = []
+    constant_lines: list[str] = []
+    plans: list[_ComposedSinglePlan | _ComposedRepeatPlan] = []
+
+    stage_index = 0
+    parameter_offset = 0
+    max_helper_workspace = 0
+    for block_index, step in enumerate(composed.steps):
+        if isinstance(step, _SingleStage):
+            helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}")
+            vjp_helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}_vjp")
+            helper_codegen = generate_rust(
+                step.function,
+                config=helper_config,
+                function_name=helper_name,
+                function_index=1,
+                shared_helper_nodes=(),
+                emit_crate_header=False,
+                emit_docs=False,
+                function_keyword="fn",
+            )
+            vjp_codegen = generate_rust(
+                step.function.vjp(wrt_index=0, name=vjp_helper_name),
+                config=helper_config,
+                function_name=vjp_helper_name,
+                function_index=1,
+                shared_helper_nodes=(),
+                emit_crate_header=False,
+                emit_docs=False,
+                function_keyword="fn",
+            )
+            helper_sources.extend((helper_codegen.source.rstrip(), vjp_codegen.source.rstrip()))
+            helper_nodes.extend((*step.function.nodes, *step.function.vjp(wrt_index=0).nodes))
+            max_helper_workspace = max(
+                max_helper_workspace,
+                helper_codegen.workspace_size,
+                vjp_codegen.workspace_size,
+            )
+            plans.append(
+                _ComposedSinglePlan(
+                    helper_name=helper_name,
+                    vjp_helper_name=vjp_helper_name,
+                    parameter_kind=step.parameter.kind,
+                    parameter_size=step.parameter.size,
+                    parameter_offset=parameter_offset,
+                    fixed_values=step.parameter.values,
+                    stage_index=stage_index,
+                )
+            )
+            parameter_offset += step.parameter.symbolic_size
+            stage_index += 1
+            continue
+
+        helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}")
+        vjp_helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}_vjp")
+        helper_codegen = generate_rust(
+            step.function,
+            config=helper_config,
+            function_name=helper_name,
+            function_index=1,
+            shared_helper_nodes=(),
+            emit_crate_header=False,
+            emit_docs=False,
+            function_keyword="fn",
+        )
+        vjp_codegen = generate_rust(
+            step.function.vjp(wrt_index=0, name=vjp_helper_name),
+            config=helper_config,
+            function_name=vjp_helper_name,
+            function_index=1,
+            shared_helper_nodes=(),
+            emit_crate_header=False,
+            emit_docs=False,
+            function_keyword="fn",
+        )
+        helper_sources.extend((helper_codegen.source.rstrip(), vjp_codegen.source.rstrip()))
+        helper_nodes.extend((*step.function.nodes, *step.function.vjp(wrt_index=0).nodes))
+        max_helper_workspace = max(
+            max_helper_workspace,
+            helper_codegen.workspace_size,
+            vjp_codegen.workspace_size,
+        )
+
+        const_name = sanitize_ident(f"{name}_repeat_{block_index}_params").upper()
+        parameter_kind = step.parameters[0].kind
+        if parameter_kind == "fixed" and step.parameters[0].size > 0:
+            constant_lines.extend(
+                _emit_composed_fixed_repeat_constants(
+                    const_name,
+                    tuple(parameter.values for parameter in step.parameters),
+                    resolved_config.scalar_type,
+                )
+            )
+
+        plans.append(
+            _ComposedRepeatPlan(
+                helper_name=helper_name,
+                vjp_helper_name=vjp_helper_name,
+                parameter_kind=parameter_kind,
+                parameter_size=step.parameters[0].size,
+                parameter_offset=parameter_offset,
+                fixed_values=tuple(parameter.values for parameter in step.parameters),
+                repeat_count=len(step.parameters),
+                stage_start_index=stage_index,
+                const_name=const_name,
+            )
+        )
+        parameter_offset += sum(parameter.symbolic_size for parameter in step.parameters)
+        stage_index += len(step.parameters)
+
+    terminal_gradient_name = sanitize_ident(f"{name}_terminal_{terminal.function.name}_grad")
+    terminal_gradient_function = terminal.function.gradient(0, name=terminal_gradient_name)
+    terminal_gradient_codegen = generate_rust(
+        terminal_gradient_function,
+        config=helper_config,
+        function_name=terminal_gradient_name,
+        function_index=1,
+        shared_helper_nodes=(),
+        emit_crate_header=False,
+        emit_docs=False,
+        function_keyword="fn",
+    )
+    helper_sources.append(terminal_gradient_codegen.source.rstrip())
+    helper_nodes.extend(terminal_gradient_function.nodes)
+    max_helper_workspace = max(max_helper_workspace, terminal_gradient_codegen.workspace_size)
+    terminal_parameter_offset = parameter_offset
+
+    state_size = _arg_size(composed.state_input)
+    output_name = terminal.function.output_names[0]
+    input_specs = _build_composed_input_specs(
+        composed.input_name,
+        state_size,
+        composed.parameter_name,
+        composed.parameter_size,
+    )
+    output_specs = (
+        _ArgSpec(
+            raw_name=output_name,
+            rust_name=sanitize_ident(output_name),
+            rust_label=_format_rust_string_literal(output_name),
+            doc_description=_describe_output_arg(output_name),
+            size=state_size,
+        ),
+    )
+    input_assert_lines = [f"assert_eq!({input_specs[0].rust_name}.len(), {state_size});"]
+    if composed.parameter_size > 0:
+        input_assert_lines.append(
+            f"assert_eq!({input_specs[1].rust_name}.len(), {composed.parameter_size});"
+        )
+    output_assert_lines = [f"assert_eq!({output_specs[0].rust_name}.len(), {state_size});"]
+
+    states_size = composed.stage_count * state_size
+    workspace_size = states_size + state_size + (2 * state_size) + max_helper_workspace
+    computation_lines = [
+        f"let (state_history, rest) = work.split_at_mut({states_size});",
+        f"let (current_state, rest) = rest.split_at_mut({state_size});",
+        f"let (lambda_buffers, stage_work) = rest.split_at_mut({2 * state_size});",
+        f"let (lambda_a, lambda_b) = lambda_buffers.split_at_mut({state_size});",
+        f"current_state.copy_from_slice({input_specs[0].rust_name});",
+    ]
+    for plan in plans:
+        if isinstance(plan, _ComposedSinglePlan):
+            computation_lines.extend(
+                _emit_composed_gradient_forward_single_block(
+                    plan,
+                    parameters_name=input_specs[1].rust_name if composed.parameter_size > 0 else None,
+                    scalar_type=resolved_config.scalar_type,
+                    state_size=state_size,
+                )
+            )
+            continue
+        computation_lines.extend(
+            _emit_composed_gradient_forward_repeat_block(
+                plan,
+                parameters_name=input_specs[1].rust_name if composed.parameter_size > 0 else None,
+                scalar_type=resolved_config.scalar_type,
+                state_size=state_size,
+            )
+        )
+
+    terminal_parameter_ref = _emit_composed_parameter_ref(
+        terminal.parameter.kind,
+        terminal.parameter.size,
+        terminal_parameter_offset,
+        terminal.parameter.values,
+        parameters_name=input_specs[1].rust_name if composed.parameter_size > 0 else None,
+        scalar_type=resolved_config.scalar_type,
+        const_name="",
+    )
+    computation_lines.append(
+        f"{terminal_gradient_name}(current_state, {terminal_parameter_ref}, lambda_a, stage_work);"
+    )
+    computation_lines.append("let mut current_lambda_is_a = true;")
+
+    for plan in reversed(plans):
+        if isinstance(plan, _ComposedSinglePlan):
+            computation_lines.extend(
+                _emit_composed_gradient_reverse_single_block(
+                    plan,
+                    parameters_name=input_specs[1].rust_name if composed.parameter_size > 0 else None,
+                    scalar_type=resolved_config.scalar_type,
+                    state_size=state_size,
+                    input_name=input_specs[0].rust_name,
+                )
+            )
+            continue
+        computation_lines.extend(
+            _emit_composed_gradient_reverse_repeat_block(
+                plan,
+                parameters_name=input_specs[1].rust_name if composed.parameter_size > 0 else None,
+                scalar_type=resolved_config.scalar_type,
+                state_size=state_size,
+                input_name=input_specs[0].rust_name,
+            )
+        )
+
+    computation_lines.extend(
+        [
+            "let gradient = if current_lambda_is_a { &lambda_a[..] } else { &lambda_b[..] };",
+            f"{output_specs[0].rust_name}.copy_from_slice(gradient);",
+        ]
+    )
+
+    shared_helper_lines = list(_build_shared_helper_lines(
+        tuple(helper_nodes),
+        resolved_config.backend_mode,
+        resolved_config.scalar_type,
+        resolved_math_library,
+    ))
+    if constant_lines:
+        if shared_helper_lines:
+            shared_helper_lines.append("")
+        shared_helper_lines.extend(constant_lines)
+
+    parameters = ", ".join(
+        [
+            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
+            f"{output_specs[0].rust_name}: &mut [{resolved_config.scalar_type}]",
+            f"work: &mut [{resolved_config.scalar_type}]",
+        ]
+    )
+    driver_source = _get_template("lib.rs.j2").render(
+        function_name=name,
+        function_label=_format_rust_string_literal(name),
+        function_index=function_index,
+        upper_name=name.upper(),
+        emit_crate_header=True,
+        emit_docs=True,
+        function_keyword="pub fn",
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+        workspace_size=workspace_size,
+        emit_metadata_helpers=resolved_config.emit_metadata_helpers,
+        input_specs=input_specs,
+        output_specs=output_specs,
+        parameters=parameters,
+        input_assert_lines=input_assert_lines,
+        output_assert_lines=output_assert_lines,
+        computation_lines=computation_lines,
+        output_write_lines=[],
+        shared_helper_lines=shared_helper_lines,
+    ).rstrip()
+    source_sections = [driver_source, *helper_sources]
+    source = "\n\n".join(section for section in source_sections if section)
+
+    return RustCodegenResult(
+        source=source if source.endswith("\n") else f"{source}\n",
+        function_name=name,
+        workspace_size=workspace_size,
+        input_sizes=tuple(spec.size for spec in input_specs),
+        output_sizes=(state_size,),
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+    )
+
+
+def _build_composed_input_specs(
+    input_name: str,
+    input_size: int,
+    parameter_name: str,
+    parameter_size: int,
+) -> tuple[_ArgSpec, ...]:
+    """Build input metadata for a composed driver kernel."""
+    specs = [
+        _ArgSpec(
+            raw_name=input_name,
+            rust_name=sanitize_ident(input_name),
+            rust_label=_format_rust_string_literal(input_name),
+            doc_description=_describe_input_arg(input_name),
+            size=input_size,
+        )
+    ]
+    if parameter_size > 0:
+        specs.append(
+            _ArgSpec(
+                raw_name=parameter_name,
+                rust_name=sanitize_ident(parameter_name),
+                rust_label=_format_rust_string_literal(parameter_name),
+                doc_description=(
+                    "packed stage-parameter slice for the composed kernel; "
+                    "symbolic parameter blocks are laid out in forward stage order "
+                    "and the terminal block is stored last"
+                ),
+                size=parameter_size,
+            )
+        )
+    return tuple(specs)
+
+
+def _emit_composed_fixed_repeat_constants(
+    const_name: str,
+    values: tuple[tuple[float, ...], ...],
+    scalar_type: RustScalarType,
+) -> list[str]:
+    """Emit a compile-time fixed-parameter table for a repeat block."""
+    row_size = len(values[0]) if values else 0
+    rows = ", ".join(
+        "[" + ", ".join(_format_float(value, scalar_type) for value in row) + "]"
+        for row in values
+    )
+    return [f"const {const_name}: [[{scalar_type}; {row_size}]; {len(values)}] = [{rows}];"]
+
+
+def _emit_composed_parameter_ref(
+    parameter_kind: str,
+    parameter_size: int,
+    parameter_offset: int,
+    fixed_values: tuple[float, ...],
+    *,
+    parameters_name: str | None,
+    scalar_type: RustScalarType,
+    const_name: str,
+    index_var: str | None = None,
+) -> str:
+    """Return the Rust expression used to pass one composed parameter slice."""
+    if parameter_kind == "fixed":
+        if index_var is not None and const_name:
+            if parameter_size == 0:
+                return "&[]"
+            return f"&{const_name}[{index_var}]"
+        if parameter_size == 0:
+            return "&[]"
+        return "&[" + ", ".join(_format_float(value, scalar_type) for value in fixed_values) + "]"
+
+    if parameters_name is None:
+        raise ValueError("symbolic composed parameters require a packed parameter input")
+    if parameter_size == 0:
+        return "&[]"
+    if index_var is None:
+        end = parameter_offset + parameter_size
+        return f"&{parameters_name}[{parameter_offset}..{end}]"
+    if parameter_size == 1:
+        return f"&{parameters_name}[{parameter_offset} + {index_var}..{parameter_offset} + {index_var} + 1]"
+    return (
+        f"&{parameters_name}[{parameter_offset} + ({index_var} * {parameter_size})"
+        f"..{parameter_offset} + (({index_var} + 1) * {parameter_size})]"
+    )
+
+
+def _emit_composed_primal_single_block(
+    plan: _ComposedSinglePlan,
+    *,
+    parameters_name: str | None,
+    scalar_type: RustScalarType,
+) -> list[str]:
+    """Emit one explicit primal stage call."""
+    parameter_ref = _emit_composed_parameter_ref(
+        plan.parameter_kind,
+        plan.parameter_size,
+        plan.parameter_offset,
+        plan.fixed_values,
+        parameters_name=parameters_name,
+        scalar_type=scalar_type,
+        const_name="",
+    )
+    return [
+        f"{plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
+        "current_state.copy_from_slice(next_state);",
+    ]
+
+
+def _emit_composed_primal_repeat_block(
+    plan: _ComposedRepeatPlan,
+    *,
+    parameters_name: str | None,
+    scalar_type: RustScalarType,
+) -> list[str]:
+    """Emit a loop-based primal repeat block."""
+    parameter_ref = _emit_composed_parameter_ref(
+        plan.parameter_kind,
+        plan.parameter_size,
+        plan.parameter_offset,
+        (),
+        parameters_name=parameters_name,
+        scalar_type=scalar_type,
+        const_name=plan.const_name,
+        index_var="repeat_index",
+    )
+    return [
+        f"for repeat_index in 0..{plan.repeat_count} {{",
+        f"    {plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
+        "    current_state.copy_from_slice(next_state);",
+        "}",
+    ]
+
+
+def _emit_composed_gradient_forward_single_block(
+    plan: _ComposedSinglePlan,
+    *,
+    parameters_name: str | None,
+    scalar_type: RustScalarType,
+    state_size: int,
+) -> list[str]:
+    """Emit one forward-pass stage evaluation for a composed gradient."""
+    parameter_ref = _emit_composed_parameter_ref(
+        plan.parameter_kind,
+        plan.parameter_size,
+        plan.parameter_offset,
+        plan.fixed_values,
+        parameters_name=parameters_name,
+        scalar_type=scalar_type,
+        const_name="",
+    )
+    start = plan.stage_index * state_size
+    end = start + state_size
+    return [
+        "{",
+        f"    let next_state = &mut state_history[{start}..{end}];",
+        f"    {plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
+        "    current_state.copy_from_slice(next_state);",
+        "}",
+    ]
+
+
+def _emit_composed_gradient_forward_repeat_block(
+    plan: _ComposedRepeatPlan,
+    *,
+    parameters_name: str | None,
+    scalar_type: RustScalarType,
+    state_size: int,
+) -> list[str]:
+    """Emit one forward-pass repeat loop for a composed gradient."""
+    parameter_ref = _emit_composed_parameter_ref(
+        plan.parameter_kind,
+        plan.parameter_size,
+        plan.parameter_offset,
+        (),
+        parameters_name=parameters_name,
+        scalar_type=scalar_type,
+        const_name=plan.const_name,
+        index_var="repeat_index",
+    )
+    return [
+        f"for repeat_index in 0..{plan.repeat_count} {{",
+        f"    let stage_index = {plan.stage_start_index} + repeat_index;",
+        f"    let stage_start = stage_index * {state_size};",
+        f"    let stage_end = stage_start + {state_size};",
+        "    {",
+        "        let next_state = &mut state_history[stage_start..stage_end];",
+        f"        {plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
+        "        current_state.copy_from_slice(next_state);",
+        "    }",
+        "}",
+    ]
+
+
+def _emit_composed_gradient_reverse_single_block(
+    plan: _ComposedSinglePlan,
+    *,
+    parameters_name: str | None,
+    scalar_type: RustScalarType,
+    state_size: int,
+    input_name: str,
+) -> list[str]:
+    """Emit one reverse-pass VJP stage for a composed gradient."""
+    parameter_ref = _emit_composed_parameter_ref(
+        plan.parameter_kind,
+        plan.parameter_size,
+        plan.parameter_offset,
+        plan.fixed_values,
+        parameters_name=parameters_name,
+        scalar_type=scalar_type,
+        const_name="",
+    )
+    if plan.stage_index == 0:
+        state_input_ref = input_name
+    else:
+        prev_start = (plan.stage_index - 1) * state_size
+        prev_end = prev_start + state_size
+        state_input_ref = f"&state_history[{prev_start}..{prev_end}]"
+    return [
+        "{",
+        "    if current_lambda_is_a {",
+        f"        {plan.vjp_helper_name}({state_input_ref}, {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
+        "    } else {",
+        f"        {plan.vjp_helper_name}({state_input_ref}, {parameter_ref}, &lambda_b[..], lambda_a, stage_work);",
+        "    }",
+        "    current_lambda_is_a = !current_lambda_is_a;",
+        "}",
+    ]
+
+
+def _emit_composed_gradient_reverse_repeat_block(
+    plan: _ComposedRepeatPlan,
+    *,
+    parameters_name: str | None,
+    scalar_type: RustScalarType,
+    state_size: int,
+    input_name: str,
+) -> list[str]:
+    """Emit one reverse-pass repeat loop for a composed gradient."""
+    parameter_ref = _emit_composed_parameter_ref(
+        plan.parameter_kind,
+        plan.parameter_size,
+        plan.parameter_offset,
+        (),
+        parameters_name=parameters_name,
+        scalar_type=scalar_type,
+        const_name=plan.const_name,
+        index_var="repeat_index",
+    )
+    return [
+        f"for repeat_index in (0..{plan.repeat_count}).rev() {{",
+        f"    let stage_index = {plan.stage_start_index} + repeat_index;",
+        "    if stage_index == 0 {",
+        "        if current_lambda_is_a {",
+        f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
+        "        } else {",
+        f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_b[..], lambda_a, stage_work);",
+        "        }",
+        "    } else {",
+        f"        let prev_start = (stage_index - 1) * {state_size};",
+        f"        let prev_end = prev_start + {state_size};",
+        "        if current_lambda_is_a {",
+        f"            {plan.vjp_helper_name}(&state_history[prev_start..prev_end], {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
+        "        } else {",
+        f"            {plan.vjp_helper_name}(&state_history[prev_start..prev_end], {parameter_ref}, &lambda_b[..], lambda_a, stage_work);",
+        "        }",
+        "    }",
+        "    current_lambda_is_a = !current_lambda_is_a;",
+        "}",
+    ]
 
 
 def _emit_node_expr(
