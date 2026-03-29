@@ -171,6 +171,40 @@ fn missing_helpers(x: {{ scalar_type }}, shift: {{ scalar_type }}) -> {{ scalar_
         with self.assertRaises(ValueError):
             _ = f.hvp(0).generate_rust()
 
+    def test_vector_hessian_codegen_requires_matching_registered_helper(self) -> None:
+        missing_vector_hessian = register_elementary_function(
+            name="missing_vector_hessian",
+            input_dimension=2,
+            parameters={"w0": 1.0, "w1": 1.0},
+            eval_python=lambda x, w0, w1: w0 * x[0] * x[0] + w1 * x[1] * x[1],
+            jacobian=lambda x, w0, w1: SXVector((2 * w0 * x[0], 2 * w1 * x[1])),
+            hessian=lambda x, w0, w1: (
+                SXVector((2 * w0, SX.const(0.0))),
+                SXVector((SX.const(0.0), 2 * w1)),
+            ),
+            rust_primal="""
+fn missing_vector_hessian(
+    x: &[{{ scalar_type }}],
+    w0: {{ scalar_type }},
+    w1: {{ scalar_type }},
+) -> {{ scalar_type }} {
+    w0 * x[0] * x[0] + w1 * x[1] * x[1]
+}
+""",
+        )
+
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "f",
+            [x],
+            [missing_vector_hessian(x, w0=2.0, w1=3.0)],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        with self.assertRaises(ValueError):
+            _ = f.hessian(0).generate_rust()
+
     def test_rust_codegen_emits_registered_helpers(self) -> None:
         square_shift = register_elementary_function(
             name="square_shift_codegen",
@@ -272,3 +306,56 @@ fn weighted_sqnorm_codegen_hessian(
 
         self.assertIn("fn weighted_sqnorm_codegen_hessian(", hessian.source)
         self.assertIn("weighted_sqnorm_codegen_hessian(x, 2.0_f64, 3.0_f64, y);", hessian.source)
+
+    def test_vector_custom_hessian_supports_larger_flat_row_major_shape(self) -> None:
+        weighted_sqnorm3 = register_elementary_function(
+            name="weighted_sqnorm3",
+            input_dimension=3,
+            parameters={"w0": 1.0, "w1": 1.0, "w2": 1.0},
+            eval_python=lambda x, w0, w1, w2: w0 * x[0] * x[0] + w1 * x[1] * x[1] + w2 * x[2] * x[2],
+            jacobian=lambda x, w0, w1, w2: SXVector((2 * w0 * x[0], 2 * w1 * x[1], 2 * w2 * x[2])),
+            hessian=lambda x, w0, w1, w2: (
+                SXVector((2 * w0, SX.const(0.0), SX.const(0.0))),
+                SXVector((SX.const(0.0), 2 * w1, SX.const(0.0))),
+                SXVector((SX.const(0.0), SX.const(0.0), 2 * w2)),
+            ),
+            rust_primal="""
+fn weighted_sqnorm3(
+    x: &[{{ scalar_type }}],
+    w0: {{ scalar_type }},
+    w1: {{ scalar_type }},
+    w2: {{ scalar_type }},
+) -> {{ scalar_type }} {
+    w0 * x[0] * x[0] + w1 * x[1] * x[1] + w2 * x[2] * x[2]
+}
+""",
+            rust_hessian="""
+fn weighted_sqnorm3_hessian(
+    x: &[{{ scalar_type }}],
+    w0: {{ scalar_type }},
+    w1: {{ scalar_type }},
+    w2: {{ scalar_type }},
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w0;
+    out[1] = 0.0_{{ scalar_type }};
+    out[2] = 0.0_{{ scalar_type }};
+    out[3] = 0.0_{{ scalar_type }};
+    out[4] = 2.0_{{ scalar_type }} * w1;
+    out[5] = 0.0_{{ scalar_type }};
+    out[6] = 0.0_{{ scalar_type }};
+    out[7] = 0.0_{{ scalar_type }};
+    out[8] = 2.0_{{ scalar_type }} * w2;
+}
+""",
+        )
+
+        x = SXVector.sym("x", 3)
+        f = Function("f", [x], [weighted_sqnorm3(x, w0=2.0, w1=3.0, w2=4.0)], input_names=["x"], output_names=["y"])
+
+        self.assertEqual(f.hessian(0)([1.0, 2.0, 3.0]), (4.0, 0.0, 0.0, 0.0, 6.0, 0.0, 0.0, 0.0, 8.0))
+
+        source = f.hessian(0).generate_rust().source
+        self.assertIn("fn weighted_sqnorm3_hessian(", source)
+        self.assertIn("weighted_sqnorm3_hessian(x, 2.0_f64, 3.0_f64, 4.0_f64, y);", source)
