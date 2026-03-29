@@ -843,8 +843,8 @@ mod tests {{
         self.assertIn("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {", result.source)
         self.assertIn("fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {", result.source)
         self.assertIn("matvec(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, x, mx);", result.source)
-        self.assertIn("work[2] = quadform(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, x);", result.source)
-        self.assertIn("work[3] = bilinear_form(x, &[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, y);", result.source)
+        self.assertIn("work[0] = quadform(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, x);", result.source)
+        self.assertIn("work[1] = bilinear_form(x, &[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, y);", result.source)
 
     def test_generated_code_supports_f32_constant_matrix_helpers(self) -> None:
         x = SXVector.sym("x", 2)
@@ -1557,6 +1557,94 @@ fn weighted_sqnorm_runtime_hessian(
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    def test_custom_vector_derivative_helpers_skip_dead_component_workspace(self) -> None:
+        weighted_sqnorm = register_elementary_function(
+            name="weighted_sqnorm_no_dead_work",
+            input_dimension=2,
+            parameter_dimension=2,
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+            hessian=lambda x, w: [
+                [2 * w[0], 0.0],
+                [0.0, 2 * w[1]],
+            ],
+            hvp=lambda x, v, w: [2 * w[0] * v[0], 2 * w[1] * v[1]],
+            rust_primal="""
+fn weighted_sqnorm_no_dead_work(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+) -> {{ scalar_type }} {
+    w[0] * x[0] * x[0] + w[1] * x[1] * x[1]
+}
+""",
+            rust_jacobian="""
+fn weighted_sqnorm_no_dead_work_jacobian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    out[0] = 2.0_{{ scalar_type }} * w[0] * x[0];
+    out[1] = 2.0_{{ scalar_type }} * w[1] * x[1];
+}
+""",
+            rust_hessian="""
+fn weighted_sqnorm_no_dead_work_hessian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w[0];
+    out[1] = 0.0_{{ scalar_type }};
+    out[2] = 0.0_{{ scalar_type }};
+    out[3] = 2.0_{{ scalar_type }} * w[1];
+}
+""",
+            rust_hvp="""
+fn weighted_sqnorm_no_dead_work_hvp(
+    x: &[{{ scalar_type }}],
+    v_x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w[0] * v_x[0];
+    out[1] = 2.0_{{ scalar_type }} * w[1] * v_x[1];
+}
+""",
+        )
+
+        x = SXVector.sym("x", 2)
+        function = Function(
+            "custom_energy",
+            [x],
+            [weighted_sqnorm(x, w=[2.0, 3.0])],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        gradient_codegen = function.gradient(0).simplify("medium", name="custom_energy_grad").generate_rust(
+            backend_mode="no_std"
+        )
+        hessian_codegen = function.hessian(0).simplify("medium", name="custom_energy_hessian").generate_rust(
+            backend_mode="no_std"
+        )
+        hvp_codegen = function.hvp(0).simplify("medium", name="custom_energy_hvp").generate_rust(
+            backend_mode="no_std"
+        )
+
+        self.assertEqual(gradient_codegen.workspace_size, 0)
+        self.assertIn("weighted_sqnorm_no_dead_work_jacobian(x, &[2.0_f64, 3.0_f64], y);", gradient_codegen.source)
+        self.assertNotIn("work[0] =", gradient_codegen.source)
+
+        self.assertEqual(hessian_codegen.workspace_size, 0)
+        self.assertIn("weighted_sqnorm_no_dead_work_hessian(x, &[2.0_f64, 3.0_f64], y);", hessian_codegen.source)
+        self.assertNotIn("work[0] =", hessian_codegen.source)
+
+        self.assertEqual(hvp_codegen.workspace_size, 0)
+        self.assertIn("weighted_sqnorm_no_dead_work_hvp(x, v_x, &[2.0_f64, 3.0_f64], y);", hvp_codegen.source)
+        self.assertNotIn("work[0] =", hvp_codegen.source)
 
     def test_generated_rust_project_builds_for_simplified_function(self) -> None:
         x = SX.sym("x")

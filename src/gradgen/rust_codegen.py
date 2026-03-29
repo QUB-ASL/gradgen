@@ -200,6 +200,7 @@ def generate_rust(
     math_library: str | None = None,
     function_index: int = 0,
     shared_helper_nodes: tuple[SXNode, ...] | None = None,
+    shared_helper_suppressed_custom_wrappers: set[tuple[str, str]] | None = None,
     emit_crate_header: bool = True,
     emit_docs: bool = True,
     function_keyword: str = "pub fn",
@@ -272,6 +273,7 @@ def generate_rust(
     output_assert_lines: list[str] = []
     output_write_lines: list[str] = []
     computation_lines: list[str] = []
+    suppressed_custom_wrappers: set[tuple[str, str]] = set()
 
     for input_spec, input_arg in zip(input_specs, function.inputs):
         input_assert_lines.append(
@@ -280,7 +282,52 @@ def generate_rust(
         for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
             scalar_bindings[scalar.node] = f"{input_spec.rust_name}[{scalar_index}]"
 
-    workspace_map, workspace_size = _allocate_workspace_slots(function)
+    direct_output_helpers: list[str | None] = []
+    materialized_output_refs: list[SX] = []
+    for output_spec, output_arg in zip(output_specs, function.outputs):
+        custom_helper_call = _emit_custom_vector_output_helper_call(
+            output_arg,
+            output_spec.rust_name,
+            scalar_bindings,
+            {},
+            resolved_config.backend_mode,
+            resolved_config.scalar_type,
+            resolved_math_library,
+        )
+        if custom_helper_call is not None:
+            direct_output_helpers.append(custom_helper_call)
+            marker = _identify_direct_custom_output_marker(
+                output_arg,
+                scalar_bindings,
+                {},
+                resolved_config.backend_mode,
+                resolved_config.scalar_type,
+                resolved_math_library,
+            )
+            if marker is not None:
+                suppressed_custom_wrappers.add(marker)
+            continue
+
+        matvec_helper_call = _emit_matvec_output_helper_call(
+            output_arg,
+            output_spec.rust_name,
+            scalar_bindings,
+            {},
+            resolved_config.backend_mode,
+            resolved_config.scalar_type,
+            resolved_math_library,
+        )
+        if matvec_helper_call is not None:
+            direct_output_helpers.append(matvec_helper_call)
+            continue
+
+        direct_output_helpers.append(None)
+        materialized_output_refs.extend(_flatten_arg(output_arg))
+
+    workspace_map, workspace_size = _allocate_workspace_slots(
+        function,
+        output_refs=tuple(materialized_output_refs),
+    )
 
     for node, work_index in workspace_map.items():
         rhs = _emit_node_expr(
@@ -293,33 +340,23 @@ def generate_rust(
         )
         computation_lines.append(f"work[{work_index}] = {rhs};")
 
-    for output_spec, output_arg in zip(output_specs, function.outputs):
+    for output_spec, output_arg, direct_helper_call in zip(output_specs, function.outputs, direct_output_helpers):
         output_assert_lines.append(
             f"assert_eq!({output_spec.rust_name}.len(), {output_spec.size});"
         )
-        custom_helper_call = _emit_custom_vector_output_helper_call(
-            output_arg,
-            output_spec.rust_name,
-            scalar_bindings,
-            workspace_map,
-            resolved_config.backend_mode,
-            resolved_config.scalar_type,
-            resolved_math_library,
-        )
-        if custom_helper_call is not None:
-            output_write_lines.append(custom_helper_call)
-            continue
-        matvec_helper_call = _emit_matvec_output_helper_call(
-            output_arg,
-            output_spec.rust_name,
-            scalar_bindings,
-            workspace_map,
-            resolved_config.backend_mode,
-            resolved_config.scalar_type,
-            resolved_math_library,
-        )
-        if matvec_helper_call is not None:
-            output_write_lines.append(matvec_helper_call)
+        if direct_helper_call is not None:
+            output_write_lines.append(
+                _reemit_direct_output_helper_call(
+                    direct_helper_call,
+                    output_arg,
+                    output_spec.rust_name,
+                    scalar_bindings,
+                    workspace_map,
+                    resolved_config.backend_mode,
+                    resolved_config.scalar_type,
+                    resolved_math_library,
+                )
+            )
             continue
         for scalar_index, scalar in enumerate(_flatten_arg(output_arg)):
             output_ref = _emit_expr_ref(
@@ -365,10 +402,15 @@ def generate_rust(
         computation_lines=computation_lines,
         output_write_lines=output_write_lines,
         shared_helper_lines=_build_shared_helper_lines(
-            shared_helper_nodes or function.nodes,
+            function.nodes if shared_helper_nodes is None else shared_helper_nodes,
             resolved_config.backend_mode,
             resolved_config.scalar_type,
             resolved_math_library,
+            suppressed_custom_wrappers=(
+                suppressed_custom_wrappers
+                if shared_helper_nodes is None
+                else (shared_helper_suppressed_custom_wrappers or set())
+            ),
         ),
     )
 
@@ -541,6 +583,24 @@ def create_multi_function_rust_project(
             )
             if index == 0
             else (),
+            shared_helper_suppressed_custom_wrappers=(
+                {
+                    marker
+                    for generated_function in functions
+                    if isinstance(generated_function, Function)
+                    for marker in _collect_suppressed_custom_wrappers(
+                        generated_function,
+                        resolved_config.backend_mode,
+                        resolved_config.scalar_type,
+                        _resolve_math_library(
+                            resolved_config.backend_mode,
+                            resolved_config.math_library,
+                        ),
+                    )
+                }
+                if index == 0
+                else set()
+            ),
         )
         for index, function in enumerate(functions)
     )
@@ -1697,14 +1757,24 @@ def _emit_node_expr(
     raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
 
 
-def _allocate_workspace_slots(function: Function) -> tuple[dict[SXNode, int], int]:
+def _allocate_workspace_slots(
+    function: Function,
+    *,
+    output_refs: tuple[SX, ...] | None = None,
+) -> tuple[dict[SXNode, int], int]:
     """Assign reusable workspace slots based on each node's last use."""
-    workspace_nodes = [node for node in function.nodes if node.op not in {"symbol", "const"}]
+    if output_refs is None:
+        output_refs = tuple(scalar for output in function.outputs for scalar in _flatten_arg(output))
+    required_nodes = _collect_required_workspace_nodes(output_refs)
+    workspace_nodes = [
+        node
+        for node in function.nodes
+        if node.op not in {"symbol", "const"} and node in required_nodes
+    ]
     if not workspace_nodes:
         return {}, 0
 
     node_index = {node: index for index, node in enumerate(workspace_nodes)}
-    output_refs: list[SX] = [scalar for output in function.outputs for scalar in _flatten_arg(output)]
     last_use = {node: index for index, node in enumerate(workspace_nodes)}
 
     for index, node in enumerate(workspace_nodes):
@@ -1737,6 +1807,82 @@ def _allocate_workspace_slots(function: Function) -> tuple[dict[SXNode, int], in
         expiring_by_index.setdefault(last_use[node], []).append(slot)
 
     return workspace_map, next_slot
+
+
+def _collect_required_workspace_nodes(output_refs: tuple[SX, ...]) -> set[SXNode]:
+    """Return non-trivial nodes reachable from the materialized outputs."""
+    required: set[SXNode] = set()
+    stack = [expr.node for expr in output_refs]
+    while stack:
+        node = stack.pop()
+        if node in required or node.op in {"symbol", "const"}:
+            continue
+        required.add(node)
+        stack.extend(node.args)
+    return required
+
+
+def _reemit_direct_output_helper_call(
+    direct_helper_call: str,
+    output_arg: SX | SXVector,
+    output_name: str,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str:
+    """Rebuild a direct output helper call using the final workspace map."""
+    custom_helper_call = _emit_custom_vector_output_helper_call(
+        output_arg,
+        output_name,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    if custom_helper_call is not None:
+        return custom_helper_call
+    matvec_helper_call = _emit_matvec_output_helper_call(
+        output_arg,
+        output_name,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    if matvec_helper_call is not None:
+        return matvec_helper_call
+    return direct_helper_call
+
+
+def _collect_suppressed_custom_wrappers(
+    function: Function,
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> set[tuple[str, str]]:
+    """Return custom wrapper kinds that are superseded by direct output helpers."""
+    scalar_bindings: dict[SXNode, str] = {}
+    for input_index, input_arg in enumerate(function.inputs):
+        for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
+            scalar_bindings[scalar.node] = f"arg_{input_index}[{scalar_index}]"
+
+    suppressed: set[tuple[str, str]] = set()
+    for output_arg in function.outputs:
+        marker = _identify_direct_custom_output_marker(
+            output_arg,
+            scalar_bindings,
+            {},
+            backend_mode,
+            scalar_type,
+            math_library,
+        )
+        if marker is not None:
+            suppressed.add(marker)
+    return suppressed
 
 
 def _emit_expr_ref(
@@ -2077,6 +2223,8 @@ def _build_shared_helper_lines(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    *,
+    suppressed_custom_wrappers: set[tuple[str, str]] | None = None,
 ) -> tuple[str, ...]:
     """Return module-scope helper definitions needed by generated kernels."""
     used_ops = {node.op for node in nodes}
@@ -2170,7 +2318,12 @@ def _build_shared_helper_lines(
             ]
         )
 
-    custom_helper_lines = _build_custom_helper_lines(nodes, scalar_type, math_library)
+    custom_helper_lines = _build_custom_helper_lines(
+        nodes,
+        scalar_type,
+        math_library,
+        suppressed_wrappers=suppressed_custom_wrappers or set(),
+    )
     if custom_helper_lines:
         lines.extend(custom_helper_lines)
 
@@ -2283,6 +2436,8 @@ def _build_custom_helper_lines(
     nodes: tuple[SXNode, ...],
     scalar_type: RustScalarType,
     math_library: str | None,
+    *,
+    suppressed_wrappers: set[tuple[str, str]],
 ) -> tuple[str, ...]:
     """Return shared helper lines for registered custom elementary functions."""
     emitted: list[str] = []
@@ -2320,11 +2475,11 @@ def _build_custom_helper_lines(
             )
         seen.add(marker)
         emitted.extend(render_custom_rust_snippet(snippet, scalar_type=scalar_type, math_library=math_library))
-        if not spec.is_scalar and helper_kind == "jacobian":
+        if not spec.is_scalar and helper_kind == "jacobian" and (spec.name, "jacobian") not in suppressed_wrappers:
             emitted.extend(_build_custom_vector_jacobian_wrapper_lines(spec, scalar_type))
-        if not spec.is_scalar and helper_kind == "hvp":
+        if not spec.is_scalar and helper_kind == "hvp" and (spec.name, "hvp") not in suppressed_wrappers:
             emitted.extend(_build_custom_vector_hvp_wrapper_lines(spec, scalar_type))
-        if not spec.is_scalar and helper_kind == "hessian":
+        if not spec.is_scalar and helper_kind == "hessian" and (spec.name, "hessian") not in suppressed_wrappers:
             emitted.extend(_build_custom_vector_hessian_wrapper_lines(spec, scalar_type))
 
     return tuple(emitted)
@@ -2475,6 +2630,56 @@ def _emit_custom_vector_output_helper_call(
     )
     if hessian_call is not None:
         return hessian_call
+
+    return None
+
+
+def _identify_direct_custom_output_marker(
+    output_arg: SX | SXVector,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> tuple[str, str] | None:
+    """Return the custom helper marker used by a direct output helper call."""
+    if not isinstance(output_arg, SXVector) or not output_arg.elements:
+        return None
+
+    jacobian_call = _match_custom_vector_derivative_output(
+        output_arg,
+        derivative_kind="jacobian",
+        scalar_bindings=scalar_bindings,
+        workspace_map=workspace_map,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    if jacobian_call is not None:
+        return jacobian_call[0], "jacobian"
+
+    hvp_call = _match_custom_vector_derivative_output(
+        output_arg,
+        derivative_kind="hvp",
+        scalar_bindings=scalar_bindings,
+        workspace_map=workspace_map,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    if hvp_call is not None:
+        return hvp_call[0], "hvp"
+
+    hessian_call = _match_custom_vector_hessian_output(
+        output_arg,
+        scalar_bindings=scalar_bindings,
+        workspace_map=workspace_map,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    if hessian_call is not None:
+        return hessian_call[0], "hessian"
 
     return None
 
