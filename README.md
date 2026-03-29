@@ -296,6 +296,30 @@ print(reverse(2.0, 5.0))
 - outputs ordered like the original inputs
 - values equal to the vector-Jacobian product for the supplied cotangent direction
 
+If you want a runtime-seeded reverse-mode function instead, provide `wrt_index`:
+
+```python
+from gradgen import Function, SXVector
+
+x = SXVector.sym("x", 2)
+G = Function(
+    "G",
+    [x],
+    [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+    input_names=["x"],
+    output_names=["y"],
+)
+
+reverse_x = G.vjp(wrt_index=0)
+print(reverse_x([3.0, 4.0], [2.0, -1.0, 5.0]))
+```
+
+This returns a `Function` with:
+
+- the original primal inputs
+- one appended cotangent input per declared output
+- a single output block equal to $J_G(x)^\top v$ for the selected input block
+
 For scalar-output functions, there is also a high-level `Function.gradient(...)` helper:
 
 ```python
@@ -625,6 +649,7 @@ Each `for_function(...)` block configures the kernels generated for one source
 - `add_primal()`
 - `add_gradient()`
 - `add_jacobian()`
+- `add_vjp()`
 - `add_joint(FunctionBundle().add_f().add_jf(wrt=0))`
 - `add_joint(FunctionBundle().add_f().add_hvp(wrt=0))`
 - `add_joint(FunctionBundle().add_f().add_jf(wrt=0).add_hvp(wrt=0))`

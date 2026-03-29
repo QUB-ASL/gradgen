@@ -471,7 +471,7 @@ class Function:
                 (*self.inputs, *cotangent_inputs),
                 [total],
                 input_names=(*self.input_names, *resolved_cotangent_names),
-                output_names=(self.input_names[wrt_index],),
+                output_names=(f"vjp_{self.input_names[wrt_index]}",),
             )
 
         if cotangent_names is not None:
@@ -494,7 +494,7 @@ class Function:
             self.inputs,
             differentiated_inputs,
             input_names=self.input_names,
-            output_names=self.input_names,
+            output_names=tuple(f"vjp_{input_name}" for input_name in self.input_names),
         )
 
     def jacobian(self, wrt_index: int = 0, name: str | None = None) -> Function:

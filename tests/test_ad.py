@@ -489,7 +489,7 @@ class JacobianTests(unittest.TestCase):
         result = reverse([3.0, 4.0], [2.0, -1.0, 5.0])
 
         self.assertAlmostEqual(result[0], -2.0)
-        self.assertAlmostEqual(result[1], 1.0 + 5.0 * math.cos(4.0))
+        self.assertAlmostEqual(result[1], -1.0 + 5.0 * math.cos(4.0))
 
     def test_function_jacobian_validates_index(self) -> None:
         x = SX.sym("x")
