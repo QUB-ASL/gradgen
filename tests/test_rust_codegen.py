@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from gradgen.rust_codegen import _gradgen_version
 from gradgen import (
     CodeGenerationBuilder,
     ComposedFunction,
@@ -747,7 +748,7 @@ mod single_shooting_multi_u_tests {{
             metadata = json.loads(project.metadata_json.read_text(encoding="utf-8"))
 
             self.assertEqual(metadata["crate_name"], "energy")
-            self.assertEqual(metadata["gradgen_version"], "0.3.1")
+            self.assertEqual(metadata["gradgen_version"], _gradgen_version())
             self.assertIsNotNone(datetime.fromisoformat(metadata["created_at"].replace("Z", "+00:00")))
             self.assertEqual(
                 metadata["functions"],
@@ -1173,7 +1174,7 @@ mod tests {{
                 ("multi_demo_f_f", "multi_demo_f_jf", "multi_demo_g_f", "multi_demo_g_jf"),
             )
             self.assertEqual(metadata["crate_name"], "multi_demo")
-            self.assertEqual(metadata["gradgen_version"], "0.3.1")
+            self.assertEqual(metadata["gradgen_version"], _gradgen_version())
             self.assertIsNotNone(datetime.fromisoformat(metadata["created_at"].replace("Z", "+00:00")))
             self.assertEqual(
                 [entry["function_name"] for entry in metadata["functions"]],
