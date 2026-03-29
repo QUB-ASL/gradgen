@@ -53,15 +53,12 @@ project = (
         .with_backend_mode("no_std")
         .with_scalar_type("f64")
     )
-    .for_function(
-        G,
-        lambda b: (
-            b.add_primal()
-            .add_jacobian()
-            .add_vjp()
-            .with_simplification("medium")
-        ),
-    )
+    .for_function(G)
+        .add_primal()
+        .add_jacobian()
+        .add_vjp()
+        .with_simplification("medium")
+        .done()
     .build(Path(__file__).resolve().parent / "vjp_kernel")
 )
 

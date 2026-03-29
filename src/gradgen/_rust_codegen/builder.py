@@ -138,18 +138,22 @@ class CodeGenerationBuilder:
         self,
         function: BuilderSource,
         configure: Callable[[CodeGenerationBuilder], CodeGenerationBuilder] | None = None,
-    ) -> CodeGenerationBuilder:
-        """Add ``function`` to the crate, optionally configuring its kernels."""
-        scoped_builder = CodeGenerationBuilder(function=function, config=self.config)
-        configured_builder = configure(scoped_builder) if configure is not None else scoped_builder
-        if configured_builder.function is None:
-            raise ValueError("configured function builder must target a function")
-        entry = _BuilderFunctionSpec(
-            function=configured_builder.function,
-            requests=configured_builder.requests,
-            simplification=configured_builder.simplification,
+    ) -> CodeGenerationBuilder | FunctionCodegenBuilder:
+        """Start configuring kernels for ``function`` or apply a legacy callback."""
+        scoped_builder = FunctionCodegenBuilder(parent=self, function=function)
+        if configure is None:
+            return scoped_builder
+        configured_builder = configure(
+            CodeGenerationBuilder(function=function, config=self.config)
         )
-        return replace(self, functions=(*self.functions, entry))
+        return _append_builder_function_spec(
+            self,
+            _BuilderFunctionSpec(
+                function=_require_builder_function(configured_builder),
+                requests=configured_builder.requests,
+                simplification=configured_builder.simplification,
+            ),
+        )
 
     def build(self, path: str | Path):
         """Generate a single Rust crate containing all requested kernels."""
@@ -204,6 +208,90 @@ class CodeGenerationBuilder:
                 "no kernels were requested; call add_primal() or another add_* method first"
             )
         return specs
+
+
+@dataclass(frozen=True, slots=True)
+class FunctionCodegenBuilder:
+    """Scoped builder used to configure kernels for one source function."""
+
+    parent: CodeGenerationBuilder
+    function: BuilderSource
+    requests: tuple[_BuilderRequest, ...] = ()
+    simplification: int | str | None = None
+
+    def with_simplification(self, max_effort: int | str | None) -> FunctionCodegenBuilder:
+        """Return a copy applying ``max_effort`` simplification to this function."""
+        return replace(self, simplification=max_effort)
+
+    def add_primal(self) -> FunctionCodegenBuilder:
+        """Include the primal function in the generated crate."""
+        return self._add_request("primal")
+
+    def add_gradient(self) -> FunctionCodegenBuilder:
+        """Include gradient kernels for scalar-output functions."""
+        return self._add_request("gradient")
+
+    def add_jacobian(self) -> FunctionCodegenBuilder:
+        """Include Jacobian kernels for all input blocks."""
+        return self._add_request("jacobian")
+
+    def add_vjp(self) -> FunctionCodegenBuilder:
+        """Include runtime-seeded vector-Jacobian-product kernels for input blocks."""
+        return self._add_request("vjp")
+
+    def add_joint(self, bundle: FunctionBundle) -> FunctionCodegenBuilder:
+        """Include kernels that compute bundled artifacts together."""
+        return self._add_request("joint", bundle=bundle)
+
+    def add_hessian(self) -> FunctionCodegenBuilder:
+        """Include Hessian kernels for scalar-output functions."""
+        return self._add_request("hessian")
+
+    def add_hvp(self) -> FunctionCodegenBuilder:
+        """Include Hessian-vector product kernels for scalar-output functions."""
+        return self._add_request("hvp")
+
+    def done(self) -> CodeGenerationBuilder:
+        """Commit this scoped function configuration back to the parent builder."""
+        if not self.requests:
+            raise ValueError(
+                "no kernels were requested for this function; call add_primal() or another add_* method first"
+            )
+        return _append_builder_function_spec(
+            self.parent,
+            _BuilderFunctionSpec(
+                function=self.function,
+                requests=self.requests,
+                simplification=self.simplification,
+            ),
+        )
+
+    def _add_request(
+        self,
+        kind: str,
+        *,
+        components: tuple[str, ...] = (),
+        bundle: FunctionBundle | None = None,
+    ) -> FunctionCodegenBuilder:
+        candidate = _BuilderRequest(kind, components, bundle)
+        if any(request == candidate for request in self.requests):
+            return self
+        return replace(self, requests=(*self.requests, candidate))
+
+
+def _append_builder_function_spec(
+    builder: CodeGenerationBuilder,
+    spec: _BuilderFunctionSpec,
+) -> CodeGenerationBuilder:
+    """Return ``builder`` with one resolved function specification appended."""
+    return replace(builder, functions=(*builder.functions, spec))
+
+
+def _require_builder_function(builder: CodeGenerationBuilder) -> BuilderSource:
+    """Return the selected source function or raise for misconfigured callback builders."""
+    if builder.function is None:
+        raise ValueError("configured function builder must target a function")
+    return builder.function
 
 
 def resolve_builder_function_specs(

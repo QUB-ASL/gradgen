@@ -14,8 +14,8 @@ cargo build
 
 ## Generated Functions
 
-- `composed_kernel_composed_demo_f`: workspace `6`, inputs `(2, 11)`, outputs `(1,)`
-- `composed_kernel_composed_demo_grad_x`: workspace `18`, inputs `(2, 11)`, outputs `(2,)`
+- `composed_kernel_composed_demo_f`: workspace `6`, inputs `(2, 21)`, outputs `(1,)`
+- `composed_kernel_composed_demo_grad_x`: workspace `28`, inputs `(2, 21)`, outputs `(2,)`
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.

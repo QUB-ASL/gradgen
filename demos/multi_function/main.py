@@ -51,8 +51,8 @@ print("hvp g wrt x =", g.hvp(0)(x_value, u_value, v_x_value))
 
 
 # Build one Rust crate containing kernels for both source functions.
-# Each for_function(...) block controls what gets generated for one source
-# function.
+# Each scoped builder returned by for_function(...) controls what gets
+# generated for one source function, and done() commits that block.
 project = (
     CodeGenerationBuilder()
     .with_backend_config(
@@ -61,28 +61,22 @@ project = (
         .with_backend_mode("no_std")
         .with_scalar_type("f64")
     )
-    .for_function(
-        f,
-        lambda b: (
-            b.add_primal()
-            .add_jacobian()
-            .with_simplification("medium")
-        ),
-    )
-    .for_function(
-        g,
-        lambda b: (
-            b.add_primal()
-            .add_gradient()
-            .add_hvp()
-            .add_joint(
-                FunctionBundle()
-                .add_f()
-                .add_jf(wrt=0)
-            )
-            .with_simplification("medium")
-        ),
-    )
+    .for_function(f)
+        .add_primal()
+        .add_jacobian()
+        .with_simplification("medium")
+        .done()
+    .for_function(g)
+        .add_primal()
+        .add_gradient()
+        .add_hvp()
+        .add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=0)
+        )
+        .with_simplification("medium")
+        .done()
     .build(Path(__file__).resolve().parent / "multi_function_kernel")
 )
 

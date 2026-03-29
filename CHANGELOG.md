@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- Updated the preferred multi-function `CodeGenerationBuilder` API to use a
+  scoped `.for_function(...).add_*().done()` flow instead of the older
+  callback-based configuration style.
+- Kept backward compatibility for the older callback-based
+  `for_function(function, lambda b: ...)` form.
+- Updated the tests, demos, README examples, and demo documentation to use the
+  new scoped builder API.
+
+
+
 ## 0.3.1 - 29-03-2026
 
 ### Fixed

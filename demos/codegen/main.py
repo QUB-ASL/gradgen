@@ -56,14 +56,16 @@ project = (
         .with_backend_mode("no_std")
         .with_scalar_type("f64")
     )
-    .for_function(
-        f,
-        lambda b: b.add_primal().add_jacobian().with_simplification("medium"),
-    )
-    .for_function(
-        g,
-        lambda b: b.add_primal().add_jacobian().with_simplification("medium"),
-    )
+    .for_function(f)
+        .add_primal()
+        .add_jacobian()
+        .with_simplification("medium")
+        .done()
+    .for_function(g)
+        .add_primal()
+        .add_jacobian()
+        .with_simplification("medium")
+        .done()
     .build(Path(__file__).resolve().parent / "codegen_kernel")
 )
 

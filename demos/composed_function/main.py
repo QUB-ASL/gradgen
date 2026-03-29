@@ -106,10 +106,11 @@ backend_config = (
 project = (
     CodeGenerationBuilder()
     .with_backend_config(backend_config)
-    .for_function(
-        composed,
-        lambda builder: builder.add_primal().add_gradient().with_simplification("medium"),
-    )
+    .for_function(composed)
+    .add_primal()
+    .add_gradient()
+    .with_simplification("medium")
+    .done()
     .build(Path(__file__).resolve().parent / "composed_kernel")
 )
 

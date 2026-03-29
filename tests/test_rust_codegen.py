@@ -543,10 +543,10 @@ mod tests {{
         builder = (
             CodeGenerationBuilder()
             .with_backend_config(RustBackendConfig().with_crate_name("loop_demo"))
-            .for_function(
-                composed,
-                lambda b: b.add_primal().add_gradient(),
-            )
+            .for_function(composed)
+            .add_primal()
+            .add_gradient()
+            .done()
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -620,14 +620,15 @@ mod tests {{
         builder = (
             CodeGenerationBuilder()
             .with_backend_config(RustBackendConfig().with_crate_name("multi_demo"))
-            .for_function(
-                f,
-                lambda b: b.add_primal().add_jacobian().with_simplification("medium"),
-            )
-            .for_function(
-                g,
-                lambda b: b.add_primal().add_jacobian(),
-            )
+            .for_function(f)
+            .add_primal()
+            .add_jacobian()
+            .with_simplification("medium")
+            .done()
+            .for_function(g)
+            .add_primal()
+            .add_jacobian()
+            .done()
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -659,8 +660,12 @@ mod tests {{
                 .with_crate_name("multi_demo")
                 .with_function_name("shared_name")
             )
-            .for_function(f, lambda b: b.add_primal())
-            .for_function(g, lambda b: b.add_primal())
+            .for_function(f)
+            .add_primal()
+            .done()
+            .for_function(g)
+            .add_primal()
+            .done()
         )
 
         with self.assertRaises(ValueError):
@@ -675,6 +680,33 @@ mod tests {{
 
         with self.assertRaises(IndexError):
             CodeGenerationBuilder(f).add_joint(FunctionBundle().add_f().add_jf(wrt=3)).build("/tmp/unused")
+
+    def test_scoped_function_builder_requires_done_before_building_parent(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+        scoped = CodeGenerationBuilder().for_function(f).add_primal()
+
+        with self.assertRaises(AttributeError):
+            scoped.build("/tmp/unused")  # type: ignore[attr-defined]
+
+    def test_scoped_function_builder_rejects_done_without_requests(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+
+        with self.assertRaises(ValueError):
+            CodeGenerationBuilder().for_function(f).done()
+
+    def test_code_generation_builder_still_supports_callback_style_for_function_blocks(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
+
+        builder = CodeGenerationBuilder().for_function(f, lambda b: b.add_primal())
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "callback_style")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn callback_style_f_f(", lib_text)
 
     def test_backend_config_supports_scalar_type_updates(self) -> None:
         config = RustBackendConfig().with_scalar_type("f32")

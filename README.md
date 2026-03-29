@@ -679,27 +679,26 @@ builder = (
         .with_backend_mode("no_std")
         .with_scalar_type("f32")
     )
-    .for_function(
-        f,
-        lambda b: (
-            b.add_primal()
-             .add_gradient()
-             .add_hvp()
-             .add_joint(
-                 FunctionBundle()
-                 .add_f()
-                 .add_jf(wrt=0)
-             )
-             .with_simplification("medium")
-        ),
-    )
+    .for_function(f)
+        .add_primal()
+        .add_gradient()
+        .add_hvp()
+        .add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=0)
+        )
+        .with_simplification("medium")
+        .done()
 )
 
 project = builder.build("/tmp/my_kernel")
 ```
 
-Each `for_function(...)` block configures the kernels generated for one source
-`Function`. Inside that block, currently supported builder requests include:
+Each scoped builder returned by `for_function(...)` configures the kernels
+generated for one source `Function`. Call `.done()` to commit that block back
+to the parent builder. Inside that scoped builder, currently supported builder
+requests include:
 
 - `add_primal()`
 - `add_gradient()`
@@ -713,7 +712,7 @@ Each `for_function(...)` block configures the kernels generated for one source
 
 For backward compatibility, `CodeGenerationBuilder(f)` still works as a
 single-function shorthand. The examples below use the more general
-`for_function(...)` style.
+`for_function(...).done()` style.
 
 More generally, `add_joint(...)` accepts a `FunctionBundle`, which can describe
 primal outputs plus one or more derivative artifacts for one or more `wrt`
@@ -732,9 +731,11 @@ bundle = (
     .add_hessian(wrt=[0, 1])
 )
 
-builder = CodeGenerationBuilder().for_function(
-    f,
-    lambda b: b.add_joint(bundle),
+builder = (
+    CodeGenerationBuilder()
+    .for_function(f)
+    .add_joint(bundle)
+    .done()
 )
 ```
 
@@ -769,21 +770,18 @@ You can also request a uniform simplification pass for every generated kernel:
 ```python
 builder = (
     CodeGenerationBuilder()
-    .for_function(
-        f,
-        lambda b: (
-            b.add_primal()
-             .add_jacobian()
-             .add_hvp()
-             .add_joint(
-                 FunctionBundle()
-                 .add_f()
-                 .add_jf(wrt=0)
-                 .add_hvp(wrt=0)
-             )
-             .with_simplification("medium")
+    .for_function(f)
+        .add_primal()
+        .add_jacobian()
+        .add_hvp()
+        .add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=0)
+            .add_hvp(wrt=0)
         )
-    )
+        .with_simplification("medium")
+        .done()
 )
 ```
 
@@ -912,29 +910,23 @@ config = (
 builder = (
     CodeGenerationBuilder()
     .with_backend_config(config)
-    .for_function(
-        f,
-        lambda b: (
-            b.add_primal()
-             .add_jacobian()
-             .add_hvp()
-             .add_joint(
-                 FunctionBundle()
-                 .add_f()
-                 .add_jf(wrt=0)
-                 .add_hvp(wrt=0)
-             )
-             .with_simplification("medium")
-        ),
-    )
-    .for_function(
-        g,
-        lambda b: (
-            b.add_primal()
-             .add_gradient()
-             .with_simplification("medium")
-        ),
-    )
+    .for_function(f)
+        .add_primal()
+        .add_jacobian()
+        .add_hvp()
+        .add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=0)
+            .add_hvp(wrt=0)
+        )
+        .with_simplification("medium")
+        .done()
+    .for_function(g)
+        .add_primal()
+        .add_gradient()
+        .with_simplification("medium")
+        .done()
 )
 
 project = builder.build("./my_kernel")

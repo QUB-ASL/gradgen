@@ -262,7 +262,11 @@ mod integration_sympy_vector {{
         builder = (
             CodeGenerationBuilder()
             .with_backend_config(RustBackendConfig().with_crate_name("sympy_composed"))
-            .for_function(composed, lambda b: b.add_primal().add_gradient().with_simplification("medium"))
+            .for_function(composed)
+            .add_primal()
+            .add_gradient()
+            .with_simplification("medium")
+            .done()
         )
 
         with TemporaryDirectory() as tmpdir:

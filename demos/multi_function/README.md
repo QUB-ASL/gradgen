@@ -20,9 +20,10 @@ The point of the demo is not the algebra itself, but the code-generation
 workflow:
 
 1. define more than one `Function`
-2. register each one with `CodeGenerationBuilder.for_function(...)`
+2. start one scoped block for each one with `CodeGenerationBuilder.for_function(...)`
 3. request different generated kernels for each source function
-4. build one Rust crate containing all of them
+4. call `.done()` to commit each scoped block
+5. build one Rust crate containing all of them
 
 In this example:
 
