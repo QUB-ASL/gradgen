@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added deterministic single-shooting optimal-control support through
+  `SingleShootingProblem` and `SingleShootingBundle`.
+- Added loop-based Rust code generation for fixed-horizon single-shooting
+  problems, including total-cost kernels, gradients with respect to the packed
+  control sequence, and joint kernels that can also return rollout states.
+- Added a dedicated `demos/single_shooting` demo and runner crate showing how
+  to generate and call the resulting Rust crate in practice.
+
 ### Changed
 
 - Updated the preferred multi-function `CodeGenerationBuilder` API to use a
@@ -16,6 +26,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `for_function(function, lambda b: ...)` form.
 - Updated the tests, demos, README examples, and demo documentation to use the
   new scoped builder API.
+- Updated CI and demo tooling so the single-shooting demo is generated and run
+  alongside the other demos.
 
 
 
