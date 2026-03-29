@@ -1273,6 +1273,7 @@ mod math {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+
     def test_generated_rust_project_is_clippy_clean(self) -> None:
         x = SXVector.sym("x", 3)
         u = SXVector.sym("u", 1)
