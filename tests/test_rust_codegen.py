@@ -10,6 +10,7 @@ from gradgen import (
     RustBackendConfig,
     SX,
     SXVector,
+    create_multi_function_rust_project,
     create_rust_derivative_bundle,
     create_rust_project,
     derivative,
@@ -370,6 +371,100 @@ mod tests {{
         self.assertIn("libm::logf(", result.source)
         self.assertIn("libm::sqrtf(", result.source)
         self.assertIn("libm::powf(", result.source)
+
+    def test_generated_code_supports_extended_math_methods(self) -> None:
+        x = SX.sym("x")
+        expr = (
+            x.tan()
+            + x.asin()
+            + x.acos()
+            + x.atan()
+            + x.sinh()
+            + x.cosh()
+            + x.tanh()
+            + x.expm1()
+            + x.log1p()
+            + x.abs()
+        )
+        f = Function("f", [x], [expr], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust()
+
+        self.assertIn(".tan()", result.source)
+        self.assertIn(".asin()", result.source)
+        self.assertIn(".acos()", result.source)
+        self.assertIn(".atan()", result.source)
+        self.assertIn(".sinh()", result.source)
+        self.assertIn(".cosh()", result.source)
+        self.assertIn(".tanh()", result.source)
+        self.assertIn(".exp_m1()", result.source)
+        self.assertIn(".ln_1p()", result.source)
+        self.assertIn(".abs()", result.source)
+
+    def test_no_std_codegen_supports_extended_libm_functions(self) -> None:
+        x = SX.sym("x")
+        expr = (
+            x.tan()
+            + x.asin()
+            + x.acos()
+            + x.atan()
+            + x.sinh()
+            + x.cosh()
+            + x.tanh()
+            + x.expm1()
+            + x.log1p()
+            + x.abs()
+        )
+        f = Function("f", [x], [expr], input_names=["x"], output_names=["y"])
+
+        result = f.generate_rust(backend_mode="no_std")
+
+        self.assertIn("libm::tan(", result.source)
+        self.assertIn("libm::asin(", result.source)
+        self.assertIn("libm::acos(", result.source)
+        self.assertIn("libm::atan(", result.source)
+        self.assertIn("libm::sinh(", result.source)
+        self.assertIn("libm::cosh(", result.source)
+        self.assertIn("libm::tanh(", result.source)
+        self.assertIn("libm::expm1(", result.source)
+        self.assertIn("libm::log1p(", result.source)
+        self.assertIn("libm::fabs(", result.source)
+
+    def test_generated_code_supports_vector_norms(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function(
+            "f",
+            [x],
+            [x.norm1(), x.norm2(), x.norm2sq(), x.norm_inf(), x.norm_p(3), x.norm_p_to_p(3)],
+            input_names=["x"],
+            output_names=["n1", "n2", "n2sq", "ni", "np", "npp"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("fn norm1(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn norm2(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn norm2sq(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn norm_inf(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn norm_p(values: &[f64], p: f64) -> f64 {", result.source)
+        self.assertIn("fn norm_p_to_p(values: &[f64], p: f64) -> f64 {", result.source)
+        self.assertIn("norm1(x)", result.source)
+        self.assertIn("norm2(x)", result.source)
+        self.assertIn("norm2sq(x)", result.source)
+        self.assertIn("norm_inf(x)", result.source)
+        self.assertIn("norm_p(x, 3.0_f64)", result.source)
+        self.assertIn("norm_p_to_p(x, 3.0_f64)", result.source)
+
+    def test_multi_function_project_emits_norm2_helper_once(self) -> None:
+        x = SXVector.sym("x", 3)
+        f1 = Function("f1", [x], [x.norm2()], input_names=["x"], output_names=["y1"])
+        f2 = Function("f2", [x], [x.norm2()], input_names=["x"], output_names=["y2"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_multi_function_rust_project((f1, f2), Path(tmpdir) / "norm2_bundle")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertEqual(lib_text.count("fn norm2(values: &[f64]) -> f64 {"), 1)
 
     def test_generated_code_reuses_shared_dag_nodes(self) -> None:
         x = SX.sym("x")

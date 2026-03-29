@@ -98,6 +98,54 @@ def _simplify_scalar_once(expr: SX, cache: dict[SXNode, SX]) -> SX:
 
 def _apply_rules(op: str, args: tuple[SX, ...]) -> SX:
     """Apply local algebraic simplification rules."""
+    if op == "norm2":
+        if not args:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            total = sum(_const_value(arg) * _const_value(arg) for arg in args)
+            return SX.const(math.sqrt(total))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm2sq":
+        if not args:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            total = sum(_const_value(arg) * _const_value(arg) for arg in args)
+            return SX.const(total)
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm1":
+        if not args:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            return SX.const(sum(math.fabs(_const_value(arg)) for arg in args))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm_inf":
+        if not args:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            return SX.const(max(math.fabs(_const_value(arg)) for arg in args))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm_p_to_p":
+        if len(args) < 2:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            p = _const_value(args[-1])
+            total = sum(math.fabs(_const_value(arg)) ** p for arg in args[:-1])
+            return SX.const(total)
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
+    if op == "norm_p":
+        if len(args) < 2:
+            return SX.const(0.0)
+        if all(_is_const(arg) for arg in args):
+            p = _const_value(args[-1])
+            total = sum(math.fabs(_const_value(arg)) ** p for arg in args[:-1])
+            return SX.const(total ** (1.0 / p))
+        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+
     if op == "neg":
         arg = args[0]
         if _is_const(arg):
@@ -280,6 +328,8 @@ def _evaluate_const_op(op: str, left: float, right: float) -> float:
         return left / right
     if op == "pow":
         return left**right
+    if op == "max":
+        return max(left, right)
     raise ValueError(f"cannot constant-fold operation {op!r}")
 
 
@@ -289,12 +339,32 @@ def _evaluate_const_unary(op: str, value: float) -> float:
         return math.sin(value)
     if op == "cos":
         return math.cos(value)
+    if op == "tan":
+        return math.tan(value)
+    if op == "asin":
+        return math.asin(value)
+    if op == "acos":
+        return math.acos(value)
+    if op == "atan":
+        return math.atan(value)
+    if op == "sinh":
+        return math.sinh(value)
+    if op == "cosh":
+        return math.cosh(value)
+    if op == "tanh":
+        return math.tanh(value)
     if op == "exp":
         return math.exp(value)
+    if op == "expm1":
+        return math.expm1(value)
     if op == "log":
         return math.log(value)
+    if op == "log1p":
+        return math.log1p(value)
     if op == "sqrt":
         return math.sqrt(value)
+    if op == "abs":
+        return math.fabs(value)
     raise ValueError(f"cannot constant-fold operation {op!r}")
 
 

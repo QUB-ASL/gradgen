@@ -231,14 +231,47 @@ class SX:
     def cos(self) -> SX:
         return _unary("cos", self)
 
+    def tan(self) -> SX:
+        return _unary("tan", self)
+
+    def asin(self) -> SX:
+        return _unary("asin", self)
+
+    def acos(self) -> SX:
+        return _unary("acos", self)
+
+    def atan(self) -> SX:
+        return _unary("atan", self)
+
+    def sinh(self) -> SX:
+        return _unary("sinh", self)
+
+    def cosh(self) -> SX:
+        return _unary("cosh", self)
+
+    def tanh(self) -> SX:
+        return _unary("tanh", self)
+
     def exp(self) -> SX:
         return _unary("exp", self)
+
+    def expm1(self) -> SX:
+        return _unary("expm1", self)
 
     def log(self) -> SX:
         return _unary("log", self)
 
+    def log1p(self) -> SX:
+        return _unary("log1p", self)
+
     def sqrt(self) -> SX:
         return _unary("sqrt", self)
+
+    def abs(self) -> SX:
+        return _unary("abs", self)
+
+    def maximum(self, other: object) -> SX:
+        return _binary("max", self, other)
 
     def __repr__(self) -> str:
         if self.op == "symbol":
@@ -272,6 +305,7 @@ class SXVector:
     - scalar-vector multiplication
     - elementwise unary functions
     - dot products
+    - common vector norms
 
     Elementwise vector-vector multiplication is intentionally unsupported
     at this stage so that ``*`` remains reserved for scalar-vector
@@ -314,45 +348,74 @@ class SXVector:
         """Return the scalar element at ``index``."""
         return self.elements[index]
 
-    def __add__(self, other: object) -> SXVector:
-        """Return the elementwise sum of two vectors."""
+    def __add__(self, other: object) -> SXVector | SX:
+        """Return the elementwise sum of two vectors.
+
+        A singleton vector may also participate in scalar arithmetic for
+        convenience, so ``SXVector.sym("u", 1) + x`` behaves like
+        ``u[0] + x``.
+        """
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return self.elements[0] + scalar
         return self._elementwise_binary("add", other)
 
-    def __radd__(self, other: object) -> SXVector:
+    def __radd__(self, other: object) -> SXVector | SX:
         """Return the elementwise sum of two vectors."""
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return scalar + self.elements[0]
         return self._elementwise_binary("add", other, reverse=True)
 
-    def __sub__(self, other: object) -> SXVector:
+    def __sub__(self, other: object) -> SXVector | SX:
         """Return the elementwise difference of two vectors."""
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return self.elements[0] - scalar
         return self._elementwise_binary("sub", other)
 
-    def __rsub__(self, other: object) -> SXVector:
+    def __rsub__(self, other: object) -> SXVector | SX:
         """Return the reversed elementwise difference of two vectors."""
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return scalar - self.elements[0]
         return self._elementwise_binary("sub", other, reverse=True)
 
-    def __mul__(self, other: object) -> SXVector:
+    def __mul__(self, other: object) -> SXVector | SX:
         """Return a scalar-vector product.
 
         Vector-vector multiplication is intentionally unsupported for now.
         Use :meth:`dot` for an inner product.
         """
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return self.elements[0] * scalar
         scalar = _coerce_scalar(other)
         return SXVector(tuple(element * scalar for element in self.elements))
 
-    def __rmul__(self, other: object) -> SXVector:
+    def __rmul__(self, other: object) -> SXVector | SX:
         """Return a scalar-vector product."""
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return scalar * self.elements[0]
         scalar = _coerce_scalar(other)
         return SXVector(tuple(scalar * element for element in self.elements))
 
-    def __truediv__(self, other: object) -> SXVector:
+    def __truediv__(self, other: object) -> SXVector | SX:
         """Return elementwise division by a scalar or vector."""
         if isinstance(other, SXVector):
             return self._elementwise_binary("div", other)
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return self.elements[0] / scalar
         scalar = _coerce_scalar(other)
         return SXVector(tuple(element / scalar for element in self.elements))
 
-    def __rtruediv__(self, other: object) -> SXVector:
+    def __rtruediv__(self, other: object) -> SXVector | SX:
         """Return scalar divided by each vector element."""
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return scalar / self.elements[0]
         scalar = _coerce_scalar(other)
         return SXVector(tuple(scalar / element for element in self.elements))
 
@@ -368,17 +431,57 @@ class SXVector:
         """Apply cosine elementwise."""
         return SXVector(tuple(element.cos() for element in self.elements))
 
+    def tan(self) -> SXVector:
+        """Apply tangent elementwise."""
+        return SXVector(tuple(element.tan() for element in self.elements))
+
+    def asin(self) -> SXVector:
+        """Apply arcsine elementwise."""
+        return SXVector(tuple(element.asin() for element in self.elements))
+
+    def acos(self) -> SXVector:
+        """Apply arccosine elementwise."""
+        return SXVector(tuple(element.acos() for element in self.elements))
+
+    def atan(self) -> SXVector:
+        """Apply arctangent elementwise."""
+        return SXVector(tuple(element.atan() for element in self.elements))
+
+    def sinh(self) -> SXVector:
+        """Apply hyperbolic sine elementwise."""
+        return SXVector(tuple(element.sinh() for element in self.elements))
+
+    def cosh(self) -> SXVector:
+        """Apply hyperbolic cosine elementwise."""
+        return SXVector(tuple(element.cosh() for element in self.elements))
+
+    def tanh(self) -> SXVector:
+        """Apply hyperbolic tangent elementwise."""
+        return SXVector(tuple(element.tanh() for element in self.elements))
+
     def exp(self) -> SXVector:
         """Apply exponential elementwise."""
         return SXVector(tuple(element.exp() for element in self.elements))
+
+    def expm1(self) -> SXVector:
+        """Apply ``exp(x) - 1`` elementwise."""
+        return SXVector(tuple(element.expm1() for element in self.elements))
 
     def log(self) -> SXVector:
         """Apply natural logarithm elementwise."""
         return SXVector(tuple(element.log() for element in self.elements))
 
+    def log1p(self) -> SXVector:
+        """Apply ``log(1 + x)`` elementwise."""
+        return SXVector(tuple(element.log1p() for element in self.elements))
+
     def sqrt(self) -> SXVector:
         """Apply square root elementwise."""
         return SXVector(tuple(element.sqrt() for element in self.elements))
+
+    def abs(self) -> SXVector:
+        """Apply absolute value elementwise."""
+        return SXVector(tuple(element.abs() for element in self.elements))
 
     def dot(self, other: object) -> SX:
         """Return the symbolic dot product of two vectors."""
@@ -395,6 +498,44 @@ class SXVector:
         for left, right in pairs:
             total = total + (left * right)
         return total
+
+    def norm2(self) -> SX:
+        """Return the Euclidean norm of the vector."""
+        if len(self) == 0:
+            return SX.const(0.0)
+        return SX(SXNode.make("norm2", tuple(element.node for element in self.elements)))
+
+    def norm2sq(self) -> SX:
+        """Return the squared Euclidean norm of the vector."""
+        if len(self) == 0:
+            return SX.const(0.0)
+        return SX(SXNode.make("norm2sq", tuple(element.node for element in self.elements)))
+
+    def norm1(self) -> SX:
+        """Return the 1-norm of the vector."""
+        if len(self) == 0:
+            return SX.const(0.0)
+        return SX(SXNode.make("norm1", tuple(element.node for element in self.elements)))
+
+    def norm_inf(self) -> SX:
+        """Return the infinity norm of the vector."""
+        if len(self) == 0:
+            return SX.const(0.0)
+        return SX(SXNode.make("norm_inf", tuple(element.node for element in self.elements)))
+
+    def norm_p(self, p: object) -> SX:
+        """Return the p-norm of the vector."""
+        if len(self) == 0:
+            return SX.const(0.0)
+        p_scalar = _coerce(p)
+        return SX(SXNode.make("norm_p", tuple((*[element.node for element in self.elements], p_scalar.node))))
+
+    def norm_p_to_p(self, p: object) -> SX:
+        """Return the p-norm of the vector raised to the power p."""
+        if len(self) == 0:
+            return SX.const(0.0)
+        p_scalar = _coerce(p)
+        return SX(SXNode.make("norm_p_to_p", tuple((*[element.node for element in self.elements], p_scalar.node))))
 
     def __repr__(self) -> str:
         return f"SXVector(elements={self.elements!r})"
@@ -423,6 +564,12 @@ class SXVector:
         if len(self) != len(other):
             raise ValueError("vector lengths must match")
 
+    def _coerce_mixed_scalar(self, other: object) -> SX | None:
+        """Return a scalar view when a singleton vector meets a scalar."""
+        if len(self) != 1 or isinstance(other, SXVector):
+            return None
+        return _coerce(other)
+
 
 def const(value: float | int) -> SX:
     """Create a scalar constant expression.
@@ -442,9 +589,49 @@ def cos(expr: object) -> SX:
     return _unary("cos", expr)
 
 
+def tan(expr: object) -> SX:
+    """Return the symbolic tangent of an expression."""
+    return _unary("tan", expr)
+
+
+def asin(expr: object) -> SX:
+    """Return the symbolic arcsine of an expression."""
+    return _unary("asin", expr)
+
+
+def acos(expr: object) -> SX:
+    """Return the symbolic arccosine of an expression."""
+    return _unary("acos", expr)
+
+
+def atan(expr: object) -> SX:
+    """Return the symbolic arctangent of an expression."""
+    return _unary("atan", expr)
+
+
+def sinh(expr: object) -> SX:
+    """Return the symbolic hyperbolic sine of an expression."""
+    return _unary("sinh", expr)
+
+
+def cosh(expr: object) -> SX:
+    """Return the symbolic hyperbolic cosine of an expression."""
+    return _unary("cosh", expr)
+
+
+def tanh(expr: object) -> SX:
+    """Return the symbolic hyperbolic tangent of an expression."""
+    return _unary("tanh", expr)
+
+
 def exp(expr: object) -> SX:
     """Return the symbolic exponential of an expression."""
     return _unary("exp", expr)
+
+
+def expm1(expr: object) -> SX:
+    """Return the symbolic ``exp(x) - 1`` of an expression."""
+    return _unary("expm1", expr)
 
 
 def log(expr: object) -> SX:
@@ -452,9 +639,19 @@ def log(expr: object) -> SX:
     return _unary("log", expr)
 
 
+def log1p(expr: object) -> SX:
+    """Return the symbolic ``log(1 + x)`` of an expression."""
+    return _unary("log1p", expr)
+
+
 def sqrt(expr: object) -> SX:
     """Return the symbolic square root of an expression."""
     return _unary("sqrt", expr)
+
+
+def maximum(lhs: object, rhs: object) -> SX:
+    """Return the symbolic maximum of two scalar-like expressions."""
+    return _binary("max", lhs, rhs)
 
 
 def vector(values: Iterable[object]) -> SXVector:
@@ -479,11 +676,16 @@ def _coerce(value: object) -> SX:
     """Convert supported Python values into ``SX`` expressions.
 
     ``SX`` values pass through unchanged. Numeric literals become constant
-    expressions. Everything else raises ``TypeError`` to keep graph
-    construction explicit.
+    expressions. Singleton vectors are unwrapped to their sole element so
+    they can participate naturally in scalar expressions. Everything else
+    raises ``TypeError`` to keep graph construction explicit.
     """
     if isinstance(value, SX):
         return value
+    if isinstance(value, SXVector):
+        if len(value) == 1:
+            return value[0]
+        raise TypeError("cannot convert SXVector with length other than 1 to SX")
     if isinstance(value, (int, float)):
         return SX.const(value)
     raise TypeError(f"cannot convert {type(value).__name__} to SX")
@@ -492,12 +694,9 @@ def _coerce(value: object) -> SX:
 def _coerce_scalar(value: object) -> SX:
     """Convert a supported scalar-like value into ``SX``.
 
-    ``SXVector`` values are rejected here because some operators, such as
-    scalar-vector multiplication, intentionally only support scalar
-    operands on one side.
+    Singleton vectors are treated as scalar-like by unwrapping their sole
+    element. Longer vectors remain invalid in scalar contexts.
     """
-    if isinstance(value, SXVector):
-        raise TypeError("expected a scalar-like value, got SXVector")
     return _coerce(value)
 
 

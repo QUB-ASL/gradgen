@@ -119,6 +119,52 @@ class FunctionTests(unittest.TestCase):
 
         self.assertEqual(result, 10.0)
 
+    def test_function_numeric_call_supports_extended_unary_math(self) -> None:
+        x = SX.sym("x")
+        expr = (
+            x.tan()
+            + x.asin()
+            + x.acos()
+            + x.atan()
+            + x.sinh()
+            + x.cosh()
+            + x.tanh()
+            + x.expm1()
+            + x.log1p()
+            + x.abs()
+        )
+        f = Function("f", [x], [expr])
+
+        value = 0.2
+        result = f(value)
+
+        expected = (
+            math.tan(value)
+            + math.asin(value)
+            + math.acos(value)
+            + math.atan(value)
+            + math.sinh(value)
+            + math.cosh(value)
+            + math.tanh(value)
+            + math.expm1(value)
+            + math.log1p(value)
+            + abs(value)
+        )
+        self.assertAlmostEqual(result, expected)
+
+    def test_function_numeric_vector_call_supports_norms(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function("f", [x], [x.norm1(), x.norm2(), x.norm2sq(), x.norm_inf(), x.norm_p(3), x.norm_p_to_p(3)])
+
+        result = f([3.0, -4.0, 1.0])
+
+        self.assertEqual(result[0], 8.0)
+        self.assertAlmostEqual(result[1], math.sqrt(26.0))
+        self.assertEqual(result[2], 26.0)
+        self.assertEqual(result[3], 4.0)
+        self.assertAlmostEqual(result[4], 92.0 ** (1.0 / 3.0))
+        self.assertEqual(result[5], 92.0)
+
     def test_function_joint_returns_combined_primal_and_jacobian_outputs(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function(

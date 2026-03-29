@@ -195,6 +195,24 @@ class ReverseADTests(unittest.TestCase):
         self.assertAlmostEqual(result[0], 5.0 + math.cos(2.0))
         self.assertAlmostEqual(result[1], 2.0)
 
+    def test_derivative_supports_extended_smooth_unary_math(self) -> None:
+        x = SX.sym("x")
+        expr = x.tan() + x.cosh() + x.tanh() + x.log1p() + x.expm1() + x.atan()
+        df = derivative(expr, x)
+        f = Function("f", [x], [df])
+
+        value = 0.2
+        result = f(value)
+        expected = (
+            1.0 / (math.cos(value) ** 2)
+            + math.sinh(value)
+            + (1.0 - math.tanh(value) ** 2)
+            + 1.0 / (1.0 + value)
+            + math.exp(value)
+            + 1.0 / (1.0 + value * value)
+        )
+        self.assertAlmostEqual(result, expected)
+
     def test_function_vjp_supports_multiple_outputs(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")

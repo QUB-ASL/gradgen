@@ -279,6 +279,7 @@ def generate_rust(
     scalar_type: RustScalarType = "f64",
     math_library: str | None = None,
     function_index: int = 0,
+    shared_helper_nodes: tuple[SXNode, ...] | None = None,
 ) -> RustCodegenResult:
     """Generate Rust source code for primal function evaluation."""
     resolved_config = _resolve_backend_config(
@@ -390,6 +391,12 @@ def generate_rust(
         output_assert_lines=output_assert_lines,
         computation_lines=computation_lines,
         output_write_lines=output_write_lines,
+        shared_helper_lines=_build_shared_helper_lines(
+            shared_helper_nodes or function.nodes,
+            resolved_config.backend_mode,
+            resolved_config.scalar_type,
+            resolved_math_library,
+        ),
     )
 
     return RustCodegenResult(
@@ -554,6 +561,13 @@ def create_multi_function_rust_project(
             config=resolved_config,
             function_name=function.name,
             function_index=index,
+            shared_helper_nodes=tuple(
+                node
+                for generated_function in functions
+                for node in generated_function.nodes
+            )
+            if index == 0
+            else (),
         )
         for index, function in enumerate(functions)
     )
@@ -629,12 +643,64 @@ def _emit_node_expr(
         return _emit_math_call("sin", args, backend_mode, scalar_type, math_library)
     if expr.op == "cos":
         return _emit_math_call("cos", args, backend_mode, scalar_type, math_library)
+    if expr.op == "tan":
+        return _emit_math_call("tan", args, backend_mode, scalar_type, math_library)
+    if expr.op == "asin":
+        return _emit_math_call("asin", args, backend_mode, scalar_type, math_library)
+    if expr.op == "acos":
+        return _emit_math_call("acos", args, backend_mode, scalar_type, math_library)
+    if expr.op == "atan":
+        return _emit_math_call("atan", args, backend_mode, scalar_type, math_library)
+    if expr.op == "sinh":
+        return _emit_math_call("sinh", args, backend_mode, scalar_type, math_library)
+    if expr.op == "cosh":
+        return _emit_math_call("cosh", args, backend_mode, scalar_type, math_library)
+    if expr.op == "tanh":
+        return _emit_math_call("tanh", args, backend_mode, scalar_type, math_library)
     if expr.op == "exp":
         return _emit_math_call("exp", args, backend_mode, scalar_type, math_library)
+    if expr.op == "expm1":
+        return _emit_math_call("expm1", args, backend_mode, scalar_type, math_library)
     if expr.op == "log":
         return _emit_math_call("log", args, backend_mode, scalar_type, math_library)
+    if expr.op == "log1p":
+        return _emit_math_call("log1p", args, backend_mode, scalar_type, math_library)
     if expr.op == "sqrt":
         return _emit_math_call("sqrt", args, backend_mode, scalar_type, math_library)
+    if expr.op == "norm2":
+        vector_ref = _emit_norm_slice_argument(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"norm2({vector_ref})"
+    if expr.op == "norm2sq":
+        vector_ref = _emit_norm_slice_argument(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"norm2sq({vector_ref})"
+    if expr.op == "norm1":
+        vector_ref = _emit_norm_slice_argument(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"norm1({vector_ref})"
+    if expr.op == "norm_inf":
+        vector_ref = _emit_norm_slice_argument(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"norm_inf({vector_ref})"
+    if expr.op == "norm_p_to_p":
+        vector_ref, p_ref = _emit_norm_slice_and_p_arguments(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"norm_p_to_p({vector_ref}, {p_ref})"
+    if expr.op == "norm_p":
+        vector_ref, p_ref = _emit_norm_slice_and_p_arguments(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"norm_p({vector_ref}, {p_ref})"
+    if expr.op == "abs":
+        return _emit_math_call("abs", args, backend_mode, scalar_type, math_library)
+    if expr.op == "max":
+        return _emit_math_call("max", args, backend_mode, scalar_type, math_library)
 
     raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
 
@@ -675,15 +741,168 @@ def _emit_math_call(
     if backend_mode == "std":
         if op == "pow":
             return f"{args[0]}.powf({args[1]})"
+        if op == "max":
+            return f"{args[0]}.max({args[1]})"
         if op == "log":
             return f"{args[0]}.ln()"
+        if op == "log1p":
+            return f"{args[0]}.ln_1p()"
+        if op == "expm1":
+            return f"{args[0]}.exp_m1()"
         return f"{args[0]}.{op}()"
 
     if math_library is None:
         raise ValueError("no_std math calls require a resolved math library")
     if op == "pow":
         return f"{math_library}::{_math_function_name(op, scalar_type)}({args[0]}, {args[1]})"
+    if op == "max":
+        return f"{math_library}::{_math_function_name(op, scalar_type)}({args[0]}, {args[1]})"
     return f"{math_library}::{_math_function_name(op, scalar_type)}({args[0]})"
+
+
+def _emit_norm_slice_argument(
+    expr: SX,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str:
+    """Return the Rust slice expression passed to a local norm helper."""
+    args = tuple(
+        _emit_expr_ref(arg, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
+        for arg in expr.args
+    )
+    slice_name = _match_contiguous_slice(args)
+    if slice_name is not None:
+        return slice_name
+    return "&[" + ", ".join(args) + "]"
+
+
+def _emit_norm_slice_and_p_arguments(
+    expr: SX,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> tuple[str, str]:
+    """Return the Rust slice plus ``p`` expression for a p-norm helper."""
+    value_expr = SX(SXNode.make("norm2", expr.node.args[:-1]))
+    vector_ref = _emit_norm_slice_argument(
+        value_expr,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    p_ref = _emit_expr_ref(
+        SX(expr.node.args[-1]),
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    return vector_ref, p_ref
+
+
+def _match_contiguous_slice(args: tuple[str, ...]) -> str | None:
+    """Return the slice name when args are exactly ``name[0], name[1], ...``."""
+    if not args:
+        return None
+
+    match = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]", args[0])
+    if match is None:
+        return None
+    name = match.group(1)
+
+    for index, arg in enumerate(args):
+        candidate = re.fullmatch(r"([A-Za-z_][A-Za-z0-9_]*)\[(\d+)\]", arg)
+        if candidate is None or candidate.group(1) != name or int(candidate.group(2)) != index:
+            return None
+    return name
+
+
+def _build_shared_helper_lines(
+    nodes: tuple[SXNode, ...],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> tuple[str, ...]:
+    """Return module-scope helper definitions needed by generated kernels."""
+    used_ops = {node.op for node in nodes}
+    lines: list[str] = []
+
+    if "norm2" in used_ops:
+        sqrt_expr = _emit_math_call("sqrt", ("sum",), backend_mode, scalar_type, math_library)
+        lines.extend(
+            [
+                f"fn norm2(values: &[{scalar_type}]) -> {scalar_type} {{",
+                f"    let sum: {scalar_type} = values.iter().map(|value| *value * *value).sum();",
+                f"    {sqrt_expr}",
+                "}",
+            ]
+        )
+
+    if "norm2sq" in used_ops:
+        lines.extend(
+            [
+                f"fn norm2sq(values: &[{scalar_type}]) -> {scalar_type} {{",
+                "    values.iter().map(|value| *value * *value).sum()",
+                "}",
+            ]
+        )
+
+    if "norm1" in used_ops:
+        abs_term = _emit_math_call("abs", ("*value",), backend_mode, scalar_type, math_library)
+        lines.extend(
+            [
+                f"fn norm1(values: &[{scalar_type}]) -> {scalar_type} {{",
+                f"    values.iter().map(|value| {abs_term}).sum()",
+                "}",
+            ]
+        )
+
+    if "norm_inf" in used_ops:
+        abs_term = _emit_math_call("abs", ("*value",), backend_mode, scalar_type, math_library)
+        lines.extend(
+            [
+                f"fn norm_inf(values: &[{scalar_type}]) -> {scalar_type} {{",
+                f"    values.iter().fold(0.0_{scalar_type}, |acc, value| acc.max({abs_term}))",
+                "}",
+            ]
+        )
+
+    if "norm_p_to_p" in used_ops:
+        abs_term = _emit_math_call("abs", ("*value",), backend_mode, scalar_type, math_library)
+        pow_term = _emit_math_call("pow", (abs_term, "p"), backend_mode, scalar_type, math_library)
+        lines.extend(
+            [
+                f"fn norm_p_to_p(values: &[{scalar_type}], p: {scalar_type}) -> {scalar_type} {{",
+                f"    values.iter().map(|value| {pow_term}).sum()",
+                "}",
+            ]
+        )
+
+    if "norm_p" in used_ops:
+        pow_expr = _emit_math_call(
+            "pow",
+            (f"norm_p_to_p(values, p)", f"1.0_{scalar_type} / p"),
+            backend_mode,
+            scalar_type,
+            math_library,
+        )
+        lines.extend(
+            [
+                f"fn norm_p(values: &[{scalar_type}], p: {scalar_type}) -> {scalar_type} {{",
+                f"    {pow_expr}",
+                "}",
+            ]
+        )
+
+    return tuple(lines)
 
 
 def _flatten_arg(arg: SX | SXVector) -> tuple[SX, ...]:
@@ -1096,8 +1315,19 @@ def _template_environment() -> Environment:
 _LIBM_FUNCTIONS = {
     "sin": "sin",
     "cos": "cos",
+    "tan": "tan",
+    "asin": "asin",
+    "acos": "acos",
+    "atan": "atan",
+    "sinh": "sinh",
+    "cosh": "cosh",
+    "tanh": "tanh",
     "exp": "exp",
+    "expm1": "expm1",
     "log": "log",
+    "log1p": "log1p",
     "pow": "pow",
     "sqrt": "sqrt",
+    "abs": "fabs",
+    "max": "fmax",
 }

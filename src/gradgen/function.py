@@ -806,11 +806,47 @@ def _evaluate_scalar(expr: SX) -> float:
         return math.sin(args[0])
     if expr.op == "cos":
         return math.cos(args[0])
+    if expr.op == "tan":
+        return math.tan(args[0])
+    if expr.op == "asin":
+        return math.asin(args[0])
+    if expr.op == "acos":
+        return math.acos(args[0])
+    if expr.op == "atan":
+        return math.atan(args[0])
+    if expr.op == "sinh":
+        return math.sinh(args[0])
+    if expr.op == "cosh":
+        return math.cosh(args[0])
+    if expr.op == "tanh":
+        return math.tanh(args[0])
     if expr.op == "exp":
         return math.exp(args[0])
+    if expr.op == "expm1":
+        return math.expm1(args[0])
     if expr.op == "log":
         return math.log(args[0])
+    if expr.op == "log1p":
+        return math.log1p(args[0])
     if expr.op == "sqrt":
         return math.sqrt(args[0])
+    if expr.op == "norm2":
+        return math.sqrt(sum(arg * arg for arg in args))
+    if expr.op == "norm2sq":
+        return sum(arg * arg for arg in args)
+    if expr.op == "norm1":
+        return sum(math.fabs(arg) for arg in args)
+    if expr.op == "norm_inf":
+        return max(math.fabs(arg) for arg in args)
+    if expr.op == "norm_p_to_p":
+        p = args[-1]
+        return sum(math.fabs(arg) ** p for arg in args[:-1])
+    if expr.op == "norm_p":
+        p = args[-1]
+        return sum(math.fabs(arg) ** p for arg in args[:-1]) ** (1.0 / p)
+    if expr.op == "abs":
+        return math.fabs(args[0])
+    if expr.op == "max":
+        return max(args[0], args[1])
 
     raise ValueError(f"cannot evaluate operation {expr.op!r}")

@@ -183,6 +183,16 @@ def _forward_scalar(
 
 def _differentiate_op(expr: SX, args: tuple[SX, ...], tangents: tuple[SX, ...]) -> SX:
     """Apply forward-mode differentiation rules for a single operation."""
+    if expr.op == "norm2sq":
+        total = SX.const(0.0)
+        for arg, tangent in zip(args, tangents):
+            total = total + (SX.const(2.0) * arg * tangent)
+        return total
+    if expr.op == "norm2":
+        numerator = SX.const(0.0)
+        for arg, tangent in zip(args, tangents):
+            numerator = numerator + (arg * tangent)
+        return numerator / expr
     if expr.op == "add":
         return tangents[0] + tangents[1]
     if expr.op == "sub":
@@ -204,12 +214,34 @@ def _differentiate_op(expr: SX, args: tuple[SX, ...], tangents: tuple[SX, ...]) 
         return args[0].cos() * tangents[0]
     if expr.op == "cos":
         return -(args[0].sin() * tangents[0])
+    if expr.op == "tan":
+        return tangents[0] / (args[0].cos() * args[0].cos())
+    if expr.op == "asin":
+        return tangents[0] / (SX.const(1.0) - (args[0] * args[0])).sqrt()
+    if expr.op == "acos":
+        return -(tangents[0] / (SX.const(1.0) - (args[0] * args[0])).sqrt())
+    if expr.op == "atan":
+        return tangents[0] / (SX.const(1.0) + (args[0] * args[0]))
+    if expr.op == "sinh":
+        return args[0].cosh() * tangents[0]
+    if expr.op == "cosh":
+        return args[0].sinh() * tangents[0]
+    if expr.op == "tanh":
+        return (SX.const(1.0) - (expr * expr)) * tangents[0]
     if expr.op == "exp":
         return expr * tangents[0]
+    if expr.op == "expm1":
+        return (expr + SX.const(1.0)) * tangents[0]
     if expr.op == "log":
         return tangents[0] / args[0]
+    if expr.op == "log1p":
+        return tangents[0] / (SX.const(1.0) + args[0])
     if expr.op == "sqrt":
         return tangents[0] / (SX.const(2.0) * expr)
+    if expr.op in {"norm1", "norm_inf", "norm_p", "norm_p_to_p"}:
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
+    if expr.op == "abs":
+        return (args[0] / expr) * tangents[0]
 
     raise ValueError(f"cannot differentiate operation {expr.op!r}")
 
@@ -307,14 +339,74 @@ def _propagate_reverse(
     if node.op == "cos":
         _accumulate_adjoint(adjoints, node.args[0], -(adjoint * args[0].sin()))
         return
+    if node.op == "tan":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint / (args[0].cos() * args[0].cos()),
+        )
+        return
+    if node.op == "asin":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint / (SX.const(1.0) - (args[0] * args[0])).sqrt(),
+        )
+        return
+    if node.op == "acos":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            -(adjoint / (SX.const(1.0) - (args[0] * args[0])).sqrt()),
+        )
+        return
+    if node.op == "atan":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint / (SX.const(1.0) + (args[0] * args[0])),
+        )
+        return
+    if node.op == "sinh":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * args[0].cosh())
+        return
+    if node.op == "cosh":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * args[0].sinh())
+        return
+    if node.op == "tanh":
+        _accumulate_adjoint(
+            adjoints,
+            node.args[0],
+            adjoint * (SX.const(1.0) - (expr * expr)),
+        )
+        return
     if node.op == "exp":
         _accumulate_adjoint(adjoints, node.args[0], adjoint * expr)
+        return
+    if node.op == "expm1":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * (expr + SX.const(1.0)))
         return
     if node.op == "log":
         _accumulate_adjoint(adjoints, node.args[0], adjoint / args[0])
         return
+    if node.op == "log1p":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint / (SX.const(1.0) + args[0]))
+        return
     if node.op == "sqrt":
         _accumulate_adjoint(adjoints, node.args[0], adjoint / (SX.const(2.0) * expr))
+        return
+    if node.op == "norm2":
+        for child_node, arg in zip(node.args, args):
+            _accumulate_adjoint(adjoints, child_node, adjoint * (arg / expr))
+        return
+    if node.op == "norm2sq":
+        for child_node, arg in zip(node.args, args):
+            _accumulate_adjoint(adjoints, child_node, adjoint * (SX.const(2.0) * arg))
+        return
+    if node.op in {"norm1", "norm_inf", "norm_p", "norm_p_to_p"}:
+        raise ValueError(f"cannot differentiate operation {node.op!r}")
+    if node.op == "abs":
+        _accumulate_adjoint(adjoints, node.args[0], adjoint * (args[0] / expr))
         return
 
     raise ValueError(f"cannot differentiate operation {node.op!r}")

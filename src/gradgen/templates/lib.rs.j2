@@ -2,6 +2,12 @@
 #![no_std]
 
 {% endif -%}
+{% if function_index == 0 and shared_helper_lines -%}
+{% for line in shared_helper_lines -%}
+{{ line }}
+{% endfor -%}
+
+{% endif -%}
 {% if emit_metadata_helpers -%}
 {% if function_index == 0 -%}
 /// Metadata describing a generated Rust function.
