@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from datetime import datetime, timezone
+from importlib.metadata import PackageNotFoundError, version as package_version
 import json
 from pathlib import Path
 import re
@@ -3263,6 +3265,8 @@ def _render_metadata_json(crate_name: str, codegens: tuple[RustCodegenResult, ..
     """Render the crate metadata JSON file."""
     payload = {
         "crate_name": crate_name,
+        "created_at": _metadata_created_at(),
+        "gradgen_version": _gradgen_version(),
         "functions": [
             {
                 "function_name": codegen.function_name,
@@ -3276,6 +3280,23 @@ def _render_metadata_json(crate_name: str, codegens: tuple[RustCodegenResult, ..
         ],
     }
     return json.dumps(payload, indent=2) + "\n"
+
+
+def _metadata_created_at() -> str:
+    """Return the UTC timestamp used in generated metadata files."""
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def _gradgen_version() -> str:
+    """Return the installed gradgen package version when available."""
+    try:
+        return package_version("gradgen")
+    except PackageNotFoundError:
+        pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
+        match = re.search(r'^version = "([^"]+)"$', pyproject.read_text(encoding="utf-8"), re.MULTILINE)
+        if match is None:
+            raise RuntimeError("could not determine gradgen version for metadata.json")
+        return match.group(1)
 
 
 def _math_function_name(op: str, scalar_type: RustScalarType) -> str:
