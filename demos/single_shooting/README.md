@@ -46,11 +46,20 @@ $$\nabla_{u_{\mathrm{seq}}} V_N(x_0, u_{\mathrm{seq}}, p),$$
 because first-order optimization methods use that gradient to update the whole
 control trajectory.
 
+For second-order methods, or for Newton- and SQP-style subproblems, it is also
+useful to apply the Hessian of the total cost to a packed input-sequence
+direction $v_{u_{\mathrm{seq}}}$. The demo therefore also computes the
+Hessian-vector product
+
+$$\nabla^2_{u_{\mathrm{seq}}} V_N(x_0, u_{\mathrm{seq}}, p)\, v_{u_{\mathrm{seq}}}.$$
+
 The generated Rust kernel takes:
 
 - `x0`: the initial state
 - `u_seq`: the packed input sequence, laid out stage-major
 - `p`: one shared parameter vector used by all stages and the terminal cost
+- `v_u_seq`: a packed direction vector used when evaluating the
+  Hessian-vector product
 
 The generated API can compute:
 

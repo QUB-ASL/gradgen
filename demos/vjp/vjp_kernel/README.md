@@ -20,4 +20,6 @@ cargo build
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.
+The crate root also contains a `metadata.json` file with the same metadata for
+all generated functions in a machine-readable form.
 The generated crate is `no_std` and uses `libm` for transcendental math functions.

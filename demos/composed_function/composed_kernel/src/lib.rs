@@ -28,7 +28,7 @@ pub fn composed_kernel_composed_demo_f_meta() -> FunctionMetadata {
         ],
         input_sizes: &[
             2,
-            21,
+            11,
         ],
         output_names: &[
             "y",
@@ -51,7 +51,7 @@ pub fn composed_kernel_composed_demo_f_meta() -> FunctionMetadata {
 ///   packed stage-parameter slice for the composed kernel; symbolic
 ///   parameter blocks are laid out in forward stage order and the
 ///   terminal block is stored last
-///   Expected length: 21.
+///   Expected length: 11.
 /// - `y`:
 ///   primal output slice for the declared result `y`
 ///   Expected length: 1.
@@ -60,16 +60,16 @@ pub fn composed_kernel_composed_demo_f_meta() -> FunctionMetadata {
 pub fn composed_kernel_composed_demo_f(x: &[f64], parameters: &[f64], y: &mut [f64], work: &mut [f64]) {
     assert!(work.len() >= 6, "work is length {} but should be at least 6", work.len());
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(parameters.len(), 21, "parameters is length {} but should be 21", parameters.len());
+    assert_eq!(parameters.len(), 11, "parameters is length {} but should be 11", parameters.len());
     assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());
     let (state_buffers, stage_work) = work.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
     current_state.copy_from_slice(x);
-    for repeat_index in 0..10 {
+    for repeat_index in 0..5 {
         composed_kernel_composed_demo_repeat_0_g(current_state, &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)], next_state, stage_work);
         current_state.copy_from_slice(next_state);
     }
-    composed_kernel_composed_demo_terminal_h(current_state, &parameters[20..21], y, stage_work);
+    composed_kernel_composed_demo_terminal_h(current_state, &parameters[10..11], y, stage_work);
 }
 
 fn composed_kernel_composed_demo_repeat_0_g(state: &[f64], p: &[f64], next_state: &mut [f64], work: &mut [f64]) {
@@ -101,14 +101,14 @@ fn composed_kernel_composed_demo_terminal_h(state: &[f64], pf: &[f64], y: &mut [
 pub fn composed_kernel_composed_demo_grad_x_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "composed_kernel_composed_demo_grad_x",
-        workspace_size: 28,
+        workspace_size: 18,
         input_names: &[
             "x",
             "parameters",
         ],
         input_sizes: &[
             2,
-            21,
+            11,
         ],
         output_names: &[
             "y",
@@ -131,23 +131,23 @@ pub fn composed_kernel_composed_demo_grad_x_meta() -> FunctionMetadata {
 ///   packed stage-parameter slice for the composed kernel; symbolic
 ///   parameter blocks are laid out in forward stage order and the
 ///   terminal block is stored last
-///   Expected length: 21.
+///   Expected length: 11.
 /// - `y`:
 ///   primal output slice for the declared result `y`
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 28.
+///   while evaluating this kernel. Expected length: at least 18.
 pub fn composed_kernel_composed_demo_grad_x(x: &[f64], parameters: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 28, "work is length {} but should be at least 28", work.len());
+    assert!(work.len() >= 18, "work is length {} but should be at least 18", work.len());
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(parameters.len(), 21, "parameters is length {} but should be 21", parameters.len());
+    assert_eq!(parameters.len(), 11, "parameters is length {} but should be 11", parameters.len());
     assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
-    let (state_history, rest) = work.split_at_mut(20);
+    let (state_history, rest) = work.split_at_mut(10);
     let (current_state, rest) = rest.split_at_mut(2);
     let (lambda_buffers, stage_work) = rest.split_at_mut(4);
     let (lambda_a, lambda_b) = lambda_buffers.split_at_mut(2);
     current_state.copy_from_slice(x);
-    for repeat_index in 0..10 {
+    for repeat_index in 0..5 {
         let stage_index = repeat_index;
         let stage_start = stage_index * 2;
         let stage_end = stage_start + 2;
@@ -157,9 +157,9 @@ pub fn composed_kernel_composed_demo_grad_x(x: &[f64], parameters: &[f64], y: &m
             current_state.copy_from_slice(next_state);
         }
     }
-    composed_kernel_composed_demo_terminal_h_grad(current_state, &parameters[20..21], lambda_a, stage_work);
+    composed_kernel_composed_demo_terminal_h_grad(current_state, &parameters[10..11], lambda_a, stage_work);
     let mut current_lambda_is_a = true;
-    for repeat_index in (0..10).rev() {
+    for repeat_index in (0..5).rev() {
         let stage_index = repeat_index;
         if stage_index == 0 {
             if current_lambda_is_a {

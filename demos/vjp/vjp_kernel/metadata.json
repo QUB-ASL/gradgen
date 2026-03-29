@@ -1,0 +1,57 @@
+{
+  "crate_name": "vjp_kernel",
+  "created_at": "2026-03-29T23:37:15.507782Z",
+  "gradgen_version": "0.3.2a1",
+  "functions": [
+    {
+      "function_name": "vjp_kernel_g_f",
+      "workspace_size": 3,
+      "input_names": [
+        "x"
+      ],
+      "input_sizes": [
+        2
+      ],
+      "output_names": [
+        "y"
+      ],
+      "output_sizes": [
+        3
+      ]
+    },
+    {
+      "function_name": "vjp_kernel_g_jf",
+      "workspace_size": 1,
+      "input_names": [
+        "x"
+      ],
+      "input_sizes": [
+        2
+      ],
+      "output_names": [
+        "jacobian_y"
+      ],
+      "output_sizes": [
+        6
+      ]
+    },
+    {
+      "function_name": "vjp_kernel_g_vjp",
+      "workspace_size": 3,
+      "input_names": [
+        "x",
+        "cotangent_y"
+      ],
+      "input_sizes": [
+        2,
+        3
+      ],
+      "output_names": [
+        "vjp_x"
+      ],
+      "output_sizes": [
+        2
+      ]
+    }
+  ]
+}
