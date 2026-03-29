@@ -22,18 +22,10 @@ pub fn vjp_kernel_g_f_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "vjp_kernel_g_f",
         workspace_size: 3,
-        input_names: &[
-            "x",
-        ],
-        input_sizes: &[
-            2,
-        ],
-        output_names: &[
-            "y",
-        ],
-        output_sizes: &[
-            3,
-        ],
+        input_names: &["x"],
+        input_sizes: &[2],
+        output_names: &["y"],
+        output_sizes: &[3],
     }
 }
 
@@ -67,18 +59,10 @@ pub fn vjp_kernel_g_jf_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "vjp_kernel_g_jf",
         workspace_size: 1,
-        input_names: &[
-            "x",
-        ],
-        input_sizes: &[
-            2,
-        ],
-        output_names: &[
-            "jacobian_y",
-        ],
-        output_sizes: &[
-            6,
-        ],
+        input_names: &["x"],
+        input_sizes: &[2],
+        output_names: &["jacobian_y"],
+        output_sizes: &[6],
     }
 }
 
@@ -113,20 +97,10 @@ pub fn vjp_kernel_g_vjp_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "vjp_kernel_g_vjp",
         workspace_size: 3,
-        input_names: &[
-            "x",
-            "cotangent_y",
-        ],
-        input_sizes: &[
-            2,
-            3,
-        ],
-        output_names: &[
-            "vjp_x",
-        ],
-        output_sizes: &[
-            2,
-        ],
+        input_names: &["x", "cotangent_y"],
+        input_sizes: &[2, 3],
+        output_names: &["vjp_x"],
+        output_sizes: &[2],
     }
 }
 
@@ -155,10 +129,10 @@ pub fn vjp_kernel_g_vjp(x: &[f64], cotangent_y: &[f64], vjp_x: &mut [f64], work:
     assert_eq!(cotangent_y.len(), 3);
     assert_eq!(vjp_x.len(), 2);
     work[0] = cotangent_y[1] * x[1];
-    work[0] += None;
+    work[0] += cotangent_y[0];
     work[1] = libm::cos(x[1]);
-    work[1] *= None;
-    work[1] += None;
+    work[1] *= cotangent_y[2];
+    work[1] += cotangent_y[0];
     work[2] = cotangent_y[1] * x[0];
     work[1] += work[2];
     vjp_x[0] = work[0];

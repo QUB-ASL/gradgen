@@ -338,7 +338,18 @@ def generate_rust(
             resolved_config.scalar_type,
             resolved_math_library,
         )
-        computation_lines.append(_emit_workspace_assignment(node, work_index, rhs, workspace_map))
+        computation_lines.append(
+            _emit_workspace_assignment(
+                node,
+                work_index,
+                rhs,
+                scalar_bindings,
+                workspace_map,
+                resolved_config.backend_mode,
+                resolved_config.scalar_type,
+                resolved_math_library,
+            )
+        )
 
     for output_spec, output_arg, direct_helper_call in zip(output_specs, function.outputs, direct_output_helpers):
         output_assert_lines.append(
@@ -1761,7 +1772,11 @@ def _emit_workspace_assignment(
     node: SXNode,
     work_index: int,
     rhs: str,
+    scalar_bindings: dict[SXNode, str],
     workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str,
 ) -> str:
     """Emit one workspace assignment, using compound operators when safe."""
     target = f"work[{work_index}]"
@@ -1769,22 +1784,38 @@ def _emit_workspace_assignment(
 
     if expr.op in {"add", "sub", "mul", "div"}:
         left, right = expr.args
-        left_ref = _workspace_ref_for_node(left.node, workspace_map)
-        right_ref = _workspace_ref_for_node(right.node, workspace_map)
-        if left_ref == target:
+        left_is_target = _workspace_ref_for_node(left.node, workspace_map) == target
+        right_is_target = _workspace_ref_for_node(right.node, workspace_map) == target
+        if left_is_target:
+            other_ref = _emit_expr_ref(
+                right,
+                scalar_bindings,
+                workspace_map,
+                backend_mode,
+                scalar_type,
+                math_library,
+            )
             operator = {
                 "add": "+=",
                 "sub": "-=",
                 "mul": "*=",
                 "div": "/=",
             }[expr.op]
-            return f"{target} {operator} {right_ref};"
-        if expr.op in {"add", "mul"} and right_ref == target:
+            return f"{target} {operator} {other_ref};"
+        if expr.op in {"add", "mul"} and right_is_target:
+            other_ref = _emit_expr_ref(
+                left,
+                scalar_bindings,
+                workspace_map,
+                backend_mode,
+                scalar_type,
+                math_library,
+            )
             operator = {
                 "add": "+=",
                 "mul": "*=",
             }[expr.op]
-            return f"{target} {operator} {left_ref};"
+            return f"{target} {operator} {other_ref};"
 
     return f"{target} = {rhs};"
 

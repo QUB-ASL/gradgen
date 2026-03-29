@@ -25,20 +25,10 @@ pub fn codegen_kernel_energy_f_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_energy_f",
         workspace_size: 2,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            3,
-            1,
-        ],
-        output_names: &[
-            "energy",
-        ],
-        output_sizes: &[
-            1,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[3, 1],
+        output_names: &["energy"],
+        output_sizes: &[1],
     }
 }
 
@@ -64,7 +54,7 @@ pub fn codegen_kernel_energy_f(x: &[f64], u: &[f64], energy: &mut [f64], work: &
     assert_eq!(u.len(), 1);
     assert_eq!(energy.len(), 1);
     work[0] = libm::sin(x[0]);
-    work[0] *= None;
+    work[0] *= u[0];
     work[1] = norm2sq(x);
     work[0] += work[1];
     work[1] = x[1] * x[2];
@@ -77,20 +67,10 @@ pub fn codegen_kernel_energy_jf_x_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_energy_jf_x",
         workspace_size: 3,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            3,
-            1,
-        ],
-        output_names: &[
-            "jacobian_energy",
-        ],
-        output_sizes: &[
-            3,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[3, 1],
+        output_names: &["jacobian_energy"],
+        output_sizes: &[3],
     }
 }
 
@@ -111,19 +91,24 @@ pub fn codegen_kernel_energy_jf_x_meta() -> FunctionMetadata {
 ///   Expected length: 3.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 3.
-pub fn codegen_kernel_energy_jf_x(x: &[f64], u: &[f64], jacobian_energy: &mut [f64], work: &mut [f64]) {
+pub fn codegen_kernel_energy_jf_x(
+    x: &[f64],
+    u: &[f64],
+    jacobian_energy: &mut [f64],
+    work: &mut [f64],
+) {
     assert!(work.len() >= 3);
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
     assert_eq!(jacobian_energy.len(), 3);
     work[0] = 2.0_f64 * x[0];
     work[1] = libm::cos(x[0]);
-    work[1] *= None;
+    work[1] *= u[0];
     work[0] += work[1];
     work[1] = 2.0_f64 * x[1];
-    work[1] += None;
+    work[1] += x[2];
     work[2] = 2.0_f64 * x[2];
-    work[2] += None;
+    work[2] += x[1];
     jacobian_energy[0] = work[0];
     jacobian_energy[1] = work[1];
     jacobian_energy[2] = work[2];
@@ -134,20 +119,10 @@ pub fn codegen_kernel_energy_jf_u_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_energy_jf_u",
         workspace_size: 1,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            3,
-            1,
-        ],
-        output_names: &[
-            "jacobian_energy",
-        ],
-        output_sizes: &[
-            1,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[3, 1],
+        output_names: &["jacobian_energy"],
+        output_sizes: &[1],
     }
 }
 
@@ -168,7 +143,12 @@ pub fn codegen_kernel_energy_jf_u_meta() -> FunctionMetadata {
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
-pub fn codegen_kernel_energy_jf_u(x: &[f64], u: &[f64], jacobian_energy: &mut [f64], work: &mut [f64]) {
+pub fn codegen_kernel_energy_jf_u(
+    x: &[f64],
+    u: &[f64],
+    jacobian_energy: &mut [f64],
+    work: &mut [f64],
+) {
     assert!(work.len() >= 1);
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
@@ -182,20 +162,10 @@ pub fn codegen_kernel_coupling_f_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_coupling_f",
         workspace_size: 2,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            3,
-            1,
-        ],
-        output_names: &[
-            "coupling",
-        ],
-        output_sizes: &[
-            1,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[3, 1],
+        output_names: &["coupling"],
+        output_sizes: &[1],
     }
 }
 
@@ -231,20 +201,10 @@ pub fn codegen_kernel_coupling_jf_x_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_coupling_jf_x",
         workspace_size: 0,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            3,
-            1,
-        ],
-        output_names: &[
-            "jacobian_coupling",
-        ],
-        output_sizes: &[
-            3,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[3, 1],
+        output_names: &["jacobian_coupling"],
+        output_sizes: &[3],
     }
 }
 
@@ -265,7 +225,12 @@ pub fn codegen_kernel_coupling_jf_x_meta() -> FunctionMetadata {
 ///   Expected length: 3.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
-pub fn codegen_kernel_coupling_jf_x(x: &[f64], u: &[f64], jacobian_coupling: &mut [f64], _work: &mut [f64]) {
+pub fn codegen_kernel_coupling_jf_x(
+    x: &[f64],
+    u: &[f64],
+    jacobian_coupling: &mut [f64],
+    _work: &mut [f64],
+) {
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
     assert_eq!(jacobian_coupling.len(), 3);
@@ -279,20 +244,10 @@ pub fn codegen_kernel_coupling_jf_u_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_coupling_jf_u",
         workspace_size: 1,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            3,
-            1,
-        ],
-        output_names: &[
-            "jacobian_coupling",
-        ],
-        output_sizes: &[
-            1,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[3, 1],
+        output_names: &["jacobian_coupling"],
+        output_sizes: &[1],
     }
 }
 
@@ -313,7 +268,12 @@ pub fn codegen_kernel_coupling_jf_u_meta() -> FunctionMetadata {
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
-pub fn codegen_kernel_coupling_jf_u(x: &[f64], u: &[f64], jacobian_coupling: &mut [f64], work: &mut [f64]) {
+pub fn codegen_kernel_coupling_jf_u(
+    x: &[f64],
+    u: &[f64],
+    jacobian_coupling: &mut [f64],
+    work: &mut [f64],
+) {
     assert!(work.len() >= 1);
     assert_eq!(x.len(), 3);
     assert_eq!(u.len(), 1);
