@@ -34,9 +34,7 @@ $$x_{t+1} = f(x_t, u_t, p), \qquad t = 0, \dots, N-1.$$
 
 The total cost function is then
 
-$$V_N(x_0, u_{\mathrm{seq}}, p)
-=
-\sum_{t=0}^{N-1} \ell(x_t, u_t, p) + V_f(x_N, p).$$
+$$V_N(x_0, u_{\mathrm{seq}}, p) = \sum_{t=0}^{N-1} \ell(x_t, u_t, p) + V_f(x_N, p).$$
 
 This is the main quantity we want to evaluate efficiently. In numerical
 optimal control, we also want the gradient of this total cost with respect to
