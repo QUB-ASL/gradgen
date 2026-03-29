@@ -48,10 +48,12 @@ control trajectory.
 
 For second-order methods, or for Newton- and SQP-style subproblems, it is also
 useful to apply the Hessian of the total cost to a packed input-sequence
-direction $v_{u_{\mathrm{seq}}}$. The demo therefore also computes the
+direction $v_{u_{\mathrm{seq}}}$. The demo, therefore, also computes the
 Hessian-vector product
 
-$$\nabla^2_{u_{\mathrm{seq}}} V_N(x_0, u_{\mathrm{seq}}, p)\, v_{u_{\mathrm{seq}}}.$$
+$$\nabla^2_{u_{\mathrm{seq}}} V_N(x_0, u_{\mathrm{seq}}, p) v,$$
+
+for given vectors $v$ (same dimension as $u_{\mathrm{seq}}$).
 
 The generated Rust kernel takes:
 
