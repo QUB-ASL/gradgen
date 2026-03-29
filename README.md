@@ -10,6 +10,12 @@
 
 # Gradgen
 
+## What it does
+
+<p align="center">
+  <img src="docs/img/gradgen-what-it-does.png" alt="Gradgen overview" width="70%" />
+</p>
+
 `gradgen` is a Python library for symbolic differentiation and Rust code generation.
 
 The project is being built incrementally. The current implementation focuses on:
@@ -22,8 +28,6 @@ The project is being built incrementally. The current implementation focuses on:
 - Rust code generation for primal and derivative kernels
 
 Matrix operations, `MX`, complex-domain semantics, and solver-related features are still to come.
-
-## Current Status
 
 The library already supports:
 
