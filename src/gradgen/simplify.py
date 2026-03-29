@@ -7,8 +7,10 @@ from typing import TYPE_CHECKING, Any
 
 from .sx import SX, SXNode, SXVector, parse_bilinear_form_args, parse_matvec_component_args, parse_quadform_args
 from .custom_elementary import (
-    build_custom_hessian_expr,
-    build_custom_jacobian_expr,
+    _invoke_custom_callback,
+    evaluate_custom_hessian,
+    evaluate_custom_hvp,
+    evaluate_custom_jacobian,
     parse_custom_scalar_args,
     parse_custom_scalar_hvp_args,
     parse_custom_vector_args,
@@ -112,9 +114,11 @@ def _apply_rules(op: str, args: tuple[SX, ...], name: str | None = None) -> SX:
         spec, value, params = parse_custom_scalar_args(name, args)
         if spec.eval_python is not None and value.op == "const" and all(param.op == "const" for param in params):
             return SX.const(
-                spec.eval_python(
+                _invoke_custom_callback(
+                    spec.eval_python,
                     value.value,
-                    **{param_name: param.value for param_name, param in zip(spec.parameter_names, params)},
+                    tuple(param.value for param in params),
+                    spec.parameter_dimension,
                 )
             )
         return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
@@ -124,49 +128,89 @@ def _apply_rules(op: str, args: tuple[SX, ...], name: str | None = None) -> SX:
             param.op == "const" for param in params
         ):
             return SX.const(
-                spec.eval_python(
+                _invoke_custom_callback(
+                    spec.eval_python,
                     tuple(element.value for element in value),
-                    **{param_name: param.value for param_name, param in zip(spec.parameter_names, params)},
+                    tuple(param.value for param in params),
+                    spec.parameter_dimension,
                 )
             )
         return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
     if op == "custom_scalar_jacobian":
         spec, value, params = parse_custom_scalar_args(name, args)
-        derivative_expr = build_custom_jacobian_expr(spec, value, params)
-        return _simplify_scalar_once(derivative_expr, {})
+        if value.op == "const" and all(param.op == "const" for param in params):
+            return SX.const(
+                evaluate_custom_jacobian(
+                    spec,
+                    value.value,
+                    tuple(param.value for param in params),
+                )
+            )
+        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
     if op == "custom_scalar_hessian":
         spec, value, params = parse_custom_scalar_args(name, args)
-        hessian_expr = build_custom_hessian_expr(spec, value, params)
-        if not isinstance(hessian_expr, SX):
-            raise TypeError("scalar custom Hessians must return SX")
-        return _simplify_scalar_once(hessian_expr, {})
+        if value.op == "const" and all(param.op == "const" for param in params):
+            return SX.const(
+                evaluate_custom_hessian(
+                    spec,
+                    value.value,
+                    tuple(param.value for param in params),
+                )
+            )
+        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
     if op == "custom_scalar_hvp":
         spec, value, tangent, params = parse_custom_scalar_hvp_args(name, args)
-        hessian_expr = build_custom_hessian_expr(spec, value, params)
-        if not isinstance(hessian_expr, SX):
-            raise TypeError("scalar custom Hessians must return SX")
-        return _simplify_scalar_once(hessian_expr * tangent, {})
+        if value.op == "const" and tangent.op == "const" and all(param.op == "const" for param in params):
+            return SX.const(
+                evaluate_custom_hvp(
+                    spec,
+                    value.value,
+                    tangent.value,
+                    tuple(param.value for param in params),
+                )
+            )
+        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
     if op == "custom_vector_jacobian_component":
         spec, index, value, params = parse_custom_vector_jacobian_component_args(name, args)
-        derivative_expr = build_custom_jacobian_expr(spec, value, params)
-        if not isinstance(derivative_expr, SXVector):
-            raise TypeError("vector custom Jacobians must return SXVector")
-        return _simplify_scalar_once(derivative_expr[index], {})
+        if all(element.op == "const" for element in value) and all(param.op == "const" for param in params):
+            gradient = evaluate_custom_jacobian(
+                spec,
+                tuple(element.value for element in value),
+                tuple(param.value for param in params),
+            )
+            if not isinstance(gradient, tuple):
+                raise TypeError("vector custom Jacobians must return numeric vectors")
+            return SX.const(gradient[index])
+        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
     if op == "custom_vector_hessian_entry":
         spec, row, col, value, params = parse_custom_vector_hessian_entry_args(name, args)
-        hessian_expr = build_custom_hessian_expr(spec, value, params)
-        if not isinstance(hessian_expr, tuple):
-            raise TypeError("vector custom Hessians must return row tuples")
-        return _simplify_scalar_once(hessian_expr[row][col], {})
+        if all(element.op == "const" for element in value) and all(param.op == "const" for param in params):
+            hessian = evaluate_custom_hessian(
+                spec,
+                tuple(element.value for element in value),
+                tuple(param.value for param in params),
+            )
+            if not isinstance(hessian, tuple):
+                raise TypeError("vector custom Hessians must return numeric matrices")
+            return SX.const(hessian[row][col])
+        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
     if op == "custom_vector_hvp_component":
         spec, index, value, tangent, params = parse_custom_vector_hvp_component_args(name, args)
-        hessian_expr = build_custom_hessian_expr(spec, value, params)
-        if not isinstance(hessian_expr, tuple):
-            raise TypeError("vector custom Hessians must return row tuples")
-        total = SX.const(0.0)
-        for column in range(len(tangent)):
-            total = total + (hessian_expr[index][column] * tangent[column])
-        return _simplify_scalar_once(total, {})
+        if (
+            all(element.op == "const" for element in value)
+            and all(element.op == "const" for element in tangent)
+            and all(param.op == "const" for param in params)
+        ):
+            hvp = evaluate_custom_hvp(
+                spec,
+                tuple(element.value for element in value),
+                tuple(element.value for element in tangent),
+                tuple(param.value for param in params),
+            )
+            if not isinstance(hvp, tuple):
+                raise TypeError("vector custom HVP builders must return numeric vectors")
+            return SX.const(hvp[index])
+        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
     if op == "matvec_component":
         rows, cols, row, matrix_values, x_values = parse_matvec_component_args(args)
         _ = rows

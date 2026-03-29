@@ -1154,34 +1154,33 @@ mod math {
         weighted_sqnorm = register_elementary_function(
             name="weighted_sqnorm_runtime",
             input_dimension=2,
-            parameters={"w0": 1.0, "w1": 1.0},
-            eval_python=lambda x, w0, w1: w0 * x[0] * x[0] + w1 * x[1] * x[1],
-            jacobian=lambda x, w0, w1: SXVector((2 * w0 * x[0], 2 * w1 * x[1])),
-            hessian=lambda x, w0, w1: (
-                SXVector((2 * w0, SX.const(0.0))),
-                SXVector((SX.const(0.0), 2 * w1)),
+            parameter_dimension=2,
+            parameter_defaults=[1.0, 1.0],
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: SXVector((2 * w[0] * x[0], 2 * w[1] * x[1])),
+            hessian=lambda x, w: (
+                SXVector((2 * w[0], SX.const(0.0))),
+                SXVector((SX.const(0.0), 2 * w[1])),
             ),
             rust_primal="""
 fn weighted_sqnorm_runtime(
     x: &[{{ scalar_type }}],
-    w0: {{ scalar_type }},
-    w1: {{ scalar_type }},
+    w: &[{{ scalar_type }}],
 ) -> {{ scalar_type }} {
-    w0 * x[0] * x[0] + w1 * x[1] * x[1]
+    w[0] * x[0] * x[0] + w[1] * x[1] * x[1]
 }
 """,
             rust_hessian="""
 fn weighted_sqnorm_runtime_hessian(
     x: &[{{ scalar_type }}],
-    w0: {{ scalar_type }},
-    w1: {{ scalar_type }},
+    w: &[{{ scalar_type }}],
     out: &mut [{{ scalar_type }}],
 ) {
     let _ = x;
-    out[0] = 2.0_{{ scalar_type }} * w0;
+    out[0] = 2.0_{{ scalar_type }} * w[0];
     out[1] = 0.0_{{ scalar_type }};
     out[2] = 0.0_{{ scalar_type }};
-    out[3] = 2.0_{{ scalar_type }} * w1;
+    out[3] = 2.0_{{ scalar_type }} * w[1];
 }
 """,
         )
@@ -1190,7 +1189,7 @@ fn weighted_sqnorm_runtime_hessian(
         f = Function(
             "f",
             [x],
-            [weighted_sqnorm(x, w0=2.0, w1=3.0)],
+            [weighted_sqnorm(x, w=[2.0, 3.0])],
             input_names=["x"],
             output_names=["y"],
         ).hessian(0)

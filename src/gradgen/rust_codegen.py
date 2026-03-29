@@ -1110,12 +1110,12 @@ def _emit_custom_scalar_call(
     scalar_type: RustScalarType,
     math_library: str | None,
 ) -> str:
+    w_ref = _emit_matrix_vector_argument(
+        params, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+    )
     refs = [
         _emit_expr_ref(value, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library),
-        *[
-            _emit_expr_ref(param, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
-            for param in params
-        ],
+        w_ref,
     ]
     return f"{name}(" + ", ".join(refs) + ")"
 
@@ -1131,12 +1131,12 @@ def _emit_custom_scalar_derivative_call(
     scalar_type: RustScalarType,
     math_library: str | None,
 ) -> str:
+    w_ref = _emit_matrix_vector_argument(
+        params, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+    )
     refs = [
         _emit_expr_ref(value, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library),
-        *[
-            _emit_expr_ref(param, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
-            for param in params
-        ],
+        w_ref,
     ]
     return f"{name}_{derivative_kind}(" + ", ".join(refs) + ")"
 
@@ -1152,13 +1152,13 @@ def _emit_custom_scalar_hvp_call(
     scalar_type: RustScalarType,
     math_library: str | None,
 ) -> str:
+    w_ref = _emit_matrix_vector_argument(
+        params, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+    )
     refs = [
         _emit_expr_ref(value, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library),
         _emit_expr_ref(tangent, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library),
-        *[
-            _emit_expr_ref(param, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
-            for param in params
-        ],
+        w_ref,
     ]
     return f"{name}_hvp(" + ", ".join(refs) + ")"
 
@@ -1176,12 +1176,12 @@ def _emit_custom_vector_call(
     x_ref = _emit_matrix_vector_argument(
         value.elements, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
     )
+    w_ref = _emit_matrix_vector_argument(
+        params, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+    )
     refs = [
         x_ref,
-        *[
-            _emit_expr_ref(param, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
-            for param in params
-        ],
+        w_ref,
     ]
     return f"{name}(" + ", ".join(refs) + ")"
 
@@ -1209,9 +1209,10 @@ def _emit_custom_vector_component_call(
                 tangent.elements, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
             )
         )
-    refs.extend(
-        _emit_expr_ref(param, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
-        for param in params
+    refs.append(
+        _emit_matrix_vector_argument(
+            params, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
     )
     suffix = "component" if derivative_kind in {"jacobian", "hvp"} else derivative_kind
     return f"{name}_{derivative_kind}_{suffix}(" + ", ".join(refs) + ")"
@@ -1232,11 +1233,14 @@ def _emit_custom_vector_hessian_entry_call(
     x_ref = _emit_matrix_vector_argument(
         value.elements, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
     )
-    refs = [str(row), str(col), x_ref]
-    refs.extend(
-        _emit_expr_ref(param, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
-        for param in params
-    )
+    refs = [
+        str(row),
+        str(col),
+        x_ref,
+        _emit_matrix_vector_argument(
+            params, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        ),
+    ]
     return f"{name}_hessian_entry(" + ", ".join(refs) + ")"
 
 
@@ -1264,8 +1268,8 @@ def _emit_custom_vector_hessian_output_helper_call(
     if matched is None:
         return None
 
-    name, x_ref, param_refs = matched
-    args = [x_ref, *param_refs, output_name]
+    name, x_ref, w_ref = matched
+    args = [x_ref, w_ref, output_name]
     return f"{name}_hessian(" + ", ".join(args) + ");"
 
 
@@ -1550,16 +1554,11 @@ def _build_custom_vector_jacobian_wrapper_lines(
 ) -> tuple[str, ...]:
     spec = spec  # satisfy type checkers without extra protocols
     vector_dim = getattr(spec, "vector_dim")
-    parameter_names = getattr(spec, "parameter_names")
     name = getattr(spec, "name")
-    param_signature = ", ".join(f"{param}: {scalar_type}" for param in parameter_names)
-    param_call = ", ".join(parameter_names)
-    signature_tail = f", {param_signature}" if param_signature else ""
-    call_tail = f", {param_call}" if param_call else ""
     return (
-        f"fn {name}_jacobian_component(index: usize, x: &[{scalar_type}]{signature_tail}) -> {scalar_type} {{",
+        f"fn {name}_jacobian_component(index: usize, x: &[{scalar_type}], w: &[{scalar_type}]) -> {scalar_type} {{",
         f"    let mut out = [0.0_{scalar_type}; {vector_dim}];",
-        f"    {name}_jacobian(x{call_tail}, &mut out);",
+        f"    {name}_jacobian(x, w, &mut out);",
         "    out[index]",
         "}",
     )
@@ -1571,16 +1570,11 @@ def _build_custom_vector_hvp_wrapper_lines(
 ) -> tuple[str, ...]:
     spec = spec
     vector_dim = getattr(spec, "vector_dim")
-    parameter_names = getattr(spec, "parameter_names")
     name = getattr(spec, "name")
-    param_signature = ", ".join(f"{param}: {scalar_type}" for param in parameter_names)
-    param_call = ", ".join(parameter_names)
-    signature_tail = f", {param_signature}" if param_signature else ""
-    call_tail = f", {param_call}" if param_call else ""
     return (
-        f"fn {name}_hvp_component(index: usize, x: &[{scalar_type}], v_x: &[{scalar_type}]{signature_tail}) -> {scalar_type} {{",
+        f"fn {name}_hvp_component(index: usize, x: &[{scalar_type}], v_x: &[{scalar_type}], w: &[{scalar_type}]) -> {scalar_type} {{",
         f"    let mut out = [0.0_{scalar_type}; {vector_dim}];",
-        f"    {name}_hvp(x, v_x{call_tail}, &mut out);",
+        f"    {name}_hvp(x, v_x, w, &mut out);",
         "    out[index]",
         "}",
     )
@@ -1592,17 +1586,12 @@ def _build_custom_vector_hessian_wrapper_lines(
 ) -> tuple[str, ...]:
     spec = spec
     vector_dim = getattr(spec, "vector_dim")
-    parameter_names = getattr(spec, "parameter_names")
     name = getattr(spec, "name")
-    param_signature = ", ".join(f"{param}: {scalar_type}" for param in parameter_names)
-    param_call = ", ".join(parameter_names)
-    signature_tail = f", {param_signature}" if param_signature else ""
-    call_tail = f", {param_call}" if param_call else ""
     flat_size = vector_dim * vector_dim
     return (
-        f"fn {name}_hessian_entry(row: usize, col: usize, x: &[{scalar_type}]{signature_tail}) -> {scalar_type} {{",
+        f"fn {name}_hessian_entry(row: usize, col: usize, x: &[{scalar_type}], w: &[{scalar_type}]) -> {scalar_type} {{",
         f"    let mut out = [0.0_{scalar_type}; {flat_size}];",
-        f"    {name}_hessian(x{call_tail}, &mut out);",
+        f"    {name}_hessian(x, w, &mut out);",
         f"    out[(row * {vector_dim}) + col]",
         "}",
     )
@@ -1672,9 +1661,9 @@ def _emit_custom_vector_output_helper_call(
         math_library=math_library,
     )
     if jacobian_call is not None:
-        name, x_ref, tangent_ref, param_refs = jacobian_call
+        name, x_ref, tangent_ref, w_ref = jacobian_call
         _ = tangent_ref
-        args = [x_ref, *param_refs, output_name]
+        args = [x_ref, w_ref, output_name]
         return f"{name}_jacobian(" + ", ".join(args) + ");"
 
     hvp_call = _match_custom_vector_derivative_output(
@@ -1687,10 +1676,10 @@ def _emit_custom_vector_output_helper_call(
         math_library=math_library,
     )
     if hvp_call is not None:
-        name, x_ref, tangent_ref, param_refs = hvp_call
+        name, x_ref, tangent_ref, w_ref = hvp_call
         if tangent_ref is None:
             return None
-        args = [x_ref, tangent_ref, *param_refs, output_name]
+        args = [x_ref, tangent_ref, w_ref, output_name]
         return f"{name}_hvp(" + ", ".join(args) + ");"
 
     hessian_call = _emit_custom_vector_hessian_output_helper_call(
@@ -1717,7 +1706,7 @@ def _match_custom_vector_derivative_output(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
-) -> tuple[str, str, str | None, list[str]] | None:
+) -> tuple[str, str, str | None, str] | None:
     """Match a full custom vector derivative output emitted as components."""
     expected_op = (
         "custom_vector_jacobian_component"
@@ -1739,11 +1728,10 @@ def _match_custom_vector_derivative_output(
         x_ref = _emit_matrix_vector_argument(
             value.elements, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
         )
-        param_refs = [
-            _emit_expr_ref(param, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
-            for param in params
-        ]
-        return spec.name, x_ref, None, param_refs
+        w_ref = _emit_matrix_vector_argument(
+            params, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return spec.name, x_ref, None, w_ref
 
     parsed_hvp = [parse_custom_vector_hvp_component_args(element.name, element.args) for element in output_arg]
     spec, first_index, value, tangent, params = parsed_hvp[0]
@@ -1765,11 +1753,10 @@ def _match_custom_vector_derivative_output(
     tangent_ref = _emit_matrix_vector_argument(
         tangent.elements, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
     )
-    param_refs = [
-        _emit_expr_ref(param, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
-        for param in params
-    ]
-    return spec.name, x_ref, tangent_ref, param_refs
+    w_ref = _emit_matrix_vector_argument(
+        params, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+    )
+    return spec.name, x_ref, tangent_ref, w_ref
 
 
 def _match_custom_vector_hessian_output(
@@ -1780,7 +1767,7 @@ def _match_custom_vector_hessian_output(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
-) -> tuple[str, str, list[str]] | None:
+) -> tuple[str, str, str] | None:
     """Match a full flat custom vector Hessian output emitted row-major."""
     parsed: list[tuple[object, int, int, SXVector, tuple[SX, ...]]] = []
     for element in output_arg:
@@ -1808,11 +1795,10 @@ def _match_custom_vector_hessian_output(
     x_ref = _emit_matrix_vector_argument(
         x_value.elements, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
     )
-    param_refs = [
-        _emit_expr_ref(param, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
-        for param in params
-    ]
-    return getattr(spec, "name"), x_ref, param_refs
+    w_ref = _emit_matrix_vector_argument(
+        params, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+    )
+    return getattr(spec, "name"), x_ref, w_ref
 
 
 def _match_passthrough_custom_vector_hessian_entry(expr: SX) -> SX | None:
