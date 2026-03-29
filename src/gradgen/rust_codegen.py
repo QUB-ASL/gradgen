@@ -9,7 +9,7 @@ import re
 from jinja2 import Environment, FileSystemLoader
 
 from .function import Function
-from .sx import SX, SXNode, SXVector
+from .sx import SX, SXNode, SXVector, parse_bilinear_form_args, parse_matvec_component_args, parse_quadform_args
 
 
 RustBackendMode = str
@@ -350,6 +350,18 @@ def generate_rust(
         output_assert_lines.append(
             f"assert_eq!({output_spec.rust_name}.len(), {output_spec.size});"
         )
+        matvec_helper_call = _emit_matvec_output_helper_call(
+            output_arg,
+            output_spec.rust_name,
+            scalar_bindings,
+            workspace_map,
+            resolved_config.backend_mode,
+            resolved_config.scalar_type,
+            resolved_math_library,
+        )
+        if matvec_helper_call is not None:
+            output_write_lines.append(matvec_helper_call)
+            continue
         for scalar_index, scalar in enumerate(_flatten_arg(output_arg)):
             output_ref = _emit_expr_ref(
                 scalar,
@@ -694,6 +706,55 @@ def _emit_node_expr(
         return _emit_math_call("fract", args, backend_mode, scalar_type, math_library)
     if expr.op == "signum":
         return _emit_math_call("signum", args, backend_mode, scalar_type, math_library)
+    if expr.op == "matvec_component":
+        rows, cols, row, matrix_values, x_values = parse_matvec_component_args(expr.args)
+        matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+        x_ref = _emit_matrix_vector_argument(
+            x_values, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"matvec_component({matrix_ref}, {rows}, {cols}, {row}, {x_ref})"
+    if expr.op == "quadform":
+        size, matrix_values, x_values = parse_quadform_args(expr.args)
+        matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+        x_ref = _emit_matrix_vector_argument(
+            x_values, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"quadform({matrix_ref}, {size}, {x_ref})"
+    if expr.op == "bilinear_form":
+        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(expr.args)
+        matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+        x_ref = _emit_matrix_vector_argument(
+            x_values, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        y_ref = _emit_matrix_vector_argument(
+            y_values, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"bilinear_form({x_ref}, {matrix_ref}, {rows}, {cols}, {y_ref})"
+    if expr.op == "sum":
+        vector_ref = _emit_norm_slice_argument(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"vec_sum({vector_ref})"
+    if expr.op == "prod":
+        vector_ref = _emit_norm_slice_argument(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"vec_prod({vector_ref})"
+    if expr.op == "reduce_max":
+        vector_ref = _emit_norm_slice_argument(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"vec_max({vector_ref})"
+    if expr.op == "reduce_min":
+        vector_ref = _emit_norm_slice_argument(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"vec_min({vector_ref})"
+    if expr.op == "mean":
+        vector_ref = _emit_norm_slice_argument(
+            expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+        )
+        return f"vec_mean({vector_ref})"
     if expr.op == "norm2":
         vector_ref = _emit_norm_slice_argument(
             expr, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
@@ -895,6 +956,30 @@ def _emit_norm_slice_and_p_arguments(
     return vector_ref, p_ref
 
 
+def _emit_matrix_literal(values: tuple[float, ...], scalar_type: RustScalarType) -> str:
+    """Return an inline Rust slice literal for a constant matrix."""
+    return "&[" + ", ".join(_format_float(value, scalar_type) for value in values) + "]"
+
+
+def _emit_matrix_vector_argument(
+    values: tuple[SX, ...],
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str:
+    """Return the Rust slice expression passed to matrix helpers."""
+    refs = tuple(
+        _emit_expr_ref(value, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library)
+        for value in values
+    )
+    slice_name = _match_contiguous_slice(refs)
+    if slice_name is not None:
+        return slice_name
+    return "&[" + ", ".join(refs) + "]"
+
+
 def _match_contiguous_slice(args: tuple[str, ...]) -> str | None:
     """Return the slice name when args are exactly ``name[0], name[1], ...``."""
     if not args:
@@ -921,6 +1006,94 @@ def _build_shared_helper_lines(
     """Return module-scope helper definitions needed by generated kernels."""
     used_ops = {node.op for node in nodes}
     lines: list[str] = []
+
+    if {"matvec_component", "quadform", "bilinear_form"} & used_ops:
+        lines.extend(
+            [
+                f"fn matvec_component(matrix: &[{scalar_type}], rows: usize, cols: usize, row: usize, x: &[{scalar_type}]) -> {scalar_type} {{",
+                "    debug_assert_eq!(matrix.len(), rows * cols);",
+                "    debug_assert_eq!(x.len(), cols);",
+                "    let start = row * cols;",
+                "    matrix[start..start + cols]",
+                "        .iter()",
+                "        .zip(x.iter())",
+                "        .map(|(entry, value)| *entry * *value)",
+                "        .sum()",
+                "}",
+                f"fn matvec(matrix: &[{scalar_type}], rows: usize, cols: usize, x: &[{scalar_type}], y: &mut [{scalar_type}]) {{",
+                "    debug_assert_eq!(y.len(), rows);",
+                "    for row in 0..rows {",
+                "        y[row] = matvec_component(matrix, rows, cols, row, x);",
+                "    }",
+                "}",
+                f"fn bilinear_form(x: &[{scalar_type}], matrix: &[{scalar_type}], rows: usize, cols: usize, y: &[{scalar_type}]) -> {scalar_type} {{",
+                "    debug_assert_eq!(x.len(), rows);",
+                "    debug_assert_eq!(y.len(), cols);",
+                "    x.iter()",
+                "        .enumerate()",
+                "        .map(|(row, x_value)| {",
+                "            let start = row * cols;",
+                "            let row_sum: "
+                + scalar_type
+                + " = matrix[start..start + cols]",
+                "                .iter()",
+                "                .zip(y.iter())",
+                "                .map(|(entry, y_value)| *entry * *y_value)",
+                "                .sum();",
+                "            *x_value * row_sum",
+                "        })",
+                "        .sum()",
+                "}",
+                f"fn quadform(matrix: &[{scalar_type}], size: usize, x: &[{scalar_type}]) -> {scalar_type} {{",
+                "    bilinear_form(x, matrix, size, size, x)",
+                "}",
+            ]
+        )
+
+    if "sum" in used_ops or "mean" in used_ops:
+        lines.extend(
+            [
+                f"fn vec_sum(values: &[{scalar_type}]) -> {scalar_type} {{",
+                "    values.iter().copied().sum()",
+                "}",
+            ]
+        )
+
+    if "prod" in used_ops:
+        lines.extend(
+            [
+                f"fn vec_prod(values: &[{scalar_type}]) -> {scalar_type} {{",
+                f"    values.iter().copied().product::<{scalar_type}>()",
+                "}",
+            ]
+        )
+
+    if "reduce_max" in used_ops:
+        lines.extend(
+            [
+                f"fn vec_max(values: &[{scalar_type}]) -> {scalar_type} {{",
+                f"    values.iter().copied().fold({scalar_type}::NEG_INFINITY, |acc, value| acc.max(value))",
+                "}",
+            ]
+        )
+
+    if "reduce_min" in used_ops:
+        lines.extend(
+            [
+                f"fn vec_min(values: &[{scalar_type}]) -> {scalar_type} {{",
+                f"    values.iter().copied().fold({scalar_type}::INFINITY, |acc, value| acc.min(value))",
+                "}",
+            ]
+        )
+
+    if "mean" in used_ops:
+        lines.extend(
+            [
+                f"fn vec_mean(values: &[{scalar_type}]) -> {scalar_type} {{",
+                f"    vec_sum(values) / (values.len() as {scalar_type})",
+                "}",
+            ]
+        )
 
     if "norm2" in used_ops:
         sqrt_expr = _emit_math_call("sqrt", ("sum",), backend_mode, scalar_type, math_library)
@@ -1025,6 +1198,93 @@ def _build_shared_helper_lines(
         )
 
     return tuple(lines)
+
+
+def _emit_matvec_output_helper_call(
+    output_arg: SX | SXVector,
+    output_name: str,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str | None:
+    """Return a single helper call when ``output_arg`` is exactly a matvec."""
+    if not isinstance(output_arg, SXVector) or not output_arg.elements:
+        return None
+    parsed_exprs: list[SX] = []
+    for element in output_arg:
+        matched = _match_passthrough_matvec_component(element)
+        if matched is None:
+            return None
+        parsed_exprs.append(matched)
+
+    parsed = [parse_matvec_component_args(element.args) for element in parsed_exprs]
+    rows, cols, _row, matrix_values, x_values = parsed[0]
+    if rows != len(output_arg):
+        return None
+    for index, candidate in enumerate(parsed):
+        cand_rows, cand_cols, cand_row, cand_matrix_values, cand_x_values = candidate
+        if (
+            cand_rows != rows
+            or cand_cols != cols
+            or cand_row != index
+            or cand_matrix_values != matrix_values
+            or cand_x_values != x_values
+        ):
+            return None
+
+    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+    x_ref = _emit_matrix_vector_argument(
+        x_values, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+    )
+    return f"matvec({matrix_ref}, {rows}, {cols}, {x_ref}, {output_name});"
+
+
+def _match_passthrough_matvec_component(expr: SX) -> SX | None:
+    """Return the underlying matvec component through trivial wrappers."""
+    if expr.op == "matvec_component":
+        return expr
+    if expr.op == "mul":
+        left, right = expr.args
+        if _is_passthrough_one(left):
+            return _match_passthrough_matvec_component(right)
+        if _is_passthrough_one(right):
+            return _match_passthrough_matvec_component(left)
+        return None
+    if expr.op == "add":
+        left, right = expr.args
+        if _is_passthrough_zero(left):
+            return _match_passthrough_matvec_component(right)
+        if _is_passthrough_zero(right):
+            return _match_passthrough_matvec_component(left)
+        return None
+    return None
+
+
+def _is_passthrough_zero(expr: SX) -> bool:
+    """Return whether ``expr`` is structurally equivalent to zero."""
+    if expr.op == "const" and expr.value == 0.0:
+        return True
+    if expr.op == "add":
+        left, right = expr.args
+        return _is_passthrough_zero(left) and _is_passthrough_zero(right)
+    if expr.op == "mul":
+        left, right = expr.args
+        return _is_passthrough_zero(left) or _is_passthrough_zero(right)
+    return False
+
+
+def _is_passthrough_one(expr: SX) -> bool:
+    """Return whether ``expr`` is structurally equivalent to one."""
+    if expr.op == "const" and expr.value == 1.0:
+        return True
+    if expr.op == "add":
+        left, right = expr.args
+        return (_is_passthrough_zero(left) and _is_passthrough_one(right)) or (
+            _is_passthrough_one(left) and _is_passthrough_zero(right)
+        )
+    return False
 
 
 def _emit_norm_abs_expr(

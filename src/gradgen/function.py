@@ -6,7 +6,15 @@ import math
 from dataclasses import dataclass
 from typing import Iterable
 
-from .sx import SX, SXNode, SXVector, vector
+from .sx import (
+    SX,
+    SXNode,
+    SXVector,
+    parse_bilinear_form_args,
+    parse_matvec_component_args,
+    parse_quadform_args,
+    vector,
+)
 
 
 FunctionArg = SX | SXVector
@@ -804,6 +812,41 @@ def _evaluate_scalar(expr: SX) -> float:
         return math.atan2(args[0], args[1])
     if expr.op == "hypot":
         return math.hypot(args[0], args[1])
+    if expr.op == "matvec_component":
+        rows, cols, row, matrix_values, x_values = parse_matvec_component_args(expr.args)
+        _ = rows
+        start = row * cols
+        return sum(matrix_values[start + index] * _evaluate_scalar(x_values[index]) for index in range(cols))
+    if expr.op == "quadform":
+        size, matrix_values, x_values = parse_quadform_args(expr.args)
+        x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
+        total = 0.0
+        for row in range(size):
+            for col in range(size):
+                total += matrix_values[row * size + col] * x_numeric[row] * x_numeric[col]
+        return total
+    if expr.op == "bilinear_form":
+        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(expr.args)
+        x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
+        y_numeric = tuple(_evaluate_scalar(value) for value in y_values)
+        total = 0.0
+        for row in range(rows):
+            for col in range(cols):
+                total += matrix_values[row * cols + col] * x_numeric[row] * y_numeric[col]
+        return total
+    if expr.op == "sum":
+        return sum(args)
+    if expr.op == "prod":
+        total = 1.0
+        for arg in args:
+            total *= arg
+        return total
+    if expr.op == "reduce_max":
+        return max(args)
+    if expr.op == "reduce_min":
+        return min(args)
+    if expr.op == "mean":
+        return sum(args) / len(args)
     if expr.op == "min":
         return min(args[0], args[1])
     if expr.op == "neg":

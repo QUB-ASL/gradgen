@@ -10,6 +10,7 @@ from gradgen.sx import (
     atan2,
     atan,
     atanh,
+    bilinear_form,
     cbrt,
     ceil,
     cos,
@@ -23,8 +24,10 @@ from gradgen.sx import (
     hypot,
     log,
     log1p,
+    matvec,
     maximum,
     minimum,
+    quadform,
     round,
     signum,
     sin,
@@ -424,6 +427,51 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(norm_inf.op, "norm_inf")
         self.assertEqual(norm_p.op, "norm_p")
         self.assertEqual(norm_p_to_p.op, "norm_p_to_p")
+
+    def test_vector_reductions_build_expected_scalar_expressions(self) -> None:
+        x = SXVector.sym("x", 3)
+
+        total = x.sum()
+        product = x.prod()
+        maximum = x.max()
+        minimum = x.min()
+        mean = x.mean()
+
+        self.assertEqual(total.op, "sum")
+        self.assertEqual(product.op, "prod")
+        self.assertEqual(maximum.op, "reduce_max")
+        self.assertEqual(minimum.op, "reduce_min")
+        self.assertEqual(mean.op, "mean")
+
+    def test_constant_matrix_helpers_build_expected_expressions(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+
+        matvec_expr = matvec(matrix, x)
+        quadform_expr = quadform(matrix, x)
+        bilinear_expr = bilinear_form(x, matrix, y)
+
+        self.assertIsInstance(matvec_expr, SXVector)
+        self.assertEqual(len(matvec_expr), 2)
+        self.assertTrue(all(element.op == "matvec_component" for element in matvec_expr))
+        self.assertEqual(quadform_expr.op, "quadform")
+        self.assertEqual(bilinear_expr.op, "bilinear_form")
+
+    def test_empty_vector_reductions_follow_documented_behavior(self) -> None:
+        x = SXVector.sym("x", 0)
+
+        self.assertEqual(x.sum().value, 0.0)
+        self.assertEqual(x.prod().value, 1.0)
+
+        with self.assertRaises(ValueError):
+            _ = x.max()
+
+        with self.assertRaises(ValueError):
+            _ = x.min()
+
+        with self.assertRaises(ValueError):
+            _ = x.mean()
 
     def test_vector_operations_validate_lengths(self) -> None:
         x = SXVector.sym("x", 2)

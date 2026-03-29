@@ -2,7 +2,7 @@ import math
 import unittest
 
 from gradgen.function import Function
-from gradgen.sx import SX, SXVector
+from gradgen.sx import SX, SXVector, bilinear_form, matvec, quadform
 
 
 class FunctionTests(unittest.TestCase):
@@ -216,6 +216,34 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(result[3], 4.0)
         self.assertAlmostEqual(result[4], 92.0 ** (1.0 / 3.0))
         self.assertEqual(result[5], 92.0)
+
+    def test_function_numeric_vector_call_supports_reductions(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function("f", [x], [x.sum(), x.prod(), x.max(), x.min(), x.mean()])
+
+        result = f([3.0, -4.0, 1.0])
+
+        self.assertEqual(result[0], 0.0)
+        self.assertEqual(result[1], -12.0)
+        self.assertEqual(result[2], 3.0)
+        self.assertEqual(result[3], -4.0)
+        self.assertEqual(result[4], 0.0)
+
+    def test_function_numeric_call_supports_constant_matrix_helpers(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "f",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+        )
+
+        result = f([1.0, 2.0], [3.0, 4.0])
+
+        self.assertEqual(result[0], (4.0, 7.0))
+        self.assertEqual(result[1], 18.0)
+        self.assertEqual(result[2], 40.0)
 
     def test_function_joint_returns_combined_primal_and_jacobian_outputs(self) -> None:
         x = SXVector.sym("x", 2)

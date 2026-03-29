@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Hashable
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import ClassVar, Iterable, Iterator, overload
+from typing import ClassVar, Iterable, Iterator, Sequence, overload
 
 
 # Operations whose operands can be reordered without changing semantics.
@@ -602,6 +602,36 @@ class SXVector:
             total = total + (left * right)
         return total
 
+    def sum(self) -> SX:
+        """Return the sum of all vector elements."""
+        if len(self) == 0:
+            return SX.const(0.0)
+        return SX(SXNode.make("sum", tuple(element.node for element in self.elements)))
+
+    def prod(self) -> SX:
+        """Return the product of all vector elements."""
+        if len(self) == 0:
+            return SX.const(1.0)
+        return SX(SXNode.make("prod", tuple(element.node for element in self.elements)))
+
+    def max(self) -> SX:
+        """Return the maximum vector element."""
+        if len(self) == 0:
+            raise ValueError("vector max is undefined for empty vectors")
+        return SX(SXNode.make("reduce_max", tuple(element.node for element in self.elements)))
+
+    def min(self) -> SX:
+        """Return the minimum vector element."""
+        if len(self) == 0:
+            raise ValueError("vector min is undefined for empty vectors")
+        return SX(SXNode.make("reduce_min", tuple(element.node for element in self.elements)))
+
+    def mean(self) -> SX:
+        """Return the arithmetic mean of the vector elements."""
+        if len(self) == 0:
+            raise ValueError("vector mean is undefined for empty vectors")
+        return SX(SXNode.make("mean", tuple(element.node for element in self.elements)))
+
     def norm2(self) -> SX:
         """Return the Euclidean norm of the vector."""
         if len(self) == 0:
@@ -837,6 +867,57 @@ def vector(values: Iterable[object]) -> SXVector:
     return SXVector(tuple(_coerce(value) for value in values))
 
 
+def matvec(matrix: Sequence[Sequence[float | int]], x: object) -> SXVector:
+    """Return the symbolic matrix-vector product for a constant matrix."""
+    x_vector = _coerce_vector(x)
+    rows, cols, values = _coerce_constant_matrix(matrix)
+    if cols != len(x_vector):
+        raise ValueError("matrix column count must match vector length")
+    return SXVector(
+        tuple(
+            SX(
+                SXNode.make(
+                    "matvec_component",
+                    _build_matvec_component_args(rows, cols, row, values, x_vector.elements),
+                )
+            )
+            for row in range(rows)
+        )
+    )
+
+
+def quadform(matrix: Sequence[Sequence[float | int]], x: object) -> SX:
+    """Return the symbolic quadratic form ``x' P x`` for a constant matrix."""
+    x_vector = _coerce_vector(x)
+    rows, cols, values = _coerce_constant_matrix(matrix)
+    if rows != cols:
+        raise ValueError("quadratic form requires a square matrix")
+    if rows != len(x_vector):
+        raise ValueError("matrix size must match vector length")
+    return SX(SXNode.make("quadform", _build_quadform_args(rows, values, x_vector.elements)))
+
+
+def bilinear_form(
+    x: object,
+    matrix: Sequence[Sequence[float | int]],
+    y: object,
+) -> SX:
+    """Return the symbolic bilinear form ``x' P y`` for a constant matrix."""
+    x_vector = _coerce_vector(x)
+    y_vector = _coerce_vector(y)
+    rows, cols, values = _coerce_constant_matrix(matrix)
+    if rows != len(x_vector):
+        raise ValueError("matrix row count must match left vector length")
+    if cols != len(y_vector):
+        raise ValueError("matrix column count must match right vector length")
+    return SX(
+        SXNode.make(
+            "bilinear_form",
+            _build_bilinear_form_args(rows, cols, values, x_vector.elements, y_vector.elements),
+        )
+    )
+
+
 def _binary(op: str, lhs: object, rhs: object) -> SX:
     """Build a binary symbolic expression after coercing operands."""
     left = _coerce(lhs)
@@ -883,6 +964,139 @@ def _coerce_vector(value: object) -> SXVector:
     if isinstance(value, SXVector):
         return value
     raise TypeError(f"cannot convert {type(value).__name__} to SXVector")
+
+
+def _coerce_constant_matrix(
+    matrix: Sequence[Sequence[float | int]],
+) -> tuple[int, int, tuple[float, ...]]:
+    """Validate and flatten a constant numeric matrix."""
+    if isinstance(matrix, (str, bytes)):
+        raise TypeError("matrix must be a sequence of numeric rows")
+    rows = list(matrix)
+    if not rows:
+        return 0, 0, ()
+    cols = len(rows[0])
+    flattened: list[float] = []
+    for row in rows:
+        if isinstance(row, (str, bytes)):
+            raise TypeError("matrix rows must be sequences of numbers")
+        if len(row) != cols:
+            raise ValueError("matrix rows must all have the same length")
+        for value in row:
+            if not isinstance(value, (int, float)):
+                raise TypeError("matrix entries must be numeric constants")
+            flattened.append(float(value))
+    return len(rows), cols, tuple(flattened)
+
+
+def _build_matvec_component_args(
+    rows: int,
+    cols: int,
+    row: int,
+    values: tuple[float, ...],
+    x_elements: tuple[SX, ...],
+) -> tuple[SXNode, ...]:
+    return (
+        SX.const(rows).node,
+        SX.const(cols).node,
+        SX.const(row).node,
+        *(SX.const(value).node for value in values),
+        *(element.node for element in x_elements),
+    )
+
+
+def _build_quadform_args(
+    size: int,
+    values: tuple[float, ...],
+    x_elements: tuple[SX, ...],
+) -> tuple[SXNode, ...]:
+    return (
+        SX.const(size).node,
+        *(SX.const(value).node for value in values),
+        *(element.node for element in x_elements),
+    )
+
+
+def _build_bilinear_form_args(
+    rows: int,
+    cols: int,
+    values: tuple[float, ...],
+    x_elements: tuple[SX, ...],
+    y_elements: tuple[SX, ...],
+) -> tuple[SXNode, ...]:
+    return (
+        SX.const(rows).node,
+        SX.const(cols).node,
+        *(SX.const(value).node for value in values),
+        *(element.node for element in x_elements),
+        *(element.node for element in y_elements),
+    )
+
+
+def parse_matvec_component_args(
+    args: tuple[SX, ...],
+) -> tuple[int, int, int, tuple[float, ...], tuple[SX, ...]]:
+    """Decode a ``matvec_component`` node payload."""
+    rows = _require_integral_const(args[0], "rows")
+    cols = _require_integral_const(args[1], "cols")
+    row = _require_integral_const(args[2], "row")
+    matrix_count = rows * cols
+    matrix_values = tuple(_require_const(arg, "matrix entry") for arg in args[3 : 3 + matrix_count])
+    x_values = args[3 + matrix_count :]
+    if len(x_values) != cols:
+        raise ValueError("matvec_component payload is malformed")
+    return rows, cols, row, matrix_values, x_values
+
+
+def parse_quadform_args(args: tuple[SX, ...]) -> tuple[int, tuple[float, ...], tuple[SX, ...]]:
+    """Decode a ``quadform`` node payload."""
+    size = _require_integral_const(args[0], "size")
+    matrix_count = size * size
+    matrix_values = tuple(_require_const(arg, "matrix entry") for arg in args[1 : 1 + matrix_count])
+    x_values = args[1 + matrix_count :]
+    if len(x_values) != size:
+        raise ValueError("quadform payload is malformed")
+    return size, matrix_values, x_values
+
+
+def parse_bilinear_form_args(
+    args: tuple[SX, ...],
+) -> tuple[int, int, tuple[float, ...], tuple[SX, ...], tuple[SX, ...]]:
+    """Decode a ``bilinear_form`` node payload."""
+    rows = _require_integral_const(args[0], "rows")
+    cols = _require_integral_const(args[1], "cols")
+    matrix_count = rows * cols
+    matrix_values = tuple(_require_const(arg, "matrix entry") for arg in args[2 : 2 + matrix_count])
+    x_values = args[2 + matrix_count : 2 + matrix_count + rows]
+    y_values = args[2 + matrix_count + rows :]
+    if len(x_values) != rows or len(y_values) != cols:
+        raise ValueError("bilinear_form payload is malformed")
+    return rows, cols, matrix_values, x_values, y_values
+
+
+def matrix_transpose(rows: int, cols: int, values: tuple[float, ...]) -> tuple[float, ...]:
+    """Return the flattened transpose of a row-major matrix."""
+    return tuple(values[row * cols + col] for col in range(cols) for row in range(rows))
+
+
+def matrix_add(values_a: tuple[float, ...], values_b: tuple[float, ...]) -> tuple[float, ...]:
+    """Return the elementwise sum of two flattened matrices."""
+    if len(values_a) != len(values_b):
+        raise ValueError("matrix sizes must match")
+    return tuple(left + right for left, right in zip(values_a, values_b))
+
+
+def _require_const(expr: SX, label: str) -> float:
+    if expr.op != "const" or expr.value is None:
+        raise ValueError(f"{label} must be stored as a constant")
+    return expr.value
+
+
+def _require_integral_const(expr: SX, label: str) -> int:
+    value = _require_const(expr, label)
+    if value != int(value):
+        raise ValueError(f"{label} must be an integer constant")
+    return int(value)
 
 
 def _normalize_metadata(

@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
-from .sx import SX, SXNode, SXVector, vector
+from .sx import (
+    SX,
+    SXNode,
+    SXVector,
+    bilinear_form,
+    matrix_add,
+    matrix_transpose,
+    matvec,
+    parse_bilinear_form_args,
+    parse_matvec_component_args,
+    parse_quadform_args,
+    vector,
+)
 
 
 ADExpr = SX | SXVector
@@ -183,6 +195,58 @@ def _forward_scalar(
 
 def _differentiate_op(expr: SX, args: tuple[SX, ...], tangents: tuple[SX, ...]) -> SX:
     """Apply forward-mode differentiation rules for a single operation."""
+    if expr.op == "matvec_component":
+        rows, cols, row, matrix_values, _x_values = parse_matvec_component_args(args)
+        tangent_values = tangents[3 + (rows * cols) :]
+        return SX(
+            SXNode.make(
+                "matvec_component",
+                (
+                    SX.const(rows).node,
+                    SX.const(cols).node,
+                    SX.const(row).node,
+                    *(SX.const(value).node for value in matrix_values),
+                    *(value.node for value in tangent_values),
+                ),
+            )
+        )
+    if expr.op == "quadform":
+        size, matrix_values, x_values = parse_quadform_args(args)
+        x_tangents = tangents[1 + (size * size) :]
+        matrix = tuple(matrix_values)
+        total = bilinear_form(SXVector(x_tangents), [list(matrix[row * size : (row + 1) * size]) for row in range(size)], SXVector(x_values))
+        total = total + bilinear_form(SXVector(x_values), [list(matrix[row * size : (row + 1) * size]) for row in range(size)], SXVector(x_tangents))
+        return total
+    if expr.op == "bilinear_form":
+        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(args)
+        matrix = [list(matrix_values[row * cols : (row + 1) * cols]) for row in range(rows)]
+        x_tangents = SXVector(tangents[2 + (rows * cols) : 2 + (rows * cols) + rows])
+        y_tangents = SXVector(tangents[2 + (rows * cols) + rows :])
+        return bilinear_form(x_tangents, matrix, SXVector(y_values)) + bilinear_form(
+            SXVector(x_values), matrix, y_tangents
+        )
+    if expr.op == "sum":
+        total = SX.const(0.0)
+        for tangent in tangents:
+            total = total + tangent
+        return total
+    if expr.op == "prod":
+        total = SX.const(0.0)
+        for index, tangent in enumerate(tangents):
+            term = tangent
+            for other_index, arg in enumerate(args):
+                if other_index == index:
+                    continue
+                term = term * arg
+            total = total + term
+        return total
+    if expr.op == "mean":
+        total = SX.const(0.0)
+        for tangent in tangents:
+            total = total + tangent
+        return total / SX.const(float(len(args)))
+    if expr.op in {"reduce_max", "reduce_min"}:
+        raise ValueError(f"cannot differentiate operation {expr.op!r}")
     if expr.op == "norm2sq":
         total = SX.const(0.0)
         for arg, tangent in zip(args, tangents):
@@ -340,6 +404,40 @@ def _propagate_reverse(
 
     if node.op in {"const", "symbol"}:
         return
+    if node.op == "matvec_component":
+        rows, cols, row, matrix_values, x_values = parse_matvec_component_args(args)
+        _ = rows, x_values
+        offset = 3 + (rows * cols)
+        start = row * cols
+        for index in range(cols):
+            _accumulate_adjoint(
+                adjoints,
+                node.args[offset + index],
+                adjoint * SX.const(matrix_values[start + index]),
+            )
+        return
+    if node.op == "quadform":
+        size, matrix_values, x_values = parse_quadform_args(args)
+        transposed = matrix_transpose(size, size, matrix_values)
+        sym_matrix = matrix_add(matrix_values, transposed)
+        sym_rows = [list(sym_matrix[row * size : (row + 1) * size]) for row in range(size)]
+        gradient_vec = matvec(sym_rows, SXVector(x_values)) * adjoint
+        offset = 1 + (size * size)
+        for index in range(size):
+            _accumulate_adjoint(adjoints, node.args[offset + index], gradient_vec[index])
+        return
+    if node.op == "bilinear_form":
+        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(args)
+        matrix = [list(matrix_values[row * cols : (row + 1) * cols]) for row in range(rows)]
+        transpose = [list(matrix_transpose(rows, cols, matrix_values)[row * rows : (row + 1) * rows]) for row in range(cols)]
+        grad_x = matvec(matrix, SXVector(y_values)) * adjoint
+        grad_y = matvec(transpose, SXVector(x_values)) * adjoint
+        offset = 2 + (rows * cols)
+        for index in range(rows):
+            _accumulate_adjoint(adjoints, node.args[offset + index], grad_x[index])
+        for index in range(cols):
+            _accumulate_adjoint(adjoints, node.args[offset + rows + index], grad_y[index])
+        return
     if node.op == "add":
         _accumulate_adjoint(adjoints, node.args[0], adjoint)
         _accumulate_adjoint(adjoints, node.args[1], adjoint)
@@ -373,6 +471,26 @@ def _propagate_reverse(
         _accumulate_adjoint(adjoints, node.args[0], adjoint * (args[0] / expr))
         _accumulate_adjoint(adjoints, node.args[1], adjoint * (args[1] / expr))
         return
+    if node.op == "sum":
+        for child_node in node.args:
+            _accumulate_adjoint(adjoints, child_node, adjoint)
+        return
+    if node.op == "prod":
+        for index, child_node in enumerate(node.args):
+            term = adjoint
+            for other_index, arg in enumerate(args):
+                if other_index == index:
+                    continue
+                term = term * arg
+            _accumulate_adjoint(adjoints, child_node, term)
+        return
+    if node.op == "mean":
+        scale = adjoint / SX.const(float(len(node.args)))
+        for child_node in node.args:
+            _accumulate_adjoint(adjoints, child_node, scale)
+        return
+    if node.op in {"reduce_max", "reduce_min"}:
+        raise ValueError(f"cannot differentiate operation {node.op!r}")
     if node.op == "min":
         raise ValueError(f"cannot differentiate operation {node.op!r}")
     if node.op == "neg":

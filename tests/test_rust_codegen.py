@@ -10,10 +10,13 @@ from gradgen import (
     RustBackendConfig,
     SX,
     SXVector,
+    bilinear_form,
     create_multi_function_rust_project,
     create_rust_derivative_bundle,
     create_rust_project,
     derivative,
+    matvec,
+    quadform,
 )
 
 
@@ -510,6 +513,62 @@ mod tests {{
         self.assertIn("norm_p(x, 3.0_f64)", result.source)
         self.assertIn("norm_p_to_p(x, 3.0_f64)", result.source)
 
+    def test_generated_code_supports_vector_reductions(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function(
+            "f",
+            [x],
+            [x.sum(), x.prod(), x.max(), x.min(), x.mean()],
+            input_names=["x"],
+            output_names=["sum", "prod", "max", "min", "mean"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("fn vec_sum(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn vec_prod(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn vec_max(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn vec_min(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn vec_mean(values: &[f64]) -> f64 {", result.source)
+        self.assertIn("vec_sum(x)", result.source)
+        self.assertIn("vec_prod(x)", result.source)
+        self.assertIn("vec_max(x)", result.source)
+        self.assertIn("vec_min(x)", result.source)
+        self.assertIn("vec_mean(x)", result.source)
+
+    def test_generated_code_supports_constant_matrix_helpers(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "f",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {", result.source)
+        self.assertIn("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {", result.source)
+        self.assertIn("fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {", result.source)
+        self.assertIn("matvec(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, x, mx);", result.source)
+        self.assertIn("work[2] = quadform(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, x);", result.source)
+        self.assertIn("work[3] = bilinear_form(x, &[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, y);", result.source)
+
+    def test_generated_code_uses_matvec_helpers_for_quadratic_form_derivatives(self) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function("f", [x], [quadform(matrix, x)], input_names=["x"], output_names=["y"])
+
+        gradient_result = f.gradient(0).generate_rust()
+        hvp_result = f.hvp(0).generate_rust()
+
+        self.assertIn("matvec(&[4.0_f64, 2.0_f64, 2.0_f64, 6.0_f64], 2, 2, x, y);", gradient_result.source)
+        self.assertIn("matvec(&[4.0_f64, 2.0_f64, 2.0_f64, 6.0_f64], 2, 2, v_x, y);", hvp_result.source)
+
     def test_multi_function_project_emits_norm2_helper_once(self) -> None:
         x = SXVector.sym("x", 3)
         f1 = Function("f1", [x], [x.norm2()], input_names=["x"], output_names=["y1"])
@@ -860,6 +919,56 @@ mod math {
                 function_name=project.codegen.function_name,
                 inputs=([3.0, -4.0, 1.0],),
                 test_name="evaluates_norm_helpers_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_reduction_reference_test(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function(
+            "reduction_kernel",
+            [x],
+            [x.sum(), x.prod(), x.max(), x.min(), x.mean()],
+            input_names=["x"],
+            output_names=["sum", "prod", "max", "min", "mean"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "reduction_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([3.0, -4.0, 1.0],),
+                test_name="evaluates_reduction_helpers_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_constant_matrix_helper_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "matrix_kernel",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "matrix_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0]),
+                test_name="evaluates_constant_matrix_helpers_against_python_reference",
                 tolerance=1e-12,
             )
 

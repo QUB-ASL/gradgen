@@ -1,7 +1,7 @@
 import math
 import unittest
 
-from gradgen import Function, SX, SXVector, derivative, gradient, hessian, jacobian, jvp, vjp
+from gradgen import Function, SX, SXVector, bilinear_form, derivative, gradient, hessian, jacobian, jvp, matvec, quadform, vjp
 
 
 class ForwardADTests(unittest.TestCase):
@@ -271,6 +271,58 @@ class ReverseADTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _ = gradient(x.norm_p_to_p(1), x)
+
+    def test_gradient_supports_vector_sum_prod_and_mean(self) -> None:
+        x = SXVector.sym("x", 3)
+        f = Function("f", [x], [x.sum(), x.prod(), x.mean()])
+        grad_sum = f.jacobian(0)
+
+        result = grad_sum([3.0, -4.0, 1.0])
+
+        self.assertEqual(result[0], (1.0, 1.0, 1.0))
+        self.assertEqual(result[1], (-4.0, 3.0, -12.0))
+        self.assertEqual(result[2], (1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0))
+
+    def test_ad_rejects_vector_max_and_min(self) -> None:
+        x = SXVector.sym("x", 3)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.max(), x)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.min(), x)
+
+    def test_quadratic_form_gradient_matches_two_p_x_for_symmetric_matrix(self) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function("f", [x], [quadform(matrix, x)])
+        grad = f.gradient(0)
+
+        result = grad([1.0, 2.0])
+
+        self.assertEqual(result, (8.0, 14.0))
+
+    def test_quadratic_form_hvp_matches_constant_hessian_action(self) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function("f", [x], [quadform(matrix, x)])
+        hvp = f.hvp(0)
+
+        result = hvp([1.0, 2.0], [3.0, 4.0])
+
+        self.assertEqual(result, (20.0, 30.0))
+
+    def test_bilinear_form_gradient_matches_expected_linear_maps(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function("f", [x, y], [bilinear_form(x, matrix, y)])
+
+        grad_x = f.gradient(0)
+        grad_y = f.gradient(1)
+
+        self.assertEqual(grad_x([1.0, 2.0], [3.0, 4.0]), (10.0, 15.0))
+        self.assertEqual(grad_y([1.0, 2.0], [3.0, 4.0]), (4.0, 7.0))
 
     def test_function_vjp_supports_multiple_outputs(self) -> None:
         x = SX.sym("x")
