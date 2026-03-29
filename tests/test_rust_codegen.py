@@ -1,3 +1,4 @@
+import json
 import subprocess
 import re
 import unittest
@@ -234,6 +235,29 @@ mod tests {{
         self.assertIn("work[1] = x[1] * y[1];", result.source)
         self.assertIn("work[0] += work[1];", result.source)
         self.assertIn("dot[0] = work[0];", result.source)
+
+    def test_create_rust_project_writes_metadata_json(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel")
+            metadata = json.loads(project.metadata_json.read_text(encoding="utf-8"))
+
+            self.assertEqual(metadata["crate_name"], "energy")
+            self.assertEqual(
+                metadata["functions"],
+                [
+                    {
+                        "function_name": "energy",
+                        "workspace_size": 1,
+                        "input_names": ["x"],
+                        "input_sizes": [2],
+                        "output_names": ["y"],
+                        "output_sizes": [1],
+                    }
+                ],
+            )
 
     def test_backend_config_supports_chainable_updates(self) -> None:
         config = (
@@ -634,6 +658,7 @@ mod tests {{
         with TemporaryDirectory() as tmpdir:
             project = builder.build(Path(tmpdir) / "multi_demo")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
+            metadata = json.loads(project.metadata_json.read_text(encoding="utf-8"))
 
             self.assertIn("pub fn multi_demo_f_f(", lib_text)
             self.assertIn("pub fn multi_demo_f_jf(", lib_text)
@@ -642,6 +667,11 @@ mod tests {{
             self.assertEqual(
                 tuple(codegen.function_name for codegen in project.codegens),
                 ("multi_demo_f_f", "multi_demo_f_jf", "multi_demo_g_f", "multi_demo_g_jf"),
+            )
+            self.assertEqual(metadata["crate_name"], "multi_demo")
+            self.assertEqual(
+                [entry["function_name"] for entry in metadata["functions"]],
+                ["multi_demo_f_f", "multi_demo_f_jf", "multi_demo_g_f", "multi_demo_g_jf"],
             )
 
     def test_code_generation_builder_requires_a_selected_function_for_add_requests(self) -> None:

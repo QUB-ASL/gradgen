@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+import json
 from pathlib import Path
 import re
 
@@ -110,7 +111,9 @@ class RustCodegenResult:
     source: str
     function_name: str
     workspace_size: int
+    input_names: tuple[str, ...]
     input_sizes: tuple[int, ...]
+    output_names: tuple[str, ...]
     output_sizes: tuple[int, ...]
     backend_mode: RustBackendMode
     scalar_type: RustScalarType
@@ -124,6 +127,7 @@ class RustProjectResult:
     project_dir: Path
     cargo_toml: Path
     readme: Path
+    metadata_json: Path
     lib_rs: Path
     codegen: RustCodegenResult
 
@@ -145,6 +149,7 @@ class RustMultiFunctionProjectResult:
     project_dir: Path
     cargo_toml: Path
     readme: Path
+    metadata_json: Path
     lib_rs: Path
     codegens: tuple[RustCodegenResult, ...]
 
@@ -442,7 +447,9 @@ def generate_rust(
         source=source if source.endswith("\n") else f"{source}\n",
         function_name=name,
         workspace_size=workspace_size,
+        input_names=tuple(spec.raw_name for spec in input_specs),
         input_sizes=input_sizes,
+        output_names=tuple(spec.raw_name for spec in output_specs),
         output_sizes=output_sizes,
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
@@ -483,6 +490,7 @@ def create_rust_project(
     src_dir = project_dir / "src"
     cargo_toml = project_dir / "Cargo.toml"
     readme = project_dir / "README.md"
+    metadata_json = project_dir / "metadata.json"
     lib_rs = src_dir / "lib.rs"
 
     src_dir.mkdir(parents=True, exist_ok=True)
@@ -505,12 +513,17 @@ def create_rust_project(
         ),
         encoding="utf-8",
     )
+    metadata_json.write_text(
+        _render_metadata_json(crate, (codegen,)),
+        encoding="utf-8",
+    )
     lib_rs.write_text(codegen.source, encoding="utf-8")
 
     return RustProjectResult(
         project_dir=project_dir,
         cargo_toml=cargo_toml,
         readme=readme,
+        metadata_json=metadata_json,
         lib_rs=lib_rs,
         codegen=codegen,
     )
@@ -590,6 +603,7 @@ def create_multi_function_rust_project(
     src_dir = project_dir / "src"
     cargo_toml = project_dir / "Cargo.toml"
     readme = project_dir / "README.md"
+    metadata_json = project_dir / "metadata.json"
     lib_rs = src_dir / "lib.rs"
 
     src_dir.mkdir(parents=True, exist_ok=True)
@@ -654,12 +668,17 @@ def create_multi_function_rust_project(
         ),
         encoding="utf-8",
     )
+    metadata_json.write_text(
+        _render_metadata_json(crate, codegens),
+        encoding="utf-8",
+    )
     lib_rs.write_text(_render_multi_function_lib(codegens, resolved_config), encoding="utf-8")
 
     return RustMultiFunctionProjectResult(
         project_dir=project_dir,
         cargo_toml=cargo_toml,
         readme=readme,
+        metadata_json=metadata_json,
         lib_rs=lib_rs,
         codegens=codegens,
     )
@@ -927,7 +946,9 @@ def _generate_composed_primal_rust(
         source=source if source.endswith("\n") else f"{source}\n",
         function_name=name,
         workspace_size=workspace_size,
+        input_names=tuple(spec.raw_name for spec in input_specs),
         input_sizes=tuple(spec.size for spec in input_specs),
+        output_names=(output_name,),
         output_sizes=(1,),
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
@@ -1273,7 +1294,9 @@ def _generate_composed_gradient_rust(
         source=source if source.endswith("\n") else f"{source}\n",
         function_name=name,
         workspace_size=workspace_size,
+        input_names=tuple(spec.raw_name for spec in input_specs),
         input_sizes=tuple(spec.size for spec in input_specs),
+        output_names=(output_name,),
         output_sizes=(state_size,),
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
@@ -3234,6 +3257,25 @@ def _render_multi_function_lib(
 
     rendered = "\n\n".join(section for section in sections if section)
     return rendered if rendered.endswith("\n") else f"{rendered}\n"
+
+
+def _render_metadata_json(crate_name: str, codegens: tuple[RustCodegenResult, ...]) -> str:
+    """Render the crate metadata JSON file."""
+    payload = {
+        "crate_name": crate_name,
+        "functions": [
+            {
+                "function_name": codegen.function_name,
+                "workspace_size": codegen.workspace_size,
+                "input_names": list(codegen.input_names),
+                "input_sizes": list(codegen.input_sizes),
+                "output_names": list(codegen.output_names),
+                "output_sizes": list(codegen.output_sizes),
+            }
+            for codegen in codegens
+        ],
+    }
+    return json.dumps(payload, indent=2) + "\n"
 
 
 def _math_function_name(op: str, scalar_type: RustScalarType) -> str:

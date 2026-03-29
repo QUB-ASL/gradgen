@@ -1,0 +1,113 @@
+{
+  "crate_name": "codegen_kernel",
+  "functions": [
+    {
+      "function_name": "codegen_kernel_energy_f",
+      "workspace_size": 2,
+      "input_names": [
+        "x",
+        "u"
+      ],
+      "input_sizes": [
+        3,
+        1
+      ],
+      "output_names": [
+        "energy"
+      ],
+      "output_sizes": [
+        1
+      ]
+    },
+    {
+      "function_name": "codegen_kernel_energy_jf_x",
+      "workspace_size": 3,
+      "input_names": [
+        "x",
+        "u"
+      ],
+      "input_sizes": [
+        3,
+        1
+      ],
+      "output_names": [
+        "jacobian_energy"
+      ],
+      "output_sizes": [
+        3
+      ]
+    },
+    {
+      "function_name": "codegen_kernel_energy_jf_u",
+      "workspace_size": 1,
+      "input_names": [
+        "x",
+        "u"
+      ],
+      "input_sizes": [
+        3,
+        1
+      ],
+      "output_names": [
+        "jacobian_energy"
+      ],
+      "output_sizes": [
+        1
+      ]
+    },
+    {
+      "function_name": "codegen_kernel_coupling_f",
+      "workspace_size": 2,
+      "input_names": [
+        "x",
+        "u"
+      ],
+      "input_sizes": [
+        3,
+        1
+      ],
+      "output_names": [
+        "coupling"
+      ],
+      "output_sizes": [
+        1
+      ]
+    },
+    {
+      "function_name": "codegen_kernel_coupling_jf_x",
+      "workspace_size": 0,
+      "input_names": [
+        "x",
+        "u"
+      ],
+      "input_sizes": [
+        3,
+        1
+      ],
+      "output_names": [
+        "jacobian_coupling"
+      ],
+      "output_sizes": [
+        3
+      ]
+    },
+    {
+      "function_name": "codegen_kernel_coupling_jf_u",
+      "workspace_size": 1,
+      "input_names": [
+        "x",
+        "u"
+      ],
+      "input_sizes": [
+        3,
+        1
+      ],
+      "output_names": [
+        "jacobian_coupling"
+      ],
+      "output_sizes": [
+        1
+      ]
+    }
+  ]
+}
