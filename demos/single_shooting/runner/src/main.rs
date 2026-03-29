@@ -1,6 +1,5 @@
 use single_shooting_kernel::*;
 
-
 fn print_metadata(label: &str, metadata: FunctionMetadata) {
     println!("{label}: {metadata:#?}");
 }
@@ -24,18 +23,27 @@ fn build_parameters(parameter_len: usize) -> Vec<f64> {
     vec![0.4, -1.2]
 }
 
+fn build_control_direction(control_len: usize) -> Vec<f64> {
+    (0..control_len)
+        .map(|stage_index| if stage_index % 2 == 0 { 0.5 } else { -1.0 })
+        .collect()
+}
+
 fn main() {
     let primal_metadata = single_shooting_kernel_mpc_cost_f_states_meta();
     let gradient_metadata = single_shooting_kernel_mpc_cost_grad_states_u_seq_meta();
+    let hvp_metadata = single_shooting_kernel_mpc_cost_hvp_states_u_seq_meta();
     let joint_metadata = single_shooting_kernel_mpc_cost_f_grad_states_u_seq_meta();
 
     print_metadata("mpc_cost_f_states metadata", primal_metadata);
     print_metadata("mpc_cost_grad_states_u_seq metadata", gradient_metadata);
+    print_metadata("mpc_cost_hvp_states_u_seq metadata", hvp_metadata);
     print_metadata("mpc_cost_f_grad_states_u_seq metadata", joint_metadata);
 
     let x0 = [1.0_f64, -0.5_f64];
     let controls = build_controls(primal_metadata.input_sizes[1]);
     let parameters = build_parameters(primal_metadata.input_sizes[2]);
+    let control_direction = build_control_direction(hvp_metadata.input_sizes[3]);
 
     let mut cost = vec![0.0_f64; primal_metadata.output_sizes[0]];
     let mut x_traj = vec![0.0_f64; primal_metadata.output_sizes[1]];
@@ -63,6 +71,20 @@ fn main() {
         &mut gradient_work,
     );
     println!("grad cost(x0, u_seq, p) = {}", format_slice(&gradient));
+
+    let mut hvp = vec![0.0_f64; hvp_metadata.output_sizes[0]];
+    let mut hvp_states = vec![0.0_f64; hvp_metadata.output_sizes[1]];
+    let mut hvp_work = vec![0.0_f64; hvp_metadata.workspace_size];
+    single_shooting_kernel_mpc_cost_hvp_states_u_seq(
+        &x0,
+        &controls,
+        &parameters,
+        &control_direction,
+        &mut hvp,
+        &mut hvp_states,
+        &mut hvp_work,
+    );
+    println!("hvp cost(x0, u_seq, p; v_u_seq) = {}", format_slice(&hvp));
 
     let mut joint_cost = vec![0.0_f64; joint_metadata.output_sizes[0]];
     let mut joint_gradient = vec![0.0_f64; joint_metadata.output_sizes[1]];

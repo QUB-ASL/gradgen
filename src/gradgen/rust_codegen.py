@@ -18,9 +18,11 @@ from ._rust_codegen import (
     validate_rust_ident,
     validate_unique_rust_names,
 )
-from .function import Function
+from .ad import jvp
+from .function import Function, _add_like, _make_symbolic_input_like, _zero_like
 from .single_shooting import (
     SingleShootingGradientFunction,
+    SingleShootingHvpFunction,
     SingleShootingJointFunction,
     SingleShootingPrimalFunction,
     SingleShootingProblem,
@@ -207,13 +209,19 @@ class _SingleShootingHelperBundle:
     """Generated helper kernels for a single-shooting problem."""
 
     dynamics_name: str
+    dynamics_jvp_name: str | None
     stage_cost_name: str
     terminal_cost_name: str
     dynamics_vjp_x_name: str | None
     dynamics_vjp_u_name: str | None
+    dynamics_vjp_x_jvp_name: str | None
+    dynamics_vjp_u_jvp_name: str | None
     stage_cost_grad_x_name: str | None
     stage_cost_grad_u_name: str | None
+    stage_cost_grad_x_jvp_name: str | None
+    stage_cost_grad_u_jvp_name: str | None
     terminal_cost_grad_x_name: str | None
+    terminal_cost_grad_x_jvp_name: str | None
     sources: tuple[str, ...]
     helper_nodes: tuple[SXNode, ...]
     max_workspace_size: int
@@ -283,6 +291,16 @@ def generate_rust(
         )
     if isinstance(function, SingleShootingGradientFunction):
         return _generate_single_shooting_gradient_rust(
+            function,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+    if isinstance(function, SingleShootingHvpFunction):
+        return _generate_single_shooting_hvp_rust(
             function,
             config=config,
             function_name=function_name,
@@ -493,6 +511,7 @@ def generate_rust(
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
+        function_parameter_count=len(input_specs) + len(output_specs) + 1,
         parameters=parameters,
         input_assert_lines=input_assert_lines,
         output_assert_lines=output_assert_lines,
@@ -1000,6 +1019,7 @@ def _generate_composed_primal_rust(
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
+        function_parameter_count=len(input_specs) + len(output_specs) + 1,
         parameters=parameters,
         input_assert_lines=input_assert_lines,
         output_assert_lines=output_assert_lines,
@@ -1348,6 +1368,7 @@ def _generate_composed_gradient_rust(
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
+        function_parameter_count=len(input_specs) + len(output_specs) + 1,
         parameters=parameters,
         input_assert_lines=input_assert_lines,
         output_assert_lines=output_assert_lines,
@@ -1388,6 +1409,7 @@ def _generate_single_shooting_primal_rust(
         problem,
         include_cost=True,
         include_gradient=False,
+        include_hvp=False,
         include_states=include_states,
         config=config,
         function_name=function_name,
@@ -1413,9 +1435,36 @@ def _generate_single_shooting_gradient_rust(
         gradient.problem,
         include_cost=False,
         include_gradient=True,
+        include_hvp=False,
         include_states=gradient.include_states,
         config=config,
         function_name=function_name or gradient.name,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+        function_index=function_index,
+    )
+
+
+def _generate_single_shooting_hvp_rust(
+    hvp: SingleShootingHvpFunction,
+    *,
+    config: RustBackendConfig | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
+    math_library: str | None = None,
+    function_index: int = 0,
+) -> RustCodegenResult:
+    """Generate compact Rust for a single-shooting HVP kernel."""
+    return _generate_single_shooting_driver_rust(
+        hvp.problem,
+        include_cost=False,
+        include_gradient=False,
+        include_hvp=True,
+        include_states=hvp.include_states,
+        config=config,
+        function_name=function_name or hvp.name,
         backend_mode=backend_mode,
         scalar_type=scalar_type,
         math_library=math_library,
@@ -1438,6 +1487,7 @@ def _generate_single_shooting_joint_rust(
         joint.problem,
         include_cost=joint.bundle.include_cost,
         include_gradient=joint.bundle.include_gradient,
+        include_hvp=False,
         include_states=joint.bundle.include_states,
         config=config,
         function_name=function_name or joint.name,
@@ -1453,6 +1503,7 @@ def _generate_single_shooting_driver_rust(
     *,
     include_cost: bool,
     include_gradient: bool,
+    include_hvp: bool,
     include_states: bool,
     config: RustBackendConfig | None = None,
     function_name: str | None = None,
@@ -1462,8 +1513,8 @@ def _generate_single_shooting_driver_rust(
     function_index: int = 0,
 ) -> RustCodegenResult:
     """Generate a loop-based single-shooting Rust kernel."""
-    if not (include_cost or include_gradient):
-        raise ValueError("single-shooting kernels must compute cost or gradient")
+    if not (include_cost or include_gradient or include_hvp):
+        raise ValueError("single-shooting kernels must compute cost, gradient, or hvp")
 
     resolved_config = _resolve_backend_config(
         config,
@@ -1492,13 +1543,15 @@ def _generate_single_shooting_driver_rust(
         simplification=helper_simplification,
         include_cost=include_cost,
         include_gradient=include_gradient,
+        include_hvp=include_hvp,
     )
 
-    input_specs = _build_single_shooting_input_specs(problem)
+    input_specs = _build_single_shooting_input_specs(problem, include_hvp=include_hvp)
     output_specs = _build_single_shooting_output_specs(
         problem,
         include_cost=include_cost,
         include_gradient=include_gradient,
+        include_hvp=include_hvp,
         include_states=include_states,
     )
     _validate_generated_argument_names(input_specs, output_specs)
@@ -1506,27 +1559,34 @@ def _generate_single_shooting_driver_rust(
     state_size = problem.state_size
     control_size = problem.control_size
     horizon = problem.horizon
+    need_history = include_gradient or include_hvp
+    need_adjoint = include_gradient or include_hvp
 
     input_assert_lines = [
-        _emit_exact_length_assert(input_specs[0].rust_name, input_specs[0].raw_name, input_specs[0].size),
-        _emit_exact_length_assert(input_specs[1].rust_name, input_specs[1].raw_name, input_specs[1].size),
-        _emit_exact_length_assert(input_specs[2].rust_name, input_specs[2].raw_name, input_specs[2].size),
+        _emit_exact_length_assert(input_spec.rust_name, input_spec.raw_name, input_spec.size)
+        for input_spec in input_specs
     ]
     output_assert_lines = [
         _emit_exact_length_assert(output_spec.rust_name, output_spec.raw_name, output_spec.size)
         for output_spec in output_specs
     ]
 
-    state_history_size = (horizon * state_size) if include_gradient else 0
+    state_history_size = (horizon * state_size) if need_history else 0
+    tangent_history_size = (horizon * state_size) if include_hvp else 0
     state_buffer_size = 2 * state_size
-    lambda_buffer_size = (2 * state_size) if include_gradient else 0
-    temp_state_size = state_size if include_gradient else 0
-    temp_control_size = control_size if include_gradient else 0
+    tangent_buffer_size = (2 * state_size) if include_hvp else 0
+    lambda_buffer_size = (2 * state_size) if need_adjoint else 0
+    mu_buffer_size = (2 * state_size) if include_hvp else 0
+    temp_state_size = state_size if need_adjoint else 0
+    temp_control_size = control_size if need_adjoint else 0
     scalar_buffer_size = 1 if include_cost else 0
     driver_workspace_size = (
         state_history_size
+        + tangent_history_size
         + state_buffer_size
+        + tangent_buffer_size
         + lambda_buffer_size
+        + mu_buffer_size
         + temp_state_size
         + temp_control_size
         + scalar_buffer_size
@@ -1537,30 +1597,51 @@ def _generate_single_shooting_driver_rust(
     x0_name = input_specs[0].rust_name
     U_name = input_specs[1].rust_name
     p_name = input_specs[2].rust_name
+    v_U_name = input_specs[3].rust_name if include_hvp else None
     cost_output_name = output_names.get("cost")
     gradient_output_name = output_names.get(f"gradient_{problem.control_sequence_name}")
+    hvp_output_name = output_names.get(f"hvp_{problem.control_sequence_name}")
     states_output_name = output_names.get("x_traj")
 
     computation_lines: list[str] = []
-    if include_gradient:
+    if need_history:
         computation_lines.append(
             f"let (state_history, rest) = work.split_at_mut({state_history_size});"
         )
     else:
         computation_lines.append("let rest = work;")
+    if include_hvp:
+        computation_lines.append(
+            f"let (tangent_history, rest) = rest.split_at_mut({tangent_history_size});"
+        )
     computation_lines.append(
         f"let (state_buffers, rest) = rest.split_at_mut({state_buffer_size});"
     )
     computation_lines.append(
         f"let (current_state, next_state) = state_buffers.split_at_mut({state_size});"
     )
-    if include_gradient:
+    if include_hvp:
+        computation_lines.append(
+            f"let (tangent_buffers, rest) = rest.split_at_mut({tangent_buffer_size});"
+        )
+        computation_lines.append(
+            f"let (current_tangent, next_tangent) = tangent_buffers.split_at_mut({state_size});"
+        )
+    if need_adjoint:
         computation_lines.append(
             f"let (lambda_buffers, rest) = rest.split_at_mut({lambda_buffer_size});"
         )
         computation_lines.append(
             f"let (lambda_current, lambda_next) = lambda_buffers.split_at_mut({state_size});"
         )
+    if include_hvp:
+        computation_lines.append(
+            f"let (mu_buffers, rest) = rest.split_at_mut({mu_buffer_size});"
+        )
+        computation_lines.append(
+            f"let (mu_current, mu_next) = mu_buffers.split_at_mut({state_size});"
+        )
+    if need_adjoint:
         computation_lines.append(
             f"let (temp_state, rest) = rest.split_at_mut({temp_state_size});"
         )
@@ -1572,6 +1653,8 @@ def _generate_single_shooting_driver_rust(
     else:
         computation_lines.append("let stage_work = rest;")
     computation_lines.append(f"current_state.copy_from_slice({x0_name});")
+    if include_hvp:
+        computation_lines.append(f"current_tangent.fill({_format_float(0.0, resolved_config.scalar_type)});")
     if include_states and states_output_name is not None:
         computation_lines.append(
             f"{states_output_name}[0..{state_size}].copy_from_slice({x0_name});"
@@ -1583,6 +1666,10 @@ def _generate_single_shooting_driver_rust(
         f"for stage_index in 0..{horizon} {{",
         f"    let u_t = {_emit_single_shooting_control_slice(U_name, 'stage_index', control_size)};",
     ]
+    if include_hvp and v_U_name is not None:
+        for_lines.append(
+            f"    let v_u_t = {_emit_single_shooting_control_slice(v_U_name, 'stage_index', control_size)};"
+        )
     if include_cost:
         for_lines.extend(
             [
@@ -1595,11 +1682,21 @@ def _generate_single_shooting_driver_rust(
             f"    {helpers.dynamics_name}(current_state, u_t, {p_name}, next_state, stage_work);",
         ]
     )
-    if include_gradient:
+    if include_hvp:
+        for_lines.append(
+            f"    {helpers.dynamics_jvp_name}(current_state, u_t, {p_name}, current_tangent, v_u_t, next_tangent, stage_work);"
+        )
+    if need_history:
         for_lines.append(
             f"    state_history[(stage_index * {state_size})..((stage_index + 1) * {state_size})].copy_from_slice(next_state);"
         )
+    if include_hvp:
+        for_lines.append(
+            f"    tangent_history[(stage_index * {state_size})..((stage_index + 1) * {state_size})].copy_from_slice(next_tangent);"
+        )
     for_lines.append("    current_state.copy_from_slice(next_state);")
+    if include_hvp:
+        for_lines.append("    current_tangent.copy_from_slice(next_tangent);")
     if include_states and states_output_name is not None:
         for_lines.append(
             f"    {states_output_name}[((stage_index + 1) * {state_size})..((stage_index + 2) * {state_size})].copy_from_slice(next_state);"
@@ -1615,37 +1712,101 @@ def _generate_single_shooting_driver_rust(
         if cost_output_name is not None:
             computation_lines.append(f"{cost_output_name}[0] = total_cost;")
 
-    if include_gradient:
+    if need_adjoint:
         computation_lines.append(
             f"{helpers.terminal_cost_grad_x_name}(current_state, {p_name}, lambda_current, stage_work);"
         )
+    if include_hvp:
+        computation_lines.append(
+            f"{helpers.terminal_cost_grad_x_jvp_name}(current_state, {p_name}, current_tangent, mu_current, stage_work);"
+        )
+    if need_adjoint:
         computation_lines.extend(
             [
                 f"for stage_index in (1..{horizon}).rev() {{",
                 f"    let x_t = &state_history[((stage_index - 1) * {state_size})..(stage_index * {state_size})];",
                 f"    let u_t = {_emit_single_shooting_control_slice(U_name, 'stage_index', control_size)};",
-                f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
-                f"    {helpers.stage_cost_grad_u_name}(x_t, u_t, {p_name}, grad_u_t, stage_work);",
-                f"    {helpers.dynamics_vjp_u_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
-                f"    for control_index in 0..{control_size} {{",
-                "        grad_u_t[control_index] += temp_control[control_index];",
-                "    }",
+            ]
+        )
+        if include_hvp and v_U_name is not None:
+            computation_lines.extend(
+                [
+                    f"    let tangent_x_t = &tangent_history[((stage_index - 1) * {state_size})..(stage_index * {state_size})];",
+                    f"    let v_u_t = {_emit_single_shooting_control_slice(v_U_name, 'stage_index', control_size)};",
+                ]
+            )
+        if include_gradient and gradient_output_name is not None:
+            computation_lines.extend(
+                [
+                    f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
+                    f"    {helpers.stage_cost_grad_u_name}(x_t, u_t, {p_name}, grad_u_t, stage_work);",
+                    f"    {helpers.dynamics_vjp_u_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
+                    f"    for control_index in 0..{control_size} {{",
+                    "        grad_u_t[control_index] += temp_control[control_index];",
+                    "    }",
+                ]
+            )
+        if include_hvp and hvp_output_name is not None:
+            computation_lines.extend(
+                [
+                    f"    let hvp_u_t = &mut {hvp_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
+                    f"    {helpers.stage_cost_grad_u_jvp_name}(x_t, u_t, {p_name}, tangent_x_t, v_u_t, hvp_u_t, stage_work);",
+                    f"    {helpers.dynamics_vjp_u_jvp_name}(x_t, u_t, {p_name}, &lambda_current[..], tangent_x_t, v_u_t, &mu_current[..], temp_control, stage_work);",
+                    f"    for control_index in 0..{control_size} {{",
+                    "        hvp_u_t[control_index] += temp_control[control_index];",
+                    "    }",
+                ]
+            )
+        computation_lines.extend(
+            [
                 f"    {helpers.stage_cost_grad_x_name}(x_t, u_t, {p_name}, lambda_next, stage_work);",
                 f"    {helpers.dynamics_vjp_x_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_state, stage_work);",
                 f"    for state_index in 0..{state_size} {{",
                 "        lambda_next[state_index] += temp_state[state_index];",
                 "    }",
-                "    lambda_current.copy_from_slice(lambda_next);",
-                "}",
-                f"let u_t = {_emit_single_shooting_control_slice(U_name, '0', control_size)};",
-                f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
-                f"{helpers.stage_cost_grad_u_name}({x0_name}, u_t, {p_name}, grad_u_t, stage_work);",
-                f"{helpers.dynamics_vjp_u_name}({x0_name}, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
-                f"for control_index in 0..{control_size} {{",
-                "    grad_u_t[control_index] += temp_control[control_index];",
-                "}",
             ]
         )
+        if include_hvp:
+            computation_lines.extend(
+                [
+                    f"    {helpers.stage_cost_grad_x_jvp_name}(x_t, u_t, {p_name}, tangent_x_t, v_u_t, mu_next, stage_work);",
+                    f"    {helpers.dynamics_vjp_x_jvp_name}(x_t, u_t, {p_name}, &lambda_current[..], tangent_x_t, v_u_t, &mu_current[..], temp_state, stage_work);",
+                    f"    for state_index in 0..{state_size} {{",
+                    "        mu_next[state_index] += temp_state[state_index];",
+                    "    }",
+                ]
+            )
+        computation_lines.append("    lambda_current.copy_from_slice(lambda_next);")
+        if include_hvp:
+            computation_lines.append("    mu_current.copy_from_slice(mu_next);")
+        computation_lines.append("}")
+        computation_lines.append(
+            f"let u_t = {_emit_single_shooting_control_slice(U_name, '0', control_size)};"
+        )
+        if include_gradient and gradient_output_name is not None:
+            computation_lines.extend(
+                [
+                    f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
+                    f"{helpers.stage_cost_grad_u_name}({x0_name}, u_t, {p_name}, grad_u_t, stage_work);",
+                    f"{helpers.dynamics_vjp_u_name}({x0_name}, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
+                    f"for control_index in 0..{control_size} {{",
+                    "    grad_u_t[control_index] += temp_control[control_index];",
+                    "}",
+                ]
+            )
+        if include_hvp and hvp_output_name is not None and v_U_name is not None:
+            computation_lines.extend(
+                [
+                    f"next_tangent.fill({_format_float(0.0, resolved_config.scalar_type)});",
+                    f"let v_u_t = {_emit_single_shooting_control_slice(v_U_name, '0', control_size)};",
+                    f"let hvp_u_t = &mut {hvp_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
+                    f"{helpers.stage_cost_grad_u_jvp_name}({x0_name}, u_t, {p_name}, next_tangent, v_u_t, hvp_u_t, stage_work);",
+                    f"{helpers.dynamics_vjp_u_jvp_name}({x0_name}, u_t, {p_name}, &lambda_current[..], next_tangent, v_u_t, &mu_current[..], temp_control, stage_work);",
+                    f"for control_index in 0..{control_size} {{",
+                    "    hvp_u_t[control_index] += temp_control[control_index];",
+                    "}",
+                ]
+            )
 
     shared_helper_lines = list(
         _build_shared_helper_lines(
@@ -1678,6 +1839,7 @@ def _generate_single_shooting_driver_rust(
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
+        function_parameter_count=len(input_specs) + len(output_specs) + 1,
         parameters=parameters,
         input_assert_lines=input_assert_lines,
         output_assert_lines=output_assert_lines,
@@ -1702,6 +1864,39 @@ def _generate_single_shooting_driver_rust(
     )
 
 
+def _build_directional_derivative_function(
+    function: Function,
+    *,
+    active_indices: tuple[int, ...],
+    tangent_names: tuple[str, ...],
+    name: str,
+) -> Function:
+    """Build a function that returns the JVP of ``function`` for selected inputs."""
+    if len(active_indices) != len(tangent_names):
+        raise ValueError("active_indices and tangent_names must have the same length")
+
+    tangent_inputs = tuple(
+        _make_symbolic_input_like(function.inputs[index], tangent_name)
+        for index, tangent_name in zip(active_indices, tangent_names)
+    )
+    tangent_mapping = dict(zip(active_indices, tangent_inputs))
+
+    differentiated_outputs: list[SX | SXVector] = []
+    for output in function.outputs:
+        total = _zero_like(output)
+        for index, tangent_input in tangent_mapping.items():
+            total = _add_like(total, jvp(output, function.inputs[index], tangent_input))
+        differentiated_outputs.append(total)
+
+    return Function(
+        name,
+        (*function.inputs, *tangent_inputs),
+        differentiated_outputs,
+        input_names=(*function.input_names, *tangent_names),
+        output_names=function.output_names,
+    )
+
+
 def _build_single_shooting_helpers(
     problem: SingleShootingProblem,
     *,
@@ -1710,6 +1905,7 @@ def _build_single_shooting_helpers(
     simplification: int | str | None,
     include_cost: bool,
     include_gradient: bool,
+    include_hvp: bool,
 ) -> _SingleShootingHelperBundle:
     """Generate stage helper kernels for a single-shooting problem."""
     helper_config = config.with_emit_metadata_helpers(False)
@@ -1718,6 +1914,7 @@ def _build_single_shooting_helpers(
     max_workspace = 0
 
     dynamics_name = sanitize_ident(f"{helper_base_name}_dynamics")
+    dynamics_jvp_name: str | None = None
     dynamics_function = _maybe_simplify_derivative_function(problem.dynamics, simplification)
     dynamics_codegen = generate_rust(
         dynamics_function,
@@ -1732,6 +1929,31 @@ def _build_single_shooting_helpers(
     helper_sources.append(dynamics_codegen.source.rstrip())
     helper_nodes.extend(dynamics_function.nodes)
     max_workspace = max(max_workspace, dynamics_codegen.workspace_size)
+
+    if include_hvp:
+        dynamics_jvp_name = sanitize_ident(f"{helper_base_name}_dynamics_jvp")
+        dynamics_jvp_function = _maybe_simplify_derivative_function(
+            _build_directional_derivative_function(
+                problem.dynamics,
+                active_indices=(0, 1),
+                tangent_names=("tangent_x", "tangent_u"),
+                name=dynamics_jvp_name,
+            ),
+            simplification,
+        )
+        dynamics_jvp_codegen = generate_rust(
+            dynamics_jvp_function,
+            config=helper_config,
+            function_name=dynamics_jvp_name,
+            function_index=1,
+            shared_helper_nodes=(),
+            emit_crate_header=False,
+            emit_docs=False,
+            function_keyword="fn",
+        )
+        helper_sources.append(dynamics_jvp_codegen.source.rstrip())
+        helper_nodes.extend(dynamics_jvp_function.nodes)
+        max_workspace = max(max_workspace, dynamics_jvp_codegen.workspace_size)
 
     stage_cost_name = sanitize_ident(f"{helper_base_name}_stage_cost")
     terminal_cost_name = sanitize_ident(f"{helper_base_name}_terminal_cost")
@@ -1768,10 +1990,15 @@ def _build_single_shooting_helpers(
 
     dynamics_vjp_x_name: str | None = None
     dynamics_vjp_u_name: str | None = None
+    dynamics_vjp_x_jvp_name: str | None = None
+    dynamics_vjp_u_jvp_name: str | None = None
     stage_cost_grad_x_name: str | None = None
     stage_cost_grad_u_name: str | None = None
+    stage_cost_grad_x_jvp_name: str | None = None
+    stage_cost_grad_u_jvp_name: str | None = None
     terminal_cost_grad_x_name: str | None = None
-    if include_gradient:
+    terminal_cost_grad_x_jvp_name: str | None = None
+    if include_gradient or include_hvp:
         dynamics_vjp_x_name = sanitize_ident(f"{helper_base_name}_dynamics_vjp_x")
         dynamics_vjp_u_name = sanitize_ident(f"{helper_base_name}_dynamics_vjp_u")
         stage_cost_grad_x_name = sanitize_ident(f"{helper_base_name}_stage_cost_grad_x")
@@ -1822,15 +2049,118 @@ def _build_single_shooting_helpers(
             helper_nodes.extend(helper_function.nodes)
             max_workspace = max(max_workspace, helper_codegen.workspace_size)
 
+    if include_hvp:
+        dynamics_vjp_x_jvp_name = sanitize_ident(f"{helper_base_name}_dynamics_vjp_x_jvp")
+        dynamics_vjp_u_jvp_name = sanitize_ident(f"{helper_base_name}_dynamics_vjp_u_jvp")
+        stage_cost_grad_x_jvp_name = sanitize_ident(f"{helper_base_name}_stage_cost_grad_x_jvp")
+        stage_cost_grad_u_jvp_name = sanitize_ident(f"{helper_base_name}_stage_cost_grad_u_jvp")
+        terminal_cost_grad_x_jvp_name = sanitize_ident(f"{helper_base_name}_terminal_cost_grad_x_jvp")
+
+        dynamics_vjp_x_function = _maybe_simplify_derivative_function(
+            problem.dynamics.vjp(wrt_index=0, name=dynamics_vjp_x_name),
+            simplification,
+        )
+        dynamics_vjp_u_function = _maybe_simplify_derivative_function(
+            problem.dynamics.vjp(wrt_index=1, name=dynamics_vjp_u_name),
+            simplification,
+        )
+        stage_cost_grad_x_function = _maybe_simplify_derivative_function(
+            problem.stage_cost.gradient(0, name=stage_cost_grad_x_name),
+            simplification,
+        )
+        stage_cost_grad_u_function = _maybe_simplify_derivative_function(
+            problem.stage_cost.gradient(1, name=stage_cost_grad_u_name),
+            simplification,
+        )
+        terminal_cost_grad_x_function = _maybe_simplify_derivative_function(
+            problem.terminal_cost.gradient(0, name=terminal_cost_grad_x_name),
+            simplification,
+        )
+
+        hvp_helper_functions = (
+            _maybe_simplify_derivative_function(
+                _build_directional_derivative_function(
+                    dynamics_vjp_x_function,
+                    active_indices=(0, 1, 3),
+                    tangent_names=("tangent_x", "tangent_u", "tangent_cotangent_x_next"),
+                    name=dynamics_vjp_x_jvp_name,
+                ),
+                simplification,
+            ),
+            _maybe_simplify_derivative_function(
+                _build_directional_derivative_function(
+                    dynamics_vjp_u_function,
+                    active_indices=(0, 1, 3),
+                    tangent_names=("tangent_x", "tangent_u", "tangent_cotangent_x_next"),
+                    name=dynamics_vjp_u_jvp_name,
+                ),
+                simplification,
+            ),
+            _maybe_simplify_derivative_function(
+                _build_directional_derivative_function(
+                    stage_cost_grad_x_function,
+                    active_indices=(0, 1),
+                    tangent_names=("tangent_x", "tangent_u"),
+                    name=stage_cost_grad_x_jvp_name,
+                ),
+                simplification,
+            ),
+            _maybe_simplify_derivative_function(
+                _build_directional_derivative_function(
+                    stage_cost_grad_u_function,
+                    active_indices=(0, 1),
+                    tangent_names=("tangent_x", "tangent_u"),
+                    name=stage_cost_grad_u_jvp_name,
+                ),
+                simplification,
+            ),
+            _maybe_simplify_derivative_function(
+                _build_directional_derivative_function(
+                    terminal_cost_grad_x_function,
+                    active_indices=(0,),
+                    tangent_names=("tangent_x",),
+                    name=terminal_cost_grad_x_jvp_name,
+                ),
+                simplification,
+            ),
+        )
+        hvp_helper_names = (
+            dynamics_vjp_x_jvp_name,
+            dynamics_vjp_u_jvp_name,
+            stage_cost_grad_x_jvp_name,
+            stage_cost_grad_u_jvp_name,
+            terminal_cost_grad_x_jvp_name,
+        )
+        for helper_function, helper_name in zip(hvp_helper_functions, hvp_helper_names):
+            helper_codegen = generate_rust(
+                helper_function,
+                config=helper_config,
+                function_name=helper_name,
+                function_index=1,
+                shared_helper_nodes=(),
+                emit_crate_header=False,
+                emit_docs=False,
+                function_keyword="fn",
+            )
+            helper_sources.append(helper_codegen.source.rstrip())
+            helper_nodes.extend(helper_function.nodes)
+            max_workspace = max(max_workspace, helper_codegen.workspace_size)
+
     return _SingleShootingHelperBundle(
         dynamics_name=dynamics_name,
+        dynamics_jvp_name=dynamics_jvp_name,
         stage_cost_name=stage_cost_name,
         terminal_cost_name=terminal_cost_name,
         dynamics_vjp_x_name=dynamics_vjp_x_name,
         dynamics_vjp_u_name=dynamics_vjp_u_name,
+        dynamics_vjp_x_jvp_name=dynamics_vjp_x_jvp_name,
+        dynamics_vjp_u_jvp_name=dynamics_vjp_u_jvp_name,
         stage_cost_grad_x_name=stage_cost_grad_x_name,
         stage_cost_grad_u_name=stage_cost_grad_u_name,
+        stage_cost_grad_x_jvp_name=stage_cost_grad_x_jvp_name,
+        stage_cost_grad_u_jvp_name=stage_cost_grad_u_jvp_name,
         terminal_cost_grad_x_name=terminal_cost_grad_x_name,
+        terminal_cost_grad_x_jvp_name=terminal_cost_grad_x_jvp_name,
         sources=tuple(helper_sources),
         helper_nodes=tuple(helper_nodes),
         max_workspace_size=max_workspace,
@@ -1839,9 +2169,11 @@ def _build_single_shooting_helpers(
 
 def _build_single_shooting_input_specs(
     problem: SingleShootingProblem,
+    *,
+    include_hvp: bool,
 ) -> tuple[_ArgSpec, ...]:
     """Build input metadata for a single-shooting driver kernel."""
-    return (
+    specs = [
         _ArgSpec(
             raw_name=problem.initial_state_name,
             rust_name=sanitize_ident(problem.initial_state_name),
@@ -1863,7 +2195,19 @@ def _build_single_shooting_input_specs(
             doc_description="shared parameter slice used at every stage and terminal evaluation",
             size=problem.parameter_size,
         ),
-    )
+    ]
+    if include_hvp:
+        direction_name = f"v_{problem.control_sequence_name}"
+        specs.append(
+            _ArgSpec(
+                raw_name=direction_name,
+                rust_name=sanitize_ident(direction_name),
+                rust_label=_format_rust_string_literal(direction_name),
+                doc_description="packed control-sequence direction slice laid out stage-major over the horizon",
+                size=problem.horizon * problem.control_size,
+            )
+        )
+    return tuple(specs)
 
 
 def _build_single_shooting_output_specs(
@@ -1871,6 +2215,7 @@ def _build_single_shooting_output_specs(
     *,
     include_cost: bool,
     include_gradient: bool,
+    include_hvp: bool,
     include_states: bool,
 ) -> tuple[_ArgSpec, ...]:
     """Build output metadata for a single-shooting driver kernel."""
@@ -1893,6 +2238,17 @@ def _build_single_shooting_output_specs(
                 rust_name=sanitize_ident(gradient_name),
                 rust_label=_format_rust_string_literal(gradient_name),
                 doc_description="gradient with respect to the packed control sequence",
+                size=problem.horizon * problem.control_size,
+            )
+        )
+    if include_hvp:
+        hvp_name = f"hvp_{problem.control_sequence_name}"
+        specs.append(
+            _ArgSpec(
+                raw_name=hvp_name,
+                rust_name=sanitize_ident(hvp_name),
+                rust_label=_format_rust_string_literal(hvp_name),
+                doc_description="Hessian-vector product with respect to the packed control sequence",
                 size=problem.horizon * problem.control_size,
             )
         )

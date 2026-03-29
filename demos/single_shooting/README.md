@@ -5,6 +5,7 @@ optimal-control problem and generate compact loop-based Rust code for:
 
 - the total cost
 - the gradient of the total cost with respect to the packed control sequence
+- the Hessian-vector product with respect to the packed control sequence
 - a joint kernel that returns cost, gradient, and rollout states together
 
 The one-step dynamics is
@@ -55,6 +56,7 @@ The generated API can compute:
 
 - the total cost only
 - the gradient with respect to `u_seq` only
+- the Hessian-vector product with respect to `u_seq`
 - both together
 - and optionally the full rollout state trajectory
 
@@ -79,7 +81,7 @@ python demos/single_shooting/main.py --horizon 5
 This will:
 
 - build the single-shooting problem
-- evaluate the cost and gradient in Python
+- evaluate the cost, gradient, and Hessian-vector product in Python
 - generate one Rust crate in:
 
 ```text

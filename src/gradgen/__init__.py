@@ -12,6 +12,7 @@ from .function import Function
 from .single_shooting import (
     SingleShootingBundle,
     SingleShootingGradientFunction,
+    SingleShootingHvpFunction,
     SingleShootingJointFunction,
     SingleShootingPrimalFunction,
     SingleShootingProblem,
@@ -93,6 +94,7 @@ __all__ = [
     "SXVector",
     "SingleShootingBundle",
     "SingleShootingGradientFunction",
+    "SingleShootingHvpFunction",
     "SingleShootingJointFunction",
     "SingleShootingPrimalFunction",
     "SingleShootingProblem",

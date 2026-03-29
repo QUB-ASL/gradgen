@@ -11,6 +11,7 @@ from ..function import Function
 from ..single_shooting import (
     SingleShootingBundle,
     SingleShootingGradientFunction,
+    SingleShootingHvpFunction,
     SingleShootingJointFunction,
     SingleShootingPrimalFunction,
     SingleShootingProblem,
@@ -25,6 +26,7 @@ BuilderSource = (
     | SingleShootingProblem
     | SingleShootingPrimalFunction
     | SingleShootingGradientFunction
+    | SingleShootingHvpFunction
     | SingleShootingJointFunction
 )
 
@@ -147,9 +149,10 @@ class CodeGenerationBuilder:
         """Include Hessian kernels for scalar-output functions."""
         return self._add_request("hessian")
 
-    def add_hvp(self) -> CodeGenerationBuilder:
+    def add_hvp(self, *, include_states: bool = False) -> CodeGenerationBuilder:
         """Include Hessian-vector product kernels for scalar-output functions."""
-        return self._add_request("hvp")
+        components = ("states",) if include_states else ()
+        return self._add_request("hvp", components=components)
 
     def for_function(
         self,
@@ -266,9 +269,10 @@ class FunctionCodegenBuilder:
         """Include Hessian kernels for scalar-output functions."""
         return self._add_request("hessian")
 
-    def add_hvp(self) -> FunctionCodegenBuilder:
+    def add_hvp(self, *, include_states: bool = False) -> FunctionCodegenBuilder:
         """Include Hessian-vector product kernels for scalar-output functions."""
-        return self._add_request("hvp")
+        components = ("states",) if include_states else ()
+        return self._add_request("hvp", components=components)
 
     def done(self) -> CodeGenerationBuilder:
         """Commit this scoped function configuration back to the parent builder."""
@@ -369,6 +373,7 @@ def _resolve_builder_functions(
             SingleShootingProblem,
             SingleShootingPrimalFunction,
             SingleShootingGradientFunction,
+            SingleShootingHvpFunction,
             SingleShootingJointFunction,
         ),
     ):
@@ -492,6 +497,8 @@ def _resolve_builder_functions(
             )
             continue
         if request.kind == "hvp":
+            if request.components:
+                raise ValueError("include_states is only supported for SingleShootingProblem sources")
             resolved.extend(
                 _rename_generated_function(
                     _maybe_simplify_generated_function(block, simplification),
@@ -592,6 +599,7 @@ def _resolve_builder_single_shooting_sources(
         (
             SingleShootingPrimalFunction,
             SingleShootingGradientFunction,
+            SingleShootingHvpFunction,
             SingleShootingJointFunction,
         ),
     ):
@@ -651,6 +659,24 @@ def _resolve_builder_single_shooting_sources(
                 )
             )
             continue
+        if request.kind == "hvp":
+            include_states = "states" in request.components
+            hvp_source = simplified_problem.hvp(include_states=include_states)
+            labels = ("hvp", "states") if include_states else ("hvp",)
+            resolved.append(
+                _rename_builder_source(
+                    hvp_source,
+                    _builder_function_name(
+                        crate_prefix,
+                        *labels,
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                        input_name=simplified_problem.control_sequence_name,
+                        include_input_name=True,
+                    ),
+                )
+            )
+            continue
         if request.kind == "joint":
             if request.bundle is None or not isinstance(request.bundle, SingleShootingBundle):
                 raise ValueError(
@@ -679,7 +705,7 @@ def _resolve_builder_single_shooting_sources(
             continue
         raise ValueError(
             "single-shooting sources currently support only add_primal(), "
-            "add_gradient(), and add_joint()"
+            "add_gradient(), add_hvp(), and add_joint()"
         )
 
     return tuple(resolved)

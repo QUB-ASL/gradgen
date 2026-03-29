@@ -78,6 +78,9 @@ pub fn {{ function_name }}_meta() -> FunctionMetadata {
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least {{ workspace_size }}.
 {% endif -%}
+{% if function_parameter_count > 7 -%}
+#[allow(clippy::too_many_arguments)]
+{% endif -%}
 {{ function_keyword }} {{ function_name }}({{ parameters }}) {
 {% if workspace_assert_line %}
     {{ workspace_assert_line }}

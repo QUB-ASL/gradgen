@@ -243,6 +243,34 @@ mod tests {{
             gradient.append((forward_cost - backward_cost) / (2.0 * epsilon))
         return gradient
 
+    @classmethod
+    def _manual_single_shooting_hvp(
+        cls,
+        x0: list[float],
+        U: list[float],
+        p: list[float],
+        v_U: list[float],
+        horizon: int,
+        *,
+        epsilon: float = 1e-4,
+    ) -> list[float]:
+        forward_controls = [
+            control + epsilon * direction for control, direction in zip(U, v_U)
+        ]
+        backward_controls = [
+            control - epsilon * direction for control, direction in zip(U, v_U)
+        ]
+        forward_gradient = cls._manual_single_shooting_gradient(
+            x0, forward_controls, p, horizon, epsilon=epsilon
+        )
+        backward_gradient = cls._manual_single_shooting_gradient(
+            x0, backward_controls, p, horizon, epsilon=epsilon
+        )
+        return [
+            (forward_value - backward_value) / (2.0 * epsilon)
+            for forward_value, backward_value in zip(forward_gradient, backward_gradient)
+        ]
+
     @staticmethod
     def _build_multi_control_single_shooting_problem(*, horizon: int = 2) -> SingleShootingProblem:
         x = SXVector.sym("x", 2)
@@ -425,9 +453,11 @@ mod tests {{
         problem = self._build_single_shooting_problem(horizon=3)
         x0 = [1.0, -0.5]
         U = [0.2, -0.1, 0.3]
+        v_U = [0.5, -1.0, 0.25]
         p = [0.4, -1.2]
         expected_cost, expected_states = self._manual_single_shooting_rollout(x0, U, p, problem.horizon)
         expected_gradient = self._manual_single_shooting_gradient(x0, U, p, problem.horizon)
+        expected_hvp = self._manual_single_shooting_hvp(x0, U, p, v_U, problem.horizon)
 
         builder = (
             CodeGenerationBuilder()
@@ -435,6 +465,7 @@ mod tests {{
             .for_function(problem)
             .add_primal(include_states=True)
             .add_gradient(include_states=True)
+            .add_hvp(include_states=True)
             .add_joint(
                 SingleShootingBundle()
                 .add_cost()
@@ -447,7 +478,7 @@ mod tests {{
 
         with TemporaryDirectory() as tmpdir:
             project = builder.build(Path(tmpdir) / "single_shooting_kernel")
-            primal_codegen, gradient_codegen, joint_codegen = project.codegens
+            primal_codegen, gradient_codegen, hvp_codegen, joint_codegen = project.codegens
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("for stage_index in 0..3 {", lib_text)
@@ -476,6 +507,7 @@ mod single_shooting_runtime_tests {{
     fn matches_manual_reference() {{
         let x0 = {self._rust_array_literal(x0, "f64")};
         let U = {self._rust_array_literal(U, "f64")};
+        let v_U = {self._rust_array_literal(v_U, "f64")};
         let p = {self._rust_array_literal(p, "f64")};
 
         let mut cost = [0.0_f64; 1];
@@ -491,6 +523,13 @@ mod single_shooting_runtime_tests {{
         {gradient_codegen.function_name}(&x0, &U, &p, &mut gradient_U, &mut grad_states, &mut gradient_work);
         assert_close_slice(&gradient_U, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-5_f64);
         assert_close_slice(&grad_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+
+        let mut hvp_U = [0.0_f64; 3];
+        let mut hvp_states = [0.0_f64; 8];
+        let mut hvp_work = [0.0_f64; {hvp_codegen.workspace_size}];
+        {hvp_codegen.function_name}(&x0, &U, &p, &v_U, &mut hvp_U, &mut hvp_states, &mut hvp_work);
+        assert_close_slice(&hvp_U, &{self._rust_array_literal(expected_hvp, "f64")}, 2e-4_f64);
+        assert_close_slice(&hvp_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
 
         let mut joint_cost = [0.0_f64; 1];
         let mut joint_gradient_U = [0.0_f64; 3];

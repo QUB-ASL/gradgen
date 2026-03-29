@@ -88,6 +88,29 @@ def _finite_difference_gradient(
     return gradient
 
 
+def _finite_difference_hvp(
+    x0: list[float],
+    U: list[float],
+    p: list[float],
+    v_U: list[float],
+    horizon: int,
+    *,
+    epsilon: float = 1e-4,
+) -> list[float]:
+    forward_controls = [
+        control + epsilon * direction for control, direction in zip(U, v_U)
+    ]
+    backward_controls = [
+        control - epsilon * direction for control, direction in zip(U, v_U)
+    ]
+    forward_gradient = _finite_difference_gradient(x0, forward_controls, p, horizon, epsilon=epsilon)
+    backward_gradient = _finite_difference_gradient(x0, backward_controls, p, horizon, epsilon=epsilon)
+    return [
+        (forward_value - backward_value) / (2.0 * epsilon)
+        for forward_value, backward_value in zip(forward_gradient, backward_gradient)
+    ]
+
+
 def _build_scalar_reference_problem(*, horizon: int = 2) -> SingleShootingProblem:
     x = SX.sym("x")
     u = SX.sym("u")
@@ -207,6 +230,26 @@ class SingleShootingProblemTests(unittest.TestCase):
         self.assertEqual(tuple(expected_states), actual_states)
         for actual_value, expected_value in zip(actual_gradient, expected_gradient):
             self.assertAlmostEqual(actual_value, expected_value, places=5)
+
+    def test_problem_expands_hvp_and_rollout_states(self) -> None:
+        # This checks the second-order path against a finite-difference
+        # derivative of the control-sequence gradient, which is independent of
+        # the single-shooting HVP implementation itself.
+        problem = _build_reference_problem()
+        x0 = [1.0, -0.5]
+        U = [0.2, -0.1, 0.3]
+        p = [0.4, -1.2]
+        v_U = [0.5, -1.0, 0.25]
+
+        _, expected_states = _manual_rollout(x0, U, p, problem.horizon)
+        expected_hvp = _finite_difference_hvp(x0, U, p, v_U, problem.horizon)
+
+        hvp_and_states = problem.hvp(include_states=True).to_function()
+        actual_hvp, actual_states = hvp_and_states(x0, U, p, v_U)
+        self.assertEqual(tuple(expected_states), actual_states)
+        self.assertEqual(len(actual_hvp), len(expected_hvp))
+        for actual_value, expected_value in zip(actual_hvp, expected_hvp):
+            self.assertAlmostEqual(actual_value, expected_value, places=4)
 
     def test_validation_rejects_mismatched_stage_signatures(self) -> None:
         x = SXVector.sym("x", 2)
@@ -341,6 +384,7 @@ class SingleShootingProblemTests(unittest.TestCase):
             .for_function(problem)
             .add_primal(include_states=True)
             .add_gradient(include_states=True)
+            .add_hvp(include_states=True)
             .add_joint(
                 SingleShootingBundle()
                 .add_cost()

@@ -204,6 +204,93 @@ class SingleShootingGradientFunction:
 
 
 @dataclass(frozen=True, slots=True)
+class SingleShootingHvpFunction:
+    """HVP kernel for a single-shooting optimal-control problem."""
+
+    problem: SingleShootingProblem
+    name: str
+    include_states: bool = False
+    simplification: int | str | None = None
+
+    def to_function(self, name: str | None = None) -> Function:
+        """Expand this staged HVP kernel into a regular symbolic ``Function``."""
+        hvp_function = self.problem._expanded_hvp_function(
+            include_states=self.include_states,
+            name=name or self.name,
+        )
+        if self.simplification is None:
+            return hvp_function
+        return hvp_function.simplify(
+            max_effort=self.simplification,
+            name=hvp_function.name,
+        )
+
+    @property
+    def nodes(self):
+        """Return dependency nodes for shared helper discovery."""
+        return self.to_function().nodes
+
+    @property
+    def input_names(self) -> tuple[str, ...]:
+        """Return the exposed input names."""
+        return (*self.problem.input_names, f"v_{self.problem.control_sequence_name}")
+
+    @property
+    def output_names(self) -> tuple[str, ...]:
+        """Return the exposed output names."""
+        names = [f"hvp_{self.problem.control_sequence_name}"]
+        if self.include_states:
+            names.append("x_traj")
+        return tuple(names)
+
+    def generate_rust(
+        self,
+        *,
+        config=None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+        math_library: str | None = None,
+    ):
+        """Generate compact Rust for the staged HVP kernel."""
+        from .rust_codegen import generate_rust
+
+        return generate_rust(
+            self,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+        )
+
+    def create_rust_project(
+        self,
+        path: str,
+        *,
+        config=None,
+        crate_name: str | None = None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+        math_library: str | None = None,
+    ):
+        """Create a Rust crate containing the staged HVP kernel."""
+        from .rust_codegen import create_rust_project
+
+        return create_rust_project(
+            self,
+            path,
+            config=config,
+            crate_name=crate_name,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class SingleShootingJointFunction:
     """Joint cost/gradient/state kernel for a single-shooting problem."""
 
@@ -381,6 +468,20 @@ class SingleShootingProblem:
             simplification=self.simplification,
         )
 
+    def hvp(
+        self,
+        *,
+        include_states: bool = False,
+        name: str | None = None,
+    ) -> SingleShootingHvpFunction:
+        """Return a staged Hessian-vector-product kernel source."""
+        return SingleShootingHvpFunction(
+            problem=self,
+            name=name or f"{self.name}_hvp_{self.control_sequence_name}",
+            include_states=include_states,
+            simplification=self.simplification,
+        )
+
     def joint(
         self,
         bundle: SingleShootingBundle,
@@ -453,6 +554,28 @@ class SingleShootingProblem:
             gradient_function.inputs,
             outputs,
             input_names=gradient_function.input_names,
+            output_names=tuple(output_names),
+        )
+
+    def _expanded_hvp_function(
+        self,
+        *,
+        include_states: bool,
+        name: str,
+    ) -> Function:
+        """Expand the staged HVP kernel into a symbolic ``Function``."""
+        cost_function = self.to_function(include_states=False, name=f"{name}_cost")
+        hvp_function = cost_function.hvp(1, name=f"{name}_hvp")
+        outputs: list[FunctionArg] = [hvp_function.outputs[0]]
+        output_names = [f"hvp_{self.control_sequence_name}"]
+        if include_states:
+            outputs.append(self.to_function(include_states=True, name=f"{name}_states").outputs[1])
+            output_names.append("x_traj")
+        return Function(
+            name,
+            hvp_function.inputs,
+            outputs,
+            input_names=hvp_function.input_names,
             output_names=tuple(output_names),
         )
 
