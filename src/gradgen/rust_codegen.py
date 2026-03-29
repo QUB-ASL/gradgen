@@ -1349,11 +1349,19 @@ def _emit_composed_parameter_ref(
         end = parameter_offset + parameter_size
         return f"&{parameters_name}[{parameter_offset}..{end}]"
     if parameter_size == 1:
-        return f"&{parameters_name}[{parameter_offset} + {index_var}..{parameter_offset} + {index_var} + 1]"
-    return (
-        f"&{parameters_name}[{parameter_offset} + ({index_var} * {parameter_size})"
-        f"..{parameter_offset} + (({index_var} + 1) * {parameter_size})]"
-    )
+        start_expr = _compose_offset_expr(parameter_offset, index_var)
+        end_expr = _compose_offset_expr(parameter_offset + 1, index_var)
+        return f"&{parameters_name}[{start_expr}..{end_expr}]"
+    start_expr = _compose_offset_expr(parameter_offset, f"({index_var} * {parameter_size})")
+    end_expr = _compose_offset_expr(parameter_offset, f"(({index_var} + 1) * {parameter_size})")
+    return f"&{parameters_name}[{start_expr}..{end_expr}]"
+
+
+def _compose_offset_expr(offset: int, expr: str) -> str:
+    """Combine a constant offset with a Rust index expression, omitting identity additions."""
+    if offset == 0:
+        return expr
+    return f"{offset} + {expr}"
 
 
 def _emit_composed_primal_single_block(
@@ -1451,7 +1459,7 @@ def _emit_composed_gradient_forward_repeat_block(
     )
     return [
         f"for repeat_index in 0..{plan.repeat_count} {{",
-        f"    let stage_index = {plan.stage_start_index} + repeat_index;",
+        f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
         f"    let stage_start = stage_index * {state_size};",
         f"    let stage_end = stage_start + {state_size};",
         "    {",
@@ -1520,7 +1528,7 @@ def _emit_composed_gradient_reverse_repeat_block(
     )
     return [
         f"for repeat_index in (0..{plan.repeat_count}).rev() {{",
-        f"    let stage_index = {plan.stage_start_index} + repeat_index;",
+        f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
         "    if stage_index == 0 {",
         "        if current_lambda_is_a {",
         f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
