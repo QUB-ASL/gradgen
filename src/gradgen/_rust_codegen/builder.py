@@ -6,8 +6,12 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable, Protocol
 
+from ..composed_function import ComposedFunction, ComposedGradientFunction
 from ..function import Function
 from .naming import sanitize_ident
+
+
+BuilderSource = Function | ComposedFunction | ComposedGradientFunction
 
 
 class RustBuilderConfigLike(Protocol):
@@ -79,7 +83,7 @@ class FunctionBundle:
 class _BuilderFunctionSpec:
     """One source function plus the kernels requested for it."""
 
-    function: Function
+    function: BuilderSource
     requests: tuple[_BuilderRequest, ...] = ()
     simplification: int | str | None = None
 
@@ -88,7 +92,7 @@ class _BuilderFunctionSpec:
 class CodeGenerationBuilder:
     """Fluent builder for a generated Rust crate with one or more functions."""
 
-    function: Function | None = None
+    function: BuilderSource | None = None
     config: RustBuilderConfigLike | None = None
     requests: tuple[_BuilderRequest, ...] = ()
     simplification: int | str | None = None
@@ -114,6 +118,10 @@ class CodeGenerationBuilder:
         """Include Jacobian kernels for all input blocks."""
         return self._add_request("jacobian")
 
+    def add_vjp(self) -> CodeGenerationBuilder:
+        """Include runtime-seeded vector-Jacobian-product kernels for input blocks."""
+        return self._add_request("vjp")
+
     def add_joint(self, bundle: FunctionBundle) -> CodeGenerationBuilder:
         """Include kernels that compute bundled artifacts together."""
         return self._add_request("joint", bundle=bundle)
@@ -128,7 +136,7 @@ class CodeGenerationBuilder:
 
     def for_function(
         self,
-        function: Function,
+        function: BuilderSource,
         configure: Callable[[CodeGenerationBuilder], CodeGenerationBuilder] | None = None,
     ) -> CodeGenerationBuilder:
         """Add ``function`` to the crate, optionally configuring its kernels."""
@@ -201,7 +209,7 @@ class CodeGenerationBuilder:
 def resolve_builder_function_specs(
     specs: tuple[_BuilderFunctionSpec, ...],
     config: RustBuilderConfigLike,
-) -> tuple[Function, ...]:
+) -> tuple[BuilderSource, ...]:
     """Expand builder function specs into concrete symbolic functions."""
     if len(specs) > 1 and config.function_name is not None:
         raise ValueError(
@@ -209,7 +217,7 @@ def resolve_builder_function_specs(
             "a single source function"
         )
 
-    include_base_name = len(specs) > 1
+    include_base_name = True
     resolved: list[Function] = []
     for spec in specs:
         base_name = config.function_name if len(specs) == 1 else None
@@ -227,17 +235,26 @@ def resolve_builder_function_specs(
 
 
 def _resolve_builder_functions(
-    function: Function,
+    function: BuilderSource,
     config: RustBuilderConfigLike,
     requests: tuple[_BuilderRequest, ...],
     simplification: int | str | None,
     *,
     include_base_name: bool = False,
     function_name: str | None = None,
-) -> tuple[Function, ...]:
+) -> tuple[BuilderSource, ...]:
     """Expand builder requests into concrete symbolic functions."""
     if not requests:
         raise ValueError("no kernels were requested; call add_primal() or another add_* method first")
+
+    if isinstance(function, (ComposedFunction, ComposedGradientFunction)):
+        return _resolve_builder_composed_sources(
+            function,
+            config,
+            requests,
+            include_base_name=include_base_name,
+            function_name=function_name,
+        )
 
     base_function = _apply_builder_base_name(function, function_name)
     crate_prefix = sanitize_ident(config.crate_name or base_function.name)
@@ -287,6 +304,22 @@ def _resolve_builder_functions(
                     ),
                 )
                 for index, block in enumerate(base_function.jacobian_blocks())
+            )
+            continue
+        if request.kind == "vjp":
+            resolved.extend(
+                _rename_generated_function(
+                    _maybe_simplify_generated_function(block, simplification),
+                    _builder_function_name(
+                        crate_prefix,
+                        "vjp",
+                        base_name=base_function.name,
+                        include_base_name=include_base_name,
+                        input_name=base_function.input_names[index],
+                        include_input_name=len(base_function.inputs) > 1,
+                    ),
+                )
+                for index, block in enumerate(base_function.vjp_blocks())
             )
             continue
         if request.kind == "joint":
@@ -350,6 +383,56 @@ def _resolve_builder_functions(
     return tuple(resolved)
 
 
+def _resolve_builder_composed_sources(
+    function: ComposedFunction | ComposedGradientFunction,
+    config: RustBuilderConfigLike,
+    requests: tuple[_BuilderRequest, ...],
+    *,
+    include_base_name: bool = False,
+    function_name: str | None = None,
+) -> tuple[BuilderSource, ...]:
+    """Expand builder requests for staged composed sources."""
+    crate_prefix = sanitize_ident(config.crate_name or function.name)
+    base_name = function_name or function.name
+    resolved: list[BuilderSource] = []
+
+    for request in requests:
+        if request.kind == "primal":
+            resolved.append(
+                _rename_builder_source(
+                    function,
+                    _builder_function_name(
+                        crate_prefix,
+                        "f",
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                    ),
+                )
+            )
+            continue
+        if request.kind == "gradient" and isinstance(function, ComposedFunction):
+            resolved.append(
+                _rename_builder_source(
+                    function.gradient(),
+                    _builder_function_name(
+                        crate_prefix,
+                        "grad",
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                        input_name=function.input_name,
+                        include_input_name=True,
+                    ),
+                )
+            )
+            continue
+        raise ValueError(
+            "staged composed sources currently support only add_primal() and "
+            "ComposedFunction.add_gradient() in CodeGenerationBuilder"
+        )
+
+    return tuple(resolved)
+
+
 def _apply_builder_base_name(function: Function, function_name: str | None) -> Function:
     if function_name is None or function_name == function.name:
         return function
@@ -372,6 +455,18 @@ def _rename_generated_function(function: Function, name: str) -> Function:
         input_names=function.input_names,
         output_names=function.output_names,
     )
+
+
+def _rename_builder_source(
+    function: BuilderSource,
+    name: str,
+) -> BuilderSource:
+    """Return a source object with an updated generated Rust function name."""
+    if function.name == name:
+        return function
+    if isinstance(function, Function):
+        return _rename_generated_function(function, name)
+    return replace(function, name=name)
 
 
 def _builder_joint_labels(components: tuple[str, ...]) -> tuple[str, ...]:

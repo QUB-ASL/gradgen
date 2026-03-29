@@ -444,18 +444,15 @@ class JacobianTests(unittest.TestCase):
         self.assertAlmostEqual(result[0], math.cos(2.0))
         self.assertEqual(result[1], 4.0)
 
-    def test_vector_vector_jacobian_returns_rows(self) -> None:
+    def test_vector_vector_jacobian_returns_flat_row_major_vector(self) -> None:
         x = SXVector.sym("x", 2)
         expr = SXVector((x[0] + x[1], x[0] * x[1]))
         jac = jacobian(expr, x)
 
-        self.assertEqual(len(jac), 2)
-
-        evaluator = Function("jac", [x], list(jac))
+        evaluator = Function("jac", [x], [jac])
         result = evaluator([3.0, 4.0])
 
-        self.assertEqual(result[0], (1.0, 1.0))
-        self.assertEqual(result[1], (4.0, 3.0))
+        self.assertEqual(result, (1.0, 1.0, 4.0, 3.0))
 
     def test_function_jacobian_for_scalar_input_block(self) -> None:
         x = SX.sym("x")
@@ -476,8 +473,20 @@ class JacobianTests(unittest.TestCase):
         self.assertEqual(result[0], (6.0, 8.0))
         self.assertAlmostEqual(result[1][0], math.cos(3.0))
         self.assertEqual(result[1][1], 0.0)
-        self.assertEqual(result[2][0], 0.0)
-        self.assertAlmostEqual(result[2][1], math.cos(4.0))
+        self.assertEqual(result[1][2], 0.0)
+        self.assertAlmostEqual(result[1][3], math.cos(4.0))
+
+    def test_function_vjp_supports_runtime_seed_for_vector_output_and_vector_input_block(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("G", [x], [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))])
+        reverse = f.vjp(wrt_index=0)
+
+        self.assertEqual(reverse.name, "G_vjp_i0")
+
+        result = reverse([3.0, 4.0], [2.0, -1.0, 5.0])
+
+        self.assertAlmostEqual(result[0], -2.0)
+        self.assertAlmostEqual(result[1], -1.0 + 5.0 * math.cos(4.0))
 
     def test_function_jacobian_validates_index(self) -> None:
         x = SX.sym("x")
@@ -485,6 +494,20 @@ class JacobianTests(unittest.TestCase):
 
         with self.assertRaises(IndexError):
             f.jacobian(1)
+
+    def test_function_vjp_runtime_seed_validates_index(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x])
+
+        with self.assertRaises(IndexError):
+            f.vjp(wrt_index=1)
+
+    def test_function_vjp_runtime_seed_rejects_explicit_cotangent_outputs(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x])
+
+        with self.assertRaises(ValueError):
+            f.vjp(1.0, wrt_index=0)
 
     def test_gradient_matches_jacobian_for_scalar_output(self) -> None:
         x = SXVector.sym("x", 2)
@@ -566,9 +589,8 @@ class HessianTests(unittest.TestCase):
         hessian_function = f.hessian(0)
         jacobian_of_gradient = f.gradient(0).jacobian(0)
 
-        jacobian_rows = jacobian_of_gradient([3.0, 4.0])
-        flattened_jacobian = tuple(entry for row in jacobian_rows for entry in row)
-        self.assertEqual(hessian_function([3.0, 4.0]), flattened_jacobian)
+        flat_jacobian = jacobian_of_gradient([3.0, 4.0])
+        self.assertEqual(hessian_function([3.0, 4.0]), flat_jacobian)
 
     def test_hessian_is_symmetric_for_scalar_real_function(self) -> None:
         x = SXVector.sym("x", 2)

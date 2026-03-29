@@ -2,7 +2,8 @@
  <img alt="cgapp logo" src="https://i.postimg.cc/G3M2szz5/Logo-Makr-4z-HKa0.png" width="224px"/><br/>    
     
     
-![PyPI - Downloads](https://img.shields.io/pypi/dm/gradgen?color=blue&style=flat-square)    
+<!-- ![PyPI - Downloads](https://img.shields.io/pypi/dm/gradgen?color=blue&style=flat-square)  -->
+[![CI](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml/badge.svg)](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml)    
     
 </div>    
 
@@ -44,7 +45,7 @@ Some intentional limitations at this stage:
 - `SX` symbols are formal symbols representing real-valued scalar quantities
 - elementwise vector-vector multiplication with `x * y` is not supported yet
 - simplification is still rule-based and bounded, not a full computer algebra system
-- full matrix types are not implemented yet, so Jacobians and Hessians use vector-first row-wise representations where needed
+- full matrix types are not implemented yet, so Jacobians and Hessians use flat row-major vector representations where needed
 
 Currently implemented elementary functions include:
 
@@ -296,6 +297,30 @@ print(reverse(2.0, 5.0))
 - outputs ordered like the original inputs
 - values equal to the vector-Jacobian product for the supplied cotangent direction
 
+If you want a runtime-seeded reverse-mode function instead, provide `wrt_index`:
+
+```python
+from gradgen import Function, SXVector
+
+x = SXVector.sym("x", 2)
+G = Function(
+    "G",
+    [x],
+    [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+    input_names=["x"],
+    output_names=["y"],
+)
+
+reverse_x = G.vjp(wrt_index=0)
+print(reverse_x([3.0, 4.0], [2.0, -1.0, 5.0]))
+```
+
+This returns a `Function` with:
+
+- the original primal inputs
+- one appended cotangent input per declared output
+- a single output block equal to $J_G(x)^\top v$ for the selected input block
+
 For scalar-output functions, there is also a high-level `Function.gradient(...)` helper:
 
 ```python
@@ -319,7 +344,36 @@ f = Function("jac", [x], [jac])
 print(f([3.0, 4.0]))  # (6.0, 8.0)
 ```
 
-For vector-output by vector-input cases, Jacobians are currently represented row by row because full matrix types are not implemented yet.
+For vector-output by vector-input cases, Jacobians are currently represented as
+flat row-major vectors because full matrix types are not implemented yet.
+
+For example:
+
+```python
+from gradgen import Function, SXVector
+
+x = SXVector.sym("x", 2)
+G = Function(
+    "G",
+    [x],
+    [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+    input_names=["x"],
+    output_names=["y"],
+)
+
+JG = G.jacobian(0)
+print(JG([3.0, 4.0]))  # (1.0, 1.0, 4.0, 3.0, 0.0, cos(4.0))
+```
+
+This corresponds to the $3 \times 2$ matrix
+$$
+\begin{bmatrix}
+1 & 1 \\
+4 & 3 \\
+0 & \cos(4)
+\end{bmatrix}
+$$
+stored row by row.
 
 You can also derive a Jacobian block from a function:
 
@@ -516,6 +570,27 @@ config = (
 result = f.generate_rust(config=config)
 ```
 
+Rust-facing names follow two different rules:
+
+- symbolic `Function(...)` names and input/output names may still be ordinary
+  user-facing strings such as `"my function"` or `"out value"`. During code
+  generation they are sanitized into simple Rust identifiers.
+- explicit backend overrides such as `crate_name=` and
+  `RustBackendConfig.with_function_name(...)` are validated strictly and must
+  already be valid Rust-style identifiers matching
+  `[A-Za-z_][A-Za-z0-9_]*`.
+
+In addition, generated Rust now fails early if sanitization would create an
+ambiguous API, for example when:
+
+- two different Python names collapse to the same Rust identifier
+- a generated argument name would collide with internal ABI names such as
+  `work`
+- an explicit crate or function name is a Rust keyword like `fn`
+
+This keeps naming problems visible at Python/codegen time instead of surfacing
+later as confusing Rust compiler errors.
+
 ### Create a Rust project on disk
 
 You can also create a minimal Cargo project at a user-specified path:
@@ -625,6 +700,7 @@ Each `for_function(...)` block configures the kernels generated for one source
 - `add_primal()`
 - `add_gradient()`
 - `add_jacobian()`
+- `add_vjp()`
 - `add_joint(FunctionBundle().add_f().add_jf(wrt=0))`
 - `add_joint(FunctionBundle().add_f().add_hvp(wrt=0))`
 - `add_joint(FunctionBundle().add_f().add_jf(wrt=0).add_hvp(wrt=0))`
@@ -658,25 +734,31 @@ builder = CodeGenerationBuilder().for_function(
 )
 ```
 
-Builder-generated function names are prefixed with the crate name. For example,
-with crate name `my_kernel` and a single source function the generated Rust API
-looks like:
+Builder-generated function names are prefixed with the crate name and include
+the source function name. For example, with crate name `my_kernel` and a single
+source function named `f` the generated Rust API looks like:
 
-- `my_kernel_f`
-- `my_kernel_grad`
-- `my_kernel_jf`
-- `my_kernel_hessian`
-- `my_kernel_hvp`
+- `my_kernel_f_f`
+- `my_kernel_f_grad`
 - `my_kernel_f_jf`
-- `my_kernel_f_jf_hvp`
+- `my_kernel_f_hessian`
+- `my_kernel_f_hvp`
+- `my_kernel_f_f_jf`
+- `my_kernel_f_f_jf_hvp`
 
 If the crate contains multiple source functions, the source function name is
-inserted to keep the Rust entrypoints distinct:
+still used to keep the Rust entrypoints distinct:
 
 - `my_kernel_f_f`
 - `my_kernel_f_jf`
 - `my_kernel_g_f`
 - `my_kernel_g_hvp`
+
+If you explicitly set `crate_name` or `function_name`, those names must already
+be acceptable Rust identifiers. The builder and backend will reject values that
+need sanitization, values that start with digits, and Rust keywords. By
+contrast, source-function names and input/output names are still sanitized
+automatically when Rust is generated.
 
 You can also request a uniform simplification pass for every generated kernel:
 
@@ -704,6 +786,73 @@ builder = (
 With this setting, simplification is applied to all generated kernels for that
 source function, including the separate primal/Jacobian/HVP kernels and the
 joint kernel.
+
+### Staged Composition
+
+For long compositions of state-transform stages, `ComposedFunction` keeps the
+stage structure explicit instead of expanding everything into one large symbolic
+expression graph. This is especially useful when you want generated Rust to use
+separate stage helpers and loop-based repeated application.
+
+Each state-transform stage must have the signature:
+
+- `G(state, p) -> next_state`
+
+and the terminal function must have the signature:
+
+- `h(state, pf) -> scalar`
+
+You can build compositions with:
+
+- `.then(G, p=...)` for one stage
+- `.chain([...])` for several possibly different stages
+- `.repeat(G, params=[...])` for repeated application of the same stage
+- `.finish(h, p=...)` for the terminal scalar output
+
+Numeric stage parameters are embedded as constants. Symbolic stage parameters
+are packed into a single extra runtime input slice named `parameters`, ordered
+in forward stage order with the terminal parameter block last.
+
+```python
+from gradgen import ComposedFunction, Function, SXVector
+
+x = SXVector.sym("x", 2)
+state = SXVector.sym("state", 2)
+p = SXVector.sym("p", 2)
+pf = SXVector.sym("pf", 1)
+
+G = Function(
+    "g",
+    [state, p],
+    [SXVector((state[0] + p[0], state[1] * p[1]))],
+    input_names=["state", "p"],
+    output_names=["next_state"],
+)
+h = Function(
+    "h",
+    [state, pf],
+    [state[0] + state[1] + pf[0]],
+    input_names=["state", "pf"],
+    output_names=["y"],
+)
+
+composed = (
+    ComposedFunction("f_chain", x)
+    .then(G, p=p)
+    .repeat(G, params=[p, p])
+    .finish(h, p=pf)
+)
+
+expanded = composed.to_function()
+gradient = composed.gradient()
+```
+
+The expanded symbolic function has the inputs:
+
+- `x`
+- `parameters`
+
+where `parameters` contains the packed stage parameters for the composition.
 
 ### Complete end-to-end example
 

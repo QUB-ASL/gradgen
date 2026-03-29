@@ -7,6 +7,7 @@ from .custom_elementary import (
     get_registered_elementary_function,
     register_elementary_function,
 )
+from .composed_function import ComposedFunction, ComposedGradientFunction
 from .function import Function
 from .rust_codegen import (
     CodeGenerationBuilder,
@@ -69,6 +70,8 @@ __all__ = [
     "CSEAssignment",
     "CSEPlan",
     "CodeGenerationBuilder",
+    "ComposedFunction",
+    "ComposedGradientFunction",
     "Function",
     "FunctionBundle",
     "RustBackendMode",

@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 
 from gradgen import (
     CodeGenerationBuilder,
+    ComposedFunction,
     Function,
     FunctionBundle,
     RustBackendConfig,
@@ -79,6 +80,7 @@ class RustCodegenTests(unittest.TestCase):
         test_name: str,
         config: RustBackendConfig | None = None,
         tolerance: float = 1e-12,
+        workspace_size_override: int | None = None,
     ) -> None:
         codegen = function.generate_rust(config=config, function_name=function_name)
         numeric_inputs = cls._normalize_inputs(inputs)
@@ -121,6 +123,8 @@ class RustCodegenTests(unittest.TestCase):
             ]
         )
 
+        workspace_size = codegen.workspace_size if workspace_size_override is None else workspace_size_override
+
         cls._append_rust_test(
             project_dir,
             f"""
@@ -142,7 +146,7 @@ mod tests {{
     fn {test_name}() {{
 {chr(10).join(input_binding_lines)}
 {chr(10).join(output_binding_lines)}
-        let mut work = [0.0_{scalar_type}; {codegen.workspace_size}];
+        let mut work = [0.0_{scalar_type}; {workspace_size}];
         {function_name}({parameter_list});
 {chr(10).join(output_assertion_lines)}
     }}
@@ -272,6 +276,220 @@ mod tests {{
             self.assertIn("work[1] = 2.0_f64 * x[0];", lib_text)
             self.assertIn("work[2] = 2.0_f64 * v_x[0];", lib_text)
 
+    def test_code_generation_builder_supports_vjp_generation(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "G",
+            [x],
+            [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        builder = (
+            CodeGenerationBuilder(f)
+            .add_primal()
+            .add_jacobian()
+            .add_vjp()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "vjp_builder")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn vjp_builder_G_f(", lib_text)
+            self.assertIn("pub fn vjp_builder_G_jf(", lib_text)
+            self.assertIn("pub fn vjp_builder_G_vjp(", lib_text)
+            self.assertIn("cotangent_y", lib_text)
+            self.assertNotIn("y_row0", lib_text)
+
+    def test_composed_function_generates_loop_based_primal_kernel(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+        pf = SXVector.sym("pf", 1)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, pf],
+            [state[0] + state[1] + pf[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+        composed = (
+            ComposedFunction("repeat_demo", x)
+            .repeat(g, params=[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
+            .finish(h, p=[7.0])
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(composed, Path(tmpdir) / "repeat_demo")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn repeat_demo(x: &[f64], y: &mut [f64], work: &mut [f64]) {", lib_text)
+            self.assertIn("for repeat_index in 0..3 {", lib_text)
+            self.assertNotIn("parameters: &[f64]", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                composed.to_function(),
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0],),
+                test_name="evaluates_composed_primal_reference",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_composed_gradient_codegen_packs_symbolic_parameters(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+        pf = SXVector.sym("pf", 1)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, pf],
+            [state[0] + state[1] + pf[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+        composed = (
+            ComposedFunction("packed_demo", x)
+            .then(g, p=p)
+            .repeat(g, params=[p, p])
+            .finish(h, p=pf)
+        )
+        gradient = composed.gradient()
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(gradient, Path(tmpdir) / "packed_demo_grad")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("parameters: &[f64]", lib_text)
+            self.assertIn("for repeat_index in (0..2).rev() {", lib_text)
+            self.assertIn("_vjp(", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                gradient.to_function(),
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+                test_name="evaluates_composed_gradient_reference",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_accepts_composed_sources_directly(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+        pf = SXVector.sym("pf", 1)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, pf],
+            [state[0] + state[1] + pf[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+        composed = (
+            ComposedFunction("loop_demo", x)
+            .repeat(g, params=[p, p, p])
+            .finish(h, p=pf)
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("loop_demo"))
+            .for_function(
+                composed,
+                lambda b: b.add_primal().add_gradient(),
+            )
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "loop_demo")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn loop_demo_loop_demo_f(", lib_text)
+            self.assertIn("pub fn loop_demo_loop_demo_grad_x(", lib_text)
+            self.assertIn("for repeat_index in 0..3 {", lib_text)
+            self.assertIn("for repeat_index in (0..3).rev() {", lib_text)
+
+            primal_function = composed.to_function()
+            gradient_function = composed.gradient().to_function()
+            primal_expected = self._flatten_runtime_output(
+                primal_function,
+                primal_function([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+            )
+            gradient_expected = self._flatten_runtime_output(
+                gradient_function,
+                gradient_function([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+            )
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod tests {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn evaluates_composed_builder_reference() {{
+        let x = [1.0_f64, 2.0_f64];
+        let parameters = [3.0_f64, 4.0_f64, 5.0_f64, 6.0_f64, 7.0_f64, 8.0_f64, 9.0_f64];
+        let mut primal_y = [0.0_f64; 1];
+        let mut primal_work = [0.0_f64; {project.codegens[0].workspace_size}];
+        {project.codegens[0].function_name}(&x, &parameters, &mut primal_y, &mut primal_work);
+        assert_close_slice(&primal_y, &{self._rust_array_literal(primal_expected, "f64")}, 1e-12_f64);
+
+        let mut gradient_y = [0.0_f64; 2];
+        let mut gradient_work = [0.0_f64; {project.codegens[1].workspace_size}];
+        {project.codegens[1].function_name}(&x, &parameters, &mut gradient_y, &mut gradient_work);
+        assert_close_slice(&gradient_y, &{self._rust_array_literal(gradient_expected, "f64")}, 1e-12_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_code_generation_builder_supports_multiple_source_functions(self) -> None:
         x = SX.sym("x")
         u = SX.sym("u")
@@ -356,6 +574,16 @@ mod tests {{
 
         with self.assertRaises(ValueError):
             RustBackendConfig().with_crate_name("123kernel")
+
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_crate_name("fn")
+
+    def test_backend_config_rejects_invalid_function_name(self) -> None:
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_function_name("123kernel")
+
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_function_name("fn")
 
     def test_generate_rust_accepts_backend_config(self) -> None:
         x = SX.sym("x")
@@ -1183,6 +1411,56 @@ mod math {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_generated_rust_project_runs_vector_jacobian_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        jac = Function(
+            "G",
+            [x],
+            [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+            input_names=["x"],
+            output_names=["y"],
+        ).jacobian(0)
+
+        with TemporaryDirectory() as tmpdir:
+            project = jac.create_rust_project(Path(tmpdir) / "vector_jacobian_kernel")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("pub fn G_jacobian_x(", lib_text)
+            self.assertIn("jacobian_y: &mut [f64]", lib_text)
+            self.assertIn("output slice receiving the Jacobian block for declared result `y`", lib_text)
+            self.assertNotIn("y_row0", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                jac,
+                function_name=project.codegen.function_name,
+                inputs=([3.0, 4.0],),
+                test_name="evaluates_vector_jacobian_against_python_reference",
+            )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_vjp_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        reverse = Function(
+            "G",
+            [x],
+            [SXVector((x[0] + x[1], x[0] * x[1], x[1].sin()))],
+            input_names=["x"],
+            output_names=["y"],
+        ).vjp(wrt_index=0)
+
+        with TemporaryDirectory() as tmpdir:
+            project = reverse.create_rust_project(Path(tmpdir) / "vjp_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                reverse,
+                function_name=project.codegen.function_name,
+                inputs=([3.0, 4.0], [2.0, -1.0, 5.0]),
+                test_name="evaluates_vjp_against_python_reference",
+            )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_generated_rust_project_runs_hessian_reference_test(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function(
@@ -1512,11 +1790,38 @@ mod tests {
             output_names=["out value"],
         )
 
-        result = f.generate_rust(function_name="123 kernel")
+        result = f.generate_rust()
 
-        self.assertIn("pub fn _123_kernel(", result.source)
+        self.assertIn("pub fn my_function(", result.source)
         self.assertIn("_1_input: &[f64]", result.source)
         self.assertIn("out_value: &mut [f64]", result.source)
+
+    def test_generate_rust_rejects_duplicate_sanitized_argument_names(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        f = Function(
+            "f",
+            [x, y],
+            [x + y],
+            input_names=["x-value", "x_value"],
+            output_names=["sum"],
+        )
+
+        with self.assertRaisesRegex(ValueError, "both map to the Rust identifier"):
+            f.generate_rust()
+
+    def test_generate_rust_rejects_collision_with_work_argument(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "f",
+            [x],
+            [x],
+            input_names=["x"],
+            output_names=["work"],
+        )
+
+        with self.assertRaisesRegex(ValueError, "both map to the Rust identifier 'work'"):
+            f.generate_rust()
 
     def test_create_rust_derivative_bundle_writes_expected_projects(self) -> None:
         x = SXVector.sym("x", 2)
@@ -1577,9 +1882,9 @@ mod tests {
             self.assertTrue(project.project_dir.is_dir())
             self.assertEqual(len(project.codegens), 3)
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn single_crate_f(", lib_text)
-            self.assertIn("pub fn single_crate_grad(", lib_text)
-            self.assertIn("pub fn single_crate_hvp(", lib_text)
+            self.assertIn("pub fn single_crate_f_f(", lib_text)
+            self.assertIn("pub fn single_crate_f_grad(", lib_text)
+            self.assertIn("pub fn single_crate_f_hvp(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -1597,13 +1902,13 @@ mod tests {
         let mut y_grad = [0.0_f64, 0.0_f64];
         let mut y_hvp = [0.0_f64, 0.0_f64];
 
-        let mut work_f = vec![0.0_f64; single_crate_f_meta().workspace_size];
-        let mut work_grad = vec![0.0_f64; single_crate_grad_meta().workspace_size];
-        let mut work_hvp = vec![0.0_f64; single_crate_hvp_meta().workspace_size];
+        let mut work_f = vec![0.0_f64; single_crate_f_f_meta().workspace_size];
+        let mut work_grad = vec![0.0_f64; single_crate_f_grad_meta().workspace_size];
+        let mut work_hvp = vec![0.0_f64; single_crate_f_hvp_meta().workspace_size];
 
-        single_crate_f(&x, &mut y, &mut work_f);
-        single_crate_grad(&x, &mut y_grad, &mut work_grad);
-        single_crate_hvp(&x, &v_x, &mut y_hvp, &mut work_hvp);
+        single_crate_f_f(&x, &mut y, &mut work_f);
+        single_crate_f_grad(&x, &mut y_grad, &mut work_grad);
+        single_crate_f_hvp(&x, &v_x, &mut y_hvp, &mut work_hvp);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(y_grad, [10.0_f64, 11.0_f64]);
@@ -1637,7 +1942,7 @@ mod tests {
             self.assertTrue(project.project_dir.is_dir())
             self.assertEqual(len(project.codegens), 1)
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn joint_f_jf(", lib_text)
+            self.assertIn("pub fn joint_f_f_jf(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -1651,9 +1956,9 @@ mod tests {
         let x = [3.0_f64, 4.0_f64];
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
-        let mut work = vec![0.0_f64; joint_f_jf_meta().workspace_size];
+        let mut work = vec![0.0_f64; joint_f_f_jf_meta().workspace_size];
 
-        joint_f_jf(&x, &mut y, &mut jacobian_y, &mut work);
+        joint_f_f_jf(&x, &mut y, &mut jacobian_y, &mut work);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
@@ -1685,7 +1990,7 @@ mod tests {
             project = builder.build(Path(tmpdir) / "joint_f_jf_hvp")
 
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            self.assertIn("pub fn joint_f_jf_hvp_f_jf_hvp(", lib_text)
+            self.assertIn("pub fn joint_f_jf_hvp_f_f_jf_hvp(", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -1701,9 +2006,9 @@ mod tests {
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
         let mut hvp_y = [0.0_f64, 0.0_f64];
-        let mut work = vec![0.0_f64; joint_f_jf_hvp_f_jf_hvp_meta().workspace_size];
+        let mut work = vec![0.0_f64; joint_f_jf_hvp_f_f_jf_hvp_meta().workspace_size];
 
-        joint_f_jf_hvp_f_jf_hvp(&x, &v_x, &mut y, &mut jacobian_y, &mut hvp_y, &mut work);
+        joint_f_jf_hvp_f_f_jf_hvp(&x, &v_x, &mut y, &mut jacobian_y, &mut hvp_y, &mut work);
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
@@ -1735,7 +2040,7 @@ mod tests {
             project = builder.build(Path(tmpdir) / "joint_hessian")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("pub fn joint_hessian_f_hessian(", lib_text)
+            self.assertIn("pub fn joint_hessian_joint_hessian_f_hessian(", lib_text)
             self.assertIn("hessian_y: &mut [f64]", lib_text)
             self.assertIn("assert_eq!(hessian_y.len(), 4);", lib_text)
 
@@ -1751,9 +2056,9 @@ mod joint_hessian_tests {
         let x = [2.0_f64, 3.0_f64];
         let mut y = [0.0_f64; 1];
         let mut hessian_y = [0.0_f64; 4];
-        let mut work = vec![0.0_f64; joint_hessian_f_hessian_meta().workspace_size];
+        let mut work = vec![0.0_f64; joint_hessian_joint_hessian_f_hessian_meta().workspace_size];
 
-        joint_hessian_f_hessian(&x, &mut y, &mut hessian_y, &mut work);
+        joint_hessian_joint_hessian_f_hessian(&x, &mut y, &mut hessian_y, &mut work);
 
         assert_eq!(y, [19.0_f64]);
         assert_eq!(hessian_y, [2.0_f64, 1.0_f64, 1.0_f64, 2.0_f64]);
@@ -1785,8 +2090,8 @@ mod joint_hessian_tests {
             project = builder.build(Path(tmpdir) / "multi_joint")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("pub fn multi_joint_f_jf_x(", lib_text)
-            self.assertIn("pub fn multi_joint_f_jf_y(", lib_text)
+            self.assertIn("pub fn multi_joint_f_f_jf_x(", lib_text)
+            self.assertIn("pub fn multi_joint_f_f_jf_y(", lib_text)
 
     def test_code_generation_builder_supports_no_std_f32_backend_config(self) -> None:
         x = SX.sym("x")
@@ -1811,9 +2116,9 @@ mod joint_hessian_tests {
             cargo_text = project.cargo_toml.read_text(encoding="utf-8")
 
             self.assertIn("#![no_std]", lib_text)
-            self.assertIn("pub fn my_kernel_f(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
-            self.assertIn("pub fn my_kernel_grad(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
-            self.assertIn("pub fn my_kernel_hvp(x: &[f32], v_x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_f_f(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_f_grad(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_f_hvp(x: &[f32], v_x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
             self.assertIn('libm = "0.2"', cargo_text)
             self.assertIn('name = "my_kernel"', cargo_text)
 
@@ -1851,11 +2156,11 @@ mod joint_hessian_tests {
             self.assertIn("fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {", lib_text)
             self.assertIn("fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {", lib_text)
             self.assertIn("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {", lib_text)
-            self.assertIn("pub fn matrix_builder_f(", lib_text)
-            self.assertIn("pub fn matrix_builder_grad_x(", lib_text)
-            self.assertIn("pub fn matrix_builder_grad_y(", lib_text)
-            self.assertIn("pub fn matrix_builder_hvp_x(", lib_text)
-            self.assertIn("pub fn matrix_builder_hvp_y(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_f(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_grad_x(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_grad_y(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_hvp_x(", lib_text)
+            self.assertIn("pub fn matrix_builder_f_hvp_y(", lib_text)
 
 
 if __name__ == "__main__":

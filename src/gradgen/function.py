@@ -331,9 +331,7 @@ class Function:
             if component == "jf":
                 jacobian_function = self.jacobian(wrt_index)
                 outputs.extend(jacobian_function.outputs)
-                output_names.extend(
-                    f"jacobian_{output_name}" for output_name in jacobian_function.output_names
-                )
+                output_names.extend(jacobian_function.output_names)
                 continue
             if component == "grad":
                 gradient_function = self.gradient(wrt_index)
@@ -418,22 +416,64 @@ class Function:
     def vjp(
         self,
         *cotangent_outputs: BoundValue,
+        wrt_index: int | None = None,
         name: str | None = None,
+        cotangent_names: Iterable[str] | None = None,
     ) -> Function:
         """Build a new function representing a reverse-mode derivative.
 
         Args:
             *cotangent_outputs: One cotangent seed for each declared output.
                 Seeds must match the shape of the corresponding outputs.
+            wrt_index: Optional selected input block for a runtime-seeded VJP.
+                When provided, the returned function appends cotangent inputs
+                to the primal inputs and returns the sensitivity with respect
+                to the selected input block only.
             name: Optional name for the differentiated function.
+            cotangent_names: Optional names for runtime cotangent inputs.
 
         Returns:
-            A new ``Function`` with the same primal inputs and outputs equal
-            to the vector-Jacobian product in the supplied cotangent
-            direction. The returned outputs are ordered like the function
-            inputs.
+            If explicit cotangent outputs are provided, returns a new
+            ``Function`` with the same primal inputs and outputs equal to the
+            vector-Jacobian product in the supplied cotangent direction, with
+            outputs ordered like the function inputs.
+
+            If ``wrt_index`` is provided instead, returns a function with the
+            original primal inputs plus one cotangent input per declared
+            output, and a single output block matching the selected input.
         """
         from .ad import vjp
+
+        if wrt_index is not None:
+            if cotangent_outputs:
+                raise ValueError("runtime-seeded Function.vjp does not accept explicit cotangent outputs")
+            if not 0 <= wrt_index < len(self.inputs):
+                raise IndexError("wrt_index is out of range")
+
+            resolved_cotangent_names = _resolve_cotangent_names(
+                cotangent_names,
+                self.output_names,
+            )
+            cotangent_inputs = tuple(
+                _make_symbolic_input_like(output, cotangent_name)
+                for output, cotangent_name in zip(self.outputs, resolved_cotangent_names)
+            )
+
+            wrt = self.inputs[wrt_index]
+            total = _zero_like(wrt)
+            for output, cotangent in zip(self.outputs, cotangent_inputs):
+                total = _add_like(total, vjp(output, wrt, cotangent))
+
+            return Function(
+                name or f"{self.name}_vjp_{self.input_names[wrt_index]}",
+                (*self.inputs, *cotangent_inputs),
+                [total],
+                input_names=(*self.input_names, *resolved_cotangent_names),
+                output_names=(f"vjp_{self.input_names[wrt_index]}",),
+            )
+
+        if cotangent_names is not None:
+            raise ValueError("cotangent_names requires wrt_index for runtime-seeded Function.vjp")
 
         if len(cotangent_outputs) != len(self.outputs):
             raise ValueError(
@@ -452,7 +492,7 @@ class Function:
             self.inputs,
             differentiated_inputs,
             input_names=self.input_names,
-            output_names=self.input_names,
+            output_names=tuple(f"vjp_{input_name}" for input_name in self.input_names),
         )
 
     def jacobian(self, wrt_index: int = 0, name: str | None = None) -> Function:
@@ -470,8 +510,8 @@ class Function:
 
         Notes:
             Since full matrix types are not implemented yet, vector-output
-            by vector-input Jacobians are returned as one ``SXVector`` row
-            per output scalar.
+            by vector-input Jacobians are returned as one flat row-major
+            ``SXVector`` per original output.
         """
         from .ad import jacobian
 
@@ -484,14 +524,8 @@ class Function:
 
         for output_name, output in zip(self.output_names, self.outputs):
             block = jacobian(output, wrt)
-            if isinstance(block, tuple):
-                differentiated_outputs.extend(block)
-                differentiated_names.extend(
-                    f"{output_name}_row{index}" for index in range(len(block))
-                )
-            else:
-                differentiated_outputs.append(block)
-                differentiated_names.append(output_name)
+            differentiated_outputs.append(block)
+            differentiated_names.append(f"jacobian_{output_name}")
 
         return Function(
             name or f"{self.name}_jacobian_{self.input_names[wrt_index]}",
@@ -508,6 +542,14 @@ class Function:
         """Build Jacobian functions for one or more input blocks."""
         indices = _resolve_block_indices(wrt_indices, len(self.inputs))
         return tuple(self.jacobian(index) for index in indices)
+
+    def vjp_blocks(
+        self,
+        wrt_indices: Iterable[int] | None = None,
+    ) -> tuple[Function, ...]:
+        """Build runtime-seeded vector-Jacobian-product functions for input blocks."""
+        indices = _resolve_block_indices(wrt_indices, len(self.inputs))
+        return tuple(self.vjp(wrt_index=index) for index in indices)
 
     def hessian(self, wrt_index: int = 0, name: str | None = None) -> Function:
         """Build a new function representing a Hessian block.
@@ -666,6 +708,21 @@ def _joint_function_name(
 ) -> str:
     """Build the default name for a joint function."""
     return f"{base_name}_joint_{'_'.join(components)}_{input_name}"
+
+
+def _resolve_cotangent_names(
+    names: Iterable[str] | None,
+    output_names: tuple[str, ...],
+) -> tuple[str, ...]:
+    """Resolve cotangent-input names associated with function outputs."""
+    if names is None:
+        return tuple(f"cotangent_{output_name}" for output_name in output_names)
+    return _resolve_names(
+        names=names,
+        count=len(output_names),
+        prefix="cotangent_",
+        label="cotangent input",
+    )
 
 
 def _make_symbolic_input_like(value: FunctionArg, base_name: str) -> FunctionArg:

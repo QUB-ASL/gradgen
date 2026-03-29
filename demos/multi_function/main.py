@@ -58,7 +58,7 @@ project = (
     .with_backend_config(
         RustBackendConfig()
         .with_crate_name("multi_function_kernel")
-        .with_backend_mode("std")
+        .with_backend_mode("no_std")
         .with_scalar_type("f64")
     )
     .for_function(
