@@ -569,6 +569,27 @@ config = (
 result = f.generate_rust(config=config)
 ```
 
+Rust-facing names follow two different rules:
+
+- symbolic `Function(...)` names and input/output names may still be ordinary
+  user-facing strings such as `"my function"` or `"out value"`. During code
+  generation they are sanitized into simple Rust identifiers.
+- explicit backend overrides such as `crate_name=` and
+  `RustBackendConfig.with_function_name(...)` are validated strictly and must
+  already be valid Rust-style identifiers matching
+  `[A-Za-z_][A-Za-z0-9_]*`.
+
+In addition, generated Rust now fails early if sanitization would create an
+ambiguous API, for example when:
+
+- two different Python names collapse to the same Rust identifier
+- a generated argument name would collide with internal ABI names such as
+  `work`
+- an explicit crate or function name is a Rust keyword like `fn`
+
+This keeps naming problems visible at Python/codegen time instead of surfacing
+later as confusing Rust compiler errors.
+
 ### Create a Rust project on disk
 
 You can also create a minimal Cargo project at a user-specified path:
@@ -732,6 +753,12 @@ still used to keep the Rust entrypoints distinct:
 - `my_kernel_g_f`
 - `my_kernel_g_hvp`
 
+If you explicitly set `crate_name` or `function_name`, those names must already
+be acceptable Rust identifiers. The builder and backend will reject values that
+need sanitization, values that start with digits, and Rust keywords. By
+contrast, source-function names and input/output names are still sanitized
+automatically when Rust is generated.
+
 You can also request a uniform simplification pass for every generated kernel:
 
 ```python
@@ -794,7 +821,7 @@ p = SXVector.sym("p", 2)
 pf = SXVector.sym("pf", 1)
 
 G = Function(
-    "G",
+    "g",
     [state, p],
     [SXVector((state[0] + p[0], state[1] * p[1]))],
     input_names=["state", "p"],
