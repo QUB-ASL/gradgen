@@ -608,6 +608,7 @@ def _generate_composed_primal_rust(
         resolved_config.backend_mode,
         resolved_config.math_library,
     )
+    helper_simplification = composed.simplification
 
     name = sanitize_ident(resolved_config.function_name or composed.name)
     helper_config = resolved_config.with_emit_metadata_helpers(False)
@@ -622,8 +623,9 @@ def _generate_composed_primal_rust(
     for block_index, step in enumerate(composed.steps):
         if isinstance(step, _SingleStage):
             helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}")
+            helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
             helper_codegen = generate_rust(
-                step.function,
+                helper_function,
                 config=helper_config,
                 function_name=helper_name,
                 function_index=1,
@@ -633,7 +635,7 @@ def _generate_composed_primal_rust(
                 function_keyword="fn",
             )
             helper_sources.append(helper_codegen.source.rstrip())
-            helper_nodes.extend(step.function.nodes)
+            helper_nodes.extend(helper_function.nodes)
             max_helper_workspace = max(max_helper_workspace, helper_codegen.workspace_size)
             plans.append(
                 _ComposedSinglePlan(
@@ -651,8 +653,9 @@ def _generate_composed_primal_rust(
             continue
 
         helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}")
+        helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
         helper_codegen = generate_rust(
-            step.function,
+            helper_function,
             config=helper_config,
             function_name=helper_name,
             function_index=1,
@@ -662,7 +665,7 @@ def _generate_composed_primal_rust(
             function_keyword="fn",
         )
         helper_sources.append(helper_codegen.source.rstrip())
-        helper_nodes.extend(step.function.nodes)
+        helper_nodes.extend(helper_function.nodes)
         max_helper_workspace = max(max_helper_workspace, helper_codegen.workspace_size)
 
         const_name = sanitize_ident(f"{name}_repeat_{block_index}_params").upper()
@@ -693,8 +696,9 @@ def _generate_composed_primal_rust(
         stage_index += len(step.parameters)
 
     terminal_helper_name = sanitize_ident(f"{name}_terminal_{terminal.function.name}")
+    terminal_function = _maybe_simplify_derivative_function(terminal.function, helper_simplification)
     terminal_codegen = generate_rust(
-        terminal.function,
+        terminal_function,
         config=helper_config,
         function_name=terminal_helper_name,
         function_index=1,
@@ -704,7 +708,7 @@ def _generate_composed_primal_rust(
         function_keyword="fn",
     )
     helper_sources.append(terminal_codegen.source.rstrip())
-    helper_nodes.extend(terminal.function.nodes)
+    helper_nodes.extend(terminal_function.nodes)
     max_helper_workspace = max(max_helper_workspace, terminal_codegen.workspace_size)
     terminal_parameter_offset = parameter_offset
 
@@ -854,6 +858,7 @@ def _generate_composed_gradient_rust(
         resolved_config.backend_mode,
         resolved_config.math_library,
     )
+    helper_simplification = gradient.simplification
 
     name = sanitize_ident(resolved_config.function_name or gradient.name)
     helper_config = resolved_config.with_emit_metadata_helpers(False)
@@ -869,8 +874,13 @@ def _generate_composed_gradient_rust(
         if isinstance(step, _SingleStage):
             helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}")
             vjp_helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}_vjp")
+            helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
+            vjp_function = _maybe_simplify_derivative_function(
+                step.function.vjp(wrt_index=0, name=vjp_helper_name),
+                helper_simplification,
+            )
             helper_codegen = generate_rust(
-                step.function,
+                helper_function,
                 config=helper_config,
                 function_name=helper_name,
                 function_index=1,
@@ -880,7 +890,7 @@ def _generate_composed_gradient_rust(
                 function_keyword="fn",
             )
             vjp_codegen = generate_rust(
-                step.function.vjp(wrt_index=0, name=vjp_helper_name),
+                vjp_function,
                 config=helper_config,
                 function_name=vjp_helper_name,
                 function_index=1,
@@ -890,7 +900,7 @@ def _generate_composed_gradient_rust(
                 function_keyword="fn",
             )
             helper_sources.extend((helper_codegen.source.rstrip(), vjp_codegen.source.rstrip()))
-            helper_nodes.extend((*step.function.nodes, *step.function.vjp(wrt_index=0).nodes))
+            helper_nodes.extend((*helper_function.nodes, *vjp_function.nodes))
             max_helper_workspace = max(
                 max_helper_workspace,
                 helper_codegen.workspace_size,
@@ -913,8 +923,13 @@ def _generate_composed_gradient_rust(
 
         helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}")
         vjp_helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}_vjp")
+        helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
+        vjp_function = _maybe_simplify_derivative_function(
+            step.function.vjp(wrt_index=0, name=vjp_helper_name),
+            helper_simplification,
+        )
         helper_codegen = generate_rust(
-            step.function,
+            helper_function,
             config=helper_config,
             function_name=helper_name,
             function_index=1,
@@ -924,7 +939,7 @@ def _generate_composed_gradient_rust(
             function_keyword="fn",
         )
         vjp_codegen = generate_rust(
-            step.function.vjp(wrt_index=0, name=vjp_helper_name),
+            vjp_function,
             config=helper_config,
             function_name=vjp_helper_name,
             function_index=1,
@@ -934,7 +949,7 @@ def _generate_composed_gradient_rust(
             function_keyword="fn",
         )
         helper_sources.extend((helper_codegen.source.rstrip(), vjp_codegen.source.rstrip()))
-        helper_nodes.extend((*step.function.nodes, *step.function.vjp(wrt_index=0).nodes))
+        helper_nodes.extend((*helper_function.nodes, *vjp_function.nodes))
         max_helper_workspace = max(
             max_helper_workspace,
             helper_codegen.workspace_size,
@@ -969,7 +984,10 @@ def _generate_composed_gradient_rust(
         stage_index += len(step.parameters)
 
     terminal_gradient_name = sanitize_ident(f"{name}_terminal_{terminal.function.name}_grad")
-    terminal_gradient_function = terminal.function.gradient(0, name=terminal_gradient_name)
+    terminal_gradient_function = _maybe_simplify_derivative_function(
+        terminal.function.gradient(0, name=terminal_gradient_name),
+        helper_simplification,
+    )
     terminal_gradient_codegen = generate_rust(
         terminal_gradient_function,
         config=helper_config,

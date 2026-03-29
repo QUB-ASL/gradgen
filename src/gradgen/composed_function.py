@@ -90,10 +90,14 @@ class ComposedGradientFunction:
 
     composed: ComposedFunction
     name: str
+    simplification: int | str | None = None
 
     def to_function(self, name: str | None = None) -> Function:
         """Expand this staged gradient into a regular symbolic ``Function``."""
-        return self.composed.to_function().gradient(0, name=name or self.name)
+        gradient = self.composed.to_function().gradient(0, name=name or self.name)
+        if self.simplification is None:
+            return gradient
+        return gradient.simplify(max_effort=self.simplification, name=gradient.name)
 
     @property
     def nodes(self):
@@ -164,6 +168,7 @@ class ComposedFunction:
     state_input: FunctionArg
     input_name: str | None = None
     parameter_name: str = "parameters"
+    simplification: int | str | None = None
     steps: tuple[StageStep, ...] = ()
     terminal: _TerminalStage | None = None
 
@@ -277,10 +282,9 @@ class ComposedFunction:
 
     def gradient(self, name: str | None = None) -> ComposedGradientFunction:
         """Return a staged gradient kernel with respect to the state input."""
-        terminal = self._require_terminal()
-        output_name = terminal.function.output_names[0]
+        self._require_terminal()
         gradient_name = name or f"{self.name}_gradient_{self.input_name}"
-        return ComposedGradientFunction(self, gradient_name)
+        return ComposedGradientFunction(self, gradient_name, self.simplification)
 
     def generate_rust(
         self,
