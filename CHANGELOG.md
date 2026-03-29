@@ -5,8 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## 0.3.1 - 29-03-2026
 
-## 0.3.0 - Unreleased
+### Fixed
+
+- Minor: Small changes in README for the image to be properly visible
+
+## 0.3.0 - 29-03-2026
 
 ### Added
 
