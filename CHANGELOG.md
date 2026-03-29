@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 
-## 0.2.0
+## Unreleased
 
 ### Added
 
@@ -21,6 +21,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   returns an `SXVector`.
 - Added module-level Rust helper emission for vector norms, reductions, and
   special functions such as `erf` and `erfc`.
+- Added support for registering user-defined elementary functions with
+  `register_elementary_function(...)` for scalar-input and fixed-size
+  vector-input custom primitives.
+- Added support for parameter vectors on custom primitives via
+  `parameter_dimension` and `w=[...]`.
+- Added optional custom Python `hvp` callbacks for user-defined elementary
+  functions.
+- Added runnable demos in `demos/codegen` and `demos/custom_function`.
 - Added substantial regression and runtime coverage for symbolic math, AD, and
   generated Rust crates.
 
@@ -36,6 +44,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `vec_sum`, `vec_prod`, `vec_max`, `vec_min`, and `vec_mean`.
 - Updated singleton `SXVector` behavior so length-1 vectors can participate more
   naturally in scalar expressions.
+- Updated custom primitive derivative APIs so Python Jacobian, Hessian, and HVP
+  callbacks may return plain Python containers or NumPy arrays.
+- Updated custom primitive derivative handling so Jacobian, Hessian, and HVP
+  callbacks are treated as opaque numeric Python callbacks during registration,
+  evaluation, and simplification.
+- Updated vector Hessian APIs so `Function.hessian(...)` returns a single flat
+  row-major output vector instead of one output row per variable.
+- Updated custom vector Rust derivative helpers so Jacobian, HVP, and Hessian
+  helpers operate on full output slices.
 
 ### Fixed
 
@@ -45,6 +62,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   runtime-compiled crates.
 - Fixed repeated emission of local `norm2` helpers by moving shared helper
   functions to module scope.
+- Fixed custom-function registration so NumPy-based opaque derivative callbacks
+  are no longer evaluated on `SX` symbolic objects.
+- Fixed generated Rust custom Hessian emission so flat helper calls are used
+  directly where possible, with compatibility wrappers retained for internal
+  per-entry access.
 
 ### Automatic Differentiation
 
@@ -62,3 +84,5 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Updated the main `README.md` to document the expanded elementary function
   support, vector norms, `SXVector` slicing, AD behavior, and shared Rust
   helper generation.
+- Added and refined documentation for the new codegen and custom-function
+  demos, including virtual-environment guidance.
