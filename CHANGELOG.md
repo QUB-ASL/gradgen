@@ -32,8 +32,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   through `CodeGenerationBuilder().for_function(...)`.
 - Added runnable demos in `demos/codegen`, `demos/custom_function`, and
   `demos/multi_function`.
+- Added staged composition support through `ComposedFunction` with
+  `.then(...)`, `.chain(...)`, `.repeat(...)`, and `.finish(...)`.
+- Added staged gradient code generation for composed functions, including
+  loop-preserving Rust emission for repeated stages.
+- Added runtime-seeded `vjp` kernels to the Rust code generation workflow.
+- Added dedicated demos in `demos/composed_function` and `demos/vjp`.
+- Added `runner` crates for every demo to show how generated Rust crates can be
+  consumed from ordinary Rust binaries.
 - Added substantial regression and runtime coverage for symbolic math, AD, and
   generated Rust crates.
+- Added CI coverage for demo generation, demo runner execution, and Rust
+  `cargo clippy` checks on all demo runners.
+- Added early Rust-facing name validation for explicit crate and function
+  names, including Rust keyword rejection and detection of sanitized-name
+  collisions.
 
 ### Changed
 
@@ -55,12 +68,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Updated `CodeGenerationBuilder` so it can manage one or more source
   `Function`s in the same generated crate while preserving
   `CodeGenerationBuilder(f)` as the single-function shorthand.
+- Updated `CodeGenerationBuilder` so it can also accept `ComposedFunction` and
+  `ComposedGradientFunction` sources directly in multi-function crates.
 - Updated builder-generated Rust naming so multi-function crates automatically
   include the source function name in generated entrypoints to avoid collisions.
 - Updated vector Hessian APIs so `Function.hessian(...)` returns a single flat
   row-major output vector instead of one output row per variable.
 - Updated custom vector Rust derivative helpers so Jacobian, HVP, and Hessian
   helpers operate on full output slices.
+- Updated Jacobian blocks for vector-valued outputs so generated Rust returns a
+  single flat row-major output slice instead of one row output per variable.
+- Updated all demos so their generated Rust crates target `no_std`, while the
+  demo `runner` crates remain ordinary `std` binaries for ease of use.
+- Updated demo runners to print all generated `FunctionMetadata` first and to
+  format numeric results to four decimal places.
+- Refactored the Rust code generation and custom-elementary internals into
+  smaller private submodules for improved maintainability.
 
 ### Fixed
 
@@ -75,6 +98,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Fixed generated Rust custom Hessian emission so flat helper calls are used
   directly where possible, with compatibility wrappers retained for internal
   per-entry access.
+- Fixed multi-function staged code generation so one crate can contain both
+  loop-based composed primal and composed gradient kernels.
+- Fixed runner examples to allocate workspaces from generated metadata instead
+  of relying on hand-written sizes.
 - Fixed repository noise from generated Rust crates by ignoring common Cargo
   artifacts such as `Cargo.lock`, `target/`, backup files, and local `.cargo/`
   directories.
@@ -95,10 +122,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Updated the main `README.md` to document the expanded elementary function
   support, vector norms, `SXVector` slicing, AD behavior, shared Rust helper
   generation, and the new multi-function `CodeGenerationBuilder` workflow.
+- Updated the main `README.md` with Rust naming rules, composed-function
+  guidance, and a live GitHub Actions CI badge.
 - Added and refined documentation for the new codegen and custom-function
   demos, including virtual-environment guidance.
 - Added a dedicated multi-function demo documenting how several source
   functions can share the same generated Rust crate.
+- Updated all demo READMEs and runner READMEs to document the `runner` crates
+  and the `no_std` generated-library setup.
 
 ## 0.2.0 - 28-03-2026
 
