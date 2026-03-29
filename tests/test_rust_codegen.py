@@ -558,6 +558,26 @@ mod tests {{
         self.assertIn("work[2] = quadform(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, x);", result.source)
         self.assertIn("work[3] = bilinear_form(x, &[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, y);", result.source)
 
+    def test_generated_code_supports_f32_constant_matrix_helpers(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "f",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+
+        result = f.generate_rust(scalar_type="f32")
+
+        self.assertIn("fn matvec_component(matrix: &[f32], rows: usize, cols: usize, row: usize, x: &[f32]) -> f32 {", result.source)
+        self.assertIn("fn matvec(matrix: &[f32], rows: usize, cols: usize, x: &[f32], y: &mut [f32]) {", result.source)
+        self.assertIn("fn quadform(matrix: &[f32], size: usize, x: &[f32]) -> f32 {", result.source)
+        self.assertIn("fn bilinear_form(x: &[f32], matrix: &[f32], rows: usize, cols: usize, y: &[f32]) -> f32 {", result.source)
+        self.assertIn("matvec(&[2.0_f32, 1.0_f32, 1.0_f32, 3.0_f32], 2, 2, x, mx);", result.source)
+
     def test_generated_code_uses_matvec_helpers_for_quadratic_form_derivatives(self) -> None:
         x = SXVector.sym("x", 2)
         matrix = [[2.0, 1.0], [1.0, 3.0]]
@@ -579,6 +599,28 @@ mod tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertEqual(lib_text.count("fn norm2(values: &[f64]) -> f64 {"), 1)
+
+    def test_multi_function_project_emits_matrix_helpers_once(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f1 = Function("f1", [x], [quadform(matrix, x)], input_names=["x"], output_names=["y1"])
+        f2 = Function(
+            "f2",
+            [x, y],
+            [matvec(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "bxy"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_multi_function_rust_project((f1, f2), Path(tmpdir) / "matrix_bundle")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertEqual(lib_text.count("fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {"), 1)
+            self.assertEqual(lib_text.count("fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {"), 1)
+            self.assertEqual(lib_text.count("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {"), 1)
+            self.assertEqual(lib_text.count("fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {"), 1)
 
     def test_generated_code_reuses_shared_dag_nodes(self) -> None:
         x = SX.sym("x")
@@ -970,6 +1012,59 @@ mod math {
                 inputs=([1.0, 2.0], [3.0, 4.0]),
                 test_name="evaluates_constant_matrix_helpers_against_python_reference",
                 tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_non_square_matvec_reference_test(self) -> None:
+        x = SXVector.sym("x", 3)
+        matrix = [[2.0, -1.0, 0.5], [1.5, 0.0, 4.0]]
+        f = Function(
+            "rectangular_matvec_kernel",
+            [x],
+            [matvec(matrix, x)],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "rectangular_matvec_kernel")
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([1.0, -2.0, 3.0],),
+                test_name="evaluates_rectangular_matvec_against_python_reference",
+                tolerance=1e-12,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_generated_rust_project_runs_f32_constant_matrix_helper_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "matrix_kernel_f32",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+        config = RustBackendConfig().with_scalar_type("f32")
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "matrix_kernel_f32", config=config)
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0]),
+                test_name="evaluates_constant_matrix_helpers_against_python_reference_f32",
+                config=config,
+                tolerance=1e-5,
             )
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
@@ -1564,6 +1659,38 @@ mod tests {
                     self.skipTest("cargo could not fetch libm in the offline test environment")
                 raise
             self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_supports_constant_matrix_helpers(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "f",
+            [x, y],
+            [quadform(matrix, x)],
+            input_names=["x", "y"],
+            output_names=["y_out"],
+        )
+        builder = (
+            CodeGenerationBuilder(f)
+            .with_backend_config(RustBackendConfig().with_crate_name("matrix_builder"))
+            .add_primal()
+            .add_gradient()
+            .add_hvp()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "matrix_builder")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {", lib_text)
+            self.assertIn("fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {", lib_text)
+            self.assertIn("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {", lib_text)
+            self.assertIn("pub fn matrix_builder_f(", lib_text)
+            self.assertIn("pub fn matrix_builder_grad_x(", lib_text)
+            self.assertIn("pub fn matrix_builder_grad_y(", lib_text)
+            self.assertIn("pub fn matrix_builder_hvp_x(", lib_text)
+            self.assertIn("pub fn matrix_builder_hvp_y(", lib_text)
 
 
 if __name__ == "__main__":
