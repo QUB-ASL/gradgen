@@ -8,7 +8,7 @@ This demo shows the basic gradgen workflow:
 
 The example function is
 
-$$f(x, u) = \|x\|_2^2 + u_1 \sin(x_1) + x_2 x_3,$$
+$$f(x, u) = \Vert x \Vert_2^2 + u_1 \sin(x_1) + x_2 x_3,$$
 
 where:
 
@@ -17,7 +17,7 @@ where:
 
 This is a good minimal example because it includes:
 
-- a quadratic term, $\|x\|_2^2 = x_1^2 + x_2^2 + x_3^2$
+- a quadratic term, $\Vert x \Vert_2^2 = x_1^2 + x_2^2 + x_3^2$
 - a nonlinear term, $u_1 \sin(x_1)$
 - a simple cross term, $x_2 x_3$
 
