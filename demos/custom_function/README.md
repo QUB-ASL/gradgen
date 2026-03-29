@@ -26,7 +26,11 @@ This combines:
 Since $f$ is scalar-valued, its Jacobian with respect to $x$ is the row
 vector of first derivatives:
 
-$$J_x f(x, w) = \begin{bmatrix}2 \cdot 2^{w_1} x_1 + x_2 \cos(x_1 x_2) \\ 2 w_2 x_2 + x_1 \cos(x_1 x_2)\end{bmatrix}.$$
+$$J_x f(x, w) = 
+\begin{bmatrix}
+2 \cdot 2^{w_1} x_1 + x_2 \cos(x_1 x_2) \\ 
+2 w_2 x_2 + x_1 \cos(x_1 x_2)
+\end{bmatrix}.$$
 
 ## Hessian
 
