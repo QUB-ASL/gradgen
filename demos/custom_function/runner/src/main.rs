@@ -1,9 +1,11 @@
 use custom_function_kernel::{
     custom_function_kernel_custom_energy_f, custom_function_kernel_custom_energy_f_meta,
-    custom_function_kernel_custom_energy_grad, custom_function_kernel_custom_energy_grad_meta,
-    custom_function_kernel_custom_energy_hessian,
-    custom_function_kernel_custom_energy_hessian_meta, custom_function_kernel_custom_energy_hvp,
-    custom_function_kernel_custom_energy_hvp_meta, FunctionMetadata,
+    custom_function_kernel_custom_energy_grad_x_f,
+    custom_function_kernel_custom_energy_grad_x_f_meta,
+    custom_function_kernel_custom_energy_hessian_x_f,
+    custom_function_kernel_custom_energy_hessian_x_f_meta,
+    custom_function_kernel_custom_energy_hvp_x_f,
+    custom_function_kernel_custom_energy_hvp_x_f_meta, FunctionMetadata,
 };
 
 fn print_metadata(label: &str, metadata: FunctionMetadata) {
@@ -21,41 +23,42 @@ fn main() {
         custom_function_kernel_custom_energy_f_meta(),
     );
     print_metadata(
-        "custom_energy_grad metadata",
-        custom_function_kernel_custom_energy_grad_meta(),
+        "custom_energy_grad_x metadata",
+        custom_function_kernel_custom_energy_grad_x_f_meta(),
     );
     print_metadata(
-        "custom_energy_hessian metadata",
-        custom_function_kernel_custom_energy_hessian_meta(),
+        "custom_energy_hessian_x metadata",
+        custom_function_kernel_custom_energy_hessian_x_f_meta(),
     );
     print_metadata(
-        "custom_energy_hvp metadata",
-        custom_function_kernel_custom_energy_hvp_meta(),
+        "custom_energy_hvp_x metadata",
+        custom_function_kernel_custom_energy_hvp_x_f_meta(),
     );
 
     let x = [1.2_f64, -0.7_f64];
+    let w = [1.5_f64, 3.0_f64];
     let v_x = [0.5_f64, -1.0_f64];
 
     let mut y = [0.0_f64; 1];
     let mut y_work = vec![0.0_f64; custom_function_kernel_custom_energy_f_meta().workspace_size];
-    custom_function_kernel_custom_energy_f(&x, &mut y, &mut y_work);
-    println!("custom_energy(x) = {}", format_slice(&y));
+    custom_function_kernel_custom_energy_f(&x, &w, &mut y, &mut y_work);
+    println!("custom_energy(x, w) = {}", format_slice(&y));
 
     let mut grad = [0.0_f64; 2];
     let mut grad_work =
-        vec![0.0_f64; custom_function_kernel_custom_energy_grad_meta().workspace_size];
-    custom_function_kernel_custom_energy_grad(&x, &mut grad, &mut grad_work);
-    println!("grad custom_energy(x) = {}", format_slice(&grad));
+        vec![0.0_f64; custom_function_kernel_custom_energy_grad_x_f_meta().workspace_size];
+    custom_function_kernel_custom_energy_grad_x_f(&x, &w, &mut grad, &mut grad_work);
+    println!("grad_x custom_energy(x, w) = {}", format_slice(&grad));
 
     let mut hessian = [0.0_f64; 4];
     let mut hessian_work =
-        vec![0.0_f64; custom_function_kernel_custom_energy_hessian_meta().workspace_size];
-    custom_function_kernel_custom_energy_hessian(&x, &mut hessian, &mut hessian_work);
-    println!("hessian custom_energy(x) = {}", format_slice(&hessian));
+        vec![0.0_f64; custom_function_kernel_custom_energy_hessian_x_f_meta().workspace_size];
+    custom_function_kernel_custom_energy_hessian_x_f(&x, &w, &mut hessian, &mut hessian_work);
+    println!("hessian_x custom_energy(x, w) = {}", format_slice(&hessian));
 
     let mut hvp = [0.0_f64; 2];
     let mut hvp_work =
-        vec![0.0_f64; custom_function_kernel_custom_energy_hvp_meta().workspace_size];
-    custom_function_kernel_custom_energy_hvp(&x, &v_x, &mut hvp, &mut hvp_work);
-    println!("hvp custom_energy(x, v_x) = {}", format_slice(&hvp));
+        vec![0.0_f64; custom_function_kernel_custom_energy_hvp_x_f_meta().workspace_size];
+    custom_function_kernel_custom_energy_hvp_x_f(&x, &w, &v_x, &mut hvp, &mut hvp_work);
+    println!("hvp_x custom_energy(x, w, v_x) = {}", format_slice(&hvp));
 }

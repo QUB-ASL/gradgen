@@ -7,6 +7,18 @@ from gradgen import (
     clear_registered_elementary_functions,
     register_elementary_function,
 )
+from gradgen._custom_elementary.callbacks import (
+    coerce_numeric_matrix,
+    coerce_numeric_scalar,
+    coerce_numeric_vector,
+    coerce_symbolic_matrix,
+    coerce_symbolic_scalar,
+    coerce_symbolic_vector,
+    evaluate_custom_hvp,
+    invoke_custom_callback,
+    invoke_custom_hvp_callback,
+)
+from gradgen._custom_elementary.model import RegisteredElementaryFunction
 
 
 class CustomElementaryTests(unittest.TestCase):
@@ -121,6 +133,72 @@ fn weighted_sqnorm_hessian(
         self.assertEqual(f.gradient(0)([1.0, 2.0]), (4.0, 12.0))
         self.assertEqual(f.hvp(0)([1.0, 2.0], [3.0, 4.0]), (12.0, 24.0))
         self.assertEqual(f.hessian(0)([1.0, 2.0]), (4.0, 0.0, 0.0, 6.0))
+
+    def test_register_vector_custom_function_accepts_symbolic_parameter_inputs(self) -> None:
+        weighted_sqnorm = register_elementary_function(
+            name="weighted_sqnorm_symbolic_w",
+            input_dimension=2,
+            parameter_dimension=2,
+            parameter_defaults=[1.0, 1.0],
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+            hessian=lambda x, w: [
+                [2 * w[0], 0.0],
+                [0.0, 2 * w[1]],
+            ],
+            hvp=lambda x, v, w: [2 * w[0] * v[0], 2 * w[1] * v[1]],
+            rust_primal="""
+fn weighted_sqnorm_symbolic_w(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+) -> {{ scalar_type }} {
+    w[0] * x[0] * x[0] + w[1] * x[1] * x[1]
+}
+""",
+            rust_jacobian="""
+fn weighted_sqnorm_symbolic_w_jacobian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    out[0] = 2.0_{{ scalar_type }} * w[0] * x[0];
+    out[1] = 2.0_{{ scalar_type }} * w[1] * x[1];
+}
+""",
+            rust_hvp="""
+fn weighted_sqnorm_symbolic_w_hvp(
+    x: &[{{ scalar_type }}],
+    v_x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w[0] * v_x[0];
+    out[1] = 2.0_{{ scalar_type }} * w[1] * v_x[1];
+}
+""",
+            rust_hessian="""
+fn weighted_sqnorm_symbolic_w_hessian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w[0];
+    out[1] = 0.0_{{ scalar_type }};
+    out[2] = 0.0_{{ scalar_type }};
+    out[3] = 2.0_{{ scalar_type }} * w[1];
+}
+""",
+        )
+
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 2)
+        f = Function("f", [x, w], [weighted_sqnorm(x, w=w)], input_names=["x", "w"], output_names=["y"])
+
+        self.assertEqual(f([1.0, 2.0], [2.0, 3.0]), 14.0)
+        self.assertEqual(f.gradient(0)([1.0, 2.0], [2.0, 3.0]), (4.0, 12.0))
+        self.assertIn("w: &[f64]", f.generate_rust(backend_mode="no_std").source)
 
     def test_register_vector_custom_function_accepts_plain_python_array_outputs(self) -> None:
         weighted_sqnorm = register_elementary_function(
@@ -282,6 +360,121 @@ fn missing_vector_hessian(
 
         with self.assertRaises(ValueError):
             _ = f.hessian(0).generate_rust()
+
+    def test_registration_rejects_malformed_numeric_hessian_and_hvp_shapes(self) -> None:
+        with self.assertRaises(TypeError):
+            register_elementary_function(
+                name="bad_hessian_shape",
+                input_dimension=2,
+                parameter_dimension=2,
+                parameter_defaults=[1.0, 1.0],
+                eval_python=lambda x, w: w[0] * x[0] + w[1] * x[1],
+                jacobian=lambda x, w: [w[0], w[1]],
+                hessian=lambda x, w: [[0.0, 0.0]],
+            )
+
+        with self.assertRaises(TypeError):
+            register_elementary_function(
+                name="bad_hvp_shape",
+                input_dimension=2,
+                parameter_dimension=2,
+                parameter_defaults=[1.0, 1.0],
+                eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+                jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+                hessian=lambda x, w: [[2 * w[0], 0.0], [0.0, 2 * w[1]]],
+                hvp=lambda x, v, w: [2 * w[0] * v[0]],
+            )
+
+    def test_custom_hvp_accepts_alternative_argument_order(self) -> None:
+        weighted_sqnorm = register_elementary_function(
+            name="weighted_sqnorm_alt_hvp_order",
+            input_dimension=2,
+            parameter_dimension=2,
+            parameter_defaults=[1.0, 1.0],
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+            hessian=lambda x, w: [[2 * w[0], 0.0], [0.0, 2 * w[1]]],
+            hvp=lambda x, w, v_x: [2 * w[0] * v_x[0], 2 * w[1] * v_x[1]],
+        )
+
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [weighted_sqnorm(x, w=[2.0, 3.0])], input_names=["x"], output_names=["y"])
+
+        self.assertEqual(f.hvp(0)([1.0, 2.0], [3.0, 4.0]), (12.0, 24.0))
+
+    def test_zero_parameter_scalar_callbacks_can_omit_parameter_argument(self) -> None:
+        cubic = register_elementary_function(
+            name="cubic_no_params",
+            input_dimension=1,
+            parameter_dimension=0,
+            eval_python=lambda x: x * x * x,
+            jacobian=lambda x: 3 * x * x,
+            hessian=lambda x: 6 * x,
+        )
+
+        x = SX.sym("x")
+        f = Function("f", [x], [cubic(x)], input_names=["x"], output_names=["y"])
+
+        self.assertEqual(f(2.0), 8.0)
+        self.assertEqual(f.gradient(0)(2.0), 12.0)
+        self.assertEqual(f.hvp(0)(2.0, 5.0), 60.0)
+
+    def test_callback_invocation_helpers_support_zero_parameter_omission(self) -> None:
+        self.assertEqual(invoke_custom_callback(lambda x: x + 1, 2.0, (), 0), 3.0)
+        self.assertEqual(invoke_custom_callback(lambda x, w: x + len(w), 2.0, (), 0), 2.0)
+        self.assertEqual(invoke_custom_hvp_callback(lambda x, v: x + v, 2.0, 3.0, (), 0), 5.0)
+        self.assertEqual(
+            invoke_custom_hvp_callback(lambda x, w, v_x: x + len(w) + v_x, 2.0, 3.0, (4.0,), 1),
+            6.0,
+        )
+
+    def test_callback_coercion_helpers_reject_bad_shapes_and_accept_numpy_scalars(self) -> None:
+        try:
+            import numpy as np
+        except ImportError:
+            self.skipTest("numpy is not installed")
+
+        self.assertEqual(coerce_numeric_scalar(np.array(2.5), "bad"), 2.5)
+        self.assertEqual(coerce_symbolic_scalar(np.array(2.5), "bad").value, 2.5)
+        self.assertEqual(coerce_numeric_vector(np.array([1.0, 2.0]), 2, "bad"), (1.0, 2.0))
+        self.assertEqual(
+            tuple(item.value for item in coerce_symbolic_vector(np.array([1.0, 2.0]), 2, "bad")),
+            (1.0, 2.0),
+        )
+        self.assertEqual(
+            coerce_numeric_matrix(np.array([[1.0, 2.0], [3.0, 4.0]]), 2, "bad"),
+            ((1.0, 2.0), (3.0, 4.0)),
+        )
+        symbolic_matrix = coerce_symbolic_matrix(np.array([[1.0, 2.0], [3.0, 4.0]]), 2, "bad")
+        self.assertEqual(tuple(item.value for item in symbolic_matrix[0]), (1.0, 2.0))
+
+        with self.assertRaises(TypeError):
+            coerce_numeric_vector([1.0], 2, "bad")
+        with self.assertRaises(TypeError):
+            coerce_symbolic_matrix([[1.0, 2.0]], 2, "bad")
+
+    def test_numeric_hvp_falls_back_to_hessian_and_validates_tangent_shape(self) -> None:
+        spec = RegisteredElementaryFunction(
+            name="fallback_hvp",
+            input_dimension=2,
+            parameter_dimension=2,
+            parameter_defaults=(2.0, 3.0),
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+            hessian=lambda x, w: [[2 * w[0], 0.0], [0.0, 2 * w[1]]],
+            hvp=None,
+            rust_primal=None,
+            rust_jacobian=None,
+            rust_hvp=None,
+            rust_hessian=None,
+        )
+
+        self.assertEqual(
+            evaluate_custom_hvp(spec, (1.0, 2.0), (3.0, 4.0), (2.0, 3.0)),
+            (12.0, 24.0),
+        )
+        with self.assertRaises(TypeError):
+            evaluate_custom_hvp(spec, (1.0, 2.0), [3.0, 4.0], (2.0, 3.0))
 
     def test_rust_codegen_emits_registered_helpers(self) -> None:
         square_shift = register_elementary_function(

@@ -58,41 +58,42 @@ pub fn composed_kernel_composed_demo_f_meta() -> FunctionMetadata {
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 6.
 pub fn composed_kernel_composed_demo_f(x: &[f64], parameters: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 6);
-    assert_eq!(x.len(), 2);
-    assert_eq!(parameters.len(), 11);
-    assert_eq!(y.len(), 1);
+    assert!(work.len() >= 6, "work is length {} but should be at least 6", work.len());
+    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
+    assert_eq!(parameters.len(), 11, "parameters is length {} but should be 11", parameters.len());
+    assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());
     let (state_buffers, stage_work) = work.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
     current_state.copy_from_slice(x);
     for repeat_index in 0..5 {
-        composed_kernel_composed_demo_f_repeat_0_g(current_state, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], next_state, stage_work);
+        composed_kernel_composed_demo_repeat_0_g(current_state, &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)], next_state, stage_work);
         current_state.copy_from_slice(next_state);
     }
-    composed_kernel_composed_demo_f_terminal_h(current_state, &parameters[10..11], y, stage_work);
+    composed_kernel_composed_demo_terminal_h(current_state, &parameters[10..11], y, stage_work);
 }
 
-fn composed_kernel_composed_demo_f_repeat_0_g(state: &[f64], p: &[f64], next_state: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2);
-    assert_eq!(state.len(), 2);
-    assert_eq!(p.len(), 2);
-    assert_eq!(next_state.len(), 2);
+fn composed_kernel_composed_demo_repeat_0_g(state: &[f64], p: &[f64], next_state: &mut [f64], work: &mut [f64]) {
+    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+    assert_eq!(state.len(), 2, "state is length {} but should be 2", state.len());
+    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
+    assert_eq!(next_state.len(), 2, "next_state is length {} but should be 2", next_state.len());
     work[0] = 0.9_f64 * state[0];
-    work[0] = work[0] + p[0];
+    work[0] += p[0];
     work[1] = 0.1_f64 * state[1];
-    work[1] = work[1] * p[1];
+    work[1] *= p[1];
     next_state[0] = work[0];
     next_state[1] = work[1];
 }
 
-fn composed_kernel_composed_demo_f_terminal_h(state: &[f64], pf: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 1);
-    assert_eq!(state.len(), 2);
-    assert_eq!(pf.len(), 1);
-    assert_eq!(y.len(), 1);
+fn composed_kernel_composed_demo_terminal_h(state: &[f64], pf: &[f64], y: &mut [f64], work: &mut [f64]) {
+    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+    assert_eq!(state.len(), 2, "state is length {} but should be 2", state.len());
+    assert_eq!(pf.len(), 1, "pf is length {} but should be 1", pf.len());
+    assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());
     work[0] = 2.0_f64 * state[0];
-    work[0] = work[0] - state[1];
-    work[0] = work[0] + pf[0];
+    work[1] = -state[1];
+    work[0] += work[1];
+    work[0] += pf[0];
     y[0] = work[0];
 }
 
@@ -137,42 +138,42 @@ pub fn composed_kernel_composed_demo_grad_x_meta() -> FunctionMetadata {
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 18.
 pub fn composed_kernel_composed_demo_grad_x(x: &[f64], parameters: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 18);
-    assert_eq!(x.len(), 2);
-    assert_eq!(parameters.len(), 11);
-    assert_eq!(y.len(), 2);
+    assert!(work.len() >= 18, "work is length {} but should be at least 18", work.len());
+    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
+    assert_eq!(parameters.len(), 11, "parameters is length {} but should be 11", parameters.len());
+    assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
     let (state_history, rest) = work.split_at_mut(10);
     let (current_state, rest) = rest.split_at_mut(2);
     let (lambda_buffers, stage_work) = rest.split_at_mut(4);
     let (lambda_a, lambda_b) = lambda_buffers.split_at_mut(2);
     current_state.copy_from_slice(x);
     for repeat_index in 0..5 {
-        let stage_index = 0 + repeat_index;
+        let stage_index = repeat_index;
         let stage_start = stage_index * 2;
         let stage_end = stage_start + 2;
         {
             let next_state = &mut state_history[stage_start..stage_end];
-            composed_kernel_composed_demo_grad_x_repeat_0_g(current_state, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], next_state, stage_work);
+            composed_kernel_composed_demo_repeat_0_g(current_state, &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)], next_state, stage_work);
             current_state.copy_from_slice(next_state);
         }
     }
-    composed_kernel_composed_demo_grad_x_terminal_h_grad(current_state, &parameters[10..11], lambda_a, stage_work);
+    composed_kernel_composed_demo_terminal_h_grad(current_state, &parameters[10..11], lambda_a, stage_work);
     let mut current_lambda_is_a = true;
     for repeat_index in (0..5).rev() {
-        let stage_index = 0 + repeat_index;
+        let stage_index = repeat_index;
         if stage_index == 0 {
             if current_lambda_is_a {
-                composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(x, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_a[..], lambda_b, stage_work);
+                composed_kernel_composed_demo_repeat_0_g_vjp(x, &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)], &lambda_a[..], lambda_b, stage_work);
             } else {
-                composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(x, &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_b[..], lambda_a, stage_work);
+                composed_kernel_composed_demo_repeat_0_g_vjp(x, &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)], &lambda_b[..], lambda_a, stage_work);
             }
         } else {
             let prev_start = (stage_index - 1) * 2;
             let prev_end = prev_start + 2;
             if current_lambda_is_a {
-                composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(&state_history[prev_start..prev_end], &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_a[..], lambda_b, stage_work);
+                composed_kernel_composed_demo_repeat_0_g_vjp(&state_history[prev_start..prev_end], &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)], &lambda_a[..], lambda_b, stage_work);
             } else {
-                composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(&state_history[prev_start..prev_end], &parameters[0 + (repeat_index * 2)..0 + ((repeat_index + 1) * 2)], &lambda_b[..], lambda_a, stage_work);
+                composed_kernel_composed_demo_repeat_0_g_vjp(&state_history[prev_start..prev_end], &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)], &lambda_b[..], lambda_a, stage_work);
             }
         }
         current_lambda_is_a = !current_lambda_is_a;
@@ -181,52 +182,23 @@ pub fn composed_kernel_composed_demo_grad_x(x: &[f64], parameters: &[f64], y: &m
     y.copy_from_slice(gradient);
 }
 
-fn composed_kernel_composed_demo_grad_x_repeat_0_g(state: &[f64], p: &[f64], next_state: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2);
-    assert_eq!(state.len(), 2);
-    assert_eq!(p.len(), 2);
-    assert_eq!(next_state.len(), 2);
-    work[0] = 0.9_f64 * state[0];
-    work[0] = work[0] + p[0];
-    work[1] = 0.1_f64 * state[1];
-    work[1] = work[1] * p[1];
-    next_state[0] = work[0];
-    next_state[1] = work[1];
-}
-
-fn composed_kernel_composed_demo_grad_x_repeat_0_g_vjp(state: &[f64], p: &[f64], cotangent_next_state: &[f64], vjp_state: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2);
-    assert_eq!(state.len(), 2);
-    assert_eq!(p.len(), 2);
-    assert_eq!(cotangent_next_state.len(), 2);
-    assert_eq!(vjp_state.len(), 2);
-    work[0] = 0.0_f64 + cotangent_next_state[0];
-    work[0] = 0.0_f64 + work[0];
-    work[0] = 0.9_f64 * work[0];
-    work[0] = 0.0_f64 + work[0];
-    work[0] = 0.0_f64 + work[0];
-    work[1] = 0.0_f64 + cotangent_next_state[1];
-    work[1] = work[1] * p[1];
-    work[1] = 0.0_f64 + work[1];
-    work[1] = 0.1_f64 * work[1];
-    work[1] = 0.0_f64 + work[1];
-    work[1] = 0.0_f64 + work[1];
+fn composed_kernel_composed_demo_repeat_0_g_vjp(state: &[f64], p: &[f64], cotangent_next_state: &[f64], vjp_state: &mut [f64], work: &mut [f64]) {
+    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+    assert_eq!(state.len(), 2, "state is length {} but should be 2", state.len());
+    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
+    assert_eq!(cotangent_next_state.len(), 2, "cotangent_next_state is length {} but should be 2", cotangent_next_state.len());
+    assert_eq!(vjp_state.len(), 2, "vjp_state is length {} but should be 2", vjp_state.len());
+    work[0] = 0.9_f64 * cotangent_next_state[0];
+    work[1] = 0.1_f64 * cotangent_next_state[1];
+    work[1] *= p[1];
     vjp_state[0] = work[0];
     vjp_state[1] = work[1];
 }
 
-fn composed_kernel_composed_demo_grad_x_terminal_h_grad(state: &[f64], pf: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2);
-    assert_eq!(state.len(), 2);
-    assert_eq!(pf.len(), 1);
-    assert_eq!(y.len(), 2);
-    work[0] = 0.0_f64 + 1.0_f64;
-    work[0] = 0.0_f64 + work[0];
-    work[1] = 0.0_f64 + work[0];
-    work[1] = 2.0_f64 * work[1];
-    work[1] = 0.0_f64 + work[1];
-    work[0] = -work[0];
-    work[0] = 0.0_f64 + work[0];
-    y[0] = work[1];
-    y[1] = work[0];
+fn composed_kernel_composed_demo_terminal_h_grad(state: &[f64], pf: &[f64], y: &mut [f64], _work: &mut [f64]) {
+    assert_eq!(state.len(), 2, "state is length {} but should be 2", state.len());
+    assert_eq!(pf.len(), 1, "pf is length {} but should be 1", pf.len());
+    assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
+    y[0] = 2.0_f64;
+    y[1] = -1.0_f64;
 }

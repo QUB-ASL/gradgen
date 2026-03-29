@@ -252,6 +252,7 @@ def _resolve_builder_functions(
             function,
             config,
             requests,
+            simplification,
             include_base_name=include_base_name,
             function_name=function_name,
         )
@@ -387,6 +388,7 @@ def _resolve_builder_composed_sources(
     function: ComposedFunction | ComposedGradientFunction,
     config: RustBuilderConfigLike,
     requests: tuple[_BuilderRequest, ...],
+    simplification: int | str | None,
     *,
     include_base_name: bool = False,
     function_name: str | None = None,
@@ -400,7 +402,7 @@ def _resolve_builder_composed_sources(
         if request.kind == "primal":
             resolved.append(
                 _rename_builder_source(
-                    function,
+                    replace(function, simplification=simplification),
                     _builder_function_name(
                         crate_prefix,
                         "f",
@@ -411,9 +413,10 @@ def _resolve_builder_composed_sources(
             )
             continue
         if request.kind == "gradient" and isinstance(function, ComposedFunction):
+            simplified_function = replace(function, simplification=simplification)
             resolved.append(
                 _rename_builder_source(
-                    function.gradient(),
+                    simplified_function.gradient(),
                     _builder_function_name(
                         crate_prefix,
                         "grad",

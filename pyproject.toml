@@ -4,15 +4,44 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gradgen"
-version = "0.2.0"
+version = "0.3.0"
 description = "Symbolic differentiation and Rust code generation library."
 readme = "README.md"
 requires-python = ">=3.11"
+keywords = [
+  "automatic-differentiation",
+  "symbolic-computation",
+  "code-generation",
+  "rust",
+  "scientific-computing",
+  "numerical-optimization",
+  "embedded-systems",
+  "engineering",
+  "mathematics",
+]
 authors = [
-  { name = "Pantelis Sopasakis" }
+  { name = "Pantelis Sopasakis", email = "xzu.trustful191@passinbox.com" },
+  { name = "Ruairi Moran" },
+  { name = "Jie Lin" },  
 ]
 license = { text = "MIT" }
 dependencies = ["jinja2>=3.1"]
+optional-dependencies = { dev = ["pytest>=8", "sympy>=1.14"] }
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Mathematics",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Software Development :: Code Generators",
+  "Topic :: Software Development :: Embedded Systems",
+]
 
 [tool.setuptools]
 package-dir = { "" = "src" }

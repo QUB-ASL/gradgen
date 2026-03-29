@@ -498,6 +498,16 @@ class SXVectorTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             _ = x.mean()
 
+    def test_empty_vector_norms_return_zero_constants(self) -> None:
+        x = SXVector.sym("x", 0)
+
+        self.assertEqual(x.norm1().value, 0.0)
+        self.assertEqual(x.norm2().value, 0.0)
+        self.assertEqual(x.norm2sq().value, 0.0)
+        self.assertEqual(x.norm_inf().value, 0.0)
+        self.assertEqual(x.norm_p(3).value, 0.0)
+        self.assertEqual(x.norm_p_to_p(3).value, 0.0)
+
     def test_vector_operations_validate_lengths(self) -> None:
         x = SXVector.sym("x", 2)
         y = SXVector.sym("y", 3)
@@ -540,6 +550,22 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(expr_add.op, "add")
         self.assertEqual({arg.name for arg in expr_left.args}, {"u_0", "x_0"})
 
+    def test_singleton_vector_supports_reverse_scalar_arithmetic(self) -> None:
+        u = SXVector.sym("u", 1)
+
+        expr_add = 2 + u
+        expr_sub = 2 - u
+        expr_mul = 2 * u
+
+        self.assertIsInstance(expr_add, SX)
+        self.assertIsInstance(expr_sub, SX)
+        self.assertIsInstance(expr_mul, SX)
+        self.assertEqual(expr_add.op, "add")
+        self.assertEqual(expr_sub.op, "sub")
+        self.assertEqual(expr_mul.op, "mul")
+        self.assertEqual(expr_sub.args[0].value, 2.0)
+        self.assertEqual(expr_sub.args[1].name, "u_0")
+
     def test_longer_vectors_are_still_rejected_in_scalar_expressions(self) -> None:
         x = SXVector.sym("x", 2)
         s = SX.sym("s")
@@ -554,6 +580,27 @@ class SXVectorTests(unittest.TestCase):
         x = SXVector.sym("x", 2)
 
         self.assertEqual(repr(x), "SXVector(elements=(SX.sym('x_0'), SX.sym('x_1')))")
+
+    def test_empty_matrix_helpers_support_zero_dimension_vectors(self) -> None:
+        x = SXVector.sym("x", 0)
+        y = SXVector.sym("y", 0)
+
+        matvec_expr = matvec([], x)
+        quadform_expr = quadform([], x)
+        bilinear_expr = bilinear_form(x, [], y)
+
+        self.assertEqual(len(matvec_expr), 0)
+        self.assertEqual(quadform_expr.op, "quadform")
+        self.assertEqual(bilinear_expr.op, "bilinear_form")
+
+    def test_top_level_scalar_helpers_reject_non_singleton_vectors(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        with self.assertRaises(TypeError):
+            _ = maximum(x, 1)
+
+        with self.assertRaises(TypeError):
+            _ = minimum(x, 1)
 
 
 if __name__ == "__main__":

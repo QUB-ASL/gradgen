@@ -200,6 +200,7 @@ def generate_rust(
     math_library: str | None = None,
     function_index: int = 0,
     shared_helper_nodes: tuple[SXNode, ...] | None = None,
+    shared_helper_suppressed_custom_wrappers: set[tuple[str, str]] | None = None,
     emit_crate_header: bool = True,
     emit_docs: bool = True,
     function_keyword: str = "pub fn",
@@ -272,15 +273,65 @@ def generate_rust(
     output_assert_lines: list[str] = []
     output_write_lines: list[str] = []
     computation_lines: list[str] = []
+    suppressed_custom_wrappers: set[tuple[str, str]] = set()
 
     for input_spec, input_arg in zip(input_specs, function.inputs):
         input_assert_lines.append(
-            f"assert_eq!({input_spec.rust_name}.len(), {input_spec.size});"
+            _emit_exact_length_assert(
+                input_spec.rust_name,
+                input_spec.raw_name,
+                input_spec.size,
+            )
         )
         for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
             scalar_bindings[scalar.node] = f"{input_spec.rust_name}[{scalar_index}]"
 
-    workspace_map, workspace_size = _allocate_workspace_slots(function)
+    direct_output_helpers: list[str | None] = []
+    materialized_output_refs: list[SX] = []
+    for output_spec, output_arg in zip(output_specs, function.outputs):
+        custom_helper_call = _emit_custom_vector_output_helper_call(
+            output_arg,
+            output_spec.rust_name,
+            scalar_bindings,
+            {},
+            resolved_config.backend_mode,
+            resolved_config.scalar_type,
+            resolved_math_library,
+        )
+        if custom_helper_call is not None:
+            direct_output_helpers.append(custom_helper_call)
+            marker = _identify_direct_custom_output_marker(
+                output_arg,
+                scalar_bindings,
+                {},
+                resolved_config.backend_mode,
+                resolved_config.scalar_type,
+                resolved_math_library,
+            )
+            if marker is not None:
+                suppressed_custom_wrappers.add(marker)
+            continue
+
+        matvec_helper_call = _emit_matvec_output_helper_call(
+            output_arg,
+            output_spec.rust_name,
+            scalar_bindings,
+            {},
+            resolved_config.backend_mode,
+            resolved_config.scalar_type,
+            resolved_math_library,
+        )
+        if matvec_helper_call is not None:
+            direct_output_helpers.append(matvec_helper_call)
+            continue
+
+        direct_output_helpers.append(None)
+        materialized_output_refs.extend(_flatten_arg(output_arg))
+
+    workspace_map, workspace_size = _allocate_workspace_slots(
+        function,
+        output_refs=tuple(materialized_output_refs),
+    )
 
     for node, work_index in workspace_map.items():
         rhs = _emit_node_expr(
@@ -291,35 +342,40 @@ def generate_rust(
             resolved_config.scalar_type,
             resolved_math_library,
         )
-        computation_lines.append(f"work[{work_index}] = {rhs};")
+        computation_lines.append(
+            _emit_workspace_assignment(
+                node,
+                work_index,
+                rhs,
+                scalar_bindings,
+                workspace_map,
+                resolved_config.backend_mode,
+                resolved_config.scalar_type,
+                resolved_math_library,
+            )
+        )
 
-    for output_spec, output_arg in zip(output_specs, function.outputs):
+    for output_spec, output_arg, direct_helper_call in zip(output_specs, function.outputs, direct_output_helpers):
         output_assert_lines.append(
-            f"assert_eq!({output_spec.rust_name}.len(), {output_spec.size});"
+            _emit_exact_length_assert(
+                output_spec.rust_name,
+                output_spec.raw_name,
+                output_spec.size,
+            )
         )
-        custom_helper_call = _emit_custom_vector_output_helper_call(
-            output_arg,
-            output_spec.rust_name,
-            scalar_bindings,
-            workspace_map,
-            resolved_config.backend_mode,
-            resolved_config.scalar_type,
-            resolved_math_library,
-        )
-        if custom_helper_call is not None:
-            output_write_lines.append(custom_helper_call)
-            continue
-        matvec_helper_call = _emit_matvec_output_helper_call(
-            output_arg,
-            output_spec.rust_name,
-            scalar_bindings,
-            workspace_map,
-            resolved_config.backend_mode,
-            resolved_config.scalar_type,
-            resolved_math_library,
-        )
-        if matvec_helper_call is not None:
-            output_write_lines.append(matvec_helper_call)
+        if direct_helper_call is not None:
+            output_write_lines.append(
+                _reemit_direct_output_helper_call(
+                    direct_helper_call,
+                    output_arg,
+                    output_spec.rust_name,
+                    scalar_bindings,
+                    workspace_map,
+                    resolved_config.backend_mode,
+                    resolved_config.scalar_type,
+                    resolved_math_library,
+                )
+            )
             continue
         for scalar_index, scalar in enumerate(_flatten_arg(output_arg)):
             output_ref = _emit_expr_ref(
@@ -356,6 +412,11 @@ def generate_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
         workspace_size=workspace_size,
+        workspace_assert_line=(
+            _emit_min_length_assert("work", "work", workspace_size)
+            if workspace_size > 0
+            else None
+        ),
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
@@ -365,10 +426,15 @@ def generate_rust(
         computation_lines=computation_lines,
         output_write_lines=output_write_lines,
         shared_helper_lines=_build_shared_helper_lines(
-            shared_helper_nodes or function.nodes,
+            function.nodes if shared_helper_nodes is None else shared_helper_nodes,
             resolved_config.backend_mode,
             resolved_config.scalar_type,
             resolved_math_library,
+            suppressed_custom_wrappers=(
+                suppressed_custom_wrappers
+                if shared_helper_nodes is None
+                else (shared_helper_suppressed_custom_wrappers or set())
+            ),
         ),
     )
 
@@ -541,6 +607,24 @@ def create_multi_function_rust_project(
             )
             if index == 0
             else (),
+            shared_helper_suppressed_custom_wrappers=(
+                {
+                    marker
+                    for generated_function in functions
+                    if isinstance(generated_function, Function)
+                    for marker in _collect_suppressed_custom_wrappers(
+                        generated_function,
+                        resolved_config.backend_mode,
+                        resolved_config.scalar_type,
+                        _resolve_math_library(
+                            resolved_config.backend_mode,
+                            resolved_config.math_library,
+                        ),
+                    )
+                }
+                if index == 0
+                else set()
+            ),
         )
         for index, function in enumerate(functions)
     )
@@ -608,8 +692,13 @@ def _generate_composed_primal_rust(
         resolved_config.backend_mode,
         resolved_config.math_library,
     )
+    helper_simplification = composed.simplification
 
     name = sanitize_ident(resolved_config.function_name or composed.name)
+    helper_base_name = _compose_composed_helper_base_name(
+        resolved_config.crate_name,
+        name,
+    )
     helper_config = resolved_config.with_emit_metadata_helpers(False)
     helper_sources: list[str] = []
     helper_nodes: list[SXNode] = []
@@ -621,9 +710,10 @@ def _generate_composed_primal_rust(
     max_helper_workspace = 0
     for block_index, step in enumerate(composed.steps):
         if isinstance(step, _SingleStage):
-            helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}")
+            helper_name = sanitize_ident(f"{helper_base_name}_stage_{block_index}_{step.function.name}")
+            helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
             helper_codegen = generate_rust(
-                step.function,
+                helper_function,
                 config=helper_config,
                 function_name=helper_name,
                 function_index=1,
@@ -633,7 +723,7 @@ def _generate_composed_primal_rust(
                 function_keyword="fn",
             )
             helper_sources.append(helper_codegen.source.rstrip())
-            helper_nodes.extend(step.function.nodes)
+            helper_nodes.extend(helper_function.nodes)
             max_helper_workspace = max(max_helper_workspace, helper_codegen.workspace_size)
             plans.append(
                 _ComposedSinglePlan(
@@ -650,9 +740,10 @@ def _generate_composed_primal_rust(
             stage_index += 1
             continue
 
-        helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}")
+        helper_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_{step.function.name}")
+        helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
         helper_codegen = generate_rust(
-            step.function,
+            helper_function,
             config=helper_config,
             function_name=helper_name,
             function_index=1,
@@ -662,10 +753,10 @@ def _generate_composed_primal_rust(
             function_keyword="fn",
         )
         helper_sources.append(helper_codegen.source.rstrip())
-        helper_nodes.extend(step.function.nodes)
+        helper_nodes.extend(helper_function.nodes)
         max_helper_workspace = max(max_helper_workspace, helper_codegen.workspace_size)
 
-        const_name = sanitize_ident(f"{name}_repeat_{block_index}_params").upper()
+        const_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_params").upper()
         parameter_kind = step.parameters[0].kind
         if parameter_kind == "fixed" and step.parameters[0].size > 0:
             constant_lines.extend(
@@ -692,9 +783,10 @@ def _generate_composed_primal_rust(
         parameter_offset += sum(parameter.symbolic_size for parameter in step.parameters)
         stage_index += len(step.parameters)
 
-    terminal_helper_name = sanitize_ident(f"{name}_terminal_{terminal.function.name}")
+    terminal_helper_name = sanitize_ident(f"{helper_base_name}_terminal_{terminal.function.name}")
+    terminal_function = _maybe_simplify_derivative_function(terminal.function, helper_simplification)
     terminal_codegen = generate_rust(
-        terminal.function,
+        terminal_function,
         config=helper_config,
         function_name=terminal_helper_name,
         function_index=1,
@@ -704,7 +796,7 @@ def _generate_composed_primal_rust(
         function_keyword="fn",
     )
     helper_sources.append(terminal_codegen.source.rstrip())
-    helper_nodes.extend(terminal.function.nodes)
+    helper_nodes.extend(terminal_function.nodes)
     max_helper_workspace = max(max_helper_workspace, terminal_codegen.workspace_size)
     terminal_parameter_offset = parameter_offset
 
@@ -726,12 +818,28 @@ def _generate_composed_primal_rust(
         ),
     )
     _validate_generated_argument_names(input_specs, output_specs)
-    input_assert_lines = [f"assert_eq!({input_specs[0].rust_name}.len(), {state_size});"]
+    input_assert_lines = [
+        _emit_exact_length_assert(
+            input_specs[0].rust_name,
+            input_specs[0].raw_name,
+            state_size,
+        )
+    ]
     if composed.parameter_size > 0:
         input_assert_lines.append(
-            f"assert_eq!({input_specs[1].rust_name}.len(), {composed.parameter_size});"
+            _emit_exact_length_assert(
+                input_specs[1].rust_name,
+                input_specs[1].raw_name,
+                composed.parameter_size,
+            )
         )
-    output_assert_lines = [f"assert_eq!({output_specs[0].rust_name}.len(), 1);"]
+    output_assert_lines = [
+        _emit_exact_length_assert(
+            output_specs[0].rust_name,
+            output_specs[0].raw_name,
+            1,
+        )
+    ]
 
     state_work_size = 2 * state_size
     workspace_size = state_work_size + max_helper_workspace
@@ -801,6 +909,7 @@ def _generate_composed_primal_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
         workspace_size=workspace_size,
+        workspace_assert_line=_emit_min_length_assert("work", "work", workspace_size),
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
@@ -854,8 +963,13 @@ def _generate_composed_gradient_rust(
         resolved_config.backend_mode,
         resolved_config.math_library,
     )
+    helper_simplification = gradient.simplification
 
     name = sanitize_ident(resolved_config.function_name or gradient.name)
+    helper_base_name = _compose_composed_helper_base_name(
+        resolved_config.crate_name,
+        name,
+    )
     helper_config = resolved_config.with_emit_metadata_helpers(False)
     helper_sources: list[str] = []
     helper_nodes: list[SXNode] = []
@@ -867,10 +981,15 @@ def _generate_composed_gradient_rust(
     max_helper_workspace = 0
     for block_index, step in enumerate(composed.steps):
         if isinstance(step, _SingleStage):
-            helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}")
-            vjp_helper_name = sanitize_ident(f"{name}_stage_{block_index}_{step.function.name}_vjp")
+            helper_name = sanitize_ident(f"{helper_base_name}_stage_{block_index}_{step.function.name}")
+            vjp_helper_name = sanitize_ident(f"{helper_base_name}_stage_{block_index}_{step.function.name}_vjp")
+            helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
+            vjp_function = _maybe_simplify_derivative_function(
+                step.function.vjp(wrt_index=0, name=vjp_helper_name),
+                helper_simplification,
+            )
             helper_codegen = generate_rust(
-                step.function,
+                helper_function,
                 config=helper_config,
                 function_name=helper_name,
                 function_index=1,
@@ -880,7 +999,7 @@ def _generate_composed_gradient_rust(
                 function_keyword="fn",
             )
             vjp_codegen = generate_rust(
-                step.function.vjp(wrt_index=0, name=vjp_helper_name),
+                vjp_function,
                 config=helper_config,
                 function_name=vjp_helper_name,
                 function_index=1,
@@ -890,7 +1009,7 @@ def _generate_composed_gradient_rust(
                 function_keyword="fn",
             )
             helper_sources.extend((helper_codegen.source.rstrip(), vjp_codegen.source.rstrip()))
-            helper_nodes.extend((*step.function.nodes, *step.function.vjp(wrt_index=0).nodes))
+            helper_nodes.extend((*helper_function.nodes, *vjp_function.nodes))
             max_helper_workspace = max(
                 max_helper_workspace,
                 helper_codegen.workspace_size,
@@ -911,10 +1030,15 @@ def _generate_composed_gradient_rust(
             stage_index += 1
             continue
 
-        helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}")
-        vjp_helper_name = sanitize_ident(f"{name}_repeat_{block_index}_{step.function.name}_vjp")
+        helper_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_{step.function.name}")
+        vjp_helper_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_{step.function.name}_vjp")
+        helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
+        vjp_function = _maybe_simplify_derivative_function(
+            step.function.vjp(wrt_index=0, name=vjp_helper_name),
+            helper_simplification,
+        )
         helper_codegen = generate_rust(
-            step.function,
+            helper_function,
             config=helper_config,
             function_name=helper_name,
             function_index=1,
@@ -924,7 +1048,7 @@ def _generate_composed_gradient_rust(
             function_keyword="fn",
         )
         vjp_codegen = generate_rust(
-            step.function.vjp(wrt_index=0, name=vjp_helper_name),
+            vjp_function,
             config=helper_config,
             function_name=vjp_helper_name,
             function_index=1,
@@ -934,14 +1058,14 @@ def _generate_composed_gradient_rust(
             function_keyword="fn",
         )
         helper_sources.extend((helper_codegen.source.rstrip(), vjp_codegen.source.rstrip()))
-        helper_nodes.extend((*step.function.nodes, *step.function.vjp(wrt_index=0).nodes))
+        helper_nodes.extend((*helper_function.nodes, *vjp_function.nodes))
         max_helper_workspace = max(
             max_helper_workspace,
             helper_codegen.workspace_size,
             vjp_codegen.workspace_size,
         )
 
-        const_name = sanitize_ident(f"{name}_repeat_{block_index}_params").upper()
+        const_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_params").upper()
         parameter_kind = step.parameters[0].kind
         if parameter_kind == "fixed" and step.parameters[0].size > 0:
             constant_lines.extend(
@@ -968,8 +1092,11 @@ def _generate_composed_gradient_rust(
         parameter_offset += sum(parameter.symbolic_size for parameter in step.parameters)
         stage_index += len(step.parameters)
 
-    terminal_gradient_name = sanitize_ident(f"{name}_terminal_{terminal.function.name}_grad")
-    terminal_gradient_function = terminal.function.gradient(0, name=terminal_gradient_name)
+    terminal_gradient_name = sanitize_ident(f"{helper_base_name}_terminal_{terminal.function.name}_grad")
+    terminal_gradient_function = _maybe_simplify_derivative_function(
+        terminal.function.gradient(0, name=terminal_gradient_name),
+        helper_simplification,
+    )
     terminal_gradient_codegen = generate_rust(
         terminal_gradient_function,
         config=helper_config,
@@ -1003,12 +1130,28 @@ def _generate_composed_gradient_rust(
         ),
     )
     _validate_generated_argument_names(input_specs, output_specs)
-    input_assert_lines = [f"assert_eq!({input_specs[0].rust_name}.len(), {state_size});"]
+    input_assert_lines = [
+        _emit_exact_length_assert(
+            input_specs[0].rust_name,
+            input_specs[0].raw_name,
+            state_size,
+        )
+    ]
     if composed.parameter_size > 0:
         input_assert_lines.append(
-            f"assert_eq!({input_specs[1].rust_name}.len(), {composed.parameter_size});"
+            _emit_exact_length_assert(
+                input_specs[1].rust_name,
+                input_specs[1].raw_name,
+                composed.parameter_size,
+            )
         )
-    output_assert_lines = [f"assert_eq!({output_specs[0].rust_name}.len(), {state_size});"]
+    output_assert_lines = [
+        _emit_exact_length_assert(
+            output_specs[0].rust_name,
+            output_specs[0].raw_name,
+            state_size,
+        )
+    ]
 
     states_size = composed.stage_count * state_size
     workspace_size = states_size + state_size + (2 * state_size) + max_helper_workspace
@@ -1112,6 +1255,7 @@ def _generate_composed_gradient_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
         workspace_size=workspace_size,
+        workspace_assert_line=_emit_min_length_assert("work", "work", workspace_size),
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
@@ -1213,11 +1357,43 @@ def _emit_composed_parameter_ref(
         end = parameter_offset + parameter_size
         return f"&{parameters_name}[{parameter_offset}..{end}]"
     if parameter_size == 1:
-        return f"&{parameters_name}[{parameter_offset} + {index_var}..{parameter_offset} + {index_var} + 1]"
-    return (
-        f"&{parameters_name}[{parameter_offset} + ({index_var} * {parameter_size})"
-        f"..{parameter_offset} + (({index_var} + 1) * {parameter_size})]"
-    )
+        start_expr = _compose_offset_expr(parameter_offset, index_var)
+        end_expr = _compose_offset_expr(parameter_offset + 1, index_var)
+        return f"&{parameters_name}[{start_expr}..{end_expr}]"
+    start_expr = _compose_offset_expr(parameter_offset, f"({index_var} * {parameter_size})")
+    end_expr = _compose_offset_expr(parameter_offset, f"(({index_var} + 1) * {parameter_size})")
+    return f"&{parameters_name}[{start_expr}..{end_expr}]"
+
+
+def _compose_offset_expr(offset: int, expr: str) -> str:
+    """Combine a constant offset with a Rust index expression, omitting identity additions."""
+    if offset == 0:
+        return expr
+    return f"{offset} + {expr}"
+
+
+def _composed_helper_base_label(name: str) -> str:
+    """Normalize a composed source name into the shared helper base used across artifacts."""
+    if name.endswith("_f"):
+        return name[:-2]
+    match = re.fullmatch(r"(.+)_grad_[A-Za-z0-9_]+", name)
+    if match is not None:
+        return match.group(1)
+    match = re.fullmatch(r"(.+)_gradient_[A-Za-z0-9_]+", name)
+    if match is not None:
+        return match.group(1)
+    return name
+
+
+def _compose_composed_helper_base_name(crate_name: str | None, source_name: str) -> str:
+    """Build the shared helper base name for a composed source within one crate."""
+    base_label = sanitize_ident(_composed_helper_base_label(source_name))
+    if crate_name is None:
+        return base_label
+    crate_label = sanitize_ident(crate_name)
+    if base_label == crate_label or base_label.startswith(f"{crate_label}_"):
+        return base_label
+    return sanitize_ident(f"{crate_label}_{base_label}")
 
 
 def _emit_composed_primal_single_block(
@@ -1315,7 +1491,7 @@ def _emit_composed_gradient_forward_repeat_block(
     )
     return [
         f"for repeat_index in 0..{plan.repeat_count} {{",
-        f"    let stage_index = {plan.stage_start_index} + repeat_index;",
+        f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
         f"    let stage_start = stage_index * {state_size};",
         f"    let stage_end = stage_start + {state_size};",
         "    {",
@@ -1384,7 +1560,7 @@ def _emit_composed_gradient_reverse_repeat_block(
     )
     return [
         f"for repeat_index in (0..{plan.repeat_count}).rev() {{",
-        f"    let stage_index = {plan.stage_start_index} + repeat_index;",
+        f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
         "    if stage_index == 0 {",
         "        if current_lambda_is_a {",
         f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
@@ -1679,14 +1855,108 @@ def _emit_node_expr(
     raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
 
 
-def _allocate_workspace_slots(function: Function) -> tuple[dict[SXNode, int], int]:
+def _emit_workspace_assignment(
+    node: SXNode,
+    work_index: int,
+    rhs: str,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str,
+) -> str:
+    """Emit one workspace assignment, using compound operators when safe."""
+    target = f"work[{work_index}]"
+    expr = SX(node)
+
+    if expr.op in {"add", "sub", "mul", "div"}:
+        left, right = expr.args
+        left_is_target = _workspace_ref_for_node(left.node, workspace_map) == target
+        right_is_target = _workspace_ref_for_node(right.node, workspace_map) == target
+        if left_is_target:
+            other_ref = _emit_expr_ref(
+                right,
+                scalar_bindings,
+                workspace_map,
+                backend_mode,
+                scalar_type,
+                math_library,
+            )
+            operator = {
+                "add": "+=",
+                "sub": "-=",
+                "mul": "*=",
+                "div": "/=",
+            }[expr.op]
+            return f"{target} {operator} {other_ref};"
+        if expr.op in {"add", "mul"} and right_is_target:
+            other_ref = _emit_expr_ref(
+                left,
+                scalar_bindings,
+                workspace_map,
+                backend_mode,
+                scalar_type,
+                math_library,
+            )
+            operator = {
+                "add": "+=",
+                "mul": "*=",
+            }[expr.op]
+            return f"{target} {operator} {other_ref};"
+
+    return f"{target} = {rhs};"
+
+
+def _workspace_ref_for_node(node: SXNode, workspace_map: dict[SXNode, int]) -> str | None:
+    """Return the workspace reference for ``node`` when it already has one."""
+    work_index = workspace_map.get(node)
+    if work_index is None:
+        return None
+    return f"work[{work_index}]"
+
+
+def _emit_exact_length_assert(rust_name: str, display_name: str, expected_size: int) -> str:
+    """Emit an ``assert_eq!`` with a clear length mismatch message."""
+    return (
+        f'assert_eq!({rust_name}.len(), {expected_size}, '
+        f'"{display_name} is length {{}} but should be {expected_size}", '
+        f"{rust_name}.len());"
+    )
+
+
+def _emit_min_length_assert(rust_name: str, display_name: str, minimum_size: int) -> str:
+    """Emit an ``assert!`` with a clear minimum-length mismatch message."""
+    if minimum_size == 1:
+        return (
+            f'assert!(!{rust_name}.is_empty(), '
+            f'"{display_name} is length {{}} but should be at least 1", '
+            f"{rust_name}.len());"
+        )
+    return (
+        f'assert!({rust_name}.len() >= {minimum_size}, '
+        f'"{display_name} is length {{}} but should be at least {minimum_size}", '
+        f"{rust_name}.len());"
+    )
+
+
+def _allocate_workspace_slots(
+    function: Function,
+    *,
+    output_refs: tuple[SX, ...] | None = None,
+) -> tuple[dict[SXNode, int], int]:
     """Assign reusable workspace slots based on each node's last use."""
-    workspace_nodes = [node for node in function.nodes if node.op not in {"symbol", "const"}]
+    if output_refs is None:
+        output_refs = tuple(scalar for output in function.outputs for scalar in _flatten_arg(output))
+    required_nodes = _collect_required_workspace_nodes(output_refs)
+    workspace_nodes = [
+        node
+        for node in function.nodes
+        if node.op not in {"symbol", "const"} and node in required_nodes
+    ]
     if not workspace_nodes:
         return {}, 0
 
     node_index = {node: index for index, node in enumerate(workspace_nodes)}
-    output_refs: list[SX] = [scalar for output in function.outputs for scalar in _flatten_arg(output)]
     last_use = {node: index for index, node in enumerate(workspace_nodes)}
 
     for index, node in enumerate(workspace_nodes):
@@ -1719,6 +1989,82 @@ def _allocate_workspace_slots(function: Function) -> tuple[dict[SXNode, int], in
         expiring_by_index.setdefault(last_use[node], []).append(slot)
 
     return workspace_map, next_slot
+
+
+def _collect_required_workspace_nodes(output_refs: tuple[SX, ...]) -> set[SXNode]:
+    """Return non-trivial nodes reachable from the materialized outputs."""
+    required: set[SXNode] = set()
+    stack = [expr.node for expr in output_refs]
+    while stack:
+        node = stack.pop()
+        if node in required or node.op in {"symbol", "const"}:
+            continue
+        required.add(node)
+        stack.extend(node.args)
+    return required
+
+
+def _reemit_direct_output_helper_call(
+    direct_helper_call: str,
+    output_arg: SX | SXVector,
+    output_name: str,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str:
+    """Rebuild a direct output helper call using the final workspace map."""
+    custom_helper_call = _emit_custom_vector_output_helper_call(
+        output_arg,
+        output_name,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    if custom_helper_call is not None:
+        return custom_helper_call
+    matvec_helper_call = _emit_matvec_output_helper_call(
+        output_arg,
+        output_name,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    if matvec_helper_call is not None:
+        return matvec_helper_call
+    return direct_helper_call
+
+
+def _collect_suppressed_custom_wrappers(
+    function: Function,
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> set[tuple[str, str]]:
+    """Return custom wrapper kinds that are superseded by direct output helpers."""
+    scalar_bindings: dict[SXNode, str] = {}
+    for input_index, input_arg in enumerate(function.inputs):
+        for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
+            scalar_bindings[scalar.node] = f"arg_{input_index}[{scalar_index}]"
+
+    suppressed: set[tuple[str, str]] = set()
+    for output_arg in function.outputs:
+        marker = _identify_direct_custom_output_marker(
+            output_arg,
+            scalar_bindings,
+            {},
+            backend_mode,
+            scalar_type,
+            math_library,
+        )
+        if marker is not None:
+            suppressed.add(marker)
+    return suppressed
 
 
 def _emit_expr_ref(
@@ -2059,6 +2405,8 @@ def _build_shared_helper_lines(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    *,
+    suppressed_custom_wrappers: set[tuple[str, str]] | None = None,
 ) -> tuple[str, ...]:
     """Return module-scope helper definitions needed by generated kernels."""
     used_ops = {node.op for node in nodes}
@@ -2152,7 +2500,12 @@ def _build_shared_helper_lines(
             ]
         )
 
-    custom_helper_lines = _build_custom_helper_lines(nodes, scalar_type, math_library)
+    custom_helper_lines = _build_custom_helper_lines(
+        nodes,
+        scalar_type,
+        math_library,
+        suppressed_wrappers=suppressed_custom_wrappers or set(),
+    )
     if custom_helper_lines:
         lines.extend(custom_helper_lines)
 
@@ -2265,6 +2618,8 @@ def _build_custom_helper_lines(
     nodes: tuple[SXNode, ...],
     scalar_type: RustScalarType,
     math_library: str | None,
+    *,
+    suppressed_wrappers: set[tuple[str, str]],
 ) -> tuple[str, ...]:
     """Return shared helper lines for registered custom elementary functions."""
     emitted: list[str] = []
@@ -2302,11 +2657,11 @@ def _build_custom_helper_lines(
             )
         seen.add(marker)
         emitted.extend(render_custom_rust_snippet(snippet, scalar_type=scalar_type, math_library=math_library))
-        if not spec.is_scalar and helper_kind == "jacobian":
+        if not spec.is_scalar and helper_kind == "jacobian" and (spec.name, "jacobian") not in suppressed_wrappers:
             emitted.extend(_build_custom_vector_jacobian_wrapper_lines(spec, scalar_type))
-        if not spec.is_scalar and helper_kind == "hvp":
+        if not spec.is_scalar and helper_kind == "hvp" and (spec.name, "hvp") not in suppressed_wrappers:
             emitted.extend(_build_custom_vector_hvp_wrapper_lines(spec, scalar_type))
-        if not spec.is_scalar and helper_kind == "hessian":
+        if not spec.is_scalar and helper_kind == "hessian" and (spec.name, "hessian") not in suppressed_wrappers:
             emitted.extend(_build_custom_vector_hessian_wrapper_lines(spec, scalar_type))
 
     return tuple(emitted)
@@ -2457,6 +2812,56 @@ def _emit_custom_vector_output_helper_call(
     )
     if hessian_call is not None:
         return hessian_call
+
+    return None
+
+
+def _identify_direct_custom_output_marker(
+    output_arg: SX | SXVector,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> tuple[str, str] | None:
+    """Return the custom helper marker used by a direct output helper call."""
+    if not isinstance(output_arg, SXVector) or not output_arg.elements:
+        return None
+
+    jacobian_call = _match_custom_vector_derivative_output(
+        output_arg,
+        derivative_kind="jacobian",
+        scalar_bindings=scalar_bindings,
+        workspace_map=workspace_map,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    if jacobian_call is not None:
+        return jacobian_call[0], "jacobian"
+
+    hvp_call = _match_custom_vector_derivative_output(
+        output_arg,
+        derivative_kind="hvp",
+        scalar_bindings=scalar_bindings,
+        workspace_map=workspace_map,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    if hvp_call is not None:
+        return hvp_call[0], "hvp"
+
+    hessian_call = _match_custom_vector_hessian_output(
+        output_arg,
+        scalar_bindings=scalar_bindings,
+        workspace_map=workspace_map,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    if hessian_call is not None:
+        return hessian_call[0], "hessian"
 
     return None
 
@@ -2809,6 +3214,7 @@ def _render_multi_function_lib(
 ) -> str:
     """Render a crate source file containing many generated functions."""
     sections: list[str] = []
+    seen_private_helpers: set[str] = set()
     if config.backend_mode == "no_std":
         sections.append("#![no_std]")
 
@@ -2818,7 +3224,13 @@ def _render_multi_function_lib(
             source = source[len("#![no_std]\n\n") :]
         elif source.startswith("#![no_std]\n"):
             source = source[len("#![no_std]\n") :]
-        sections.append(source.rstrip())
+        for section in (part.rstrip() for part in source.split("\n\n") if part.strip()):
+            stripped = section.lstrip()
+            if stripped.startswith("fn "):
+                if section in seen_private_helpers:
+                    continue
+                seen_private_helpers.add(section)
+            sections.append(section)
 
     rendered = "\n\n".join(section for section in sections if section)
     return rendered if rendered.endswith("\n") else f"{rendered}\n"

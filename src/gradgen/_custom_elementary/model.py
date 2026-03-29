@@ -17,10 +17,12 @@ VectorHvpBuilder = Callable[..., object]
 PythonEvalBuilder = Callable[..., float]
 
 
-def coerce_parameter_value(value: float | int) -> SX:
+def coerce_parameter_value(value: float | int | SX) -> SX:
     """Return ``value`` as a constant symbolic scalar."""
+    if isinstance(value, SX):
+        return value
     if not isinstance(value, (int, float)):
-        raise TypeError("custom function parameters must be numeric constants")
+        raise TypeError("custom function parameters must be numeric constants or SX scalars")
     return SX.const(value)
 
 
@@ -53,7 +55,7 @@ class RegisteredElementaryFunction:
             return None
         return self.input_dimension
 
-    def resolve_parameters(self, w: Sequence[float | int] | None) -> tuple[SX, ...]:
+    def resolve_parameters(self, w: Sequence[float | int | SX] | SXVector | None) -> tuple[SX, ...]:
         """Return parameter-vector values in registration order."""
         if w is None:
             resolved_values = self.parameter_defaults
@@ -63,10 +65,10 @@ class RegisteredElementaryFunction:
                     f"custom function {self.name!r} expects parameter vector length "
                     f"{self.parameter_dimension}, received {len(w)}"
                 )
-            resolved_values = tuple(float(value) for value in w)
+            resolved_values = tuple(w)
         return tuple(coerce_parameter_value(value) for value in resolved_values)
 
-    def __call__(self, value: SX | SXVector, *, w: Sequence[float | int] | None = None) -> SX:
+    def __call__(self, value: SX | SXVector, *, w: Sequence[float | int | SX] | SXVector | None = None) -> SX:
         """Build a symbolic call to the registered elementary function."""
         parameter_values = self.resolve_parameters(w)
 

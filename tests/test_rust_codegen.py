@@ -1,4 +1,5 @@
 import subprocess
+import re
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -36,6 +37,10 @@ class RustCodegenTests(unittest.TestCase):
             capture_output=True,
             text=True,
         )
+
+    @classmethod
+    def _run_cargo_clippy_clean(cls, project_dir: Path) -> subprocess.CompletedProcess[str]:
+        return cls._run_cargo(project_dir, "clippy", "--quiet", "--", "-D", "warnings")
 
     @staticmethod
     def _append_rust_test(project_dir: Path, test_source: str) -> None:
@@ -178,10 +183,20 @@ mod tests {{
         self.assertIn("/// - `work`: mutable workspace slice used to store intermediate values", result.source)
         self.assertIn("///   while evaluating this kernel. Expected length: at least 1.", result.source)
         self.assertIn("pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
-        self.assertIn("assert_eq!(x.len(), 1);", result.source)
-        self.assertIn("assert_eq!(y.len(), 1);", result.source)
+        self.assertIn(
+            'assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());',
+            result.source,
+        )
+        self.assertIn(
+            'assert_eq!(x.len(), 1, "x is length {} but should be 1", x.len());',
+            result.source,
+        )
+        self.assertIn(
+            'assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());',
+            result.source,
+        )
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[0] = 1.0_f64 + work[0];", result.source)
+        self.assertIn("work[0] += 1.0_f64;", result.source)
         self.assertIn("y[0] = work[0];", result.source)
 
     def test_generates_vector_function_with_deterministic_workspace_layout(self) -> None:
@@ -211,10 +226,13 @@ mod tests {{
             "pub fn kernel(x: &[f64], y: &[f64], dot: &mut [f64], sum: &mut [f64], work: &mut [f64]) {",
             result.source,
         )
-        self.assertIn("assert!(work.len() >= 3);", result.source)
+        self.assertIn(
+            'assert!(work.len() >= 3, "work is length {} but should be at least 3", work.len());',
+            result.source,
+        )
         self.assertIn("work[0] = x[0] * y[0];", result.source)
         self.assertIn("work[1] = x[1] * y[1];", result.source)
-        self.assertIn("work[0] = work[0] + work[1];", result.source)
+        self.assertIn("work[0] += work[1];", result.source)
         self.assertIn("dot[0] = work[0];", result.source)
 
     def test_backend_config_supports_chainable_updates(self) -> None:
@@ -350,6 +368,104 @@ mod tests {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_composed_primal_codegen_handles_mixed_fixed_and_symbolic_stage_parameters(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p1 = SXVector.sym("p1", 2)
+        p2 = SXVector.sym("p2", 2)
+
+        g = Function(
+            "g",
+            [state, p1],
+            [SXVector((state[0] + p1[0], state[1] * p1[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, SXVector.sym("pf", 0)],
+            [state[0] - state[1]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+
+        composed = (
+            ComposedFunction("mixed_primal", x)
+            .then(g, p=[10.0, 20.0])
+            .repeat(g, params=[p1, p2])
+            .finish(h, p=[])
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(composed, Path(tmpdir) / "mixed_primal")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("parameters: &[f64]", lib_text)
+            self.assertIn("&[10.0_f64, 20.0_f64]", lib_text)
+            self.assertIn("for repeat_index in 0..2 {", lib_text)
+            self.assertIn("repeat_index * 2", lib_text)
+            self.assertIn("(repeat_index + 1) * 2", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                composed.to_function(),
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0]),
+                test_name="evaluates_mixed_fixed_and_symbolic_stages",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_composed_primal_codegen_packs_single_stage_and_terminal_symbolic_offsets_correctly(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p_stage = SXVector.sym("p_stage", 2)
+        p_terminal = SXVector.sym("p_terminal", 1)
+
+        g = Function(
+            "g",
+            [state, p_stage],
+            [SXVector((state[0] + p_stage[0], state[1] + p_stage[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, p_terminal],
+            [state[0] * state[1] + p_terminal[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+
+        composed = (
+            ComposedFunction("offset_demo", x)
+            .then(g, p=p_stage)
+            .finish(h, p=p_terminal)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(composed, Path(tmpdir) / "offset_demo")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("parameters: &[f64]", lib_text)
+            self.assertIn("parameters[0..2]", lib_text)
+            self.assertIn("parameters[2..3]", lib_text)
+            self.assertNotIn("for repeat_index", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                composed.to_function(),
+                function_name=project.codegen.function_name,
+                inputs=([2.0, 3.0], [5.0, 7.0, 11.0]),
+                test_name="evaluates_symbolic_stage_and_terminal_offsets",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_composed_gradient_codegen_packs_symbolic_parameters(self) -> None:
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
@@ -441,6 +557,11 @@ mod tests {{
             self.assertIn("pub fn loop_demo_loop_demo_grad_x(", lib_text)
             self.assertIn("for repeat_index in 0..3 {", lib_text)
             self.assertIn("for repeat_index in (0..3).rev() {", lib_text)
+            self.assertEqual(
+                len(re.findall(r"^fn loop_demo_loop_demo_repeat_0_[A-Za-z0-9_]+\(", lib_text, flags=re.MULTILINE)),
+                2,
+            )
+            self.assertNotIn("loop_demo_loop_demo_f_repeat_0_", lib_text)
 
             primal_function = composed.to_function()
             gradient_function = composed.gradient().to_function()
@@ -660,7 +781,11 @@ mod tests {{
 
         self.assertEqual(result.scalar_type, "f32")
         self.assertIn("pub fn square_plus_one(x: &[f32], y: &mut [f32], work: &mut [f32]) {", result.source)
-        self.assertIn("work[0] = 1.0_f32 + work[0];", result.source)
+        self.assertIn(
+            'assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());',
+            result.source,
+        )
+        self.assertIn("work[0] += 1.0_f32;", result.source)
 
     def test_no_std_f32_codegen_uses_libm_f32_entry_points(self) -> None:
         x = SX.sym("x")
@@ -843,8 +968,8 @@ mod tests {{
         self.assertIn("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {", result.source)
         self.assertIn("fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {", result.source)
         self.assertIn("matvec(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, x, mx);", result.source)
-        self.assertIn("work[2] = quadform(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, x);", result.source)
-        self.assertIn("work[3] = bilinear_form(x, &[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, y);", result.source)
+        self.assertIn("work[0] = quadform(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, x);", result.source)
+        self.assertIn("work[1] = bilinear_form(x, &[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, y);", result.source)
 
     def test_generated_code_supports_f32_constant_matrix_helpers(self) -> None:
         x = SXVector.sym("x", 2)
@@ -919,9 +1044,9 @@ mod tests {{
 
         self.assertEqual(result.source.count("x[0] * x[0]"), 1)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[0] = 1.0_f64 + work[0];", result.source)
+        self.assertIn("work[0] += 1.0_f64;", result.source)
         self.assertIn("work[1] = work[0] * work[0];", result.source)
-        self.assertIn("work[0] = work[0] + work[1];", result.source)
+        self.assertIn("work[0] += work[1];", result.source)
 
     def test_generated_code_uses_rust_math_methods(self) -> None:
         x = SX.sym("x")
@@ -1154,6 +1279,24 @@ mod math {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+
+    def test_generated_rust_project_is_clippy_clean(self) -> None:
+        x = SXVector.sym("x", 3)
+        u = SXVector.sym("u", 1)
+        f = Function(
+            "energy",
+            [x, u],
+            [x.norm2sq() + u[0] * x[0].sin() + x[1] * x[2]],
+            input_names=["x", "u"],
+            output_names=["y"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "energy_kernel")
+
+            completed = self._run_cargo_clippy_clean(project.project_dir)
+            self.assertEqual(completed.returncode, 0)
+
     def test_generated_rust_project_runs_vector_numeric_smoke_test(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function(
@@ -1175,6 +1318,33 @@ mod math {
             )
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_multi_function_generated_rust_project_is_clippy_clean(self) -> None:
+        x = SXVector.sym("x", 2)
+        u = SXVector.sym("u", 1)
+        f1 = Function(
+            "energy",
+            [x, u],
+            [x.norm2sq() + u[0] * x[0]],
+            input_names=["x", "u"],
+            output_names=["y"],
+        )
+        f2 = Function(
+            "coupling",
+            [x, u],
+            [x[0] * x[1] + u[0].exp()],
+            input_names=["x", "u"],
+            output_names=["z"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_multi_function_rust_project(
+                (f1, f2),
+                Path(tmpdir) / "bundle_kernel",
+            )
+
+            completed = self._run_cargo_clippy_clean(project.project_dir)
             self.assertEqual(completed.returncode, 0)
 
     def test_generated_rust_project_runs_f32_reference_test(self) -> None:
@@ -1557,6 +1727,94 @@ fn weighted_sqnorm_runtime_hessian(
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    def test_custom_vector_derivative_helpers_skip_dead_component_workspace(self) -> None:
+        weighted_sqnorm = register_elementary_function(
+            name="weighted_sqnorm_no_dead_work",
+            input_dimension=2,
+            parameter_dimension=2,
+            eval_python=lambda x, w: w[0] * x[0] * x[0] + w[1] * x[1] * x[1],
+            jacobian=lambda x, w: [2 * w[0] * x[0], 2 * w[1] * x[1]],
+            hessian=lambda x, w: [
+                [2 * w[0], 0.0],
+                [0.0, 2 * w[1]],
+            ],
+            hvp=lambda x, v, w: [2 * w[0] * v[0], 2 * w[1] * v[1]],
+            rust_primal="""
+fn weighted_sqnorm_no_dead_work(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+) -> {{ scalar_type }} {
+    w[0] * x[0] * x[0] + w[1] * x[1] * x[1]
+}
+""",
+            rust_jacobian="""
+fn weighted_sqnorm_no_dead_work_jacobian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    out[0] = 2.0_{{ scalar_type }} * w[0] * x[0];
+    out[1] = 2.0_{{ scalar_type }} * w[1] * x[1];
+}
+""",
+            rust_hessian="""
+fn weighted_sqnorm_no_dead_work_hessian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w[0];
+    out[1] = 0.0_{{ scalar_type }};
+    out[2] = 0.0_{{ scalar_type }};
+    out[3] = 2.0_{{ scalar_type }} * w[1];
+}
+""",
+            rust_hvp="""
+fn weighted_sqnorm_no_dead_work_hvp(
+    x: &[{{ scalar_type }}],
+    v_x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let _ = x;
+    out[0] = 2.0_{{ scalar_type }} * w[0] * v_x[0];
+    out[1] = 2.0_{{ scalar_type }} * w[1] * v_x[1];
+}
+""",
+        )
+
+        x = SXVector.sym("x", 2)
+        function = Function(
+            "custom_energy",
+            [x],
+            [weighted_sqnorm(x, w=[2.0, 3.0])],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        gradient_codegen = function.gradient(0).simplify("medium", name="custom_energy_grad").generate_rust(
+            backend_mode="no_std"
+        )
+        hessian_codegen = function.hessian(0).simplify("medium", name="custom_energy_hessian").generate_rust(
+            backend_mode="no_std"
+        )
+        hvp_codegen = function.hvp(0).simplify("medium", name="custom_energy_hvp").generate_rust(
+            backend_mode="no_std"
+        )
+
+        self.assertEqual(gradient_codegen.workspace_size, 0)
+        self.assertIn("weighted_sqnorm_no_dead_work_jacobian(x, &[2.0_f64, 3.0_f64], y);", gradient_codegen.source)
+        self.assertNotIn("work[0] =", gradient_codegen.source)
+
+        self.assertEqual(hessian_codegen.workspace_size, 0)
+        self.assertIn("weighted_sqnorm_no_dead_work_hessian(x, &[2.0_f64, 3.0_f64], y);", hessian_codegen.source)
+        self.assertNotIn("work[0] =", hessian_codegen.source)
+
+        self.assertEqual(hvp_codegen.workspace_size, 0)
+        self.assertIn("weighted_sqnorm_no_dead_work_hvp(x, v_x, &[2.0_f64, 3.0_f64], y);", hvp_codegen.source)
+        self.assertNotIn("work[0] =", hvp_codegen.source)
 
     def test_generated_rust_project_builds_for_simplified_function(self) -> None:
         x = SX.sym("x")
@@ -2042,7 +2300,10 @@ mod tests {
 
             self.assertIn("pub fn joint_hessian_joint_hessian_f_hessian(", lib_text)
             self.assertIn("hessian_y: &mut [f64]", lib_text)
-            self.assertIn("assert_eq!(hessian_y.len(), 4);", lib_text)
+            self.assertIn(
+                'assert_eq!(hessian_y.len(), 4, "hessian_y is length {} but should be 4", hessian_y.len());',
+                lib_text,
+            )
 
             self._append_rust_test(
                 project.project_dir,

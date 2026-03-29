@@ -19,11 +19,6 @@ fn custom_energy_demo_jacobian(
     out[1] = 2.0_f64 * w[1] * x[1]
         + x[0] * libm::cos(xy);
 }
-fn custom_energy_demo_jacobian_component(index: usize, x: &[f64], w: &[f64]) -> f64 {
-    let mut out = [0.0_f64; 2];
-    custom_energy_demo_jacobian(x, w, &mut out);
-    out[index]
-}
 fn custom_energy_demo_hessian(
     x: &[f64],
     w: &[f64],
@@ -36,11 +31,6 @@ fn custom_energy_demo_hessian(
     out[1] = cross;
     out[2] = cross;
     out[3] = 2.0_f64 * w[1] - x[0] * x[0] * sin_xy;
-}
-fn custom_energy_demo_hessian_entry(row: usize, col: usize, x: &[f64], w: &[f64]) -> f64 {
-    let mut out = [0.0_f64; 4];
-    custom_energy_demo_hessian(x, w, &mut out);
-    out[(row * 2) + col]
 }
 fn custom_energy_demo_hvp(
     x: &[f64],
@@ -55,11 +45,6 @@ fn custom_energy_demo_hvp(
     let h11 = 2.0_f64 * w[1] - x[0] * x[0] * sin_xy;
     out[0] = h00 * v_x[0] + cross * v_x[1];
     out[1] = cross * v_x[0] + h11 * v_x[1];
-}
-fn custom_energy_demo_hvp_component(index: usize, x: &[f64], v_x: &[f64], w: &[f64]) -> f64 {
-    let mut out = [0.0_f64; 2];
-    custom_energy_demo_hvp(x, v_x, w, &mut out);
-    out[index]
 }
 /// Metadata describing a generated Rust function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -85,8 +70,10 @@ pub fn custom_function_kernel_custom_energy_f_meta() -> FunctionMetadata {
         workspace_size: 1,
         input_names: &[
             "x",
+            "w",
         ],
         input_sizes: &[
+            2,
             2,
         ],
         output_names: &[
@@ -106,28 +93,34 @@ pub fn custom_function_kernel_custom_energy_f_meta() -> FunctionMetadata {
 /// - `x`:
 ///   input slice for the declared argument `x`
 ///   Expected length: 2.
+/// - `w`:
+///   input slice for the declared argument `w`
+///   Expected length: 2.
 /// - `y`:
 ///   primal output slice for the declared result `y`
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
-pub fn custom_function_kernel_custom_energy_f(x: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 1);
-    assert_eq!(x.len(), 2);
-    assert_eq!(y.len(), 1);
-    work[0] = custom_energy_demo(x, &[1.5_f64, 3.0_f64]);
+pub fn custom_function_kernel_custom_energy_f(x: &[f64], w: &[f64], y: &mut [f64], work: &mut [f64]) {
+    assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());
+    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
+    assert_eq!(w.len(), 2, "w is length {} but should be 2", w.len());
+    assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());
+    work[0] = custom_energy_demo(x, w);
     y[0] = work[0];
 }
 
-/// Return metadata describing [`custom_function_kernel_custom_energy_grad`].
-pub fn custom_function_kernel_custom_energy_grad_meta() -> FunctionMetadata {
+/// Return metadata describing [`custom_function_kernel_custom_energy_grad_x_f`].
+pub fn custom_function_kernel_custom_energy_grad_x_f_meta() -> FunctionMetadata {
     FunctionMetadata {
-        function_name: "custom_function_kernel_custom_energy_grad",
-        workspace_size: 2,
+        function_name: "custom_function_kernel_custom_energy_grad_x_f",
+        workspace_size: 0,
         input_names: &[
             "x",
+            "w",
         ],
         input_sizes: &[
+            2,
             2,
         ],
         output_names: &[
@@ -139,7 +132,7 @@ pub fn custom_function_kernel_custom_energy_grad_meta() -> FunctionMetadata {
     }
 }
 
-/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_grad`.
+/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_grad_x_f`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
@@ -147,29 +140,32 @@ pub fn custom_function_kernel_custom_energy_grad_meta() -> FunctionMetadata {
 /// - `x`:
 ///   input slice for the declared argument `x`
 ///   Expected length: 2.
+/// - `w`:
+///   input slice for the declared argument `w`
+///   Expected length: 2.
 /// - `y`:
 ///   primal output slice for the declared result `y`
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 2.
-pub fn custom_function_kernel_custom_energy_grad(x: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2);
-    assert_eq!(x.len(), 2);
-    assert_eq!(y.len(), 2);
-    work[0] = custom_energy_demo_jacobian_component(0, x, &[1.5_f64, 3.0_f64]);
-    work[1] = custom_energy_demo_jacobian_component(1, x, &[1.5_f64, 3.0_f64]);
-    custom_energy_demo_jacobian(x, &[1.5_f64, 3.0_f64], y);
+///   while evaluating this kernel. Expected length: at least 0.
+pub fn custom_function_kernel_custom_energy_grad_x_f(x: &[f64], w: &[f64], y: &mut [f64], _work: &mut [f64]) {
+    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
+    assert_eq!(w.len(), 2, "w is length {} but should be 2", w.len());
+    assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
+    custom_energy_demo_jacobian(x, w, y);
 }
 
-/// Return metadata describing [`custom_function_kernel_custom_energy_hessian`].
-pub fn custom_function_kernel_custom_energy_hessian_meta() -> FunctionMetadata {
+/// Return metadata describing [`custom_function_kernel_custom_energy_hessian_x_f`].
+pub fn custom_function_kernel_custom_energy_hessian_x_f_meta() -> FunctionMetadata {
     FunctionMetadata {
-        function_name: "custom_function_kernel_custom_energy_hessian",
-        workspace_size: 4,
+        function_name: "custom_function_kernel_custom_energy_hessian_x_f",
+        workspace_size: 0,
         input_names: &[
             "x",
+            "w",
         ],
         input_sizes: &[
+            2,
             2,
         ],
         output_names: &[
@@ -181,7 +177,7 @@ pub fn custom_function_kernel_custom_energy_hessian_meta() -> FunctionMetadata {
     }
 }
 
-/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_hessian`.
+/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_hessian_x_f`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
@@ -189,32 +185,33 @@ pub fn custom_function_kernel_custom_energy_hessian_meta() -> FunctionMetadata {
 /// - `x`:
 ///   input slice for the declared argument `x`
 ///   Expected length: 2.
+/// - `w`:
+///   input slice for the declared argument `w`
+///   Expected length: 2.
 /// - `y`:
 ///   primal output slice for the declared result `y`
 ///   Expected length: 4.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 4.
-pub fn custom_function_kernel_custom_energy_hessian(x: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 4);
-    assert_eq!(x.len(), 2);
-    assert_eq!(y.len(), 4);
-    work[0] = custom_energy_demo_hessian_entry(0, 0, x, &[1.5_f64, 3.0_f64]);
-    work[1] = custom_energy_demo_hessian_entry(0, 1, x, &[1.5_f64, 3.0_f64]);
-    work[2] = custom_energy_demo_hessian_entry(1, 0, x, &[1.5_f64, 3.0_f64]);
-    work[3] = custom_energy_demo_hessian_entry(1, 1, x, &[1.5_f64, 3.0_f64]);
-    custom_energy_demo_hessian(x, &[1.5_f64, 3.0_f64], y);
+///   while evaluating this kernel. Expected length: at least 0.
+pub fn custom_function_kernel_custom_energy_hessian_x_f(x: &[f64], w: &[f64], y: &mut [f64], _work: &mut [f64]) {
+    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
+    assert_eq!(w.len(), 2, "w is length {} but should be 2", w.len());
+    assert_eq!(y.len(), 4, "y is length {} but should be 4", y.len());
+    custom_energy_demo_hessian(x, w, y);
 }
 
-/// Return metadata describing [`custom_function_kernel_custom_energy_hvp`].
-pub fn custom_function_kernel_custom_energy_hvp_meta() -> FunctionMetadata {
+/// Return metadata describing [`custom_function_kernel_custom_energy_hvp_x_f`].
+pub fn custom_function_kernel_custom_energy_hvp_x_f_meta() -> FunctionMetadata {
     FunctionMetadata {
-        function_name: "custom_function_kernel_custom_energy_hvp",
-        workspace_size: 2,
+        function_name: "custom_function_kernel_custom_energy_hvp_x_f",
+        workspace_size: 0,
         input_names: &[
             "x",
+            "w",
             "v_x",
         ],
         input_sizes: &[
+            2,
             2,
             2,
         ],
@@ -227,13 +224,16 @@ pub fn custom_function_kernel_custom_energy_hvp_meta() -> FunctionMetadata {
     }
 }
 
-/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_hvp`.
+/// Evaluate the generated symbolic function `custom_function_kernel_custom_energy_hvp_x_f`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
 /// Arguments:
 /// - `x`:
 ///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `w`:
+///   input slice for the declared argument `w`
 ///   Expected length: 2.
 /// - `v_x`:
 ///   tangent or direction input associated with declared argument `x`;
@@ -244,13 +244,11 @@ pub fn custom_function_kernel_custom_energy_hvp_meta() -> FunctionMetadata {
 ///   primal output slice for the declared result `y`
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 2.
-pub fn custom_function_kernel_custom_energy_hvp(x: &[f64], v_x: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2);
-    assert_eq!(x.len(), 2);
-    assert_eq!(v_x.len(), 2);
-    assert_eq!(y.len(), 2);
-    work[0] = custom_energy_demo_hvp_component(0, x, v_x, &[1.5_f64, 3.0_f64]);
-    work[1] = custom_energy_demo_hvp_component(1, x, v_x, &[1.5_f64, 3.0_f64]);
-    custom_energy_demo_hvp(x, v_x, &[1.5_f64, 3.0_f64], y);
+///   while evaluating this kernel. Expected length: at least 0.
+pub fn custom_function_kernel_custom_energy_hvp_x_f(x: &[f64], w: &[f64], v_x: &[f64], y: &mut [f64], _work: &mut [f64]) {
+    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
+    assert_eq!(w.len(), 2, "w is length {} but should be 2", w.len());
+    assert_eq!(v_x.len(), 2, "v_x is length {} but should be 2", v_x.len());
+    assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
+    custom_energy_demo_hvp(x, v_x, w, y);
 }
