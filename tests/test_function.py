@@ -1,4 +1,5 @@
 import math
+import random
 import unittest
 
 from gradgen.function import Function
@@ -244,6 +245,44 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(result[0], (4.0, 7.0))
         self.assertEqual(result[1], 18.0)
         self.assertEqual(result[2], 40.0)
+
+    def test_function_numeric_call_supports_randomized_small_constant_matrix_helpers(self) -> None:
+        rng = random.Random(1234)
+
+        for size in (1, 2, 3):
+            matrix = [[rng.uniform(-2.0, 2.0) for _ in range(size)] for _ in range(size)]
+            x_value = [rng.uniform(-2.0, 2.0) for _ in range(size)]
+            y_value = [rng.uniform(-2.0, 2.0) for _ in range(size)]
+
+            x = SXVector.sym(f"x_{size}", size)
+            y = SXVector.sym(f"y_{size}", size)
+            f = Function(
+                f"f_{size}",
+                [x, y],
+                [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            )
+
+            result = f(x_value, y_value)
+
+            expected_matvec = tuple(
+                sum(matrix[row][col] * x_value[col] for col in range(size)) for row in range(size)
+            )
+            expected_quadform = sum(
+                matrix[row][col] * x_value[row] * x_value[col]
+                for row in range(size)
+                for col in range(size)
+            )
+            expected_bilinear = sum(
+                matrix[row][col] * x_value[row] * y_value[col]
+                for row in range(size)
+                for col in range(size)
+            )
+
+            self.assertEqual(len(result[0]), size)
+            for actual, expected in zip(result[0], expected_matvec):
+                self.assertAlmostEqual(actual, expected)
+            self.assertAlmostEqual(result[1], expected_quadform)
+            self.assertAlmostEqual(result[2], expected_bilinear)
 
     def test_function_joint_returns_combined_primal_and_jacobian_outputs(self) -> None:
         x = SXVector.sym("x", 2)

@@ -975,6 +975,43 @@ mod math {
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_generated_no_std_rust_project_runs_constant_matrix_helper_reference_test(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        f = Function(
+            "matrix_kernel",
+            [x, y],
+            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            input_names=["x", "y"],
+            output_names=["mx", "qx", "bxy"],
+        )
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_math_lib("libm")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = f.create_rust_project(Path(tmpdir) / "matrix_kernel_no_std", config=config)
+            self._append_reference_test(
+                project.project_dir,
+                f,
+                function_name=project.codegen.function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0]),
+                test_name="evaluates_constant_matrix_helpers_against_python_reference_no_std",
+                config=config,
+                tolerance=1e-12,
+            )
+
+            try:
+                completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            except subprocess.CalledProcessError as exc:
+                if "Could not resolve host" in exc.stderr or "failed to get `libm` as a dependency" in exc.stderr:
+                    self.skipTest("no_std runtime test requires fetching libm from crates.io")
+                raise
+            self.assertEqual(completed.returncode, 0)
+
     def test_generated_rust_project_runs_jacobian_reference_test(self) -> None:
         x = SXVector.sym("x", 2)
         jac = Function("f", [x], [x.dot(x)], input_names=["x"], output_names=["y"]).jacobian(0)

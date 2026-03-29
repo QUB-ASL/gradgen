@@ -458,6 +458,31 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(quadform_expr.op, "quadform")
         self.assertEqual(bilinear_expr.op, "bilinear_form")
 
+    def test_constant_matrix_helpers_validate_shapes(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 3)
+
+        with self.assertRaises(ValueError):
+            _ = matvec([[1.0, 2.0, 3.0]], x)
+
+        with self.assertRaises(ValueError):
+            _ = quadform([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], x)
+
+        with self.assertRaises(ValueError):
+            _ = quadform([[1.0, 2.0], [3.0, 4.0]], y)
+
+        with self.assertRaises(ValueError):
+            _ = bilinear_form(x, [[1.0, 2.0], [3.0, 4.0]], y)
+
+    def test_constant_matrix_helpers_validate_matrix_entries(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        with self.assertRaises(ValueError):
+            _ = matvec([[1.0], [2.0, 3.0]], x)
+
+        with self.assertRaises(TypeError):
+            _ = matvec([["bad", 1.0], [2.0, 3.0]], x)
+
     def test_empty_vector_reductions_follow_documented_behavior(self) -> None:
         x = SXVector.sym("x", 0)
 
