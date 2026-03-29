@@ -6,15 +6,11 @@ functions in the same generated Rust crate.
 The example defines two scalar-valued functions of the same inputs
 $x \in \mathbb{R}^2$ and $u \in \mathbb{R}$:
 
-$$
-f(x, u) = x_1^2 + x_2^2 + u_1 x_1
-$$
+$$f(x, u) = x_1^2 + x_2^2 + u_1 x_1$$
 
 and
 
-$$
-g(x, u) = x_1 x_2 + \cos(u_1).
-$$
+$$g(x, u) = x_1 x_2 + \cos(u_1).$$
 
 The point of the demo is not the algebra itself, but the code-generation
 workflow:

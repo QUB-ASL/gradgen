@@ -9,54 +9,40 @@ optimal-control problem and generate compact loop-based Rust code for:
 
 The one-step dynamics is
 
-$$
-f(x, u, p) =
+$$f(x, u, p) =
 \begin{bmatrix}
 x_1 + p_1 x_2 + u \\
 x_2 + p_2 u - 0.5 x_1
-\end{bmatrix},
-$$
+\end{bmatrix},$$
 
 the stage cost is
 
-$$
-\ell(x, u, p) = x_1^2 + 2 x_2^2 + 0.3 u^2 + p_1 u,
-$$
+$$\ell(x, u, p) = x_1^2 + 2 x_2^2 + 0.3 u^2 + p_1 u,$$
 
 and the terminal cost is
 
-$$
-V_f(x, p) = 3 x_1^2 + 0.5 x_2^2 + p_2 x_1.
-$$
+$$V_f(x, p) = 3 x_1^2 + 0.5 x_2^2 + p_2 x_1.$$
 
 For a fixed horizon length $N$, an initial state $x_0$, a packed control
 sequence
 
-$$
-u_{\mathrm{seq}} = (u_0, u_1, \dots, u_{N-1}),
-$$
+$$u_{\mathrm{seq}} = (u_0, u_1, \dots, u_{N-1}),$$
 
 and a shared parameter vector $p$, the states evolve according to
 
-$$
-x_{t+1} = f(x_t, u_t, p), \qquad t = 0, \dots, N-1.
-$$
+$$x_{t+1} = f(x_t, u_t, p), \qquad t = 0, \dots, N-1.$$
 
 The total cost function is then
 
-$$
-V_N(x_0, u_{\mathrm{seq}}, p)
+$$V_N(x_0, u_{\mathrm{seq}}, p)
 =
-\sum_{t=0}^{N-1} \ell(x_t, u_t, p) + V_f(x_N, p).
-$$
+\sum_{t=0}^{N-1} \ell(x_t, u_t, p) + V_f(x_N, p).$$
 
 This is the main quantity we want to evaluate efficiently. In numerical
 optimal control, we also want the gradient of this total cost with respect to
 the entire input sequence,
 
-$$
-\nabla_{u_{\mathrm{seq}}} V_N(x_0, u_{\mathrm{seq}}, p),
-$$
+$$\nabla_{u_{\mathrm{seq}}} V_N(x_0, u_{\mathrm{seq}}, p),$$
 
 because first-order optimization methods use that gradient to update the whole
 control trajectory.

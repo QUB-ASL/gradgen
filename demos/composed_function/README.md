@@ -4,38 +4,28 @@ This demo shows how to build a staged composition with `ComposedFunction`.
 
 The state update is
 
-$$
-G(a, p) =
+$$G(a, p) =
 \begin{bmatrix}
 0.9 a_1 + p_1 \\
 0.1 a_2 p_2
-\end{bmatrix},
-$$
+\end{bmatrix},$$
 
 and the terminal scalar function is
 
-$$
-h(a, p_f) = 2 a_1 - a_2 + p_f.
-$$
+$$h(a, p_f) = 2 a_1 - a_2 + p_f.$$
 
 The composed function starts directly with $N$ repeated applications of the
 same stage:
 
-$$
-f(x, w) = h(a_N, p_f),
-$$
+$$f(x, w) = h(a_N, p_f),$$
 
 where
 
-$$
-a_0 = x, \qquad a_k = G(a_{k-1}, p^{(k)}) \quad \text{for } k = 1, \dots, N.
-$$
+$$a_0 = x, \qquad a_k = G(a_{k-1}, p^{(k)}) \quad \text{for } k = 1, \dots, N.$$
 
 Here the packed parameter vector is
 
-$$
-w = \left(p^{(1)}, p^{(2)}, \dots, p^{(N)}, p_f\right).
-$$
+$$w = \left(p^{(1)}, p^{(2)}, \dots, p^{(N)}, p_f\right).$$
 
 This is a good minimal example because it shows:
 
