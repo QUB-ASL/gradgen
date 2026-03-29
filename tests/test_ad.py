@@ -213,6 +213,36 @@ class ReverseADTests(unittest.TestCase):
         )
         self.assertAlmostEqual(result, expected)
 
+    def test_gradient_supports_norm_p_to_p_for_constant_p_greater_than_one(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [x.norm_p_to_p(3)])
+        grad = f.gradient(0)
+
+        result = grad([3.0, -4.0])
+
+        self.assertAlmostEqual(result[0], 27.0)
+        self.assertAlmostEqual(result[1], -48.0)
+
+    def test_gradient_supports_norm_p_for_constant_p_greater_than_one(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("f", [x], [x.norm_p(3)])
+        grad = f.gradient(0)
+
+        result = grad([3.0, -4.0])
+        denom = 91.0 ** (2.0 / 3.0)
+
+        self.assertAlmostEqual(result[0], 9.0 / denom)
+        self.assertAlmostEqual(result[1], -16.0 / denom)
+
+    def test_ad_raises_for_norm_p_and_norm_p_to_p_when_p_is_one(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.norm_p(1), x)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.norm_p_to_p(1), x)
+
     def test_function_vjp_supports_multiple_outputs(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")
