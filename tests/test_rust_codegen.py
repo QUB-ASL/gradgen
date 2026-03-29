@@ -398,6 +398,98 @@ mod tests {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_code_generation_builder_accepts_composed_sources_directly(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+        pf = SXVector.sym("pf", 1)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, pf],
+            [state[0] + state[1] + pf[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+        composed = (
+            ComposedFunction("loop_demo", x)
+            .repeat(g, params=[p, p, p])
+            .finish(h, p=pf)
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("loop_demo"))
+            .for_function(
+                composed,
+                lambda b: b.add_primal().add_gradient(),
+            )
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "loop_demo")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn loop_demo_loop_demo_f(", lib_text)
+            self.assertIn("pub fn loop_demo_loop_demo_grad_x(", lib_text)
+            self.assertIn("for repeat_index in 0..3 {", lib_text)
+            self.assertIn("for repeat_index in (0..3).rev() {", lib_text)
+
+            primal_function = composed.to_function()
+            gradient_function = composed.gradient().to_function()
+            primal_expected = self._flatten_runtime_output(
+                primal_function,
+                primal_function([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+            )
+            gradient_expected = self._flatten_runtime_output(
+                gradient_function,
+                gradient_function([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+            )
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod tests {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn evaluates_composed_builder_reference() {{
+        let x = [1.0_f64, 2.0_f64];
+        let parameters = [3.0_f64, 4.0_f64, 5.0_f64, 6.0_f64, 7.0_f64, 8.0_f64, 9.0_f64];
+        let mut primal_y = [0.0_f64; 1];
+        let mut primal_work = [0.0_f64; {project.codegens[0].workspace_size}];
+        {project.codegens[0].function_name}(&x, &parameters, &mut primal_y, &mut primal_work);
+        assert_close_slice(&primal_y, &{self._rust_array_literal(primal_expected, "f64")}, 1e-12_f64);
+
+        let mut gradient_y = [0.0_f64; 2];
+        let mut gradient_work = [0.0_f64; {project.codegens[1].workspace_size}];
+        {project.codegens[1].function_name}(&x, &parameters, &mut gradient_y, &mut gradient_work);
+        assert_close_slice(&gradient_y, &{self._rust_array_literal(gradient_expected, "f64")}, 1e-12_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_code_generation_builder_supports_multiple_source_functions(self) -> None:
         x = SX.sym("x")
         u = SX.sym("u")

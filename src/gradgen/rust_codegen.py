@@ -497,7 +497,7 @@ def create_rust_derivative_bundle(
 
 
 def create_multi_function_rust_project(
-    functions: tuple[Function, ...],
+    functions: tuple[object, ...],
     path: str | Path,
     *,
     config: RustBackendConfig | None = None,

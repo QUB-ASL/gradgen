@@ -1,8 +1,0 @@
-[package]
-name = "composed_gradient_kernel"
-version = "0.1.0"
-edition = "2021"
-description = "Generated gradgen crate using f64"
-
-[lib]
-path = "src/lib.rs"

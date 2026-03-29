@@ -11,7 +11,7 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from gradgen import ComposedFunction, Function, RustBackendConfig, SXVector
+from gradgen import CodeGenerationBuilder, ComposedFunction, Function, RustBackendConfig, SXVector
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,21 +50,22 @@ p = SXVector.sym("p", 2)
 pf = SXVector.sym("pf", 1)
 
 
-# G(a, p) = [a_1 + p_1, a_2 * p_2]
+# G(a, p) = [0.9 * a_1 + p_1, 
+#            0.1 * a_2 * p_2]
 stage = Function(
     "G",
     [state, p],
-    [SXVector((state[0] + p[0], state[1] * p[1]))],
+    [SXVector((0.9 * state[0] + p[0], 0.1 * state[1] * p[1]))],
     input_names=["state", "p"],
     output_names=["next_state"],
 )
 
 
-# h(a, pf) = a_1 + a_2 + pf
+# h(a, pf) = 2 * a_1 - a_2 + pf
 terminal = Function(
     "h",
     [state, pf],
-    [state[0] + state[1] + pf[0]],
+    [2 * state[0] - state[1] + pf[0]],
     input_names=["state", "pf"],
     output_names=["y"],
 )
@@ -91,21 +92,22 @@ print("f(x, parameters) =", composed(x_value, parameters_value))
 print("grad f(x, parameters) =", gradient.to_function()(x_value, parameters_value))
 
 
-# Generate one Rust crate for the primal kernel and one for the staged gradient.
+# Generate one Rust crate directly from the staged composed-function object.
+# The multi-function builder now accepts staged sources directly, so the
+# generated crate can contain both the primal and staged gradient kernels while
+# still preserving the loop structure of the repeated stage.
 backend_config = (
     RustBackendConfig()
-    .with_backend_mode("std")
+    .with_backend_mode("no_std")
     .with_scalar_type("f64")
+    .with_crate_name("composed_kernel")
 )
 
-primal_project = composed.create_rust_project(
-    Path(__file__).resolve().parent / "composed_primal_kernel",
-    config=backend_config.with_crate_name("composed_primal_kernel"),
-)
-gradient_project = gradient.create_rust_project(
-    Path(__file__).resolve().parent / "composed_gradient_kernel",
-    config=backend_config.with_crate_name("composed_gradient_kernel"),
+project = (
+    CodeGenerationBuilder()
+    .with_backend_config(backend_config)
+    .for_function(composed, lambda builder: builder.add_primal().add_gradient())
+    .build(Path(__file__).resolve().parent / "composed_kernel")
 )
 
-print("Generated primal Rust crate:", primal_project.project_dir)
-print("Generated gradient Rust crate:", gradient_project.project_dir)
+print("Generated Rust crate:", project.project_dir)
