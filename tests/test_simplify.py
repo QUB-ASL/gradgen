@@ -3,6 +3,7 @@ import unittest
 from gradgen import (
     Function,
     SX,
+    SXNode,
     SXVector,
     derivative,
     hessian,
@@ -338,6 +339,51 @@ class SimplifyTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             simplify(x, max_effort="wild")
+
+
+class SimplifyEdgeTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        clear_registered_elementary_functions()
+
+    def test_rejects_negative_effort(self) -> None:
+        x = SX.sym("x")
+        with self.assertRaises(ValueError):
+            simplify(x, max_effort=-1)
+
+    def test_empty_reductions_raise_or_return_defaults(self) -> None:
+        # sum with no args -> 0.0
+        empty_sum = SX(SXNode.make("sum", ()))
+        self.assertEqual(simplify(empty_sum).value, 0.0)
+
+        # prod with no args -> 1.0
+        empty_prod = SX(SXNode.make("prod", ()))
+        self.assertEqual(simplify(empty_prod).value, 1.0)
+
+        # reduce_max/min/mean without args should raise ValueError
+        empty_max = SX(SXNode.make("reduce_max", ()))
+        empty_min = SX(SXNode.make("reduce_min", ()))
+        empty_mean = SX(SXNode.make("mean", ()))
+
+        with self.assertRaises(ValueError):
+            simplify(empty_max)
+        with self.assertRaises(ValueError):
+            simplify(empty_min)
+        with self.assertRaises(ValueError):
+            simplify(empty_mean)
+
+    def test_unknown_const_binary_op_raises(self) -> None:
+        # create a made-up binary op with constant args -> should error
+        node = SXNode.make("unknown_binop", (SX.const(1.0).node, SX.const(2.0).node))
+        expr = SX(node)
+        with self.assertRaises(ValueError):
+            simplify(expr)
+
+    def test_norm_p_short_circuits(self) -> None:
+        # norm_p and norm_p_to_p with insufficient args return 0.0
+        np_node = SXNode.make("norm_p", (SX.const(2.0).node,))
+        npp_node = SXNode.make("norm_p_to_p", (SX.const(2.0).node,))
+        self.assertEqual(simplify(SX(np_node)).value, 0.0)
+        self.assertEqual(simplify(SX(npp_node)).value, 0.0)
 
 
 if __name__ == "__main__":
