@@ -1,5 +1,12 @@
 #![no_std]
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GradgenError {
+    WorkspaceTooSmall(&'static str),
+    InputTooSmall(&'static str),
+    OutputTooSmall(&'static str),
+}
+
 /// Metadata describing a generated Rust function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FunctionMetadata {
@@ -42,20 +49,23 @@ pub fn vjp_kernel_g_f_meta() -> FunctionMetadata {
 ///   Expected length: 3.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 3.
-pub fn vjp_kernel_g_f(x: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(
-        work.len() >= 3,
-        "work is length {} but should be at least 3",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(y.len(), 3, "y is length {} but should be 3", y.len());
+pub fn vjp_kernel_g_f(x: &[f64], y: &mut [f64], work: &mut [f64]) -> Result<(), GradgenError> {
+    if work.len() < 3 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 3"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if y.len() != 3 {
+        return Err(GradgenError::OutputTooSmall("y expected length 3"));
+    };
     work[0] = x[0] + x[1];
     work[1] = x[0] * x[1];
     work[2] = libm::sin(x[1]);
     y[0] = work[0];
     y[1] = work[1];
     y[2] = work[2];
+    Ok(())
 }
 
 /// Return metadata describing [`vjp_kernel_g_jf`].
@@ -83,19 +93,20 @@ pub fn vjp_kernel_g_jf_meta() -> FunctionMetadata {
 ///   Expected length: 6.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
-pub fn vjp_kernel_g_jf(x: &[f64], jacobian_y: &mut [f64], work: &mut [f64]) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(
-        jacobian_y.len(),
-        6,
-        "jacobian_y is length {} but should be 6",
-        jacobian_y.len()
-    );
+pub fn vjp_kernel_g_jf(
+    x: &[f64],
+    jacobian_y: &mut [f64],
+    work: &mut [f64],
+) -> Result<(), GradgenError> {
+    if work.is_empty() {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 1"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if jacobian_y.len() != 6 {
+        return Err(GradgenError::OutputTooSmall("jacobian_y expected length 6"));
+    };
     work[0] = libm::cos(x[1]);
     jacobian_y[0] = 1.0_f64;
     jacobian_y[1] = 1.0_f64;
@@ -103,6 +114,7 @@ pub fn vjp_kernel_g_jf(x: &[f64], jacobian_y: &mut [f64], work: &mut [f64]) {
     jacobian_y[3] = x[0];
     jacobian_y[4] = 0.0_f64;
     jacobian_y[5] = work[0];
+    Ok(())
 }
 
 /// Return metadata describing [`vjp_kernel_g_vjp`].
@@ -136,25 +148,24 @@ pub fn vjp_kernel_g_vjp_meta() -> FunctionMetadata {
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 3.
-pub fn vjp_kernel_g_vjp(x: &[f64], cotangent_y: &[f64], vjp_x: &mut [f64], work: &mut [f64]) {
-    assert!(
-        work.len() >= 3,
-        "work is length {} but should be at least 3",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(
-        cotangent_y.len(),
-        3,
-        "cotangent_y is length {} but should be 3",
-        cotangent_y.len()
-    );
-    assert_eq!(
-        vjp_x.len(),
-        2,
-        "vjp_x is length {} but should be 2",
-        vjp_x.len()
-    );
+pub fn vjp_kernel_g_vjp(
+    x: &[f64],
+    cotangent_y: &[f64],
+    vjp_x: &mut [f64],
+    work: &mut [f64],
+) -> Result<(), GradgenError> {
+    if work.len() < 3 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 3"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if cotangent_y.len() != 3 {
+        return Err(GradgenError::InputTooSmall("cotangent_y expected length 3"));
+    };
+    if vjp_x.len() != 2 {
+        return Err(GradgenError::OutputTooSmall("vjp_x expected length 2"));
+    };
     work[0] = cotangent_y[1] * x[1];
     work[0] += cotangent_y[0];
     work[1] = libm::cos(x[1]);
@@ -164,4 +175,5 @@ pub fn vjp_kernel_g_vjp(x: &[f64], cotangent_y: &[f64], vjp_x: &mut [f64], work:
     work[1] += work[2];
     vjp_x[0] = work[0];
     vjp_x[1] = work[1];
+    Ok(())
 }

@@ -2,6 +2,15 @@
 #![no_std]
 
 {% endif -%}
+{% if function_index == 0 -%}
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GradgenError {
+    WorkspaceTooSmall(&'static str),
+    InputTooSmall(&'static str),
+    OutputTooSmall(&'static str),
+}
+
+{% endif -%}
 {% if function_index == 0 and shared_helper_lines -%}
 {% for line in shared_helper_lines -%}
 {{ line }}
@@ -81,15 +90,27 @@ pub fn {{ function_name }}_meta() -> FunctionMetadata {
 {% if function_parameter_count > 7 -%}
 #[allow(clippy::too_many_arguments)]
 {% endif -%}
-{{ function_keyword }} {{ function_name }}({{ parameters }}) {
+{{ function_keyword }} {{ function_name }}({{ parameters }}){% if function_keyword.startswith('pub') %} -> Result<(), GradgenError>{% endif %} {
 {% if workspace_assert_line %}
+    {% if function_keyword.startswith('pub') %}
+    {{ workspace_return_line }}
+    {% else %}
     {{ workspace_assert_line }}
+    {% endif %}
 {% endif %}
 {% for line in input_assert_lines %}
+    {% if function_keyword.startswith('pub') %}
+    {{ input_return_lines[loop.index0] }}
+    {% else %}
     {{ line }}
+    {% endif %}
 {% endfor %}
 {% for line in output_assert_lines %}
+    {% if function_keyword.startswith('pub') %}
+    {{ output_return_lines[loop.index0] }}
+    {% else %}
     {{ line }}
+    {% endif %}
 {% endfor %}
 {% for line in computation_lines %}
     {{ line }}
@@ -97,4 +118,7 @@ pub fn {{ function_name }}_meta() -> FunctionMetadata {
 {% for line in output_write_lines %}
     {{ line }}
 {% endfor %}
+{% if function_keyword.startswith('pub') %}
+    Ok(())
+{% endif %}
 }

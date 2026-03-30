@@ -40,11 +40,11 @@ fn main() {
 
     let mut y = [0.0_f64; 1];
     let mut work = vec![0.0_f64; primal_metadata.workspace_size];
-    composed_kernel_composed_demo_f(&x, &parameters, &mut y, &mut work);
+    composed_kernel_composed_demo_f(&x, &parameters, &mut y, &mut work).unwrap();
     println!("f(x, parameters) = {}", format_slice(&y));
 
     let mut grad = [0.0_f64; 2];
     let mut grad_work = vec![0.0_f64; gradient_metadata.workspace_size];
-    composed_kernel_composed_demo_grad_x(&x, &parameters, &mut grad, &mut grad_work);
+    composed_kernel_composed_demo_grad_x(&x, &parameters, &mut grad, &mut grad_work).unwrap();
     println!("grad f(x, parameters) = {}", format_slice(&grad));
 }

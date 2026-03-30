@@ -1,5 +1,12 @@
 #![no_std]
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GradgenError {
+    WorkspaceTooSmall(&'static str),
+    InputTooSmall(&'static str),
+    OutputTooSmall(&'static str),
+}
+
 fn custom_energy_demo(x: &[f64], w: &[f64]) -> f64 {
     libm::exp2(w[0]) * x[0] * x[0] + w[1] * x[1] * x[1] + libm::sin(x[0] * x[1])
 }
@@ -76,17 +83,22 @@ pub fn custom_function_kernel_custom_energy_f(
     w: &[f64],
     y: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(w.len(), 2, "w is length {} but should be 2", w.len());
-    assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());
+) -> Result<(), GradgenError> {
+    if work.is_empty() {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 1"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if w.len() != 2 {
+        return Err(GradgenError::InputTooSmall("w expected length 2"));
+    };
+    if y.len() != 1 {
+        return Err(GradgenError::OutputTooSmall("y expected length 1"));
+    };
     work[0] = custom_energy_demo(x, w);
     y[0] = work[0];
+    Ok(())
 }
 
 /// Return metadata describing [`custom_function_kernel_custom_energy_grad_x_f`].
@@ -122,11 +134,18 @@ pub fn custom_function_kernel_custom_energy_grad_x_f(
     w: &[f64],
     y: &mut [f64],
     _work: &mut [f64],
-) {
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(w.len(), 2, "w is length {} but should be 2", w.len());
-    assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
+) -> Result<(), GradgenError> {
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if w.len() != 2 {
+        return Err(GradgenError::InputTooSmall("w expected length 2"));
+    };
+    if y.len() != 2 {
+        return Err(GradgenError::OutputTooSmall("y expected length 2"));
+    };
     custom_energy_demo_jacobian(x, w, y);
+    Ok(())
 }
 
 /// Return metadata describing [`custom_function_kernel_custom_energy_hessian_x_f`].
@@ -162,11 +181,18 @@ pub fn custom_function_kernel_custom_energy_hessian_x_f(
     w: &[f64],
     y: &mut [f64],
     _work: &mut [f64],
-) {
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(w.len(), 2, "w is length {} but should be 2", w.len());
-    assert_eq!(y.len(), 4, "y is length {} but should be 4", y.len());
+) -> Result<(), GradgenError> {
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if w.len() != 2 {
+        return Err(GradgenError::InputTooSmall("w expected length 2"));
+    };
+    if y.len() != 4 {
+        return Err(GradgenError::OutputTooSmall("y expected length 4"));
+    };
     custom_energy_demo_hessian(x, w, y);
+    Ok(())
 }
 
 /// Return metadata describing [`custom_function_kernel_custom_energy_hvp_x_f`].
@@ -208,10 +234,19 @@ pub fn custom_function_kernel_custom_energy_hvp_x_f(
     v_x: &[f64],
     y: &mut [f64],
     _work: &mut [f64],
-) {
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(w.len(), 2, "w is length {} but should be 2", w.len());
-    assert_eq!(v_x.len(), 2, "v_x is length {} but should be 2", v_x.len());
-    assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
+) -> Result<(), GradgenError> {
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if w.len() != 2 {
+        return Err(GradgenError::InputTooSmall("w expected length 2"));
+    };
+    if v_x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("v_x expected length 2"));
+    };
+    if y.len() != 2 {
+        return Err(GradgenError::OutputTooSmall("y expected length 2"));
+    };
     custom_energy_demo_hvp(x, v_x, w, y);
+    Ok(())
 }

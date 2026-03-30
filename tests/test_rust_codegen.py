@@ -399,17 +399,20 @@ mod tests {{
         self.assertIn("///   Expected length: 1.", result.source)
         self.assertIn("/// - `work`: mutable workspace slice used to store intermediate values", result.source)
         self.assertIn("///   while evaluating this kernel. Expected length: at least 1.", result.source)
-        self.assertIn("pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
         self.assertIn(
-            'assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());',
+            "pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) -> Result<(), GradgenError> ",
             result.source,
         )
         self.assertIn(
-            'assert_eq!(x.len(), 1, "x is length {} but should be 1", x.len());',
+            'if work.is_empty() { return Err(GradgenError::WorkspaceTooSmall("work expected at least 1")); };',
             result.source,
         )
         self.assertIn(
-            'assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());',
+            'if x.len() != 1 { return Err(GradgenError::InputTooSmall("x expected length 1")); };',
+            result.source,
+        )
+        self.assertIn(
+            'if y.len() != 1 { return Err(GradgenError::OutputTooSmall("y expected length 1")); };',
             result.source,
         )
         self.assertIn("work[0] = x[0] * x[0];", result.source)
@@ -440,11 +443,11 @@ mod tests {{
         self.assertIn("pub fn kernel_meta() -> FunctionMetadata {", result.source)
         self.assertIn("workspace_size: 3,", result.source)
         self.assertIn(
-            "pub fn kernel(x: &[f64], y: &[f64], dot: &mut [f64], sum: &mut [f64], work: &mut [f64]) {",
+            "pub fn kernel(x: &[f64], y: &[f64], dot: &mut [f64], sum: &mut [f64], work: &mut [f64]) -> Result<(), GradgenError> ",
             result.source,
         )
         self.assertIn(
-            'assert!(work.len() >= 3, "work is length {} but should be at least 3", work.len());',
+            'if work.len() < 3 { return Err(GradgenError::WorkspaceTooSmall("work expected at least 3")); };',
             result.source,
         )
         self.assertIn("work[0] = x[0] * y[0];", result.source)
@@ -908,7 +911,10 @@ mod single_shooting_multi_u_tests {{
             project = create_rust_project(composed, Path(tmpdir) / "repeat_demo")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("pub fn repeat_demo(x: &[f64], y: &mut [f64], work: &mut [f64]) {", lib_text)
+            self.assertIn(
+                "pub fn repeat_demo(x: &[f64], y: &mut [f64], work: &mut [f64]) -> Result<(), GradgenError> ",
+                lib_text,
+            )
             self.assertIn("for repeat_index in 0..3 {", lib_text)
             self.assertNotIn("parameters: &[f64]", lib_text)
 
@@ -1376,9 +1382,12 @@ mod tests {{
         result = f.generate_rust(scalar_type="f32")
 
         self.assertEqual(result.scalar_type, "f32")
-        self.assertIn("pub fn square_plus_one(x: &[f32], y: &mut [f32], work: &mut [f32]) {", result.source)
         self.assertIn(
-            'assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());',
+            "pub fn square_plus_one(x: &[f32], y: &mut [f32], work: &mut [f32]) -> Result<(), GradgenError> ",
+            result.source,
+        )
+        self.assertIn(
+            'if work.is_empty() { return Err(GradgenError::WorkspaceTooSmall("work expected at least 1")); };',
             result.source,
         )
         self.assertIn("work[0] += 1.0_f32;", result.source)
@@ -2429,7 +2438,7 @@ fn weighted_sqnorm_no_dead_work_hvp(
 
         self.assertEqual(result.workspace_size, 0)
         self.assertIn("workspace_size: 0,", result.source)
-        self.assertIn("pub fn identity(x: &[f64], y: &mut [f64], _work: &mut [f64]) {", result.source)
+        self.assertIn("pub fn identity(x: &[f64], y: &mut [f64], _work: &mut [f64]) -> Result<(), GradgenError> ", result.source)
         self.assertNotIn("assert!(work.len() >= 0);", result.source)
         self.assertNotIn("pub fn identity(x: &[f64], y: &mut [f64], work: &mut [f64]) {", result.source)
 
@@ -2481,7 +2490,10 @@ fn weighted_sqnorm_no_dead_work_hvp(
             self.assertIn('libm = "0.2"', cargo_text)
             self.assertIn("Scalar type: `f32`", readme_text)
             self.assertIn("libm::sinf(", lib_text)
-            self.assertIn("pub fn trig_kernel(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn(
+                "pub fn trig_kernel(x: &[f32], y: &mut [f32], work: &mut [f32]) -> Result<(), GradgenError> ",
+                lib_text,
+            )
 
             try:
                 completed = self._run_cargo(project.project_dir, "build", "--quiet")
@@ -2896,7 +2908,7 @@ mod tests {
 
             self.assertIn("pub fn joint_hessian_joint_hessian_f_hessian(", lib_text)
             self.assertIn("hessian_y: &mut [f64]", lib_text)
-            self.assertIn('"hessian_y is length {} but should be 4"', lib_text)
+            self.assertIn("hessian_y expected length 4", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -2970,9 +2982,10 @@ mod joint_hessian_tests {
             cargo_text = project.cargo_toml.read_text(encoding="utf-8")
 
             self.assertIn("#![no_std]", lib_text)
-            self.assertIn("pub fn my_kernel_f_f(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
-            self.assertIn("pub fn my_kernel_f_grad(x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
-            self.assertIn("pub fn my_kernel_f_hvp(x: &[f32], v_x: &[f32], y: &mut [f32], work: &mut [f32]) {", lib_text)
+            self.assertIn("pub fn my_kernel_f_f(x: &[f32], y: &mut [f32], work: &mut [f32]) -> Result<(), GradgenError> ", lib_text)
+            self.assertIn("pub fn my_kernel_f_grad(x: &[f32], y: &mut [f32], work: &mut [f32]) -> Result<(), GradgenError> ", lib_text)
+            self.assertIn("pub fn my_kernel_f_hvp", lib_text)
+            self.assertIn("-> Result<(), GradgenError>", lib_text)
             self.assertIn('libm = "0.2"', cargo_text)
             self.assertIn('name = "my_kernel"', cargo_text)
 

@@ -1,5 +1,12 @@
 #![no_std]
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GradgenError {
+    WorkspaceTooSmall(&'static str),
+    InputTooSmall(&'static str),
+    OutputTooSmall(&'static str),
+}
+
 /// Metadata describing a generated Rust function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FunctionMetadata {
@@ -52,20 +59,19 @@ pub fn composed_kernel_composed_demo_f(
     parameters: &[f64],
     y: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        work.len() >= 6,
-        "work is length {} but should be at least 6",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(
-        parameters.len(),
-        11,
-        "parameters is length {} but should be 11",
-        parameters.len()
-    );
-    assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());
+) -> Result<(), GradgenError> {
+    if work.len() < 6 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 6"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if parameters.len() != 11 {
+        return Err(GradgenError::InputTooSmall("parameters expected length 11"));
+    };
+    if y.len() != 1 {
+        return Err(GradgenError::OutputTooSmall("y expected length 1"));
+    };
     let (state_buffers, stage_work) = work.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
     current_state.copy_from_slice(x);
@@ -79,6 +85,7 @@ pub fn composed_kernel_composed_demo_f(
         current_state.copy_from_slice(next_state);
     }
     composed_kernel_composed_demo_terminal_h(current_state, &parameters[10..11], y, stage_work);
+    Ok(())
 }
 
 fn composed_kernel_composed_demo_repeat_0_g(
@@ -174,20 +181,19 @@ pub fn composed_kernel_composed_demo_grad_x(
     parameters: &[f64],
     y: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        work.len() >= 18,
-        "work is length {} but should be at least 18",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(
-        parameters.len(),
-        11,
-        "parameters is length {} but should be 11",
-        parameters.len()
-    );
-    assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
+) -> Result<(), GradgenError> {
+    if work.len() < 18 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 18"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if parameters.len() != 11 {
+        return Err(GradgenError::InputTooSmall("parameters expected length 11"));
+    };
+    if y.len() != 2 {
+        return Err(GradgenError::OutputTooSmall("y expected length 2"));
+    };
     let (state_history, rest) = work.split_at_mut(10);
     let (current_state, rest) = rest.split_at_mut(2);
     let (lambda_buffers, stage_work) = rest.split_at_mut(4);
@@ -264,6 +270,7 @@ pub fn composed_kernel_composed_demo_grad_x(
         &lambda_b[..]
     };
     y.copy_from_slice(gradient);
+    Ok(())
 }
 
 fn composed_kernel_composed_demo_repeat_0_g_vjp(

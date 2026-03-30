@@ -35,31 +35,31 @@ fn main() {
 
     let mut energy = vec![0.0_f64; energy_f_metadata.output_sizes[0]];
     let mut energy_work = vec![0.0_f64; energy_f_metadata.workspace_size];
-    codegen_kernel_energy_f(&x, &u, &mut energy, &mut energy_work);
+    codegen_kernel_energy_f(&x, &u, &mut energy, &mut energy_work).unwrap();
     println!("energy(x, u) = {}", format_slice(&energy));
 
     let mut energy_jf_x = vec![0.0_f64; energy_jf_x_metadata.output_sizes[0]];
     let mut energy_jf_x_work = vec![0.0_f64; energy_jf_x_metadata.workspace_size];
-    codegen_kernel_energy_jf_x(&x, &u, &mut energy_jf_x, &mut energy_jf_x_work);
+    codegen_kernel_energy_jf_x(&x, &u, &mut energy_jf_x, &mut energy_jf_x_work).unwrap();
     println!("J_energy wrt x = {}", format_slice(&energy_jf_x));
 
     let mut energy_jf_u = vec![0.0_f64; energy_jf_u_metadata.output_sizes[0]];
     let mut energy_jf_u_work = vec![0.0_f64; energy_jf_u_metadata.workspace_size];
-    codegen_kernel_energy_jf_u(&x, &u, &mut energy_jf_u, &mut energy_jf_u_work);
+    codegen_kernel_energy_jf_u(&x, &u, &mut energy_jf_u, &mut energy_jf_u_work).unwrap();
     println!("J_energy wrt u = {}", format_slice(&energy_jf_u));
 
     let mut coupling = vec![0.0_f64; coupling_f_metadata.output_sizes[0]];
     let mut coupling_work = vec![0.0_f64; coupling_f_metadata.workspace_size];
-    codegen_kernel_coupling_f(&x, &u, &mut coupling, &mut coupling_work);
+    codegen_kernel_coupling_f(&x, &u, &mut coupling, &mut coupling_work).unwrap();
     println!("coupling(x, u) = {}", format_slice(&coupling));
 
     let mut coupling_jf_x = vec![0.0_f64; coupling_jf_x_metadata.output_sizes[0]];
     let mut coupling_jf_x_work = vec![0.0_f64; coupling_jf_x_metadata.workspace_size];
-    codegen_kernel_coupling_jf_x(&x, &u, &mut coupling_jf_x, &mut coupling_jf_x_work);
+    codegen_kernel_coupling_jf_x(&x, &u, &mut coupling_jf_x, &mut coupling_jf_x_work).unwrap();
     println!("J_coupling wrt x = {}", format_slice(&coupling_jf_x));
 
     let mut coupling_jf_u = vec![0.0_f64; coupling_jf_u_metadata.output_sizes[0]];
     let mut coupling_jf_u_work = vec![0.0_f64; coupling_jf_u_metadata.workspace_size];
-    codegen_kernel_coupling_jf_u(&x, &u, &mut coupling_jf_u, &mut coupling_jf_u_work);
+    codegen_kernel_coupling_jf_u(&x, &u, &mut coupling_jf_u, &mut coupling_jf_u_work).unwrap();
     println!("J_coupling wrt u = {}", format_slice(&coupling_jf_u));
 }
