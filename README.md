@@ -1094,3 +1094,21 @@ Run the test suite locally with:
 ```bash
 PYTHONPATH=src pytest
 ```
+
+For test coverage:
+
+```bash
+# First run the following (-e is important!)
+pip install -e .
+
+# Run test coverage
+coverage run --source=src/gradgen -m pytest
+
+# Generate and open HTML report
+coverage html && open htmlcov/index.html
+
+# Report in terminal (not recommended)
+coverage report -m
+```
+
+fi
