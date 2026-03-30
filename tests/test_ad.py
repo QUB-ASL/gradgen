@@ -832,3 +832,141 @@ class HessianTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ADIntegrationTests(unittest.TestCase):
+    def tearDown(self) -> None:
+        clear_registered_elementary_functions()
+
+    def test_norm_p_accepts_symbolic_p(self) -> None:
+        # allow symbolic p as a parameter (differentiation w.r.t. x)
+        from gradgen import SXVector
+
+        x = SXVector.sym("x", 2)
+        p = SX.sym("p")
+
+        grad = gradient(x.norm_p(p), x)
+        from gradgen import SXVector as _SXVector
+
+        self.assertIsInstance(grad, _SXVector)
+
+    def test_norm_p_to_p_accepts_symbolic_p(self) -> None:
+        from gradgen import SXVector
+
+        x = SXVector.sym("x", 2)
+        p = SX.sym("p")
+
+        grad = gradient(x.norm_p_to_p(p), x)
+        from gradgen import SXVector as _SXVector
+
+        self.assertIsInstance(grad, _SXVector)
+
+    def test_norm_p_and_norm_p_to_p_reject_p_leq_one(self) -> None:
+        from gradgen import SXVector
+
+        x = SXVector.sym("x", 2)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.norm_p(0.5), x)
+
+        with self.assertRaises(ValueError):
+            _ = gradient(x.norm_p_to_p(1.0), x)
+
+
+class ADSymbolicPTests(unittest.TestCase):
+    def test_symbolic_p_gradient_matches_constant_p(self) -> None:
+        x = SXVector.sym("x", 2)
+        p = SX.sym("p")
+
+        # symbolic-p gradient
+        grad_sym = gradient(x.norm_p(p), x)
+        g_sym = Function("g_sym", [x, p], [grad_sym])
+
+        # constant-p gradient
+        grad_const = gradient(x.norm_p(3.0), x)
+        g_const = Function("g_const", [x], [grad_const])
+
+        x_val = [3.0, -4.0]
+        res_sym = g_sym(x_val, 3.0)
+        res_const = g_const(x_val)
+
+        self.assertEqual(res_sym, res_const)
+
+    def test_symbolic_p_hvp_matches_constant_p(self) -> None:
+        x = SXVector.sym("x", 2)
+        p = SX.sym("p")
+
+        f_sym = Function("f_sym", [x, p], [x.norm_p(p)])
+        hvp_sym = f_sym.hvp(0)
+
+        f_const = Function("f_const", [x], [x.norm_p(3.0)])
+        hvp_const = f_const.hvp(0)
+
+        x_val = [3.0, -4.0]
+        v = [1.0, 2.0]
+
+        out_sym = hvp_sym(x_val, 3.0, v)
+        out_const = hvp_const(x_val, v)
+
+        # numeric comparisons
+        self.assertEqual(out_sym, out_const)
+
+
+class SympyComparisonTests(unittest.TestCase):
+    def setUp(self) -> None:
+        try:
+            import sympy as _sp  # type: ignore
+        except Exception as exc:  # pragma: no cover - skip when sympy missing
+            raise unittest.SkipTest("sympy not available: skipping symbolic comparison tests") from exc
+
+    def test_scalar_two_var_gradient_matches_sympy(self) -> None:
+        import sympy as sp
+        from gradgen import SX, Function, gradient
+
+        # Define sympy symbols and expression
+        sx, sy = sp.symbols("x y")
+        sexpr = sp.sin(sx * sy) + sp.exp(sx) * sp.log(sy)
+        dsx = sp.diff(sexpr, sx)
+        dsy = sp.diff(sexpr, sy)
+        f_ds = sp.lambdify((sx, sy), (dsx, dsy), "math")
+
+        # Build gradgen expression
+        x = SX.sym("x")
+        y = SX.sym("y")
+        expr = (x * y).sin() + x.exp() * y.log()
+        gx = gradient(expr, x)
+        gy = gradient(expr, y)
+        gfunc = Function("g_sym", [x, y], [gx, gy])
+
+        xv = 1.3
+        yv = 2.5
+        expected_dx, expected_dy = f_ds(xv, yv)
+        got = gfunc(xv, yv)
+
+        self.assertAlmostEqual(got[0], expected_dx, places=9)
+        self.assertAlmostEqual(got[1], expected_dy, places=9)
+
+    def test_vector_input_gradient_matches_sympy(self) -> None:
+        import sympy as sp
+        import gradgen as gg
+
+        x0, x1, y = sp.symbols("x0 x1 y")
+        sexpr = x0 * x1 + sp.sin(x0) * (y ** 2)
+        dx0 = sp.diff(sexpr, x0)
+        dx1 = sp.diff(sexpr, x1)
+        f_ds = sp.lambdify((x0, x1, y), (dx0, dx1), "math")
+
+        xv = gg.SXVector.sym("x", 2)
+        yv = gg.SX.sym("y")
+        expr = xv.prod() + gg.sin(xv[0]) * (yv ** 2)
+        grad = gg.gradient(expr, xv)
+        gfunc = gg.Function("g_vec", [xv, yv], [grad])
+
+        x_vals = (0.7, -1.2)
+        y_val = 2.3
+        expected = f_ds(x_vals[0], x_vals[1], y_val)
+        got = gfunc(list(x_vals), y_val)
+
+        # numeric call returns a flat tuple for a single vector output
+        self.assertAlmostEqual(got[0], expected[0], places=9)
+        self.assertAlmostEqual(got[1], expected[1], places=9)
