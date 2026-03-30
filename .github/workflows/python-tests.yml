@@ -8,6 +8,7 @@ on:
 
 jobs:
   test:
+    name: "CI tests"
     runs-on: ubuntu-latest
 
     steps:
@@ -24,14 +25,11 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - name: Ensure cargo fmt installed
-        run: rustup component add rustfmt
-
       - name: Install package
-        run: python -m pip install --upgrade pip && python -m pip install -e . numpy sympy
+        run: python -m pip install --upgrade pip && python -m pip install -e . numpy sympy pytest
 
       - name: Run tests
-        run: python -m unittest discover -s tests -p 'test_*.py'
+        run: pytest tests -v
 
       - name: Generate demo crates
         run: |
