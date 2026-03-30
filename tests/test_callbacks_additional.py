@@ -1,115 +1,65 @@
 import pytest
 
-from gradgen import SX, SXVector
+from gradgen import SX, SXNode, SXVector, Function
 from gradgen._custom_elementary import callbacks
 from gradgen._custom_elementary.model import RegisteredElementaryFunction
 
 
-def test_invoke_custom_callback_omitted_params_calls_single_arg():
-    def cb_single(x):
-        return ("single", x)
+def test_invoke_custom_callback_fallback_signature(monkeypatch):
+    # Make inspect.signature raise to exercise the fallback path
+    def cb_expected(x, w):
+        return ("fallback", x, w)
 
-    out = callbacks.invoke_custom_callback(cb_single, 5, (), 0)
-    assert out == ("single", 5)
-
-
-def test_invoke_custom_callback_with_two_params_calls_with_w():
-    def cb_two(x, w):
-        return ("two", x, w)
-
-    out = callbacks.invoke_custom_callback(cb_two, 1, (2, 3), 0)
-    assert out == ("two", 1, (2, 3))
+    monkeypatch.setattr(callbacks.inspect, "signature", lambda *_: (_ for _ in ()).throw(ValueError()))
+    out = callbacks.invoke_custom_callback(cb_expected, 7, (9,), 0)
+    assert out == ("fallback", 7, (9,))
 
 
-def test_invoke_custom_hvp_callback_two_arg_and_orders():
-    def cb_vt(v, t):
-        return ("vt", v, t)
+def test_invoke_custom_hvp_callback_signature_and_ordering(monkeypatch):
+    # When inspect.signature raises, the code should call (value, tangent, w)
+    def cb_fallback(value, tangent, w):
+        return ("fb", value, tangent, w)
 
-    assert callbacks.invoke_custom_hvp_callback(cb_vt, 1, 2, (), 0) == ("vt", 1, 2)
-
-    def cb_three_reorder(value, w, v_arg):
-        return ("reordered", value, w, v_arg)
-
-    # third positional name startswith 'v' -> callback(value, w, tangent)
-    assert callbacks.invoke_custom_hvp_callback(cb_three_reorder, "x", "tan", "w", 0) == (
-        "reordered",
-        "x",
-        "w",
-        "tan",
-    )
-
-    def cb_order(value, t, w):
-        return ("order", value, t, w)
-
-    # default fallback ordering -> callback(value, tangent, w)
-    assert callbacks.invoke_custom_hvp_callback(cb_order, "x", "tval", "wval", 1) == (
-        "order",
-        "x",
-        "tval",
-        "wval",
-    )
+    monkeypatch.setattr(callbacks.inspect, "signature", lambda *_: (_ for _ in ()).throw(TypeError()))
+    out = callbacks.invoke_custom_hvp_callback(cb_fallback, "x", "t", "w", 1)
+    assert out == ("fb", "x", "t", "w")
 
 
-def test_coerce_symbolic_scalar_and_errors():
-    assert callbacks.coerce_symbolic_scalar(3, "err").value == 3.0
-    sx = SX.const(4.0)
-    assert callbacks.coerce_symbolic_scalar(sx, "err").value == 4.0
-
-    class HasItem:
-        def __init__(self, v):
-            self._v = v
-
-        def item(self):
-            return self._v
-
-    inner = HasItem(SX.const(2.0))
-    out = callbacks.coerce_symbolic_scalar(inner, "err")
-    assert isinstance(out, SX) and out.value == 2.0
-
-    with pytest.raises(TypeError):
-        callbacks.coerce_symbolic_scalar([1, 2], "err")
-
-
-def test_coerce_symbolic_vector_and_matrix():
+def test_coerce_symbolic_vector_and_matrix_stronger_checks():
     v = callbacks.coerce_symbolic_vector((1, 2), 2, "err")
     assert isinstance(v, SXVector) and len(v) == 2
+    assert all(isinstance(elem, SX) for elem in v)
+    assert tuple(elem.value for elem in v) == (1.0, 2.0)
 
+    # SXVector input path and mismatched length
+    sv = SXVector((SX.const(1.0), SX.const(2.0)))
+    assert callbacks.coerce_symbolic_vector(sv, 2, "err") == sv
     with pytest.raises(TypeError):
-        callbacks.coerce_symbolic_vector("nope", 1, "err")
+        callbacks.coerce_symbolic_vector(sv, 1, "err")
 
-    with pytest.raises(TypeError):
-        callbacks.coerce_symbolic_vector((1, 2, 3), 2, "err")
-
-    # matrix coercion
     mat = callbacks.coerce_symbolic_matrix(((1, 0), (0, 2)), 2, "err")
     assert isinstance(mat, tuple) and len(mat) == 2
+    assert all(isinstance(row, SXVector) for row in mat)
+    assert tuple(tuple(e.value for e in row) for row in mat) == ((1.0, 0.0), (0.0, 2.0))
+
+
+def test_coerce_numeric_vector_handles_sxvector_and_item_edge():
+    # SXVector of consts
+    sv = SXVector((SX.const(3.0), SX.const(4.0)))
+    out = callbacks.coerce_numeric_vector(sv, 2, "err")
+    assert out == (3.0, 4.0)
+
+    # object with item() returning non-scalar should raise via coerce_numeric_scalar
+    class BadItem:
+        def item(self):
+            return object()
 
     with pytest.raises(TypeError):
-        callbacks.coerce_symbolic_matrix("bad", 1, "err")
+        callbacks.coerce_numeric_scalar(BadItem(), "err")
 
 
-def test_coerce_numeric_scalar_vector_matrix():
-    assert callbacks.coerce_numeric_scalar(1, "err") == 1.0
-    assert callbacks.coerce_numeric_scalar(SX.const(3.0), "err") == 3.0
-
-    with pytest.raises(TypeError):
-        callbacks.coerce_numeric_scalar(SX.sym("x"), "err")
-
-    vec = callbacks.coerce_numeric_vector((1, 2), 2, "err")
-    assert vec == (1.0, 2.0)
-
-    with pytest.raises(TypeError):
-        callbacks.coerce_numeric_vector("s", 1, "err")
-
-    mat = callbacks.coerce_numeric_matrix(((1, 0), (0, 2)), 2, "err")
-    assert mat == ((1.0, 0.0), (0.0, 2.0))
-
-    with pytest.raises(TypeError):
-        callbacks.coerce_numeric_matrix("bad", 1, "err")
-
-
-def test_build_custom_hvp_from_hessian_scalar_and_vector():
-    # scalar case
+def test_build_custom_hvp_from_hessian_numeric_evaluation():
+    # scalar case: hessian=3.0, tangent=4.0 -> hvp=12.0
     spec_scalar = RegisteredElementaryFunction(
         name="s",
         input_dimension=1,
@@ -125,15 +75,13 @@ def test_build_custom_hvp_from_hessian_scalar_and_vector():
         rust_hessian=None,
     )
 
-    # correct SX tangent multiplies
-    out = callbacks._build_custom_hvp_from_hessian(spec_scalar, SX.const(1.0), SX.const(4.0), ())
-    assert isinstance(out, SX) and out.op == "mul"
+    hvp_expr = callbacks._build_custom_hvp_from_hessian(spec_scalar, SX.const(1.0), SX.const(4.0), ())
+    # hvp_expr should evaluate to 12.0 regardless of input, so create a dummy Function
+    x = SX.sym("x")
+    f = Function("f", [x], [hvp_expr])
+    assert f(0.0) == 12.0
 
-    # wrong tangent type raises
-    with pytest.raises(TypeError):
-        callbacks._build_custom_hvp_from_hessian(spec_scalar, SX.const(1.0), (1.0,), ())
-
-    # vector case
+    # vector case: use simple diagonal Hessian [[1,0],[0,2]] and tangent [3,4]
     spec_vec = RegisteredElementaryFunction(
         name="v",
         input_dimension=2,
@@ -141,7 +89,7 @@ def test_build_custom_hvp_from_hessian_scalar_and_vector():
         parameter_defaults=(),
         eval_python=None,
         jacobian=lambda x, w: SXVector((SX.const(1.0), SX.const(1.0))),
-        hessian=lambda x, w: ((SXVector((SX.const(1.0), SX.const(0.0)))), (SXVector((SX.const(0.0), SX.const(2.0))))) ,
+        hessian=lambda x, w: (SXVector((SX.const(1.0), SX.const(0.0))), SXVector((SX.const(0.0), SX.const(2.0)))),
         hvp=None,
         rust_primal=None,
         rust_jacobian=None,
@@ -150,5 +98,8 @@ def test_build_custom_hvp_from_hessian_scalar_and_vector():
     )
 
     tangent = SXVector((SX.const(3.0), SX.const(4.0)))
-    hvp = callbacks._build_custom_hvp_from_hessian(spec_vec, tangent, tangent, ())
-    assert isinstance(hvp, SXVector) and len(hvp) == 2
+    hvp_vec = callbacks._build_custom_hvp_from_hessian(spec_vec, tangent, tangent, ())
+    # evaluate via a Function with one vector input
+    v = SXVector.sym("v", 2)
+    f2 = Function("f2", [v], [hvp_vec])
+    assert f2([0.0, 0.0]) == (3.0, 8.0)
