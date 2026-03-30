@@ -368,8 +368,12 @@ def _differentiate_op(expr: SX, args: tuple[SX, ...], tangents: tuple[SX, ...]) 
     if expr.op == "norm_p_to_p":
         p = _require_constant_norm_p(args, expr.op)
         total = SX.const(0.0)
-        scale = SX.const(p)
-        exponent = SX.const(p - 2.0)
+        if isinstance(p, SX):
+            scale = p
+            exponent = p - SX.const(2.0)
+        else:
+            scale = SX.const(p)
+            exponent = SX.const(p - 2.0)
         for arg, tangent in zip(args[:-1], tangents[:-1]):
             total = total + (scale * (arg.abs() ** exponent) * arg * tangent)
         return total
@@ -377,7 +381,13 @@ def _differentiate_op(expr: SX, args: tuple[SX, ...], tangents: tuple[SX, ...]) 
         p = _require_constant_norm_p(args, expr.op)
         norm_p_to_p_expr = SX(SXNode.make("norm_p_to_p", tuple(arg.node for arg in args)))
         norm_p_to_p_tangent = _differentiate_op(norm_p_to_p_expr, args, tangents)
-        return (SX.const(1.0 / p) * (norm_p_to_p_expr ** SX.const((1.0 / p) - 1.0))) * norm_p_to_p_tangent
+        if isinstance(p, SX):
+            invp = SX.const(1.0) / p
+            exponent = invp - SX.const(1.0)
+            prefactor = invp * (norm_p_to_p_expr ** exponent)
+        else:
+            prefactor = SX.const(1.0 / p) * (norm_p_to_p_expr ** SX.const((1.0 / p) - 1.0))
+        return prefactor * norm_p_to_p_tangent
     if expr.op in {"norm1", "norm_inf"}:
         raise ValueError(f"cannot differentiate operation {expr.op!r}")
     if expr.op == "abs":
@@ -680,8 +690,12 @@ def _propagate_reverse(
         return
     if node.op == "norm_p_to_p":
         p = _require_constant_norm_p(args, node.op)
-        scale = SX.const(p)
-        exponent = SX.const(p - 2.0)
+        if isinstance(p, SX):
+            scale = p
+            exponent = p - SX.const(2.0)
+        else:
+            scale = SX.const(p)
+            exponent = SX.const(p - 2.0)
         for child_node, arg in zip(node.args[:-1], args[:-1]):
             _accumulate_adjoint(
                 adjoints,
@@ -692,12 +706,21 @@ def _propagate_reverse(
     if node.op == "norm_p":
         p = _require_constant_norm_p(args, node.op)
         norm_p_to_p_expr = SX(SXNode.make("norm_p_to_p", tuple(node.args)))
-        prefactor = adjoint * SX.const(1.0 / p) * (norm_p_to_p_expr ** SX.const((1.0 / p) - 1.0))
+        if isinstance(p, SX):
+            invp = SX.const(1.0) / p
+            exponent = invp - SX.const(1.0)
+            prefactor = adjoint * invp * (norm_p_to_p_expr ** exponent)
+            scale = p
+            exp_for_children = p - SX.const(2.0)
+        else:
+            prefactor = adjoint * SX.const(1.0 / p) * (norm_p_to_p_expr ** SX.const((1.0 / p) - 1.0))
+            scale = SX.const(p)
+            exp_for_children = SX.const(p - 2.0)
         for child_node, arg in zip(node.args[:-1], args[:-1]):
             _accumulate_adjoint(
                 adjoints,
                 child_node,
-                prefactor * SX.const(p) * (arg.abs() ** SX.const(p - 2.0)) * arg,
+                prefactor * scale * (arg.abs() ** exp_for_children) * arg,
             )
         return
     if node.op in {"norm1", "norm_inf"}:
@@ -709,16 +732,28 @@ def _propagate_reverse(
     raise ValueError(f"cannot differentiate operation {node.op!r}")
 
 
-def _require_constant_norm_p(args: tuple[SX, ...], op: str) -> float:
-    """Return a validated constant ``p`` for p-norm differentiation rules."""
+def _require_constant_norm_p(args: tuple[SX, ...], op: str) -> object:
+    """Return either a validated constant ``p`` (float) or an ``SX`` when p is symbolic.
+
+    Historically the AD rules required a numeric constant ``p``. To support
+    symbolic p parameters we accept both constant and symbolic ``p`` here and
+    defer construction of numeric constants to the caller. When ``p`` is
+    constant we perform the usual runtime validation and return the float value.
+    When ``p`` is symbolic we return the ``SX`` instance so callers can build
+    the appropriate SX expressions.
+    """
     p = args[-1]
-    if p.op != "const" or p.value is None:
-        raise ValueError(f"cannot differentiate operation {op!r} with non-constant p")
-    if p.value == 1.0:
-        raise ValueError(f"cannot differentiate operation {op!r} when p == 1")
-    if p.value <= 1.0:
-        raise ValueError(f"cannot differentiate operation {op!r} when p <= 1")
-    return p.value
+    # Constant p: validate numeric constraints and return the float value.
+    if p.op == "const" and p.value is not None:
+        if p.value == 1.0:
+            raise ValueError(f"cannot differentiate operation {op!r} when p == 1")
+        if p.value <= 1.0:
+            raise ValueError(f"cannot differentiate operation {op!r} when p <= 1")
+        return p.value
+
+    # Non-constant (symbolic) p: allow it and return the SX wrapper so callers
+    # can construct SX-based prefactors/exponents instead of numeric constants.
+    return p
 
 
 def _accumulate_adjoint(adjoints: dict[SXNode, SX], node: SXNode, contribution: SX) -> None:

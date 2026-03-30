@@ -1,13 +1,4 @@
-use multi_function_kernel::{
-    multi_function_kernel_coupling_f, multi_function_kernel_coupling_f_jf_x,
-    multi_function_kernel_coupling_f_jf_x_meta, multi_function_kernel_coupling_f_meta,
-    multi_function_kernel_coupling_grad_u_meta, multi_function_kernel_coupling_grad_x,
-    multi_function_kernel_coupling_grad_x_meta, multi_function_kernel_coupling_hvp_u_meta,
-    multi_function_kernel_coupling_hvp_x, multi_function_kernel_coupling_hvp_x_meta,
-    multi_function_kernel_energy_f, multi_function_kernel_energy_f_meta,
-    multi_function_kernel_energy_jf_u_meta, multi_function_kernel_energy_jf_x,
-    multi_function_kernel_energy_jf_x_meta, FunctionMetadata,
-};
+use multi_function_kernel::*;
 
 fn print_metadata(label: &str, metadata: FunctionMetadata) {
     println!("{label}: {metadata:#?}");
@@ -45,22 +36,23 @@ fn main() {
 
     let mut energy = vec![0.0_f64; energy_f_metadata.output_sizes[0]];
     let mut energy_work = vec![0.0_f64; energy_f_metadata.workspace_size];
-    multi_function_kernel_energy_f(&x, &u, &mut energy, &mut energy_work);
+    multi_function_kernel_energy_f(&x, &u, &mut energy, &mut energy_work).unwrap();
     println!("energy(x, u) = {}", format_slice(&energy));
 
     let mut energy_jf_x = vec![0.0_f64; energy_jf_x_metadata.output_sizes[0]];
     let mut energy_jf_x_work = vec![0.0_f64; energy_jf_x_metadata.workspace_size];
-    multi_function_kernel_energy_jf_x(&x, &u, &mut energy_jf_x, &mut energy_jf_x_work);
+    multi_function_kernel_energy_jf_x(&x, &u, &mut energy_jf_x, &mut energy_jf_x_work).unwrap();
     println!("J_energy wrt x = {}", format_slice(&energy_jf_x));
 
     let mut coupling = vec![0.0_f64; coupling_f_metadata.output_sizes[0]];
     let mut coupling_work = vec![0.0_f64; coupling_f_metadata.workspace_size];
-    multi_function_kernel_coupling_f(&x, &u, &mut coupling, &mut coupling_work);
+    multi_function_kernel_coupling_f(&x, &u, &mut coupling, &mut coupling_work).unwrap();
     println!("coupling(x, u) = {}", format_slice(&coupling));
 
     let mut coupling_grad_x = vec![0.0_f64; coupling_grad_x_metadata.output_sizes[0]];
     let mut coupling_grad_x_work = vec![0.0_f64; coupling_grad_x_metadata.workspace_size];
-    multi_function_kernel_coupling_grad_x(&x, &u, &mut coupling_grad_x, &mut coupling_grad_x_work);
+    multi_function_kernel_coupling_grad_x(&x, &u, &mut coupling_grad_x, &mut coupling_grad_x_work)
+        .unwrap();
     println!("grad coupling wrt x = {}", format_slice(&coupling_grad_x));
 
     let mut coupling_hvp_x = vec![0.0_f64; coupling_hvp_x_metadata.output_sizes[0]];
@@ -71,7 +63,8 @@ fn main() {
         &v_x,
         &mut coupling_hvp_x,
         &mut coupling_hvp_x_work,
-    );
+    )
+    .unwrap();
     println!("hvp coupling wrt x = {}", format_slice(&coupling_hvp_x));
 
     let mut joint_coupling = vec![0.0_f64; coupling_joint_metadata.output_sizes[0]];
@@ -83,7 +76,8 @@ fn main() {
         &mut joint_coupling,
         &mut joint_jacobian,
         &mut joint_work,
-    );
+    )
+    .unwrap();
     println!(
         "joint coupling and J_coupling wrt x = {}, {}",
         format_slice(&joint_coupling),

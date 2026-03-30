@@ -1,5 +1,12 @@
 #![no_std]
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GradgenError {
+    WorkspaceTooSmall(&'static str),
+    InputTooSmall(&'static str),
+    OutputTooSmall(&'static str),
+}
+
 fn norm2sq(values: &[f64]) -> f64 {
     values.iter().map(|value| *value * *value).sum()
 }
@@ -48,24 +55,29 @@ pub fn multi_function_kernel_energy_f_meta() -> FunctionMetadata {
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
-pub fn multi_function_kernel_energy_f(x: &[f64], u: &[f64], energy: &mut [f64], work: &mut [f64]) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(
-        energy.len(),
-        1,
-        "energy is length {} but should be 1",
-        energy.len()
-    );
+pub fn multi_function_kernel_energy_f(
+    x: &[f64],
+    u: &[f64],
+    energy: &mut [f64],
+    work: &mut [f64],
+) -> Result<(), GradgenError> {
+    if work.len() < 2 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("u expected length 1"));
+    };
+    if energy.len() != 1 {
+        return Err(GradgenError::OutputTooSmall("energy expected length 1"));
+    };
     work[0] = u[0] * x[0];
     work[1] = norm2sq(x);
     work[0] += work[1];
     energy[0] = work[0];
+    Ok(())
 }
 
 /// Return metadata describing [`multi_function_kernel_energy_jf_x`].
@@ -102,25 +114,27 @@ pub fn multi_function_kernel_energy_jf_x(
     u: &[f64],
     jacobian_energy: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(
-        jacobian_energy.len(),
-        2,
-        "jacobian_energy is length {} but should be 2",
-        jacobian_energy.len()
-    );
+) -> Result<(), GradgenError> {
+    if work.len() < 2 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("u expected length 1"));
+    };
+    if jacobian_energy.len() != 2 {
+        return Err(GradgenError::OutputTooSmall(
+            "jacobian_energy expected length 2",
+        ));
+    };
     work[0] = 2.0_f64 * x[0];
     work[0] += u[0];
     work[1] = 2.0_f64 * x[1];
     jacobian_energy[0] = work[0];
     jacobian_energy[1] = work[1];
+    Ok(())
 }
 
 /// Return metadata describing [`multi_function_kernel_energy_jf_u`].
@@ -157,16 +171,20 @@ pub fn multi_function_kernel_energy_jf_u(
     u: &[f64],
     jacobian_energy: &mut [f64],
     _work: &mut [f64],
-) {
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(
-        jacobian_energy.len(),
-        1,
-        "jacobian_energy is length {} but should be 1",
-        jacobian_energy.len()
-    );
+) -> Result<(), GradgenError> {
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("u expected length 1"));
+    };
+    if jacobian_energy.len() != 1 {
+        return Err(GradgenError::OutputTooSmall(
+            "jacobian_energy expected length 1",
+        ));
+    };
     jacobian_energy[0] = x[0];
+    Ok(())
 }
 
 /// Return metadata describing [`multi_function_kernel_coupling_f`].
@@ -202,24 +220,24 @@ pub fn multi_function_kernel_coupling_f(
     u: &[f64],
     coupling: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(
-        coupling.len(),
-        1,
-        "coupling is length {} but should be 1",
-        coupling.len()
-    );
+) -> Result<(), GradgenError> {
+    if work.len() < 2 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("u expected length 1"));
+    };
+    if coupling.len() != 1 {
+        return Err(GradgenError::OutputTooSmall("coupling expected length 1"));
+    };
     work[0] = libm::cos(u[0]);
     work[1] = x[0] * x[1];
     work[0] += work[1];
     coupling[0] = work[0];
+    Ok(())
 }
 
 /// Return metadata describing [`multi_function_kernel_coupling_grad_x`].
@@ -255,17 +273,19 @@ pub fn multi_function_kernel_coupling_grad_x(
     u: &[f64],
     coupling: &mut [f64],
     _work: &mut [f64],
-) {
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(
-        coupling.len(),
-        2,
-        "coupling is length {} but should be 2",
-        coupling.len()
-    );
+) -> Result<(), GradgenError> {
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("u expected length 1"));
+    };
+    if coupling.len() != 2 {
+        return Err(GradgenError::OutputTooSmall("coupling expected length 2"));
+    };
     coupling[0] = x[1];
     coupling[1] = x[0];
+    Ok(())
 }
 
 /// Return metadata describing [`multi_function_kernel_coupling_grad_u`].
@@ -301,23 +321,23 @@ pub fn multi_function_kernel_coupling_grad_u(
     u: &[f64],
     coupling: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(
-        coupling.len(),
-        1,
-        "coupling is length {} but should be 1",
-        coupling.len()
-    );
+) -> Result<(), GradgenError> {
+    if work.is_empty() {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 1"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("u expected length 1"));
+    };
+    if coupling.len() != 1 {
+        return Err(GradgenError::OutputTooSmall("coupling expected length 1"));
+    };
     work[0] = libm::sin(u[0]);
     work[0] = -work[0];
     coupling[0] = work[0];
+    Ok(())
 }
 
 /// Return metadata describing [`multi_function_kernel_coupling_hvp_x`].
@@ -359,18 +379,22 @@ pub fn multi_function_kernel_coupling_hvp_x(
     v_x: &[f64],
     coupling: &mut [f64],
     _work: &mut [f64],
-) {
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(v_x.len(), 2, "v_x is length {} but should be 2", v_x.len());
-    assert_eq!(
-        coupling.len(),
-        2,
-        "coupling is length {} but should be 2",
-        coupling.len()
-    );
+) -> Result<(), GradgenError> {
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("u expected length 1"));
+    };
+    if v_x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("v_x expected length 2"));
+    };
+    if coupling.len() != 2 {
+        return Err(GradgenError::OutputTooSmall("coupling expected length 2"));
+    };
     coupling[0] = v_x[1];
     coupling[1] = v_x[0];
+    Ok(())
 }
 
 /// Return metadata describing [`multi_function_kernel_coupling_hvp_u`].
@@ -412,25 +436,27 @@ pub fn multi_function_kernel_coupling_hvp_u(
     v_u: &[f64],
     coupling: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(v_u.len(), 1, "v_u is length {} but should be 1", v_u.len());
-    assert_eq!(
-        coupling.len(),
-        1,
-        "coupling is length {} but should be 1",
-        coupling.len()
-    );
+) -> Result<(), GradgenError> {
+    if work.is_empty() {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 1"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("u expected length 1"));
+    };
+    if v_u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("v_u expected length 1"));
+    };
+    if coupling.len() != 1 {
+        return Err(GradgenError::OutputTooSmall("coupling expected length 1"));
+    };
     work[0] = libm::cos(u[0]);
     work[0] *= v_u[0];
     work[0] = -work[0];
     coupling[0] = work[0];
+    Ok(())
 }
 
 /// Return metadata describing [`multi_function_kernel_coupling_f_jf_x`].
@@ -471,30 +497,29 @@ pub fn multi_function_kernel_coupling_f_jf_x(
     coupling: &mut [f64],
     jacobian_coupling: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(
-        coupling.len(),
-        1,
-        "coupling is length {} but should be 1",
-        coupling.len()
-    );
-    assert_eq!(
-        jacobian_coupling.len(),
-        2,
-        "jacobian_coupling is length {} but should be 2",
-        jacobian_coupling.len()
-    );
+) -> Result<(), GradgenError> {
+    if work.len() < 2 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
+    };
+    if x.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x expected length 2"));
+    };
+    if u.len() != 1 {
+        return Err(GradgenError::InputTooSmall("u expected length 1"));
+    };
+    if coupling.len() != 1 {
+        return Err(GradgenError::OutputTooSmall("coupling expected length 1"));
+    };
+    if jacobian_coupling.len() != 2 {
+        return Err(GradgenError::OutputTooSmall(
+            "jacobian_coupling expected length 2",
+        ));
+    };
     work[0] = libm::cos(u[0]);
     work[1] = x[0] * x[1];
     work[0] += work[1];
     coupling[0] = work[0];
     jacobian_coupling[0] = x[1];
     jacobian_coupling[1] = x[0];
+    Ok(())
 }

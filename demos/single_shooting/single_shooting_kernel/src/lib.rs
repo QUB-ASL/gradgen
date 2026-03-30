@@ -1,5 +1,12 @@
 #![no_std]
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GradgenError {
+    WorkspaceTooSmall(&'static str),
+    InputTooSmall(&'static str),
+    OutputTooSmall(&'static str),
+}
+
 /// Metadata describing a generated Rust function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FunctionMetadata {
@@ -58,32 +65,25 @@ pub fn single_shooting_kernel_mpc_cost_f_states(
     cost: &mut [f64],
     x_traj: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        work.len() >= 8,
-        "work is length {} but should be at least 8",
-        work.len()
-    );
-    assert_eq!(x0.len(), 2, "x0 is length {} but should be 2", x0.len());
-    assert_eq!(
-        u_seq.len(),
-        5,
-        "u_seq is length {} but should be 5",
-        u_seq.len()
-    );
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        cost.len(),
-        1,
-        "cost is length {} but should be 1",
-        cost.len()
-    );
-    assert_eq!(
-        x_traj.len(),
-        12,
-        "x_traj is length {} but should be 12",
-        x_traj.len()
-    );
+) -> Result<(), GradgenError> {
+    if work.len() < 8 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 8"));
+    };
+    if x0.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x0 expected length 2"));
+    };
+    if u_seq.len() != 5 {
+        return Err(GradgenError::InputTooSmall("u_seq expected length 5"));
+    };
+    if p.len() != 2 {
+        return Err(GradgenError::InputTooSmall("p expected length 2"));
+    };
+    if cost.len() != 1 {
+        return Err(GradgenError::OutputTooSmall("cost expected length 1"));
+    };
+    if x_traj.len() != 12 {
+        return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
+    };
     let rest = work;
     let (state_buffers, rest) = rest.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
@@ -108,6 +108,7 @@ pub fn single_shooting_kernel_mpc_cost_f_states(
     single_shooting_kernel_mpc_cost_terminal_cost(current_state, p, scalar_buffer, stage_work);
     total_cost += scalar_buffer[0];
     cost[0] = total_cost;
+    Ok(())
 }
 
 fn single_shooting_kernel_mpc_cost_dynamics(
@@ -236,32 +237,27 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
     gradient_u_seq: &mut [f64],
     x_traj: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        work.len() >= 24,
-        "work is length {} but should be at least 24",
-        work.len()
-    );
-    assert_eq!(x0.len(), 2, "x0 is length {} but should be 2", x0.len());
-    assert_eq!(
-        u_seq.len(),
-        5,
-        "u_seq is length {} but should be 5",
-        u_seq.len()
-    );
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        gradient_u_seq.len(),
-        5,
-        "gradient_u_seq is length {} but should be 5",
-        gradient_u_seq.len()
-    );
-    assert_eq!(
-        x_traj.len(),
-        12,
-        "x_traj is length {} but should be 12",
-        x_traj.len()
-    );
+) -> Result<(), GradgenError> {
+    if work.len() < 24 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 24"));
+    };
+    if x0.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x0 expected length 2"));
+    };
+    if u_seq.len() != 5 {
+        return Err(GradgenError::InputTooSmall("u_seq expected length 5"));
+    };
+    if p.len() != 2 {
+        return Err(GradgenError::InputTooSmall("p expected length 2"));
+    };
+    if gradient_u_seq.len() != 5 {
+        return Err(GradgenError::OutputTooSmall(
+            "gradient_u_seq expected length 5",
+        ));
+    };
+    if x_traj.len() != 12 {
+        return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
+    };
     let (state_history, rest) = work.split_at_mut(10);
     let (state_buffers, rest) = rest.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
@@ -324,6 +320,7 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
         stage_work,
     );
     grad_u_t[0] += temp_control[0];
+    Ok(())
 }
 
 fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(
@@ -504,38 +501,28 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
     hvp_u_seq: &mut [f64],
     x_traj: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        work.len() >= 42,
-        "work is length {} but should be at least 42",
-        work.len()
-    );
-    assert_eq!(x0.len(), 2, "x0 is length {} but should be 2", x0.len());
-    assert_eq!(
-        u_seq.len(),
-        5,
-        "u_seq is length {} but should be 5",
-        u_seq.len()
-    );
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        v_u_seq.len(),
-        5,
-        "v_u_seq is length {} but should be 5",
-        v_u_seq.len()
-    );
-    assert_eq!(
-        hvp_u_seq.len(),
-        5,
-        "hvp_u_seq is length {} but should be 5",
-        hvp_u_seq.len()
-    );
-    assert_eq!(
-        x_traj.len(),
-        12,
-        "x_traj is length {} but should be 12",
-        x_traj.len()
-    );
+) -> Result<(), GradgenError> {
+    if work.len() < 42 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 42"));
+    };
+    if x0.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x0 expected length 2"));
+    };
+    if u_seq.len() != 5 {
+        return Err(GradgenError::InputTooSmall("u_seq expected length 5"));
+    };
+    if p.len() != 2 {
+        return Err(GradgenError::InputTooSmall("p expected length 2"));
+    };
+    if v_u_seq.len() != 5 {
+        return Err(GradgenError::InputTooSmall("v_u_seq expected length 5"));
+    };
+    if hvp_u_seq.len() != 5 {
+        return Err(GradgenError::OutputTooSmall("hvp_u_seq expected length 5"));
+    };
+    if x_traj.len() != 12 {
+        return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
+    };
     let (state_history, rest) = work.split_at_mut(10);
     let (tangent_history, rest) = rest.split_at_mut(10);
     let (state_buffers, rest) = rest.split_at_mut(4);
@@ -672,6 +659,7 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
         stage_work,
     );
     hvp_u_t[0] += temp_control[0];
+    Ok(())
 }
 
 fn single_shooting_kernel_mpc_cost_dynamics_jvp(
@@ -975,38 +963,30 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
     gradient_u_seq: &mut [f64],
     x_traj: &mut [f64],
     work: &mut [f64],
-) {
-    assert!(
-        work.len() >= 25,
-        "work is length {} but should be at least 25",
-        work.len()
-    );
-    assert_eq!(x0.len(), 2, "x0 is length {} but should be 2", x0.len());
-    assert_eq!(
-        u_seq.len(),
-        5,
-        "u_seq is length {} but should be 5",
-        u_seq.len()
-    );
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        cost.len(),
-        1,
-        "cost is length {} but should be 1",
-        cost.len()
-    );
-    assert_eq!(
-        gradient_u_seq.len(),
-        5,
-        "gradient_u_seq is length {} but should be 5",
-        gradient_u_seq.len()
-    );
-    assert_eq!(
-        x_traj.len(),
-        12,
-        "x_traj is length {} but should be 12",
-        x_traj.len()
-    );
+) -> Result<(), GradgenError> {
+    if work.len() < 25 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 25"));
+    };
+    if x0.len() != 2 {
+        return Err(GradgenError::InputTooSmall("x0 expected length 2"));
+    };
+    if u_seq.len() != 5 {
+        return Err(GradgenError::InputTooSmall("u_seq expected length 5"));
+    };
+    if p.len() != 2 {
+        return Err(GradgenError::InputTooSmall("p expected length 2"));
+    };
+    if cost.len() != 1 {
+        return Err(GradgenError::OutputTooSmall("cost expected length 1"));
+    };
+    if gradient_u_seq.len() != 5 {
+        return Err(GradgenError::OutputTooSmall(
+            "gradient_u_seq expected length 5",
+        ));
+    };
+    if x_traj.len() != 12 {
+        return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
+    };
     let (state_history, rest) = work.split_at_mut(10);
     let (state_buffers, rest) = rest.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
@@ -1081,4 +1061,5 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
         stage_work,
     );
     grad_u_t[0] += temp_control[0];
+    Ok(())
 }

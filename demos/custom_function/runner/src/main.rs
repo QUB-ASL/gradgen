@@ -1,12 +1,4 @@
-use custom_function_kernel::{
-    custom_function_kernel_custom_energy_f, custom_function_kernel_custom_energy_f_meta,
-    custom_function_kernel_custom_energy_grad_x_f,
-    custom_function_kernel_custom_energy_grad_x_f_meta,
-    custom_function_kernel_custom_energy_hessian_x_f,
-    custom_function_kernel_custom_energy_hessian_x_f_meta,
-    custom_function_kernel_custom_energy_hvp_x_f,
-    custom_function_kernel_custom_energy_hvp_x_f_meta, FunctionMetadata,
-};
+use custom_function_kernel::*;
 
 fn print_metadata(label: &str, metadata: FunctionMetadata) {
     println!("{label}: {metadata:#?}");
@@ -34,21 +26,22 @@ fn main() {
 
     let mut y = vec![0.0_f64; primal_metadata.output_sizes[0]];
     let mut y_work = vec![0.0_f64; primal_metadata.workspace_size];
-    custom_function_kernel_custom_energy_f(&x, &w, &mut y, &mut y_work);
+    custom_function_kernel_custom_energy_f(&x, &w, &mut y, &mut y_work).unwrap();
     println!("custom_energy(x, w) = {}", format_slice(&y));
 
     let mut grad = vec![0.0_f64; gradient_metadata.output_sizes[0]];
     let mut grad_work = vec![0.0_f64; gradient_metadata.workspace_size];
-    custom_function_kernel_custom_energy_grad_x_f(&x, &w, &mut grad, &mut grad_work);
+    custom_function_kernel_custom_energy_grad_x_f(&x, &w, &mut grad, &mut grad_work).unwrap();
     println!("grad_x custom_energy(x, w) = {}", format_slice(&grad));
 
     let mut hessian = vec![0.0_f64; hessian_metadata.output_sizes[0]];
     let mut hessian_work = vec![0.0_f64; hessian_metadata.workspace_size];
-    custom_function_kernel_custom_energy_hessian_x_f(&x, &w, &mut hessian, &mut hessian_work);
+    custom_function_kernel_custom_energy_hessian_x_f(&x, &w, &mut hessian, &mut hessian_work)
+        .unwrap();
     println!("hessian_x custom_energy(x, w) = {}", format_slice(&hessian));
 
     let mut hvp = vec![0.0_f64; hvp_metadata.output_sizes[0]];
     let mut hvp_work = vec![0.0_f64; hvp_metadata.workspace_size];
-    custom_function_kernel_custom_energy_hvp_x_f(&x, &w, &v_x, &mut hvp, &mut hvp_work);
+    custom_function_kernel_custom_energy_hvp_x_f(&x, &w, &v_x, &mut hvp, &mut hvp_work).unwrap();
     println!("hvp_x custom_energy(x, w, v_x) = {}", format_slice(&hvp));
 }

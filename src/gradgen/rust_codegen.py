@@ -367,19 +367,22 @@ def generate_rust(
 
     scalar_bindings: dict[SXNode, str] = {}
     input_assert_lines: list[str] = []
+    input_return_lines: list[str] = []
     output_assert_lines: list[str] = []
+    output_return_lines: list[str] = []
     output_write_lines: list[str] = []
     computation_lines: list[str] = []
+    workspace_return_line: str | None = None
     suppressed_custom_wrappers: set[tuple[str, str]] = set()
 
     for input_spec, input_arg in zip(input_specs, function.inputs):
-        input_assert_lines.append(
-            _emit_exact_length_assert(
-                input_spec.rust_name,
-                input_spec.raw_name,
-                input_spec.size,
-            )
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            input_spec.rust_name,
+            input_spec.raw_name,
+            input_spec.size,
         )
+        input_assert_lines.append(_assert)
+        input_return_lines.append(_in_return)
         for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
             scalar_bindings[scalar.node] = f"{input_spec.rust_name}[{scalar_index}]"
 
@@ -453,13 +456,13 @@ def generate_rust(
         )
 
     for output_spec, output_arg, direct_helper_call in zip(output_specs, function.outputs, direct_output_helpers):
-        output_assert_lines.append(
-            _emit_exact_length_assert(
-                output_spec.rust_name,
-                output_spec.raw_name,
-                output_spec.size,
-            )
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            output_spec.rust_name,
+            output_spec.raw_name,
+            output_spec.size,
         )
+        output_assert_lines.append(_assert)
+        output_return_lines.append(_out_return)
         if direct_helper_call is not None:
             output_write_lines.append(
                 _reemit_direct_output_helper_call(
@@ -497,6 +500,13 @@ def generate_rust(
         ]
     )
 
+    # workspace assertion emits both legacy assert and Result-returning form
+    if workspace_size > 0:
+        _ws_assert, _ws_return = _emit_min_length_assert("work", "work", workspace_size)
+    else:
+        _ws_assert = None
+        _ws_return = None
+
     source = _get_template("lib.rs.j2").render(
         function_name=name,
         function_label=_format_rust_string_literal(name),
@@ -509,18 +519,17 @@ def generate_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
         workspace_size=workspace_size,
-        workspace_assert_line=(
-            _emit_min_length_assert("work", "work", workspace_size)
-            if workspace_size > 0
-            else None
-        ),
+        workspace_assert_line=_ws_assert,
+        workspace_return_line=_ws_return,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
         function_parameter_count=len(input_specs) + len(output_specs) + 1,
         parameters=parameters,
         input_assert_lines=input_assert_lines,
+        input_return_lines=input_return_lines,
         output_assert_lines=output_assert_lines,
+        output_return_lines=output_return_lines,
         computation_lines=computation_lines,
         output_write_lines=output_write_lines,
         shared_helper_lines=_build_shared_helper_lines(
@@ -534,7 +543,7 @@ def generate_rust(
                 else (shared_helper_suppressed_custom_wrappers or set())
             ),
         ),
-    )
+    ).rstrip()
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
@@ -962,28 +971,32 @@ def _generate_composed_primal_rust(
         ),
     )
     _validate_generated_argument_names(input_specs, output_specs)
-    input_assert_lines = [
-        _emit_exact_length_assert(
-            input_specs[0].rust_name,
-            input_specs[0].raw_name,
-            state_size,
-        )
-    ]
+    input_assert_lines = []
+    input_return_lines = []
+    output_assert_lines = []
+    output_return_lines = []
+    _assert, _in_return, _out_return = _emit_exact_length_assert(
+        input_specs[0].rust_name,
+        input_specs[0].raw_name,
+        state_size,
+    )
+    input_assert_lines.append(_assert)
+    input_return_lines.append(_in_return)
     if composed.parameter_size > 0:
-        input_assert_lines.append(
-            _emit_exact_length_assert(
-                input_specs[1].rust_name,
-                input_specs[1].raw_name,
-                composed.parameter_size,
-            )
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            input_specs[1].rust_name,
+            input_specs[1].raw_name,
+            composed.parameter_size,
         )
-    output_assert_lines = [
-        _emit_exact_length_assert(
-            output_specs[0].rust_name,
-            output_specs[0].raw_name,
-            1,
-        )
-    ]
+        input_assert_lines.append(_assert)
+        input_return_lines.append(_in_return)
+    _assert, _in_return, _out_return = _emit_exact_length_assert(
+        output_specs[0].rust_name,
+        output_specs[0].raw_name,
+        1,
+    )
+    output_assert_lines.append(_assert)
+    output_return_lines.append(_out_return)
 
     state_work_size = 2 * state_size
     workspace_size = state_work_size + max_helper_workspace
@@ -1041,6 +1054,12 @@ def _generate_composed_primal_rust(
             f"work: &mut [{resolved_config.scalar_type}]",
         ]
     )
+    if workspace_size > 0:
+        _ws_assert, _ws_return = _emit_min_length_assert("work", "work", workspace_size)
+    else:
+        _ws_assert = None
+        _ws_return = None
+
     driver_source = _get_template("lib.rs.j2").render(
         function_name=name,
         function_label=_format_rust_string_literal(name),
@@ -1053,14 +1072,17 @@ def _generate_composed_primal_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
         workspace_size=workspace_size,
-        workspace_assert_line=_emit_min_length_assert("work", "work", workspace_size),
+        workspace_assert_line=_ws_assert,
+        workspace_return_line=_ws_return,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
         function_parameter_count=len(input_specs) + len(output_specs) + 1,
         parameters=parameters,
         input_assert_lines=input_assert_lines,
+        input_return_lines=input_return_lines,
         output_assert_lines=output_assert_lines,
+        output_return_lines=output_return_lines,
         computation_lines=computation_lines,
         output_write_lines=[],
         shared_helper_lines=shared_helper_lines,
@@ -1277,28 +1299,32 @@ def _generate_composed_gradient_rust(
         ),
     )
     _validate_generated_argument_names(input_specs, output_specs)
-    input_assert_lines = [
-        _emit_exact_length_assert(
-            input_specs[0].rust_name,
-            input_specs[0].raw_name,
-            state_size,
-        )
-    ]
+    input_assert_lines = []
+    input_return_lines = []
+    output_assert_lines = []
+    output_return_lines = []
+    _assert, _in_return, _out_return = _emit_exact_length_assert(
+        input_specs[0].rust_name,
+        input_specs[0].raw_name,
+        state_size,
+    )
+    input_assert_lines.append(_assert)
+    input_return_lines.append(_in_return)
     if composed.parameter_size > 0:
-        input_assert_lines.append(
-            _emit_exact_length_assert(
-                input_specs[1].rust_name,
-                input_specs[1].raw_name,
-                composed.parameter_size,
-            )
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            input_specs[1].rust_name,
+            input_specs[1].raw_name,
+            composed.parameter_size,
         )
-    output_assert_lines = [
-        _emit_exact_length_assert(
-            output_specs[0].rust_name,
-            output_specs[0].raw_name,
-            state_size,
-        )
-    ]
+        input_assert_lines.append(_assert)
+        input_return_lines.append(_in_return)
+    _assert, _in_return, _out_return = _emit_exact_length_assert(
+        output_specs[0].rust_name,
+        output_specs[0].raw_name,
+        state_size,
+    )
+    output_assert_lines.append(_assert)
+    output_return_lines.append(_out_return)
 
     states_size = composed.stage_count * state_size
     workspace_size = states_size + state_size + (2 * state_size) + max_helper_workspace
@@ -1390,6 +1416,12 @@ def _generate_composed_gradient_rust(
             f"work: &mut [{resolved_config.scalar_type}]",
         ]
     )
+    if workspace_size > 0:
+        _ws_assert, _ws_return = _emit_min_length_assert("work", "work", workspace_size)
+    else:
+        _ws_assert = None
+        _ws_return = None
+
     driver_source = _get_template("lib.rs.j2").render(
         function_name=name,
         function_label=_format_rust_string_literal(name),
@@ -1402,14 +1434,17 @@ def _generate_composed_gradient_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
         workspace_size=workspace_size,
-        workspace_assert_line=_emit_min_length_assert("work", "work", workspace_size),
+        workspace_assert_line=_ws_assert,
+        workspace_return_line=_ws_return,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
         function_parameter_count=len(input_specs) + len(output_specs) + 1,
         parameters=parameters,
         input_assert_lines=input_assert_lines,
+        input_return_lines=input_return_lines,
         output_assert_lines=output_assert_lines,
+        output_return_lines=output_return_lines,
         computation_lines=computation_lines,
         output_write_lines=[],
         shared_helper_lines=shared_helper_lines,
@@ -1600,14 +1635,22 @@ def _generate_single_shooting_driver_rust(
     need_history = include_gradient or include_hvp
     need_adjoint = include_gradient or include_hvp
 
-    input_assert_lines = [
-        _emit_exact_length_assert(input_spec.rust_name, input_spec.raw_name, input_spec.size)
-        for input_spec in input_specs
-    ]
-    output_assert_lines = [
-        _emit_exact_length_assert(output_spec.rust_name, output_spec.raw_name, output_spec.size)
-        for output_spec in output_specs
-    ]
+    input_assert_lines = []
+    input_return_lines = []
+    for input_spec in input_specs:
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            input_spec.rust_name, input_spec.raw_name, input_spec.size
+        )
+        input_assert_lines.append(_assert)
+        input_return_lines.append(_in_return)
+    output_assert_lines = []
+    output_return_lines = []
+    for output_spec in output_specs:
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            output_spec.rust_name, output_spec.raw_name, output_spec.size
+        )
+        output_assert_lines.append(_assert)
+        output_return_lines.append(_out_return)
 
     state_history_size = (horizon * state_size) if need_history else 0
     tangent_history_size = (horizon * state_size) if include_hvp else 0
@@ -1861,6 +1904,12 @@ def _generate_single_shooting_driver_rust(
             "work: &mut [{scalar_type}]".format(scalar_type=resolved_config.scalar_type),
         ]
     )
+    if workspace_size > 0:
+        _ws_assert, _ws_return = _emit_min_length_assert("work", "work", workspace_size)
+    else:
+        _ws_assert = None
+        _ws_return = None
+
     driver_source = _get_template("lib.rs.j2").render(
         function_name=name,
         function_label=_format_rust_string_literal(name),
@@ -1873,14 +1922,17 @@ def _generate_single_shooting_driver_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
         workspace_size=workspace_size,
-        workspace_assert_line=_emit_min_length_assert("work", "work", workspace_size),
+        workspace_assert_line=_ws_assert,
+        workspace_return_line=_ws_return,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
         function_parameter_count=len(input_specs) + len(output_specs) + 1,
         parameters=parameters,
         input_assert_lines=input_assert_lines,
+        input_return_lines=input_return_lines,
         output_assert_lines=output_assert_lines,
+        output_return_lines=output_return_lines,
         computation_lines=computation_lines,
         output_write_lines=[],
         shared_helper_lines=shared_helper_lines,
@@ -2991,27 +3043,59 @@ def _workspace_ref_for_node(node: SXNode, workspace_map: dict[SXNode, int]) -> s
 
 
 def _emit_exact_length_assert(rust_name: str, display_name: str, expected_size: int) -> str:
-    """Emit an ``assert_eq!`` with a clear length mismatch message."""
-    return (
+    """Emit an ``assert_eq!`` with a clear length mismatch message.
+
+    Returns a triple of strings: (assert_line, input_return_line, output_return_line).
+    The caller can use the assert_line for legacy emission or the return
+    variants for public API generation that returns ``Result``.
+    """
+    assert_line = (
         f'assert_eq!({rust_name}.len(), {expected_size}, '
         f'"{display_name} is length {{}} but should be {expected_size}", '
         f"{rust_name}.len());"
     )
+    input_return = (
+        f'if {rust_name}.len() != {expected_size} {{ '
+        f'return Err(GradgenError::InputTooSmall("{display_name} expected length {expected_size}")); '
+        f'}};'
+    )
+    output_return = (
+        f'if {rust_name}.len() != {expected_size} {{ '
+        f'return Err(GradgenError::OutputTooSmall("{display_name} expected length {expected_size}")); '
+        f'}};'
+    )
+    return (assert_line, input_return, output_return)
 
 
 def _emit_min_length_assert(rust_name: str, display_name: str, minimum_size: int) -> str:
-    """Emit an ``assert!`` with a clear minimum-length mismatch message."""
+    """Emit an ``assert!`` with a clear minimum-length mismatch message.
+
+    Returns a pair: (assert_line, return_line) where return_line is the
+    `Result`-returning form using `GradgenError::WorkspaceTooSmall`.
+    """
     if minimum_size == 1:
-        return (
+        assert_line = (
             f'assert!(!{rust_name}.is_empty(), '
             f'"{display_name} is length {{}} but should be at least 1", '
             f"{rust_name}.len());"
         )
-    return (
+        return_line = (
+            f'if {rust_name}.is_empty() {{ '
+            f'return Err(GradgenError::WorkspaceTooSmall("{display_name} expected at least 1")); '
+            f'}};'
+        )
+        return (assert_line, return_line)
+    assert_line = (
         f'assert!({rust_name}.len() >= {minimum_size}, '
         f'"{display_name} is length {{}} but should be at least {minimum_size}", '
         f"{rust_name}.len());"
     )
+    return_line = (
+        f'if {rust_name}.len() < {minimum_size} {{ '
+        f'return Err(GradgenError::WorkspaceTooSmall("{display_name} expected at least {minimum_size}")); '
+        f'}};'
+    )
+    return (assert_line, return_line)
 
 
 def _allocate_workspace_slots(

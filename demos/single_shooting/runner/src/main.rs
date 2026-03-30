@@ -58,7 +58,8 @@ fn main() {
         &mut cost,
         &mut x_traj,
         &mut primal_work,
-    );
+    )
+    .unwrap();
     println!("cost(x0, u_seq, p) = {}", format_slice(&cost));
     println!("x_traj(x0, u_seq, p) = {}", format_slice(&x_traj));
 
@@ -72,7 +73,8 @@ fn main() {
         &mut gradient,
         &mut gradient_states,
         &mut gradient_work,
-    );
+    )
+    .unwrap();
     println!("grad cost(x0, u_seq, p) = {}", format_slice(&gradient));
 
     let mut hvp = vec![0.0_f64; hvp_metadata.output_sizes[0]];
@@ -86,7 +88,8 @@ fn main() {
         &mut hvp,
         &mut hvp_states,
         &mut hvp_work,
-    );
+    )
+    .unwrap();
     println!("hvp cost(x0, u_seq, p; v_u_seq) = {}", format_slice(&hvp));
 
     let mut joint_cost = vec![0.0_f64; joint_metadata.output_sizes[0]];
@@ -101,7 +104,8 @@ fn main() {
         &mut joint_gradient,
         &mut joint_states,
         &mut joint_work,
-    );
+    )
+    .unwrap();
     println!("joint cost(x0, u_seq, p) = {}", format_slice(&joint_cost));
     println!(
         "joint grad cost(x0, u_seq, p) = {}",
@@ -119,7 +123,7 @@ fn main() {
     let mut benchmark_work = vec![0.0_f64; joint_metadata.workspace_size];
     let mut checksum = 0.0_f64;
 
-    println!("\n---- BENCHMARKIGN gradient computation ----");
+    println!("\n---- BENCHMARKING gradient computation ----");
 
     let started = Instant::now();
     for _ in 0..iterations {
@@ -131,7 +135,8 @@ fn main() {
             black_box(&mut benchmark_gradient),
             black_box(&mut benchmark_states),
             black_box(&mut benchmark_work),
-        );
+        )
+        .unwrap();
         checksum += benchmark_cost[0] + benchmark_gradient[0] + benchmark_states[0];
     }
     let elapsed = started.elapsed();
@@ -146,7 +151,7 @@ fn main() {
         average_microseconds, checksum
     );
 
-    println!("\n---- BENCHMARKIGN HVP computation ---------");
+    println!("\n---- BENCHMARKING HVP computation ---------");
 
     let mut benchmark_hvp = vec![0.0_f64; hvp_metadata.output_sizes[0]];
     let mut benchmark_hvp_states = vec![0.0_f64; hvp_metadata.output_sizes[1]];
@@ -163,7 +168,8 @@ fn main() {
             black_box(&mut benchmark_hvp),
             black_box(&mut benchmark_hvp_states),
             black_box(&mut benchmark_hvp_work),
-        );
+        )
+        .unwrap();
         hvp_checksum += benchmark_hvp[0] + benchmark_hvp_states[0];
     }
     let hvp_elapsed = hvp_started.elapsed();
