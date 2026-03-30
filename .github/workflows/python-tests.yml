@@ -42,7 +42,6 @@ jobs:
 
       - name: Run demo runners
         run: |
-          cargo fmt --manifest-path demos/codegen/runner/Cargo.toml
           cargo run --manifest-path demos/codegen/runner/Cargo.toml
           cargo run --manifest-path demos/custom_function/runner/Cargo.toml
           cargo run --manifest-path demos/multi_function/runner/Cargo.toml
