@@ -9,6 +9,14 @@ from .custom_elementary import (
 )
 from .composed_function import ComposedFunction, ComposedGradientFunction
 from .function import Function
+from .single_shooting import (
+    SingleShootingBundle,
+    SingleShootingGradientFunction,
+    SingleShootingHvpFunction,
+    SingleShootingJointFunction,
+    SingleShootingPrimalFunction,
+    SingleShootingProblem,
+)
 from .rust_codegen import (
     CodeGenerationBuilder,
     FunctionBundle,
@@ -84,6 +92,12 @@ __all__ = [
     "SX",
     "SXNode",
     "SXVector",
+    "SingleShootingBundle",
+    "SingleShootingGradientFunction",
+    "SingleShootingHvpFunction",
+    "SingleShootingJointFunction",
+    "SingleShootingPrimalFunction",
+    "SingleShootingProblem",
     "acosh",
     "acos",
     "asinh",

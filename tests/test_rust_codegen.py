@@ -5,7 +5,10 @@ import re
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+import gradgen.rust_codegen as rust_codegen_module
+from gradgen.rust_codegen import _gradgen_version
 from gradgen import (
     CodeGenerationBuilder,
     ComposedFunction,
@@ -14,6 +17,8 @@ from gradgen import (
     RustBackendConfig,
     SX,
     SXVector,
+    SingleShootingBundle,
+    SingleShootingProblem,
     bilinear_form,
     clear_registered_elementary_functions,
     create_multi_function_rust_project,
@@ -159,7 +164,217 @@ mod tests {{
     }}
 }}
 """.lstrip(),
+            )
+
+    @staticmethod
+    def _build_single_shooting_problem(*, horizon: int = 3) -> SingleShootingProblem:
+        x = SXVector.sym("x", 2)
+        u = SXVector.sym("u", 1)
+        p = SXVector.sym("p", 2)
+        dynamics = Function(
+            "dynamics",
+            [x, u, p],
+            [SXVector((x[0] + p[0] * x[1] + u[0], x[1] + p[1] * u[0] - 0.5 * x[0]))],
+            input_names=["x", "u", "p"],
+            output_names=["x_next"],
         )
+        stage_cost = Function(
+            "stage_cost",
+            [x, u, p],
+            [x[0] * x[0] + 2.0 * x[1] * x[1] + 0.3 * u[0] * u[0] + p[0] * u[0]],
+            input_names=["x", "u", "p"],
+            output_names=["ell"],
+        )
+        terminal_cost = Function(
+            "terminal_cost",
+            [x, p],
+            [3.0 * x[0] * x[0] + 0.5 * x[1] * x[1] + p[1] * x[0]],
+            input_names=["x", "p"],
+            output_names=["vf"],
+        )
+        return SingleShootingProblem(
+            name="mpc_cost",
+            horizon=horizon,
+            dynamics=dynamics,
+            stage_cost=stage_cost,
+            terminal_cost=terminal_cost,
+            initial_state_name="x0",
+            control_sequence_name="U",
+            parameter_name="p",
+        )
+
+    @staticmethod
+    def _manual_single_shooting_rollout(
+        x0: list[float],
+        U: list[float],
+        p: list[float],
+        horizon: int,
+    ) -> tuple[float, list[float]]:
+        current = [float(x0[0]), float(x0[1])]
+        packed_states = [current[0], current[1]]
+        total_cost = 0.0
+        for stage_index in range(horizon):
+            u_t = float(U[stage_index])
+            total_cost += current[0] * current[0] + 2.0 * current[1] * current[1] + 0.3 * u_t * u_t + p[0] * u_t
+            next_state = [
+                current[0] + p[0] * current[1] + u_t,
+                current[1] + p[1] * u_t - 0.5 * current[0],
+            ]
+            current = next_state
+            packed_states.extend(current)
+        total_cost += 3.0 * current[0] * current[0] + 0.5 * current[1] * current[1] + p[1] * current[0]
+        return total_cost, packed_states
+
+    @classmethod
+    def _manual_single_shooting_gradient(
+        cls,
+        x0: list[float],
+        U: list[float],
+        p: list[float],
+        horizon: int,
+        *,
+        epsilon: float = 1e-6,
+    ) -> list[float]:
+        gradient: list[float] = []
+        for control_index in range(len(U)):
+            forward = list(U)
+            backward = list(U)
+            forward[control_index] += epsilon
+            backward[control_index] -= epsilon
+            forward_cost, _ = cls._manual_single_shooting_rollout(x0, forward, p, horizon)
+            backward_cost, _ = cls._manual_single_shooting_rollout(x0, backward, p, horizon)
+            gradient.append((forward_cost - backward_cost) / (2.0 * epsilon))
+        return gradient
+
+    @classmethod
+    def _manual_single_shooting_hvp(
+        cls,
+        x0: list[float],
+        U: list[float],
+        p: list[float],
+        v_U: list[float],
+        horizon: int,
+        *,
+        epsilon: float = 1e-4,
+    ) -> list[float]:
+        forward_controls = [
+            control + epsilon * direction for control, direction in zip(U, v_U)
+        ]
+        backward_controls = [
+            control - epsilon * direction for control, direction in zip(U, v_U)
+        ]
+        forward_gradient = cls._manual_single_shooting_gradient(
+            x0, forward_controls, p, horizon, epsilon=epsilon
+        )
+        backward_gradient = cls._manual_single_shooting_gradient(
+            x0, backward_controls, p, horizon, epsilon=epsilon
+        )
+        return [
+            (forward_value - backward_value) / (2.0 * epsilon)
+            for forward_value, backward_value in zip(forward_gradient, backward_gradient)
+        ]
+
+    @staticmethod
+    def _build_multi_control_single_shooting_problem(*, horizon: int = 2) -> SingleShootingProblem:
+        x = SXVector.sym("x", 2)
+        u = SXVector.sym("u", 2)
+        p = SXVector.sym("p", 2)
+        dynamics = Function(
+            "multi_control_dynamics",
+            [x, u, p],
+            [
+                SXVector(
+                    (
+                        0.8 * x[0] + p[0] * u[0] + u[1],
+                        x[1] + u[0] - p[1] * u[1] + 0.25 * x[0],
+                    )
+                )
+            ],
+            input_names=["x", "u", "p"],
+            output_names=["x_next"],
+        )
+        stage_cost = Function(
+            "multi_control_stage_cost",
+            [x, u, p],
+            [
+                1.2 * x[0] * x[0]
+                + 0.5 * x[1] * x[1]
+                + 0.2 * u[0] * u[0]
+                + 0.3 * u[1] * u[1]
+                + p[0] * u[0] * u[1]
+                + 0.1 * x[0] * u[1]
+            ],
+            input_names=["x", "u", "p"],
+            output_names=["ell"],
+        )
+        terminal_cost = Function(
+            "multi_control_terminal_cost",
+            [x, p],
+            [2.0 * x[0] * x[0] + 1.5 * x[1] * x[1] + p[1] * x[1]],
+            input_names=["x", "p"],
+            output_names=["vf"],
+        )
+        return SingleShootingProblem(
+            name="multi_control_cost",
+            horizon=horizon,
+            dynamics=dynamics,
+            stage_cost=stage_cost,
+            terminal_cost=terminal_cost,
+            initial_state_name="x0",
+            control_sequence_name="u_seq",
+            parameter_name="p",
+        )
+
+    @staticmethod
+    def _manual_multi_control_single_shooting_rollout(
+        x0: list[float],
+        U: list[float],
+        p: list[float],
+        horizon: int,
+    ) -> tuple[float, list[float]]:
+        current = [float(x0[0]), float(x0[1])]
+        packed_states = [current[0], current[1]]
+        total_cost = 0.0
+        for stage_index in range(horizon):
+            u0 = float(U[2 * stage_index])
+            u1 = float(U[(2 * stage_index) + 1])
+            total_cost += (
+                1.2 * current[0] * current[0]
+                + 0.5 * current[1] * current[1]
+                + 0.2 * u0 * u0
+                + 0.3 * u1 * u1
+                + p[0] * u0 * u1
+                + 0.1 * current[0] * u1
+            )
+            next_state = [
+                0.8 * current[0] + p[0] * u0 + u1,
+                current[1] + u0 - p[1] * u1 + 0.25 * current[0],
+            ]
+            current = next_state
+            packed_states.extend(current)
+        total_cost += 2.0 * current[0] * current[0] + 1.5 * current[1] * current[1] + p[1] * current[1]
+        return total_cost, packed_states
+
+    @classmethod
+    def _manual_multi_control_single_shooting_gradient(
+        cls,
+        x0: list[float],
+        U: list[float],
+        p: list[float],
+        horizon: int,
+        *,
+        epsilon: float = 1e-6,
+    ) -> list[float]:
+        gradient: list[float] = []
+        for control_index in range(len(U)):
+            forward = list(U)
+            backward = list(U)
+            forward[control_index] += epsilon
+            backward[control_index] -= epsilon
+            forward_cost, _ = cls._manual_multi_control_single_shooting_rollout(x0, forward, p, horizon)
+            backward_cost, _ = cls._manual_multi_control_single_shooting_rollout(x0, backward, p, horizon)
+            gradient.append((forward_cost - backward_cost) / (2.0 * epsilon))
+        return gradient
 
     def test_generates_scalar_function_with_slice_abi(self) -> None:
         x = SX.sym("x")
@@ -237,6 +452,298 @@ mod tests {{
         self.assertIn("work[0] += work[1];", result.source)
         self.assertIn("dot[0] = work[0];", result.source)
 
+    def test_single_shooting_codegen_uses_loops_and_matches_manual_reference(self) -> None:
+        problem = self._build_single_shooting_problem(horizon=3)
+        x0 = [1.0, -0.5]
+        U = [0.2, -0.1, 0.3]
+        v_U = [0.5, -1.0, 0.25]
+        p = [0.4, -1.2]
+        expected_cost, expected_states = self._manual_single_shooting_rollout(x0, U, p, problem.horizon)
+        expected_gradient = self._manual_single_shooting_gradient(x0, U, p, problem.horizon)
+        expected_hvp = self._manual_single_shooting_hvp(x0, U, p, v_U, problem.horizon)
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("single_shooting_kernel"))
+            .for_function(problem)
+            .add_primal(include_states=True)
+            .add_gradient(include_states=True)
+            .add_hvp(include_states=True)
+            .add_joint(
+                SingleShootingBundle()
+                .add_cost()
+                .add_gradient()
+                .add_hvp()
+                .add_rollout_states()
+            )
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "single_shooting_kernel")
+            primal_codegen, gradient_codegen, hvp_codegen, joint_codegen = project.codegens
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("for stage_index in 0..3 {", lib_text)
+            self.assertIn("for stage_index in (1..3).rev() {", lib_text)
+            self.assertIn("packed control-sequence slice laid out stage-major over the horizon", lib_text)
+            self.assertIn("shared parameter slice used at every stage and terminal evaluation", lib_text)
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod single_shooting_runtime_tests {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_manual_reference() {{
+        let x0 = {self._rust_array_literal(x0, "f64")};
+        let U = {self._rust_array_literal(U, "f64")};
+        let v_U = {self._rust_array_literal(v_U, "f64")};
+        let p = {self._rust_array_literal(p, "f64")};
+
+        let mut cost = [0.0_f64; 1];
+        let mut x_traj = [0.0_f64; 8];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        {primal_codegen.function_name}(&x0, &U, &p, &mut cost, &mut x_traj, &mut primal_work);
+        assert_close_slice(&cost, &{self._rust_array_literal([expected_cost], "f64")}, 1e-10_f64);
+        assert_close_slice(&x_traj, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+
+        let mut gradient_U = [0.0_f64; 3];
+        let mut grad_states = [0.0_f64; 8];
+        let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
+        {gradient_codegen.function_name}(&x0, &U, &p, &mut gradient_U, &mut grad_states, &mut gradient_work);
+        assert_close_slice(&gradient_U, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-5_f64);
+        assert_close_slice(&grad_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+
+        let mut hvp_U = [0.0_f64; 3];
+        let mut hvp_states = [0.0_f64; 8];
+        let mut hvp_work = [0.0_f64; {hvp_codegen.workspace_size}];
+        {hvp_codegen.function_name}(&x0, &U, &p, &v_U, &mut hvp_U, &mut hvp_states, &mut hvp_work);
+        assert_close_slice(&hvp_U, &{self._rust_array_literal(expected_hvp, "f64")}, 2e-4_f64);
+        assert_close_slice(&hvp_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+
+        let mut joint_cost = [0.0_f64; 1];
+        let mut joint_gradient_U = [0.0_f64; 3];
+        let mut joint_hvp_U = [0.0_f64; 3];
+        let mut joint_states = [0.0_f64; 8];
+        let mut joint_work = [0.0_f64; {joint_codegen.workspace_size}];
+        {joint_codegen.function_name}(&x0, &U, &p, &v_U, &mut joint_cost, &mut joint_gradient_U, &mut joint_hvp_U, &mut joint_states, &mut joint_work);
+        assert_close_slice(&joint_cost, &{self._rust_array_literal([expected_cost], "f64")}, 1e-10_f64);
+        assert_close_slice(&joint_gradient_U, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-5_f64);
+        assert_close_slice(&joint_hvp_U, &{self._rust_array_literal(expected_hvp, "f64")}, 2e-4_f64);
+        assert_close_slice(&joint_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_single_shooting_codegen_handles_horizon_one_and_cost_states_joint(self) -> None:
+        problem = self._build_single_shooting_problem(horizon=1)
+        x0 = [0.7, -0.3]
+        U = [0.25]
+        p = [0.4, -1.2]
+        expected_cost, expected_states = self._manual_single_shooting_rollout(x0, U, p, problem.horizon)
+        expected_gradient = self._manual_single_shooting_gradient(x0, U, p, problem.horizon)
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("single_shooting_h1"))
+            .for_function(problem)
+            .add_gradient(include_states=True)
+            .add_joint(
+                SingleShootingBundle()
+                .add_cost()
+                .add_rollout_states()
+            )
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "single_shooting_h1")
+            gradient_codegen, joint_codegen = project.codegens
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("for stage_index in 0..1 {", lib_text)
+            self.assertIn("for stage_index in (1..1).rev() {", lib_text)
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod single_shooting_horizon_one_tests {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_horizon_one_reference() {{
+        let x0 = {self._rust_array_literal(x0, "f64")};
+        let U = {self._rust_array_literal(U, "f64")};
+        let p = {self._rust_array_literal(p, "f64")};
+
+        let mut gradient_U = [0.0_f64; 1];
+        let mut grad_states = [0.0_f64; 4];
+        let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
+        {gradient_codegen.function_name}(&x0, &U, &p, &mut gradient_U, &mut grad_states, &mut gradient_work);
+        assert_close_slice(&gradient_U, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-5_f64);
+        assert_close_slice(&grad_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+
+        let mut joint_cost = [0.0_f64; 1];
+        let mut joint_states = [0.0_f64; 4];
+        let mut joint_work = [0.0_f64; {joint_codegen.workspace_size}];
+        {joint_codegen.function_name}(&x0, &U, &p, &mut joint_cost, &mut joint_states, &mut joint_work);
+        assert_close_slice(&joint_cost, &{self._rust_array_literal([expected_cost], "f64")}, 1e-10_f64);
+        assert_close_slice(&joint_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_single_shooting_codegen_handles_multi_input_control_blocks(self) -> None:
+        problem = self._build_multi_control_single_shooting_problem(horizon=2)
+        x0 = [0.5, -1.0]
+        U = [0.2, -0.1, 0.3, 0.4]
+        p = [0.6, -0.4]
+        expected_cost, expected_states = self._manual_multi_control_single_shooting_rollout(
+            x0, U, p, problem.horizon
+        )
+        expected_gradient = self._manual_multi_control_single_shooting_gradient(
+            x0, U, p, problem.horizon
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("single_shooting_multi_u"))
+            .for_function(problem)
+            .add_primal(include_states=True)
+            .add_gradient(include_states=True)
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "single_shooting_multi_u")
+            primal_codegen, gradient_codegen = project.codegens
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("&u_seq[(stage_index * 2)..((stage_index + 1) * 2)]", lib_text)
+            self.assertIn("&mut gradient_u_seq[(stage_index * 2)..((stage_index + 1) * 2)]", lib_text)
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod single_shooting_multi_u_tests {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_multi_input_control_reference() {{
+        let x0 = {self._rust_array_literal(x0, "f64")};
+        let u_seq = {self._rust_array_literal(U, "f64")};
+        let p = {self._rust_array_literal(p, "f64")};
+
+        let mut cost = [0.0_f64; 1];
+        let mut x_traj = [0.0_f64; 6];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        {primal_codegen.function_name}(&x0, &u_seq, &p, &mut cost, &mut x_traj, &mut primal_work);
+        assert_close_slice(&cost, &{self._rust_array_literal([expected_cost], "f64")}, 1e-10_f64);
+        assert_close_slice(&x_traj, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+
+        let mut gradient_u_seq = [0.0_f64; 4];
+        let mut grad_states = [0.0_f64; 6];
+        let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
+        {gradient_codegen.function_name}(&x0, &u_seq, &p, &mut gradient_u_seq, &mut grad_states, &mut gradient_work);
+        assert_close_slice(&gradient_u_seq, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-5_f64);
+        assert_close_slice(&grad_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_include_states_is_rejected_for_non_single_shooting_sources(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        with self.assertRaises(ValueError):
+            (
+                CodeGenerationBuilder()
+                .with_backend_config(RustBackendConfig().with_crate_name("bad_states"))
+                .for_function(f)
+                .add_primal(include_states=True)
+                .done()
+                .build("/tmp/unused")
+            )
+
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+        pf = SXVector.sym("pf", 1)
+        g = Function(
+            "g",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] + p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, pf],
+            [state[0] + pf[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+        composed = ComposedFunction("demo", x).then(g, p=[1.0, 2.0]).finish(h, p=[3.0])
+
+        with self.assertRaises(ValueError):
+            (
+                CodeGenerationBuilder()
+                .with_backend_config(RustBackendConfig().with_crate_name("bad_composed_states"))
+                .for_function(composed)
+                .add_gradient(include_states=True)
+                .done()
+                .build("/tmp/unused")
+            )
+
     def test_create_rust_project_writes_metadata_json(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
@@ -246,7 +753,7 @@ mod tests {{
             metadata = json.loads(project.metadata_json.read_text(encoding="utf-8"))
 
             self.assertEqual(metadata["crate_name"], "energy")
-            self.assertEqual(metadata["gradgen_version"], "0.3.1")
+            self.assertEqual(metadata["gradgen_version"], _gradgen_version())
             self.assertIsNotNone(datetime.fromisoformat(metadata["created_at"].replace("Z", "+00:00")))
             self.assertEqual(
                 metadata["functions"],
@@ -261,6 +768,28 @@ mod tests {{
                     }
                 ],
             )
+
+    def test_create_rust_project_attempts_cargo_fmt_without_failing_on_error(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            with patch.object(rust_codegen_module.shutil, "which", return_value="/usr/bin/cargo"):
+                with patch.object(
+                    rust_codegen_module.subprocess,
+                    "run",
+                    side_effect=subprocess.CalledProcessError(1, ["cargo", "fmt"], stderr="rustfmt missing"),
+                ) as mocked_run:
+                    project = create_rust_project(f, Path(tmpdir) / "energy_kernel")
+                    self.assertTrue(project.lib_rs.exists())
+
+        mocked_run.assert_called_once_with(
+            ["cargo", "fmt"],
+            cwd=project.project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     def test_backend_config_supports_chainable_updates(self) -> None:
         config = (
@@ -672,7 +1201,7 @@ mod tests {{
                 ("multi_demo_f_f", "multi_demo_f_jf", "multi_demo_g_f", "multi_demo_g_jf"),
             )
             self.assertEqual(metadata["crate_name"], "multi_demo")
-            self.assertEqual(metadata["gradgen_version"], "0.3.1")
+            self.assertEqual(metadata["gradgen_version"], _gradgen_version())
             self.assertIsNotNone(datetime.fromisoformat(metadata["created_at"].replace("Z", "+00:00")))
             self.assertEqual(
                 [entry["function_name"] for entry in metadata["functions"]],
@@ -2367,10 +2896,7 @@ mod tests {
 
             self.assertIn("pub fn joint_hessian_joint_hessian_f_hessian(", lib_text)
             self.assertIn("hessian_y: &mut [f64]", lib_text)
-            self.assertIn(
-                'assert_eq!(hessian_y.len(), 4, "hessian_y is length {} but should be 4", hessian_y.len());',
-                lib_text,
-            )
+            self.assertIn('"hessian_y is length {} but should be 4"', lib_text)
 
             self._append_rust_test(
                 project.project_dir,

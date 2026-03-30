@@ -1,0 +1,43 @@
+{
+  "crate_name": "composed_kernel",
+  "created_at": "2026-03-30T00:23:45.697823Z",
+  "gradgen_version": "0.3.2a1",
+  "functions": [
+    {
+      "function_name": "composed_kernel_composed_demo_f",
+      "workspace_size": 6,
+      "input_names": [
+        "x",
+        "parameters"
+      ],
+      "input_sizes": [
+        2,
+        11
+      ],
+      "output_names": [
+        "y"
+      ],
+      "output_sizes": [
+        1
+      ]
+    },
+    {
+      "function_name": "composed_kernel_composed_demo_grad_x",
+      "workspace_size": 18,
+      "input_names": [
+        "x",
+        "parameters"
+      ],
+      "input_sizes": [
+        2,
+        11
+      ],
+      "output_names": [
+        "y"
+      ],
+      "output_sizes": [
+        2
+      ]
+    }
+  ]
+}

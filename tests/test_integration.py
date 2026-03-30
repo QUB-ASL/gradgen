@@ -5,7 +5,15 @@ from tempfile import TemporaryDirectory
 
 import sympy as sp
 
-from gradgen import CodeGenerationBuilder, ComposedFunction, Function, RustBackendConfig, SXVector
+from gradgen import (
+    CodeGenerationBuilder,
+    ComposedFunction,
+    Function,
+    RustBackendConfig,
+    SXVector,
+    SingleShootingBundle,
+    SingleShootingProblem,
+)
 
 
 class IntegrationTests(unittest.TestCase):
@@ -303,6 +311,341 @@ mod integration_sympy_composed {{
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
         {gradient_codegen.function_name}(&x, &parameters, &mut gradient_y, &mut gradient_work);
         assert_close_slice(&gradient_y, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-10_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_single_shooting_problem_matches_sympy_cost_gradient_and_states(self) -> None:
+        sx0, sx1 = sp.symbols("x0:2", real=True)
+        u_symbols = sp.symbols("u0:6", real=True)
+        p0, p1 = sp.symbols("p0 p1", real=True)
+
+        state = sp.Matrix([sx0, sx1])
+        packed_states = [state[0], state[1]]
+        total_cost = sp.Integer(0)
+        for stage_index in range(3):
+            u0 = u_symbols[2 * stage_index]
+            u1 = u_symbols[(2 * stage_index) + 1]
+            total_cost += (
+                state[0] ** 2
+                + sp.Rational(3, 5) * state[1] ** 2
+                + sp.Rational(1, 5) * u0**2
+                + sp.Rational(2, 5) * u1**2
+                + p0 * state[0] * u1
+                + p1 * u0 * state[1]
+            )
+            state = sp.Matrix(
+                [
+                    state[0] + p0 * u0 + sp.sin(u1),
+                    sp.Rational(3, 5) * state[1] + p1 * u1 + state[0] * u0,
+                ]
+            )
+            packed_states.extend([state[0], state[1]])
+
+        total_cost += (
+            sp.Rational(3, 2) * state[0] ** 2
+            + sp.Rational(5, 4) * state[1] ** 2
+            + p0 * state[0]
+            + p1 * state[1]
+        )
+        gradient = sp.Matrix([sp.diff(total_cost, symbol) for symbol in u_symbols])
+        sympy_states = sp.Matrix(packed_states)
+
+        x0_values = [0.25, -0.4]
+        u_values = [0.2, -0.1, 0.3, 0.15, -0.25, 0.4]
+        p_values = [0.7, -0.5]
+        substitutions = {
+            sx0: x0_values[0],
+            sx1: x0_values[1],
+            **{symbol: value for symbol, value in zip(u_symbols, u_values)},
+            p0: p_values[0],
+            p1: p_values[1],
+        }
+        expected_cost = float(total_cost.subs(substitutions).evalf())
+        expected_gradient = self._flatten_sympy_matrix(gradient.subs(substitutions).evalf())
+        expected_states = self._flatten_sympy_matrix(sympy_states.subs(substitutions).evalf())
+
+        x = SXVector.sym("x", 2)
+        u = SXVector.sym("u", 2)
+        p = SXVector.sym("p", 2)
+
+        dynamics = Function(
+            "dynamics",
+            [x, u, p],
+            [SXVector((x[0] + p[0] * u[0] + u[1].sin(), 0.6 * x[1] + p[1] * u[1] + x[0] * u[0]))],
+            input_names=["x", "u", "p"],
+            output_names=["x_next"],
+        )
+        stage_cost = Function(
+            "stage_cost",
+            [x, u, p],
+            [
+                x[0] * x[0]
+                + 0.6 * x[1] * x[1]
+                + 0.2 * u[0] * u[0]
+                + 0.4 * u[1] * u[1]
+                + p[0] * x[0] * u[1]
+                + p[1] * u[0] * x[1]
+            ],
+            input_names=["x", "u", "p"],
+            output_names=["ell"],
+        )
+        terminal_cost = Function(
+            "terminal_cost",
+            [x, p],
+            [1.5 * x[0] * x[0] + 1.25 * x[1] * x[1] + p[0] * x[0] + p[1] * x[1]],
+            input_names=["x", "p"],
+            output_names=["vf"],
+        )
+        problem = SingleShootingProblem(
+            name="sympy_single_shooting",
+            horizon=3,
+            dynamics=dynamics,
+            stage_cost=stage_cost,
+            terminal_cost=terminal_cost,
+            initial_state_name="x0",
+            control_sequence_name="u_seq",
+            parameter_name="p",
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("sympy_single_shooting"))
+            .for_function(problem)
+            .add_joint(
+                SingleShootingBundle()
+                .add_cost()
+                .add_gradient()
+                .add_rollout_states()
+            )
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_single_shooting")
+            (joint_codegen,) = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_single_shooting {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x0 = {self._rust_array_literal(x0_values, "f64")};
+        let u_seq = {self._rust_array_literal(u_values, "f64")};
+        let p = {self._rust_array_literal(p_values, "f64")};
+
+        let mut cost = [0.0_f64; 1];
+        let mut gradient_u_seq = [0.0_f64; 6];
+        let mut x_traj = [0.0_f64; 8];
+        let mut work = [0.0_f64; {joint_codegen.workspace_size}];
+        {joint_codegen.function_name}(&x0, &u_seq, &p, &mut cost, &mut gradient_u_seq, &mut x_traj, &mut work);
+
+        assert_close_slice(&cost, &{self._rust_array_literal([expected_cost], "f64")}, 1e-10_f64);
+        assert_close_slice(&gradient_u_seq, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-10_f64);
+        assert_close_slice(&x_traj, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_single_shooting_problem_matches_sympy_cost_gradient_hvp_and_states(self) -> None:
+        sx0, sx1 = sp.symbols("x0:2", real=True)
+        u_symbols = sp.symbols("u0:6", real=True)
+        v_symbols = sp.symbols("v0:6", real=True)
+        p0, p1 = sp.symbols("p0 p1", real=True)
+
+        state = sp.Matrix([sx0, sx1])
+        packed_states = [state[0], state[1]]
+        total_cost = sp.Integer(0)
+        for stage_index in range(3):
+            u0 = u_symbols[2 * stage_index]
+            u1 = u_symbols[(2 * stage_index) + 1]
+            total_cost += (
+                sp.Rational(4, 5) * state[0] ** 2
+                + sp.Rational(7, 10) * state[1] ** 2
+                + sp.Rational(3, 10) * u0**2
+                + sp.Rational(2, 5) * u1**2
+                + p0 * state[0] * u1
+                + p1 * state[1] * u0
+                + sp.sin(u0) * state[0]
+                + sp.cos(u1) * state[1]
+            )
+            state = sp.Matrix(
+                [
+                    state[0] + p0 * u0 + sp.sin(u1) + sp.Rational(1, 10) * state[1] * u0,
+                    sp.Rational(11, 20) * state[1] + p1 * u1 + state[0] * u0 + sp.cos(u0),
+                ]
+            )
+            packed_states.extend([state[0], state[1]])
+
+        total_cost += (
+            sp.Rational(9, 5) * state[0] ** 2
+            + sp.Rational(6, 5) * state[1] ** 2
+            + p0 * state[0]
+            + p1 * state[1]
+            + sp.sin(state[0] - state[1])
+        )
+
+        gradient = sp.Matrix([sp.diff(total_cost, symbol) for symbol in u_symbols])
+        hessian = sp.hessian(total_cost, u_symbols)
+        hvp = hessian * sp.Matrix(v_symbols)
+        sympy_states = sp.Matrix(packed_states)
+
+        x0_values = [0.1, -0.35]
+        u_values = [0.15, -0.2, 0.25, 0.3, -0.1, 0.4]
+        v_values = [0.5, -0.25, 0.75, -0.6, 0.2, 0.45]
+        p_values = [0.6, -0.4]
+        substitutions = {
+            sx0: x0_values[0],
+            sx1: x0_values[1],
+            **{symbol: value for symbol, value in zip(u_symbols, u_values)},
+            **{symbol: value for symbol, value in zip(v_symbols, v_values)},
+            p0: p_values[0],
+            p1: p_values[1],
+        }
+        expected_cost = float(total_cost.subs(substitutions).evalf())
+        expected_gradient = self._flatten_sympy_matrix(gradient.subs(substitutions).evalf())
+        expected_hvp = self._flatten_sympy_matrix(hvp.subs(substitutions).evalf())
+        expected_states = self._flatten_sympy_matrix(sympy_states.subs(substitutions).evalf())
+
+        x = SXVector.sym("x", 2)
+        u = SXVector.sym("u", 2)
+        p = SXVector.sym("p", 2)
+
+        dynamics = Function(
+            "dynamics",
+            [x, u, p],
+            [
+                SXVector(
+                    (
+                        x[0] + p[0] * u[0] + u[1].sin() + 0.1 * x[1] * u[0],
+                        0.55 * x[1] + p[1] * u[1] + x[0] * u[0] + u[0].cos(),
+                    )
+                )
+            ],
+            input_names=["x", "u", "p"],
+            output_names=["x_next"],
+        )
+        stage_cost = Function(
+            "stage_cost",
+            [x, u, p],
+            [
+                0.8 * x[0] * x[0]
+                + 0.7 * x[1] * x[1]
+                + 0.3 * u[0] * u[0]
+                + 0.4 * u[1] * u[1]
+                + p[0] * x[0] * u[1]
+                + p[1] * x[1] * u[0]
+                + u[0].sin() * x[0]
+                + u[1].cos() * x[1]
+            ],
+            input_names=["x", "u", "p"],
+            output_names=["ell"],
+        )
+        terminal_cost = Function(
+            "terminal_cost",
+            [x, p],
+            [1.8 * x[0] * x[0] + 1.2 * x[1] * x[1] + p[0] * x[0] + p[1] * x[1] + (x[0] - x[1]).sin()],
+            input_names=["x", "p"],
+            output_names=["vf"],
+        )
+        problem = SingleShootingProblem(
+            name="sympy_single_shooting_joint_hvp",
+            horizon=3,
+            dynamics=dynamics,
+            stage_cost=stage_cost,
+            terminal_cost=terminal_cost,
+            initial_state_name="x0",
+            control_sequence_name="u_seq",
+            parameter_name="p",
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("sympy_single_shooting_joint_hvp"))
+            .for_function(problem)
+            .add_joint(
+                SingleShootingBundle()
+                .add_cost()
+                .add_gradient()
+                .add_hvp()
+                .add_rollout_states()
+            )
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_single_shooting_joint_hvp")
+            (joint_codegen,) = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_single_shooting_joint_hvp {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x0 = {self._rust_array_literal(x0_values, "f64")};
+        let u_seq = {self._rust_array_literal(u_values, "f64")};
+        let v_u_seq = {self._rust_array_literal(v_values, "f64")};
+        let p = {self._rust_array_literal(p_values, "f64")};
+
+        let mut cost = [0.0_f64; 1];
+        let mut gradient_u_seq = [0.0_f64; 6];
+        let mut hvp_u_seq = [0.0_f64; 6];
+        let mut x_traj = [0.0_f64; 8];
+        let mut work = [0.0_f64; {joint_codegen.workspace_size}];
+        {joint_codegen.function_name}(
+            &x0,
+            &u_seq,
+            &p,
+            &v_u_seq,
+            &mut cost,
+            &mut gradient_u_seq,
+            &mut hvp_u_seq,
+            &mut x_traj,
+            &mut work,
+        );
+
+        assert_close_slice(&cost, &{self._rust_array_literal([expected_cost], "f64")}, 1e-10_f64);
+        assert_close_slice(&gradient_u_seq, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-9_f64);
+        assert_close_slice(&hvp_u_seq, &{self._rust_array_literal(expected_hvp, "f64")}, 1e-8_f64);
+        assert_close_slice(&x_traj, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
     }}
 }}
 """.lstrip(),

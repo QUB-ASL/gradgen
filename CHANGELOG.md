@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## Unreleased
 
+### Added
+
+- Added deterministic single-shooting optimal-control support through
+  `SingleShootingProblem` and `SingleShootingBundle`.
+- Added loop-based Rust code generation for fixed-horizon single-shooting
+  problems, including total-cost kernels, gradients with respect to the packed
+  control sequence, and joint kernels that can also return rollout states.
+- Added loop-based Hessian-vector-product kernels for fixed-horizon
+  single-shooting problems, including support for packed control-sequence
+  directions and optional rollout-state outputs.
+- Added joint single-shooting kernels that can now return any combination of
+  total cost, control-sequence gradient, control-sequence Hessian-vector
+  product, and rollout states in one generated function.
+- Added a dedicated `demos/single_shooting` demo and runner crate showing how
+  to generate and call the resulting Rust crate in practice.
+
 ### Changed
 
 - Updated the preferred multi-function `CodeGenerationBuilder` API to use a
@@ -16,6 +32,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `for_function(function, lambda b: ...)` form.
 - Updated the tests, demos, README examples, and demo documentation to use the
   new scoped builder API.
+- Updated CI and demo tooling so the single-shooting demo is generated and run
+  alongside the other demos.
+- Expanded the single-shooting test coverage with additional scalar, horizon-1,
+  multi-control, integration, and generated-Rust runtime checks.
+- Updated the single-shooting demo and runner to generate and execute the new
+  HVP kernel in addition to the cost and gradient kernels.
+- Updated the main README with dedicated documentation for the single-shooting
+  API, including cost, gradient, HVP, and joint bundle generation.
+- Updated the Rust template to allow generated helper functions with many
+  arguments only when required, keeping demo crates clippy-clean.
+- Updated Rust crate generation to attempt `cargo fmt` automatically after
+  writing generated projects, while logging and continuing if formatting tools
+  are unavailable.
 
 
 

@@ -37,6 +37,7 @@ jobs:
           python demos/multi_function/main.py
           python demos/vjp/main.py
           python demos/composed_function/main.py --repeats 5
+          python demos/single_shooting/main.py --horizon 5
 
       - name: Run demo runners
         run: |
@@ -45,6 +46,7 @@ jobs:
           cargo run --manifest-path demos/multi_function/runner/Cargo.toml
           cargo run --manifest-path demos/vjp/runner/Cargo.toml
           cargo run --manifest-path demos/composed_function/runner/Cargo.toml
+          cargo run --manifest-path demos/single_shooting/runner/Cargo.toml
 
       - name: Run clippy for demo runners
         run: |
@@ -53,3 +55,4 @@ jobs:
           cargo clippy --quiet --manifest-path demos/multi_function/runner/Cargo.toml
           cargo clippy --quiet --manifest-path demos/vjp/runner/Cargo.toml
           cargo clippy --quiet --manifest-path demos/composed_function/runner/Cargo.toml
+          cargo clippy --quiet --manifest-path demos/single_shooting/runner/Cargo.toml

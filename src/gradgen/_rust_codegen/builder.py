@@ -8,10 +8,27 @@ from typing import Callable, Protocol
 
 from ..composed_function import ComposedFunction, ComposedGradientFunction
 from ..function import Function
+from ..single_shooting import (
+    SingleShootingBundle,
+    SingleShootingGradientFunction,
+    SingleShootingHvpFunction,
+    SingleShootingJointFunction,
+    SingleShootingPrimalFunction,
+    SingleShootingProblem,
+)
 from .naming import sanitize_ident
 
 
-BuilderSource = Function | ComposedFunction | ComposedGradientFunction
+BuilderSource = (
+    Function
+    | ComposedFunction
+    | ComposedGradientFunction
+    | SingleShootingProblem
+    | SingleShootingPrimalFunction
+    | SingleShootingGradientFunction
+    | SingleShootingHvpFunction
+    | SingleShootingJointFunction
+)
 
 
 class RustBuilderConfigLike(Protocol):
@@ -30,7 +47,7 @@ class _BuilderRequest:
 
     kind: str
     components: tuple[str, ...] = ()
-    bundle: FunctionBundle | None = None
+    bundle: FunctionBundle | SingleShootingBundle | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,13 +123,15 @@ class CodeGenerationBuilder:
         """Return a copy applying ``max_effort`` simplification to generated kernels."""
         return replace(self, simplification=max_effort)
 
-    def add_primal(self) -> CodeGenerationBuilder:
+    def add_primal(self, *, include_states: bool = False) -> CodeGenerationBuilder:
         """Include the primal function in the generated crate."""
-        return self._add_request("primal")
+        components = ("states",) if include_states else ()
+        return self._add_request("primal", components=components)
 
-    def add_gradient(self) -> CodeGenerationBuilder:
+    def add_gradient(self, *, include_states: bool = False) -> CodeGenerationBuilder:
         """Include gradient kernels for scalar-output functions."""
-        return self._add_request("gradient")
+        components = ("states",) if include_states else ()
+        return self._add_request("gradient", components=components)
 
     def add_jacobian(self) -> CodeGenerationBuilder:
         """Include Jacobian kernels for all input blocks."""
@@ -122,7 +141,7 @@ class CodeGenerationBuilder:
         """Include runtime-seeded vector-Jacobian-product kernels for input blocks."""
         return self._add_request("vjp")
 
-    def add_joint(self, bundle: FunctionBundle) -> CodeGenerationBuilder:
+    def add_joint(self, bundle: FunctionBundle | SingleShootingBundle) -> CodeGenerationBuilder:
         """Include kernels that compute bundled artifacts together."""
         return self._add_request("joint", bundle=bundle)
 
@@ -130,9 +149,10 @@ class CodeGenerationBuilder:
         """Include Hessian kernels for scalar-output functions."""
         return self._add_request("hessian")
 
-    def add_hvp(self) -> CodeGenerationBuilder:
+    def add_hvp(self, *, include_states: bool = False) -> CodeGenerationBuilder:
         """Include Hessian-vector product kernels for scalar-output functions."""
-        return self._add_request("hvp")
+        components = ("states",) if include_states else ()
+        return self._add_request("hvp", components=components)
 
     def for_function(
         self,
@@ -223,13 +243,15 @@ class FunctionCodegenBuilder:
         """Return a copy applying ``max_effort`` simplification to this function."""
         return replace(self, simplification=max_effort)
 
-    def add_primal(self) -> FunctionCodegenBuilder:
+    def add_primal(self, *, include_states: bool = False) -> FunctionCodegenBuilder:
         """Include the primal function in the generated crate."""
-        return self._add_request("primal")
+        components = ("states",) if include_states else ()
+        return self._add_request("primal", components=components)
 
-    def add_gradient(self) -> FunctionCodegenBuilder:
+    def add_gradient(self, *, include_states: bool = False) -> FunctionCodegenBuilder:
         """Include gradient kernels for scalar-output functions."""
-        return self._add_request("gradient")
+        components = ("states",) if include_states else ()
+        return self._add_request("gradient", components=components)
 
     def add_jacobian(self) -> FunctionCodegenBuilder:
         """Include Jacobian kernels for all input blocks."""
@@ -239,7 +261,7 @@ class FunctionCodegenBuilder:
         """Include runtime-seeded vector-Jacobian-product kernels for input blocks."""
         return self._add_request("vjp")
 
-    def add_joint(self, bundle: FunctionBundle) -> FunctionCodegenBuilder:
+    def add_joint(self, bundle: FunctionBundle | SingleShootingBundle) -> FunctionCodegenBuilder:
         """Include kernels that compute bundled artifacts together."""
         return self._add_request("joint", bundle=bundle)
 
@@ -247,9 +269,10 @@ class FunctionCodegenBuilder:
         """Include Hessian kernels for scalar-output functions."""
         return self._add_request("hessian")
 
-    def add_hvp(self) -> FunctionCodegenBuilder:
+    def add_hvp(self, *, include_states: bool = False) -> FunctionCodegenBuilder:
         """Include Hessian-vector product kernels for scalar-output functions."""
-        return self._add_request("hvp")
+        components = ("states",) if include_states else ()
+        return self._add_request("hvp", components=components)
 
     def done(self) -> CodeGenerationBuilder:
         """Commit this scoped function configuration back to the parent builder."""
@@ -344,6 +367,24 @@ def _resolve_builder_functions(
             include_base_name=include_base_name,
             function_name=function_name,
         )
+    if isinstance(
+        function,
+        (
+            SingleShootingProblem,
+            SingleShootingPrimalFunction,
+            SingleShootingGradientFunction,
+            SingleShootingHvpFunction,
+            SingleShootingJointFunction,
+        ),
+    ):
+        return _resolve_builder_single_shooting_sources(
+            function,
+            config,
+            requests,
+            simplification,
+            include_base_name=include_base_name,
+            function_name=function_name,
+        )
 
     base_function = _apply_builder_base_name(function, function_name)
     crate_prefix = sanitize_ident(config.crate_name or base_function.name)
@@ -351,6 +392,8 @@ def _resolve_builder_functions(
 
     for request in requests:
         if request.kind == "primal":
+            if request.components:
+                raise ValueError("include_states is only supported for SingleShootingProblem sources")
             resolved.append(
                 _rename_generated_function(
                     _maybe_simplify_generated_function(base_function, simplification),
@@ -364,6 +407,8 @@ def _resolve_builder_functions(
             )
             continue
         if request.kind == "gradient":
+            if request.components:
+                raise ValueError("include_states is only supported for SingleShootingProblem sources")
             resolved.extend(
                 _rename_generated_function(
                     _maybe_simplify_generated_function(base_function.gradient(index), simplification),
@@ -452,6 +497,8 @@ def _resolve_builder_functions(
             )
             continue
         if request.kind == "hvp":
+            if request.components:
+                raise ValueError("include_states is only supported for SingleShootingProblem sources")
             resolved.extend(
                 _rename_generated_function(
                     _maybe_simplify_generated_function(block, simplification),
@@ -488,6 +535,8 @@ def _resolve_builder_composed_sources(
 
     for request in requests:
         if request.kind == "primal":
+            if request.components:
+                raise ValueError("include_states is only supported for SingleShootingProblem sources")
             resolved.append(
                 _rename_builder_source(
                     replace(function, simplification=simplification),
@@ -501,6 +550,8 @@ def _resolve_builder_composed_sources(
             )
             continue
         if request.kind == "gradient" and isinstance(function, ComposedFunction):
+            if request.components:
+                raise ValueError("include_states is only supported for SingleShootingProblem sources")
             simplified_function = replace(function, simplification=simplification)
             resolved.append(
                 _rename_builder_source(
@@ -519,6 +570,144 @@ def _resolve_builder_composed_sources(
         raise ValueError(
             "staged composed sources currently support only add_primal() and "
             "ComposedFunction.add_gradient() in CodeGenerationBuilder"
+        )
+
+    return tuple(resolved)
+
+
+def _resolve_builder_single_shooting_sources(
+    function: (
+        SingleShootingProblem
+        | SingleShootingPrimalFunction
+        | SingleShootingGradientFunction
+        | SingleShootingJointFunction
+    ),
+    config: RustBuilderConfigLike,
+    requests: tuple[_BuilderRequest, ...],
+    simplification: int | str | None,
+    *,
+    include_base_name: bool = False,
+    function_name: str | None = None,
+) -> tuple[BuilderSource, ...]:
+    """Expand builder requests for single-shooting sources."""
+    crate_prefix = sanitize_ident(config.crate_name or function.name)
+    base_name = function_name or function.name
+    resolved: list[BuilderSource] = []
+
+    if isinstance(
+        function,
+        (
+            SingleShootingPrimalFunction,
+            SingleShootingGradientFunction,
+            SingleShootingHvpFunction,
+            SingleShootingJointFunction,
+        ),
+    ):
+        for request in requests:
+            if request.kind != "primal":
+                raise ValueError(
+                    "explicit single-shooting staged sources in CodeGenerationBuilder "
+                    "currently support only add_primal()"
+                )
+            if request.components:
+                raise ValueError("include_states is configured on the single-shooting staged source itself")
+            resolved.append(
+                _rename_builder_source(
+                    replace(function, simplification=simplification),
+                    _builder_function_name(
+                        crate_prefix,
+                        "f",
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                    ),
+                )
+            )
+        return tuple(resolved)
+
+    simplified_problem = replace(function, simplification=simplification)
+    for request in requests:
+        if request.kind == "primal":
+            include_states = "states" in request.components
+            labels = ("f", "states") if include_states else ("f",)
+            resolved.append(
+                _rename_builder_source(
+                    simplified_problem.primal(include_states=include_states),
+                    _builder_function_name(
+                        crate_prefix,
+                        *labels,
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                    ),
+                )
+            )
+            continue
+        if request.kind == "gradient":
+            include_states = "states" in request.components
+            gradient_source = simplified_problem.gradient(include_states=include_states)
+            labels = ("grad", "states") if include_states else ("grad",)
+            resolved.append(
+                _rename_builder_source(
+                    gradient_source,
+                    _builder_function_name(
+                        crate_prefix,
+                        *labels,
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                        input_name=simplified_problem.control_sequence_name,
+                        include_input_name=True,
+                    ),
+                )
+            )
+            continue
+        if request.kind == "hvp":
+            include_states = "states" in request.components
+            hvp_source = simplified_problem.hvp(include_states=include_states)
+            labels = ("hvp", "states") if include_states else ("hvp",)
+            resolved.append(
+                _rename_builder_source(
+                    hvp_source,
+                    _builder_function_name(
+                        crate_prefix,
+                        *labels,
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                        input_name=simplified_problem.control_sequence_name,
+                        include_input_name=True,
+                    ),
+                )
+            )
+            continue
+        if request.kind == "joint":
+            if request.bundle is None or not isinstance(request.bundle, SingleShootingBundle):
+                raise ValueError(
+                    "joint single-shooting requests require a SingleShootingBundle"
+                )
+            labels: list[str] = []
+            if request.bundle.include_cost:
+                labels.append("f")
+            if request.bundle.include_gradient:
+                labels.append("grad")
+            if request.bundle.include_hvp:
+                labels.append("hvp")
+            if request.bundle.include_states:
+                labels.append("states")
+            resolved.append(
+                _rename_builder_source(
+                    simplified_problem.joint(request.bundle),
+                    _builder_function_name(
+                        crate_prefix,
+                        *labels,
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                        input_name=simplified_problem.control_sequence_name,
+                        include_input_name=request.bundle.include_gradient or request.bundle.include_hvp,
+                    ),
+                )
+            )
+            continue
+        raise ValueError(
+            "single-shooting sources currently support only add_primal(), "
+            "add_gradient(), add_hvp(), and add_joint()"
         )
 
     return tuple(resolved)

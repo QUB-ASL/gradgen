@@ -10,6 +10,7 @@ This directory contains runnable end-to-end examples showing how to use
 - [multi_function](./multi_function/README.md): generating one Rust crate from multiple source functions
 - [vjp](./vjp/README.md): Jacobian generation and runtime-seeded vector-Jacobian products
 - [composed_function](./composed_function/README.md): staged compositions with `ComposedFunction` and repeated stages
+- [single_shooting](./single_shooting/README.md): loop-based deterministic single-shooting OCP code generation
 
 ## Running all demos
 

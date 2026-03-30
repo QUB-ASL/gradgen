@@ -1,0 +1,7 @@
+[package]
+name = "single_shooting_runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+single_shooting_kernel = { path = "../single_shooting_kernel" }
