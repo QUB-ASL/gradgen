@@ -8,6 +8,7 @@ from typing import Callable, Protocol
 
 from ..composed_function import ComposedFunction, ComposedGradientFunction
 from ..function import Function
+from ..map_zip import ZippedFunction, ZippedJacobianFunction
 from ..single_shooting import (
     SingleShootingBundle,
     SingleShootingGradientFunction,
@@ -23,6 +24,8 @@ BuilderSource = (
     Function
     | ComposedFunction
     | ComposedGradientFunction
+    | ZippedFunction
+    | ZippedJacobianFunction
     | SingleShootingProblem
     | SingleShootingPrimalFunction
     | SingleShootingGradientFunction
@@ -367,6 +370,15 @@ def _resolve_builder_functions(
             include_base_name=include_base_name,
             function_name=function_name,
         )
+    if isinstance(function, (ZippedFunction, ZippedJacobianFunction)):
+        return _resolve_builder_zipped_sources(
+            function,
+            config,
+            requests,
+            simplification,
+            include_base_name=include_base_name,
+            function_name=function_name,
+        )
     if isinstance(
         function,
         (
@@ -570,6 +582,84 @@ def _resolve_builder_composed_sources(
         raise ValueError(
             "staged composed sources currently support only add_primal() and "
             "ComposedFunction.add_gradient() in CodeGenerationBuilder"
+        )
+
+    return tuple(resolved)
+
+
+def _resolve_builder_zipped_sources(
+    function: ZippedFunction | ZippedJacobianFunction,
+    config: RustBuilderConfigLike,
+    requests: tuple[_BuilderRequest, ...],
+    simplification: int | str | None,
+    *,
+    include_base_name: bool = False,
+    function_name: str | None = None,
+) -> tuple[BuilderSource, ...]:
+    """Expand builder requests for staged map/zip sources."""
+    crate_prefix = sanitize_ident(config.crate_name or function.name)
+    base_name = function_name or function.name
+    resolved: list[BuilderSource] = []
+
+    if isinstance(function, ZippedJacobianFunction):
+        for request in requests:
+            if request.kind != "primal":
+                raise ValueError(
+                    "explicit staged Jacobian map/zip sources in CodeGenerationBuilder "
+                    "currently support only add_primal()"
+                )
+            if request.components:
+                raise ValueError("include_states is not supported for map/zip sources")
+            resolved.append(
+                _rename_builder_source(
+                    replace(function, simplification=simplification),
+                    _builder_function_name(
+                        crate_prefix,
+                        "f",
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                    ),
+                )
+            )
+        return tuple(resolved)
+
+    simplified_function = replace(function, simplification=simplification)
+    for request in requests:
+        if request.kind == "primal":
+            if request.components:
+                raise ValueError("include_states is not supported for map/zip sources")
+            resolved.append(
+                _rename_builder_source(
+                    simplified_function,
+                    _builder_function_name(
+                        crate_prefix,
+                        "f",
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                    ),
+                )
+            )
+            continue
+        if request.kind == "jacobian":
+            if request.components:
+                raise ValueError("include_states is not supported for map/zip sources")
+            for input_index, input_name in enumerate(simplified_function.input_names):
+                resolved.append(
+                    _rename_builder_source(
+                        simplified_function.jacobian(input_index),
+                        _builder_function_name(
+                            crate_prefix,
+                            "jf",
+                            base_name=base_name,
+                            include_base_name=include_base_name,
+                            input_name=input_name,
+                            include_input_name=True,
+                        ),
+                    )
+                )
+            continue
+        raise ValueError(
+            "map/zip sources currently support only add_primal() and add_jacobian()"
         )
 
     return tuple(resolved)
