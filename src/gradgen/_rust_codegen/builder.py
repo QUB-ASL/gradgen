@@ -687,6 +687,8 @@ def _resolve_builder_single_shooting_sources(
                 labels.append("f")
             if request.bundle.include_gradient:
                 labels.append("grad")
+            if request.bundle.include_hvp:
+                labels.append("hvp")
             if request.bundle.include_states:
                 labels.append("states")
             resolved.append(
@@ -698,7 +700,7 @@ def _resolve_builder_single_shooting_sources(
                         base_name=base_name,
                         include_base_name=include_base_name,
                         input_name=simplified_problem.control_sequence_name,
-                        include_input_name=request.bundle.include_gradient,
+                        include_input_name=request.bundle.include_gradient or request.bundle.include_hvp,
                     ),
                 )
             )

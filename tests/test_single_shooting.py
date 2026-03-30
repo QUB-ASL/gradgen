@@ -251,6 +251,38 @@ class SingleShootingProblemTests(unittest.TestCase):
         for actual_value, expected_value in zip(actual_hvp, expected_hvp):
             self.assertAlmostEqual(actual_value, expected_value, places=4)
 
+    def test_problem_expands_joint_cost_gradient_hvp_and_states(self) -> None:
+        # This joint expansion should agree with independent finite-difference
+        # references for both the gradient and the HVP while also preserving
+        # the rollout-state packing.
+        problem = _build_reference_problem()
+        x0 = [1.0, -0.5]
+        U = [0.2, -0.1, 0.3]
+        p = [0.4, -1.2]
+        v_U = [0.5, -1.0, 0.25]
+
+        expected_cost, expected_states = _manual_rollout(x0, U, p, problem.horizon)
+        expected_gradient = _finite_difference_gradient(x0, U, p, problem.horizon)
+        expected_hvp = _finite_difference_hvp(x0, U, p, v_U, problem.horizon)
+
+        joint_function = (
+            problem.joint(
+                SingleShootingBundle()
+                .add_cost()
+                .add_gradient()
+                .add_hvp()
+                .add_rollout_states()
+            )
+            .to_function()
+        )
+        actual_cost, actual_gradient, actual_hvp, actual_states = joint_function(x0, U, p, v_U)
+        self.assertAlmostEqual(actual_cost, expected_cost, places=10)
+        self.assertEqual(tuple(expected_states), actual_states)
+        for actual_value, expected_value in zip(actual_gradient, expected_gradient):
+            self.assertAlmostEqual(actual_value, expected_value, places=5)
+        for actual_value, expected_value in zip(actual_hvp, expected_hvp):
+            self.assertAlmostEqual(actual_value, expected_value, places=4)
+
     def test_validation_rejects_mismatched_stage_signatures(self) -> None:
         x = SXVector.sym("x", 2)
         u = SXVector.sym("u", 1)
@@ -389,6 +421,7 @@ class SingleShootingProblemTests(unittest.TestCase):
                 SingleShootingBundle()
                 .add_cost()
                 .add_gradient()
+                .add_hvp()
                 .add_rollout_states()
             )
             .done()

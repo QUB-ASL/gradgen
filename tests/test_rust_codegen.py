@@ -473,6 +473,7 @@ mod tests {{
                 SingleShootingBundle()
                 .add_cost()
                 .add_gradient()
+                .add_hvp()
                 .add_rollout_states()
             )
             .with_simplification("medium")
@@ -536,11 +537,13 @@ mod single_shooting_runtime_tests {{
 
         let mut joint_cost = [0.0_f64; 1];
         let mut joint_gradient_U = [0.0_f64; 3];
+        let mut joint_hvp_U = [0.0_f64; 3];
         let mut joint_states = [0.0_f64; 8];
         let mut joint_work = [0.0_f64; {joint_codegen.workspace_size}];
-        {joint_codegen.function_name}(&x0, &U, &p, &mut joint_cost, &mut joint_gradient_U, &mut joint_states, &mut joint_work);
+        {joint_codegen.function_name}(&x0, &U, &p, &v_U, &mut joint_cost, &mut joint_gradient_U, &mut joint_hvp_U, &mut joint_states, &mut joint_work);
         assert_close_slice(&joint_cost, &{self._rust_array_literal([expected_cost], "f64")}, 1e-10_f64);
         assert_close_slice(&joint_gradient_U, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-5_f64);
+        assert_close_slice(&joint_hvp_U, &{self._rust_array_literal(expected_hvp, "f64")}, 2e-4_f64);
         assert_close_slice(&joint_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
     }}
 }}

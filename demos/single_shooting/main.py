@@ -117,6 +117,7 @@ backend_config = (
     .with_crate_name("single_shooting_kernel")
 )
 
+print("Building project...")
 project = (
     CodeGenerationBuilder()
     .with_backend_config(backend_config)
@@ -134,6 +135,7 @@ project = (
         .done()
     .build(Path(__file__).resolve().parent / "single_shooting_kernel")
 )
+print("Building project done!")
 
 print("Generated Rust crate:", project.project_dir)
 print("Generated Rust functions:")

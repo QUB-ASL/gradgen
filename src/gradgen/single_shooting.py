@@ -17,6 +17,7 @@ class SingleShootingBundle:
 
     include_cost: bool = False
     include_gradient: bool = False
+    include_hvp: bool = False
     include_states: bool = False
 
     def add_cost(self) -> SingleShootingBundle:
@@ -26,6 +27,10 @@ class SingleShootingBundle:
     def add_gradient(self) -> SingleShootingBundle:
         """Include the gradient with respect to the packed control sequence."""
         return replace(self, include_gradient=True)
+
+    def add_hvp(self) -> SingleShootingBundle:
+        """Include the Hessian-vector product with respect to the packed control sequence."""
+        return replace(self, include_hvp=True)
 
     def add_rollout_states(self) -> SingleShootingBundle:
         """Include the packed rollout state trajectory."""
@@ -292,7 +297,7 @@ class SingleShootingHvpFunction:
 
 @dataclass(frozen=True, slots=True)
 class SingleShootingJointFunction:
-    """Joint cost/gradient/state kernel for a single-shooting problem."""
+    """Joint cost/gradient/HVP/state kernel for a single-shooting problem."""
 
     problem: SingleShootingProblem
     bundle: SingleShootingBundle
@@ -589,6 +594,11 @@ class SingleShootingProblem:
         _validate_single_shooting_bundle(bundle)
         cost_function = self.to_function(include_states=False, name=f"{name}_cost")
         gradient_function = cost_function.gradient(1, name=f"{name}_grad")
+        hvp_function = (
+            cost_function.hvp(1, name=f"{name}_hvp")
+            if bundle.include_hvp
+            else None
+        )
         outputs: list[FunctionArg] = []
         output_names: list[str] = []
         if bundle.include_cost:
@@ -597,14 +607,20 @@ class SingleShootingProblem:
         if bundle.include_gradient:
             outputs.append(gradient_function.outputs[0])
             output_names.append(f"gradient_{self.control_sequence_name}")
+        if bundle.include_hvp:
+            assert hvp_function is not None
+            outputs.append(hvp_function.outputs[0])
+            output_names.append(f"hvp_{self.control_sequence_name}")
         if bundle.include_states:
             outputs.append(self.to_function(include_states=True, name=f"{name}_states").outputs[1])
             output_names.append("x_traj")
+        inputs = hvp_function.inputs if hvp_function is not None else cost_function.inputs
+        input_names = hvp_function.input_names if hvp_function is not None else cost_function.input_names
         return Function(
             name,
-            cost_function.inputs,
+            inputs,
             outputs,
-            input_names=cost_function.input_names,
+            input_names=input_names,
             output_names=tuple(output_names),
         )
 
@@ -746,6 +762,8 @@ def _single_shooting_joint_name(
         labels.append("cost")
     if bundle.include_gradient:
         labels.append(f"gradient_{control_sequence_name}")
+    if bundle.include_hvp:
+        labels.append(f"hvp_{control_sequence_name}")
     if bundle.include_states:
         labels.append("states")
     return f"{base_name}_{'_'.join(labels)}"
@@ -761,6 +779,8 @@ def _single_shooting_bundle_output_names(
         names.append("cost")
     if bundle.include_gradient:
         names.append(f"gradient_{problem.control_sequence_name}")
+    if bundle.include_hvp:
+        names.append(f"hvp_{problem.control_sequence_name}")
     if bundle.include_states:
         names.append("x_traj")
     return tuple(names)
@@ -768,9 +788,9 @@ def _single_shooting_bundle_output_names(
 
 def _validate_single_shooting_bundle(bundle: SingleShootingBundle) -> None:
     """Validate a joint single-shooting bundle."""
-    if not (bundle.include_cost or bundle.include_gradient):
-        raise ValueError("SingleShootingBundle must request at least cost or gradient")
-    if sum((bundle.include_cost, bundle.include_gradient, bundle.include_states)) < 2:
+    if not (bundle.include_cost or bundle.include_gradient or bundle.include_hvp):
+        raise ValueError("SingleShootingBundle must request at least cost, gradient, or HVP")
+    if sum((bundle.include_cost, bundle.include_gradient, bundle.include_hvp, bundle.include_states)) < 2:
         raise ValueError("joint single-shooting kernels require at least two requested outputs")
 
 

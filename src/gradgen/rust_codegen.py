@@ -1525,7 +1525,7 @@ def _generate_single_shooting_joint_rust(
         joint.problem,
         include_cost=joint.bundle.include_cost,
         include_gradient=joint.bundle.include_gradient,
-        include_hvp=False,
+        include_hvp=joint.bundle.include_hvp,
         include_states=joint.bundle.include_states,
         config=config,
         function_name=function_name or joint.name,
@@ -4300,15 +4300,28 @@ def _render_multi_function_lib(
         elif source.startswith("#![no_std]\n"):
             source = source[len("#![no_std]\n") :]
         for section in (part.rstrip() for part in source.split("\n\n") if part.strip()):
-            stripped = section.lstrip()
-            if stripped.startswith("fn "):
-                if section in seen_private_helpers:
+            helper_key = _private_helper_section_key(section)
+            if helper_key is not None:
+                if helper_key in seen_private_helpers:
                     continue
-                seen_private_helpers.add(section)
+                seen_private_helpers.add(helper_key)
             sections.append(section)
 
     rendered = "\n\n".join(section for section in sections if section)
     return rendered if rendered.endswith("\n") else f"{rendered}\n"
+
+
+def _private_helper_section_key(section: str) -> str | None:
+    """Return a stable deduplication key for a private helper section."""
+    match = re.search(r"(?m)^fn\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(", section)
+    if match is None:
+        return None
+    function_name = match.group(1)
+    if function_name.endswith("_meta"):
+        return None
+    if re.search(r"(?m)^pub\s+fn\s+", section) is not None:
+        return None
+    return section
 
 
 def _render_metadata_json(crate_name: str, codegens: tuple[RustCodegenResult, ...]) -> str:
