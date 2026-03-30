@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 import gradgen.rust_codegen as rust_codegen_module
+import gradgen.single_shooting as single_shooting_module
 from gradgen.rust_codegen import _gradgen_version
 from gradgen import (
     CodeGenerationBuilder,
@@ -555,6 +556,47 @@ mod single_shooting_runtime_tests {{
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    def test_single_shooting_builder_does_not_expand_staged_sources_for_shared_helper_nodes(self) -> None:
+        problem = self._build_single_shooting_problem(horizon=20)
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("single_shooting_no_expand"))
+            .for_function(problem)
+            .add_primal(include_states=True)
+            .add_gradient(include_states=True)
+            .add_hvp(include_states=True)
+            .add_joint(
+                SingleShootingBundle()
+                .add_cost()
+                .add_gradient()
+                .add_hvp()
+                .add_rollout_states()
+            )
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            with patch.object(
+                single_shooting_module.SingleShootingPrimalFunction,
+                "to_function",
+                side_effect=AssertionError("staged primal source should not be expanded during build"),
+            ), patch.object(
+                single_shooting_module.SingleShootingGradientFunction,
+                "to_function",
+                side_effect=AssertionError("staged gradient source should not be expanded during build"),
+            ), patch.object(
+                single_shooting_module.SingleShootingHvpFunction,
+                "to_function",
+                side_effect=AssertionError("staged hvp source should not be expanded during build"),
+            ), patch.object(
+                single_shooting_module.SingleShootingJointFunction,
+                "to_function",
+                side_effect=AssertionError("staged joint source should not be expanded during build"),
+            ):
+                project = builder.build(Path(tmpdir) / "single_shooting_no_expand")
+
+        self.assertEqual(len(project.codegens), 4)
 
     def test_single_shooting_codegen_handles_horizon_one_and_cost_states_joint(self) -> None:
         problem = self._build_single_shooting_problem(horizon=1)

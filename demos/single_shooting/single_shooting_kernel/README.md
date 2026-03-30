@@ -14,10 +14,10 @@ cargo build
 
 ## Generated Functions
 
-- `single_shooting_kernel_mpc_cost_f_states`: workspace `8`, inputs `(2, 5, 2)`, outputs `(1, 12)`
-- `single_shooting_kernel_mpc_cost_grad_states_u_seq`: workspace `24`, inputs `(2, 5, 2)`, outputs `(5, 12)`
-- `single_shooting_kernel_mpc_cost_hvp_states_u_seq`: workspace `42`, inputs `(2, 5, 2, 5)`, outputs `(5, 12)`
-- `single_shooting_kernel_mpc_cost_f_grad_states_u_seq`: workspace `25`, inputs `(2, 5, 2)`, outputs `(1, 5, 12)`
+- `single_shooting_kernel_mpc_cost_f_states`: workspace `8`, inputs `(2, 20, 2)`, outputs `(1, 42)`
+- `single_shooting_kernel_mpc_cost_grad_states_u_seq`: workspace `54`, inputs `(2, 20, 2)`, outputs `(20, 42)`
+- `single_shooting_kernel_mpc_cost_hvp_states_u_seq`: workspace `108`, inputs `(2, 20, 2, 20)`, outputs `(20, 42)`
+- `single_shooting_kernel_mpc_cost_f_grad_states_u_seq`: workspace `55`, inputs `(2, 20, 2)`, outputs `(1, 20, 42)`
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.
