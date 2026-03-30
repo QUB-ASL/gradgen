@@ -1,12 +1,4 @@
-use custom_function_kernel::{
-    custom_function_kernel_custom_energy_f, custom_function_kernel_custom_energy_f_meta,
-    custom_function_kernel_custom_energy_grad_x_f,
-    custom_function_kernel_custom_energy_grad_x_f_meta,
-    custom_function_kernel_custom_energy_hessian_x_f,
-    custom_function_kernel_custom_energy_hessian_x_f_meta,
-    custom_function_kernel_custom_energy_hvp_x_f,
-    custom_function_kernel_custom_energy_hvp_x_f_meta, FunctionMetadata,
-};
+use custom_function_kernel::*;
 
 fn print_metadata(label: &str, metadata: FunctionMetadata) {
     println!("{label}: {metadata:#?}");

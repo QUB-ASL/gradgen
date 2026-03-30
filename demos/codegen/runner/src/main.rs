@@ -1,10 +1,4 @@
-use codegen_kernel::{
-    codegen_kernel_coupling_f, codegen_kernel_coupling_f_meta, codegen_kernel_coupling_jf_u,
-    codegen_kernel_coupling_jf_u_meta, codegen_kernel_coupling_jf_x,
-    codegen_kernel_coupling_jf_x_meta, codegen_kernel_energy_f, codegen_kernel_energy_f_meta,
-    codegen_kernel_energy_jf_u, codegen_kernel_energy_jf_u_meta, codegen_kernel_energy_jf_x,
-    codegen_kernel_energy_jf_x_meta, FunctionMetadata,
-};
+use codegen_kernel::*;
 
 fn print_metadata(label: &str, metadata: FunctionMetadata) {
     println!("{label}: {metadata:#?}");

@@ -1,13 +1,4 @@
-use multi_function_kernel::{
-    multi_function_kernel_coupling_f, multi_function_kernel_coupling_f_jf_x,
-    multi_function_kernel_coupling_f_jf_x_meta, multi_function_kernel_coupling_f_meta,
-    multi_function_kernel_coupling_grad_u_meta, multi_function_kernel_coupling_grad_x,
-    multi_function_kernel_coupling_grad_x_meta, multi_function_kernel_coupling_hvp_u_meta,
-    multi_function_kernel_coupling_hvp_x, multi_function_kernel_coupling_hvp_x_meta,
-    multi_function_kernel_energy_f, multi_function_kernel_energy_f_meta,
-    multi_function_kernel_energy_jf_u_meta, multi_function_kernel_energy_jf_x,
-    multi_function_kernel_energy_jf_x_meta, FunctionMetadata,
-};
+use multi_function_kernel::*;
 
 fn print_metadata(label: &str, metadata: FunctionMetadata) {
     println!("{label}: {metadata:#?}");

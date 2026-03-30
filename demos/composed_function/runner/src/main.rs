@@ -1,8 +1,4 @@
-use composed_kernel::{
-    composed_kernel_composed_demo_f, composed_kernel_composed_demo_f_meta,
-    composed_kernel_composed_demo_grad_x, composed_kernel_composed_demo_grad_x_meta,
-    FunctionMetadata,
-};
+use composed_kernel::*;
 
 fn print_metadata(label: &str, metadata: FunctionMetadata) {
     println!("{label}: {metadata:#?}");
