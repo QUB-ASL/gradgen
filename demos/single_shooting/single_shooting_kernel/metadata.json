@@ -1,6 +1,6 @@
 {
   "crate_name": "single_shooting_kernel",
-  "created_at": "2026-03-30T13:10:50.025328Z",
+  "created_at": "2026-03-30T22:36:30.031641Z",
   "gradgen_version": "0.3.2a1",
   "functions": [
     {
@@ -27,7 +27,7 @@
     },
     {
       "function_name": "single_shooting_kernel_mpc_cost_grad_states_u_seq",
-      "workspace_size": 24,
+      "workspace_size": 14,
       "input_names": [
         "x0",
         "u_seq",
@@ -49,7 +49,7 @@
     },
     {
       "function_name": "single_shooting_kernel_mpc_cost_hvp_states_u_seq",
-      "workspace_size": 42,
+      "workspace_size": 32,
       "input_names": [
         "x0",
         "u_seq",
@@ -73,7 +73,7 @@
     },
     {
       "function_name": "single_shooting_kernel_mpc_cost_f_grad_states_u_seq",
-      "workspace_size": 25,
+      "workspace_size": 15,
       "input_names": [
         "x0",
         "u_seq",
