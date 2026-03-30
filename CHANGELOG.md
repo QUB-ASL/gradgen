@@ -54,6 +54,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Fixed issue with redundant memory allocation and cloning in generated code 
   in single shooting optimal control
+- In single shooting OCP, using `std::mem::swap` to avoid unnecessary memory 
+  moves
 
 ## 0.3.1 - 29-03-2026
 

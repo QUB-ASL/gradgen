@@ -1652,7 +1652,22 @@ def _generate_single_shooting_driver_rust(
         output_assert_lines.append(_assert)
         output_return_lines.append(_out_return)
 
-    state_history_size = (horizon * state_size) if need_history else 0
+    output_names = {spec.raw_name: spec.rust_name for spec in output_specs}
+    x0_name = input_specs[0].rust_name
+    U_name = input_specs[1].rust_name
+    p_name = input_specs[2].rust_name
+    v_U_name = input_specs[3].rust_name if include_hvp else None
+    cost_output_name = output_names.get("cost")
+    gradient_output_name = output_names.get(f"gradient_{problem.control_sequence_name}")
+    hvp_output_name = output_names.get(f"hvp_{problem.control_sequence_name}")
+    states_output_name = output_names.get("x_traj")
+    use_rollout_states_as_history = (
+        need_history and include_states and states_output_name is not None
+    )
+
+    state_history_size = (
+        0 if use_rollout_states_as_history else ((horizon * state_size) if need_history else 0)
+    )
     tangent_history_size = (horizon * state_size) if include_hvp else 0
     state_buffer_size = 2 * state_size
     tangent_buffer_size = (2 * state_size) if include_hvp else 0
@@ -1674,21 +1689,14 @@ def _generate_single_shooting_driver_rust(
     )
     workspace_size = driver_workspace_size + helpers.max_workspace_size
 
-    output_names = {spec.raw_name: spec.rust_name for spec in output_specs}
-    x0_name = input_specs[0].rust_name
-    U_name = input_specs[1].rust_name
-    p_name = input_specs[2].rust_name
-    v_U_name = input_specs[3].rust_name if include_hvp else None
-    cost_output_name = output_names.get("cost")
-    gradient_output_name = output_names.get(f"gradient_{problem.control_sequence_name}")
-    hvp_output_name = output_names.get(f"hvp_{problem.control_sequence_name}")
-    states_output_name = output_names.get("x_traj")
-
     computation_lines: list[str] = []
     if need_history:
-        computation_lines.append(
-            f"let (state_history, rest) = work.split_at_mut({state_history_size});"
-        )
+        if use_rollout_states_as_history:
+            computation_lines.append("let rest = work;")
+        else:
+            computation_lines.append(
+                f"let (state_history, rest) = work.split_at_mut({state_history_size});"
+            )
     else:
         computation_lines.append("let rest = work;")
     if include_hvp:
@@ -1699,8 +1707,10 @@ def _generate_single_shooting_driver_rust(
         f"let (state_buffers, rest) = rest.split_at_mut({state_buffer_size});"
     )
     computation_lines.append(
-        f"let (current_state, next_state) = state_buffers.split_at_mut({state_size});"
+        f"let (current_state_buf, next_state_buf) = state_buffers.split_at_mut({state_size});"
     )
+    computation_lines.append("let mut current_state = current_state_buf;")
+    computation_lines.append("let mut next_state = next_state_buf;")
     if include_hvp:
         computation_lines.append(
             f"let (tangent_buffers, rest) = rest.split_at_mut({tangent_buffer_size});"
@@ -1740,6 +1750,10 @@ def _generate_single_shooting_driver_rust(
         computation_lines.append(
             f"{states_output_name}[0..{state_size}].copy_from_slice({x0_name});"
         )
+    if use_rollout_states_as_history and states_output_name is not None:
+        computation_lines.append(
+            f"let state_history = &mut {states_output_name}[{state_size}..];"
+        )
     if include_cost:
         computation_lines.append(f"let mut total_cost = { _format_float(0.0, resolved_config.scalar_type) };")
 
@@ -1775,13 +1789,13 @@ def _generate_single_shooting_driver_rust(
         for_lines.append(
             f"    tangent_history[(stage_index * {state_size})..((stage_index + 1) * {state_size})].copy_from_slice(next_tangent);"
         )
-    for_lines.append("    current_state.copy_from_slice(next_state);")
-    if include_hvp:
-        for_lines.append("    current_tangent.copy_from_slice(next_tangent);")
-    if include_states and states_output_name is not None:
+    if include_states and states_output_name is not None and not use_rollout_states_as_history:
         for_lines.append(
             f"    {states_output_name}[((stage_index + 1) * {state_size})..((stage_index + 2) * {state_size})].copy_from_slice(next_state);"
         )
+    for_lines.append("    std::mem::swap(&mut current_state, &mut next_state);")
+    if include_hvp:
+        for_lines.append("    current_tangent.copy_from_slice(next_tangent);")
     for_lines.append("}")
     computation_lines.extend(for_lines)
 
