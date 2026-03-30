@@ -34,3 +34,6 @@ target/
 # Custom
 private/
 tmp_*
+
+# Coverage
+htmlcov/
