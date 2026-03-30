@@ -105,7 +105,7 @@ pub fn single_shooting_kernel_mpc_cost_f_states(
         total_cost += scalar_buffer[0];
         single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
         x_traj[((stage_index + 1) * 2)..((stage_index + 2) * 2)].copy_from_slice(next_state);
-        std::mem::swap(&mut current_state, &mut next_state);
+        core::mem::swap(&mut current_state, &mut next_state);
     }
     single_shooting_kernel_mpc_cost_terminal_cost(current_state, p, scalar_buffer, stage_work);
     total_cost += scalar_buffer[0];
@@ -277,7 +277,7 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
         state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
-        std::mem::swap(&mut current_state, &mut next_state);
+        core::mem::swap(&mut current_state, &mut next_state);
     }
     single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
         current_state,
@@ -561,7 +561,7 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
         );
         state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
         tangent_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_tangent);
-        std::mem::swap(&mut current_state, &mut next_state);
+        core::mem::swap(&mut current_state, &mut next_state);
         current_tangent.copy_from_slice(next_tangent);
     }
     single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
@@ -1019,7 +1019,7 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
         total_cost += scalar_buffer[0];
         single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
         state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
-        std::mem::swap(&mut current_state, &mut next_state);
+        core::mem::swap(&mut current_state, &mut next_state);
     }
     single_shooting_kernel_mpc_cost_terminal_cost(current_state, p, scalar_buffer, stage_work);
     total_cost += scalar_buffer[0];
