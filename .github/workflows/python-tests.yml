@@ -24,6 +24,9 @@ jobs:
         with:
           components: clippy, rustfmt
 
+      - name: Ensure cargo fmt installed
+        run: rustup component add rustfmt
+
       - name: Install package
         run: python -m pip install --upgrade pip && python -m pip install -e . numpy sympy
 
@@ -41,6 +44,7 @@ jobs:
 
       - name: Run demo runners
         run: |
+          cargo fmt --manifest-path demos/codegen/runner/Cargo.toml
           cargo run --manifest-path demos/codegen/runner/Cargo.toml
           cargo run --manifest-path demos/custom_function/runner/Cargo.toml
           cargo run --manifest-path demos/multi_function/runner/Cargo.toml
