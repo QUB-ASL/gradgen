@@ -710,6 +710,12 @@ def create_multi_function_rust_project(
     lib_rs = src_dir / "lib.rs"
 
     src_dir.mkdir(parents=True, exist_ok=True)
+    shared_helper_nodes = tuple(
+        node
+        for generated_function in functions
+        if isinstance(generated_function, Function)
+        for node in generated_function.nodes
+    )
 
     codegens = tuple(
         generate_rust(
@@ -717,13 +723,7 @@ def create_multi_function_rust_project(
             config=resolved_config,
             function_name=function.name,
             function_index=index,
-            shared_helper_nodes=tuple(
-                node
-                for generated_function in functions
-                for node in generated_function.nodes
-            )
-            if index == 0
-            else (),
+            shared_helper_nodes=shared_helper_nodes if index == 0 else (),
             shared_helper_suppressed_custom_wrappers=(
                 {
                     marker

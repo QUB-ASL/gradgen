@@ -98,17 +98,6 @@ U_value = [0.2 if stage_index % 2 == 0 else -0.1 for stage_index in range(args.h
 p_value = [0.4, -1.2]
 v_U_value = [0.5 if stage_index % 2 == 0 else -1.0 for stage_index in range(args.horizon)]
 
-cost_function = problem.to_function()
-gradient_function = problem.gradient(include_states=True).to_function()
-hvp_function = problem.hvp(include_states=True).to_function()
-
-print("horizon =", args.horizon)
-print("cost(x0, u_seq, p) =", cost_function(x0_value, U_value, p_value))
-grad_value, x_traj_value = gradient_function(x0_value, U_value, p_value)
-print("grad cost(x0, u_seq, p) =", grad_value)
-print("hvp cost(x0, u_seq, p; v_u_seq) =", hvp_function(x0_value, U_value, p_value, v_U_value)[0])
-print("x_traj(x0, u_seq, p) =", x_traj_value)
-
 
 backend_config = (
     RustBackendConfig()

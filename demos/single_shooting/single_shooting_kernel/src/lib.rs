@@ -200,7 +200,7 @@ fn single_shooting_kernel_mpc_cost_terminal_cost(
 pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_grad_states_u_seq",
-        workspace_size: 14,
+        workspace_size: 24,
         input_names: &["x0", "u_seq", "p"],
         input_sizes: &[2, 5, 2],
         output_names: &["gradient_u_seq", "x_traj"],
@@ -229,7 +229,7 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq_meta() -> FunctionMetad
 ///   packed rollout state trajectory including x0 through xN
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 14.
+///   while evaluating this kernel. Expected length: at least 24.
 pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
@@ -238,8 +238,8 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 14 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 14"));
+    if work.len() < 24 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 24"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -258,7 +258,7 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
     if x_traj.len() != 12 {
         return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
     };
-    let rest = work;
+    let (state_history, rest) = work.split_at_mut(10);
     let (state_buffers, rest) = rest.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
     let (lambda_buffers, rest) = rest.split_at_mut(4);
@@ -268,12 +268,12 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
     let stage_work = rest;
     current_state.copy_from_slice(x0);
     x_traj[0..2].copy_from_slice(x0);
-    let state_history = &mut x_traj[2..];
     for stage_index in 0..5 {
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
         state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
         current_state.copy_from_slice(next_state);
+        x_traj[((stage_index + 1) * 2)..((stage_index + 2) * 2)].copy_from_slice(next_state);
     }
     single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
         current_state,
@@ -459,7 +459,7 @@ fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
 pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_hvp_states_u_seq",
-        workspace_size: 32,
+        workspace_size: 42,
         input_names: &["x0", "u_seq", "p", "v_u_seq"],
         input_sizes: &[2, 5, 2, 5],
         output_names: &["hvp_u_seq", "x_traj"],
@@ -492,7 +492,7 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq_meta() -> FunctionMetada
 ///   packed rollout state trajectory including x0 through xN
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 32.
+///   while evaluating this kernel. Expected length: at least 42.
 pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
@@ -502,8 +502,8 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 32 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 32"));
+    if work.len() < 42 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 42"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -523,7 +523,7 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
     if x_traj.len() != 12 {
         return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
     };
-    let rest = work;
+    let (state_history, rest) = work.split_at_mut(10);
     let (tangent_history, rest) = rest.split_at_mut(10);
     let (state_buffers, rest) = rest.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
@@ -539,7 +539,6 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
     current_state.copy_from_slice(x0);
     current_tangent.fill(0.0_f64);
     x_traj[0..2].copy_from_slice(x0);
-    let state_history = &mut x_traj[2..];
     for stage_index in 0..5 {
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         let v_u_t = &v_u_seq[stage_index..(stage_index + 1)];
@@ -557,6 +556,7 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
         tangent_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_tangent);
         current_state.copy_from_slice(next_state);
         current_tangent.copy_from_slice(next_tangent);
+        x_traj[((stage_index + 1) * 2)..((stage_index + 2) * 2)].copy_from_slice(next_state);
     }
     single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
         current_state,
@@ -922,7 +922,7 @@ fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(
 pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_f_grad_states_u_seq",
-        workspace_size: 15,
+        workspace_size: 25,
         input_names: &["x0", "u_seq", "p"],
         input_sizes: &[2, 5, 2],
         output_names: &["cost", "gradient_u_seq", "x_traj"],
@@ -954,7 +954,7 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq_meta() -> FunctionMet
 ///   packed rollout state trajectory including x0 through xN
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 15.
+///   while evaluating this kernel. Expected length: at least 25.
 pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
@@ -964,8 +964,8 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 15 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 15"));
+    if work.len() < 25 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 25"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -987,7 +987,7 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
     if x_traj.len() != 12 {
         return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
     };
-    let rest = work;
+    let (state_history, rest) = work.split_at_mut(10);
     let (state_buffers, rest) = rest.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
     let (lambda_buffers, rest) = rest.split_at_mut(4);
@@ -997,7 +997,6 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
     let (scalar_buffer, stage_work) = rest.split_at_mut(1);
     current_state.copy_from_slice(x0);
     x_traj[0..2].copy_from_slice(x0);
-    let state_history = &mut x_traj[2..];
     let mut total_cost = 0.0_f64;
     for stage_index in 0..5 {
         let u_t = &u_seq[stage_index..(stage_index + 1)];
@@ -1012,6 +1011,7 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
         single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
         state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
         current_state.copy_from_slice(next_state);
+        x_traj[((stage_index + 1) * 2)..((stage_index + 2) * 2)].copy_from_slice(next_state);
     }
     single_shooting_kernel_mpc_cost_terminal_cost(current_state, p, scalar_buffer, stage_work);
     total_cost += scalar_buffer[0];
