@@ -370,11 +370,13 @@ print(JG([3.0, 4.0]))  # (1.0, 1.0, 4.0, 3.0, 0.0, cos(4.0))
 ```
 
 This corresponds to the $3 \times 2$ matrix
+
 $$\begin{bmatrix}
 1 & 1 \\
 4 & 3 \\
 0 & \cos(4)
 \end{bmatrix}$$
+
 stored row by row.
 
 You can also derive a Jacobian block from a function:
