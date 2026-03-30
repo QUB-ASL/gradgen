@@ -25,20 +25,10 @@ pub fn multi_function_kernel_energy_f_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "multi_function_kernel_energy_f",
         workspace_size: 2,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            2,
-            1,
-        ],
-        output_names: &[
-            "energy",
-        ],
-        output_sizes: &[
-            1,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[2, 1],
+        output_names: &["energy"],
+        output_sizes: &[1],
     }
 }
 
@@ -59,10 +49,19 @@ pub fn multi_function_kernel_energy_f_meta() -> FunctionMetadata {
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
 pub fn multi_function_kernel_energy_f(x: &[f64], u: &[f64], energy: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(energy.len(), 1, "energy is length {} but should be 1", energy.len());
+    assert_eq!(
+        energy.len(),
+        1,
+        "energy is length {} but should be 1",
+        energy.len()
+    );
     work[0] = u[0] * x[0];
     work[1] = norm2sq(x);
     work[0] += work[1];
@@ -74,20 +73,10 @@ pub fn multi_function_kernel_energy_jf_x_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "multi_function_kernel_energy_jf_x",
         workspace_size: 2,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            2,
-            1,
-        ],
-        output_names: &[
-            "jacobian_energy",
-        ],
-        output_sizes: &[
-            2,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[2, 1],
+        output_names: &["jacobian_energy"],
+        output_sizes: &[2],
     }
 }
 
@@ -108,11 +97,25 @@ pub fn multi_function_kernel_energy_jf_x_meta() -> FunctionMetadata {
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
-pub fn multi_function_kernel_energy_jf_x(x: &[f64], u: &[f64], jacobian_energy: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+pub fn multi_function_kernel_energy_jf_x(
+    x: &[f64],
+    u: &[f64],
+    jacobian_energy: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(jacobian_energy.len(), 2, "jacobian_energy is length {} but should be 2", jacobian_energy.len());
+    assert_eq!(
+        jacobian_energy.len(),
+        2,
+        "jacobian_energy is length {} but should be 2",
+        jacobian_energy.len()
+    );
     work[0] = 2.0_f64 * x[0];
     work[0] += u[0];
     work[1] = 2.0_f64 * x[1];
@@ -125,20 +128,10 @@ pub fn multi_function_kernel_energy_jf_u_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "multi_function_kernel_energy_jf_u",
         workspace_size: 0,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            2,
-            1,
-        ],
-        output_names: &[
-            "jacobian_energy",
-        ],
-        output_sizes: &[
-            1,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[2, 1],
+        output_names: &["jacobian_energy"],
+        output_sizes: &[1],
     }
 }
 
@@ -159,10 +152,20 @@ pub fn multi_function_kernel_energy_jf_u_meta() -> FunctionMetadata {
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
-pub fn multi_function_kernel_energy_jf_u(x: &[f64], u: &[f64], jacobian_energy: &mut [f64], _work: &mut [f64]) {
+pub fn multi_function_kernel_energy_jf_u(
+    x: &[f64],
+    u: &[f64],
+    jacobian_energy: &mut [f64],
+    _work: &mut [f64],
+) {
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(jacobian_energy.len(), 1, "jacobian_energy is length {} but should be 1", jacobian_energy.len());
+    assert_eq!(
+        jacobian_energy.len(),
+        1,
+        "jacobian_energy is length {} but should be 1",
+        jacobian_energy.len()
+    );
     jacobian_energy[0] = x[0];
 }
 
@@ -171,20 +174,10 @@ pub fn multi_function_kernel_coupling_f_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "multi_function_kernel_coupling_f",
         workspace_size: 2,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            2,
-            1,
-        ],
-        output_names: &[
-            "coupling",
-        ],
-        output_sizes: &[
-            1,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[2, 1],
+        output_names: &["coupling"],
+        output_sizes: &[1],
     }
 }
 
@@ -204,11 +197,25 @@ pub fn multi_function_kernel_coupling_f_meta() -> FunctionMetadata {
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
-pub fn multi_function_kernel_coupling_f(x: &[f64], u: &[f64], coupling: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+pub fn multi_function_kernel_coupling_f(
+    x: &[f64],
+    u: &[f64],
+    coupling: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(coupling.len(), 1, "coupling is length {} but should be 1", coupling.len());
+    assert_eq!(
+        coupling.len(),
+        1,
+        "coupling is length {} but should be 1",
+        coupling.len()
+    );
     work[0] = libm::cos(u[0]);
     work[1] = x[0] * x[1];
     work[0] += work[1];
@@ -220,20 +227,10 @@ pub fn multi_function_kernel_coupling_grad_x_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "multi_function_kernel_coupling_grad_x",
         workspace_size: 0,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            2,
-            1,
-        ],
-        output_names: &[
-            "coupling",
-        ],
-        output_sizes: &[
-            2,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[2, 1],
+        output_names: &["coupling"],
+        output_sizes: &[2],
     }
 }
 
@@ -253,10 +250,20 @@ pub fn multi_function_kernel_coupling_grad_x_meta() -> FunctionMetadata {
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
-pub fn multi_function_kernel_coupling_grad_x(x: &[f64], u: &[f64], coupling: &mut [f64], _work: &mut [f64]) {
+pub fn multi_function_kernel_coupling_grad_x(
+    x: &[f64],
+    u: &[f64],
+    coupling: &mut [f64],
+    _work: &mut [f64],
+) {
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(coupling.len(), 2, "coupling is length {} but should be 2", coupling.len());
+    assert_eq!(
+        coupling.len(),
+        2,
+        "coupling is length {} but should be 2",
+        coupling.len()
+    );
     coupling[0] = x[1];
     coupling[1] = x[0];
 }
@@ -266,20 +273,10 @@ pub fn multi_function_kernel_coupling_grad_u_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "multi_function_kernel_coupling_grad_u",
         workspace_size: 1,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            2,
-            1,
-        ],
-        output_names: &[
-            "coupling",
-        ],
-        output_sizes: &[
-            1,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[2, 1],
+        output_names: &["coupling"],
+        output_sizes: &[1],
     }
 }
 
@@ -299,11 +296,25 @@ pub fn multi_function_kernel_coupling_grad_u_meta() -> FunctionMetadata {
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
-pub fn multi_function_kernel_coupling_grad_u(x: &[f64], u: &[f64], coupling: &mut [f64], work: &mut [f64]) {
-    assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());
+pub fn multi_function_kernel_coupling_grad_u(
+    x: &[f64],
+    u: &[f64],
+    coupling: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        !work.is_empty(),
+        "work is length {} but should be at least 1",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(coupling.len(), 1, "coupling is length {} but should be 1", coupling.len());
+    assert_eq!(
+        coupling.len(),
+        1,
+        "coupling is length {} but should be 1",
+        coupling.len()
+    );
     work[0] = libm::sin(u[0]);
     work[0] = -work[0];
     coupling[0] = work[0];
@@ -314,22 +325,10 @@ pub fn multi_function_kernel_coupling_hvp_x_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "multi_function_kernel_coupling_hvp_x",
         workspace_size: 0,
-        input_names: &[
-            "x",
-            "u",
-            "v_x",
-        ],
-        input_sizes: &[
-            2,
-            1,
-            2,
-        ],
-        output_names: &[
-            "coupling",
-        ],
-        output_sizes: &[
-            2,
-        ],
+        input_names: &["x", "u", "v_x"],
+        input_sizes: &[2, 1, 2],
+        output_names: &["coupling"],
+        output_sizes: &[2],
     }
 }
 
@@ -354,11 +353,22 @@ pub fn multi_function_kernel_coupling_hvp_x_meta() -> FunctionMetadata {
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
-pub fn multi_function_kernel_coupling_hvp_x(x: &[f64], u: &[f64], v_x: &[f64], coupling: &mut [f64], _work: &mut [f64]) {
+pub fn multi_function_kernel_coupling_hvp_x(
+    x: &[f64],
+    u: &[f64],
+    v_x: &[f64],
+    coupling: &mut [f64],
+    _work: &mut [f64],
+) {
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(v_x.len(), 2, "v_x is length {} but should be 2", v_x.len());
-    assert_eq!(coupling.len(), 2, "coupling is length {} but should be 2", coupling.len());
+    assert_eq!(
+        coupling.len(),
+        2,
+        "coupling is length {} but should be 2",
+        coupling.len()
+    );
     coupling[0] = v_x[1];
     coupling[1] = v_x[0];
 }
@@ -368,22 +378,10 @@ pub fn multi_function_kernel_coupling_hvp_u_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "multi_function_kernel_coupling_hvp_u",
         workspace_size: 1,
-        input_names: &[
-            "x",
-            "u",
-            "v_u",
-        ],
-        input_sizes: &[
-            2,
-            1,
-            1,
-        ],
-        output_names: &[
-            "coupling",
-        ],
-        output_sizes: &[
-            1,
-        ],
+        input_names: &["x", "u", "v_u"],
+        input_sizes: &[2, 1, 1],
+        output_names: &["coupling"],
+        output_sizes: &[1],
     }
 }
 
@@ -408,12 +406,27 @@ pub fn multi_function_kernel_coupling_hvp_u_meta() -> FunctionMetadata {
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
-pub fn multi_function_kernel_coupling_hvp_u(x: &[f64], u: &[f64], v_u: &[f64], coupling: &mut [f64], work: &mut [f64]) {
-    assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());
+pub fn multi_function_kernel_coupling_hvp_u(
+    x: &[f64],
+    u: &[f64],
+    v_u: &[f64],
+    coupling: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        !work.is_empty(),
+        "work is length {} but should be at least 1",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(v_u.len(), 1, "v_u is length {} but should be 1", v_u.len());
-    assert_eq!(coupling.len(), 1, "coupling is length {} but should be 1", coupling.len());
+    assert_eq!(
+        coupling.len(),
+        1,
+        "coupling is length {} but should be 1",
+        coupling.len()
+    );
     work[0] = libm::cos(u[0]);
     work[0] *= v_u[0];
     work[0] = -work[0];
@@ -425,22 +438,10 @@ pub fn multi_function_kernel_coupling_f_jf_x_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "multi_function_kernel_coupling_f_jf_x",
         workspace_size: 2,
-        input_names: &[
-            "x",
-            "u",
-        ],
-        input_sizes: &[
-            2,
-            1,
-        ],
-        output_names: &[
-            "coupling",
-            "jacobian_coupling",
-        ],
-        output_sizes: &[
-            1,
-            2,
-        ],
+        input_names: &["x", "u"],
+        input_sizes: &[2, 1],
+        output_names: &["coupling", "jacobian_coupling"],
+        output_sizes: &[1, 2],
     }
 }
 
@@ -464,12 +465,32 @@ pub fn multi_function_kernel_coupling_f_jf_x_meta() -> FunctionMetadata {
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
-pub fn multi_function_kernel_coupling_f_jf_x(x: &[f64], u: &[f64], coupling: &mut [f64], jacobian_coupling: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+pub fn multi_function_kernel_coupling_f_jf_x(
+    x: &[f64],
+    u: &[f64],
+    coupling: &mut [f64],
+    jacobian_coupling: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(coupling.len(), 1, "coupling is length {} but should be 1", coupling.len());
-    assert_eq!(jacobian_coupling.len(), 2, "jacobian_coupling is length {} but should be 2", jacobian_coupling.len());
+    assert_eq!(
+        coupling.len(),
+        1,
+        "coupling is length {} but should be 1",
+        coupling.len()
+    );
+    assert_eq!(
+        jacobian_coupling.len(),
+        2,
+        "jacobian_coupling is length {} but should be 2",
+        jacobian_coupling.len()
+    );
     work[0] = libm::cos(u[0]);
     work[1] = x[0] * x[1];
     work[0] += work[1];

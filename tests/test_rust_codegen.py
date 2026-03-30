@@ -5,7 +5,9 @@ import re
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
+import gradgen.rust_codegen as rust_codegen_module
 from gradgen.rust_codegen import _gradgen_version
 from gradgen import (
     CodeGenerationBuilder,
@@ -763,6 +765,28 @@ mod single_shooting_multi_u_tests {{
                     }
                 ],
             )
+
+    def test_create_rust_project_attempts_cargo_fmt_without_failing_on_error(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir:
+            with patch.object(rust_codegen_module.shutil, "which", return_value="/usr/bin/cargo"):
+                with patch.object(
+                    rust_codegen_module.subprocess,
+                    "run",
+                    side_effect=subprocess.CalledProcessError(1, ["cargo", "fmt"], stderr="rustfmt missing"),
+                ) as mocked_run:
+                    project = create_rust_project(f, Path(tmpdir) / "energy_kernel")
+                    self.assertTrue(project.lib_rs.exists())
+
+        mocked_run.assert_called_once_with(
+            ["cargo", "fmt"],
+            cwd=project.project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
 
     def test_backend_config_supports_chainable_updates(self) -> None:
         config = (
@@ -2869,10 +2893,7 @@ mod tests {
 
             self.assertIn("pub fn joint_hessian_joint_hessian_f_hessian(", lib_text)
             self.assertIn("hessian_y: &mut [f64]", lib_text)
-            self.assertIn(
-                'assert_eq!(hessian_y.len(), 4, "hessian_y is length {} but should be 4", hessian_y.len());',
-                lib_text,
-            )
+            self.assertIn('"hessian_y is length {} but should be 4"', lib_text)
 
             self._append_rust_test(
                 project.project_dir,

@@ -6,8 +6,11 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as package_version
 import json
+import logging
 from pathlib import Path
 import re
+import shutil
+import subprocess
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -43,6 +46,9 @@ from .custom_elementary import (
 
 RustBackendMode = str
 RustScalarType = str
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -605,6 +611,7 @@ def create_rust_project(
         encoding="utf-8",
     )
     lib_rs.write_text(codegen.source, encoding="utf-8")
+    _try_run_cargo_fmt(project_dir)
 
     return RustProjectResult(
         project_dir=project_dir,
@@ -760,6 +767,7 @@ def create_multi_function_rust_project(
         encoding="utf-8",
     )
     lib_rs.write_text(_render_multi_function_lib(codegens, resolved_config), encoding="utf-8")
+    _try_run_cargo_fmt(project_dir)
 
     return RustMultiFunctionProjectResult(
         project_dir=project_dir,
@@ -769,6 +777,36 @@ def create_multi_function_rust_project(
         lib_rs=lib_rs,
         codegens=codegens,
     )
+
+
+def _try_run_cargo_fmt(project_dir: Path) -> None:
+    """Run ``cargo fmt`` for a generated crate when available.
+
+    Formatting is best-effort only. Missing tools or formatter failures should
+    not make Python-side crate generation fail.
+    """
+    if shutil.which("cargo") is None:
+        _LOGGER.info("Skipping cargo fmt for %s because cargo is not installed.", project_dir)
+        return
+    try:
+        subprocess.run(
+            ["cargo", "fmt"],
+            cwd=project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError:
+        _LOGGER.info("Skipping cargo fmt for %s because cargo is not installed.", project_dir)
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        details = stderr or stdout
+        _LOGGER.warning(
+            "Skipping cargo fmt for %s because it could not be run successfully%s",
+            project_dir,
+            f": {details}" if details else ".",
+        )
 
 
 def _generate_composed_primal_rust(
@@ -1741,10 +1779,10 @@ def _generate_single_shooting_driver_rust(
                     f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
                     f"    {helpers.stage_cost_grad_u_name}(x_t, u_t, {p_name}, grad_u_t, stage_work);",
                     f"    {helpers.dynamics_vjp_u_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
-                    f"    for control_index in 0..{control_size} {{",
-                    "        grad_u_t[control_index] += temp_control[control_index];",
-                    "    }",
                 ]
+            )
+            computation_lines.extend(
+                _emit_small_accumulate("grad_u_t", "temp_control", control_size, indent="    ")
             )
         if include_hvp and hvp_output_name is not None:
             computation_lines.extend(
@@ -1752,29 +1790,29 @@ def _generate_single_shooting_driver_rust(
                     f"    let hvp_u_t = &mut {hvp_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
                     f"    {helpers.stage_cost_grad_u_jvp_name}(x_t, u_t, {p_name}, tangent_x_t, v_u_t, hvp_u_t, stage_work);",
                     f"    {helpers.dynamics_vjp_u_jvp_name}(x_t, u_t, {p_name}, &lambda_current[..], tangent_x_t, v_u_t, &mu_current[..], temp_control, stage_work);",
-                    f"    for control_index in 0..{control_size} {{",
-                    "        hvp_u_t[control_index] += temp_control[control_index];",
-                    "    }",
                 ]
+            )
+            computation_lines.extend(
+                _emit_small_accumulate("hvp_u_t", "temp_control", control_size, indent="    ")
             )
         computation_lines.extend(
             [
                 f"    {helpers.stage_cost_grad_x_name}(x_t, u_t, {p_name}, lambda_next, stage_work);",
                 f"    {helpers.dynamics_vjp_x_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_state, stage_work);",
-                f"    for state_index in 0..{state_size} {{",
-                "        lambda_next[state_index] += temp_state[state_index];",
-                "    }",
             ]
+        )
+        computation_lines.extend(
+            _emit_small_accumulate("lambda_next", "temp_state", state_size, indent="    ")
         )
         if include_hvp:
             computation_lines.extend(
                 [
                     f"    {helpers.stage_cost_grad_x_jvp_name}(x_t, u_t, {p_name}, tangent_x_t, v_u_t, mu_next, stage_work);",
                     f"    {helpers.dynamics_vjp_x_jvp_name}(x_t, u_t, {p_name}, &lambda_current[..], tangent_x_t, v_u_t, &mu_current[..], temp_state, stage_work);",
-                    f"    for state_index in 0..{state_size} {{",
-                    "        mu_next[state_index] += temp_state[state_index];",
-                    "    }",
                 ]
+            )
+            computation_lines.extend(
+                _emit_small_accumulate("mu_next", "temp_state", state_size, indent="    ")
             )
         computation_lines.append("    lambda_current.copy_from_slice(lambda_next);")
         if include_hvp:
@@ -1789,10 +1827,10 @@ def _generate_single_shooting_driver_rust(
                     f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
                     f"{helpers.stage_cost_grad_u_name}({x0_name}, u_t, {p_name}, grad_u_t, stage_work);",
                     f"{helpers.dynamics_vjp_u_name}({x0_name}, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
-                    f"for control_index in 0..{control_size} {{",
-                    "    grad_u_t[control_index] += temp_control[control_index];",
-                    "}",
                 ]
+            )
+            computation_lines.extend(
+                _emit_small_accumulate("grad_u_t", "temp_control", control_size)
             )
         if include_hvp and hvp_output_name is not None and v_U_name is not None:
             computation_lines.extend(
@@ -1802,10 +1840,10 @@ def _generate_single_shooting_driver_rust(
                     f"let hvp_u_t = &mut {hvp_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
                     f"{helpers.stage_cost_grad_u_jvp_name}({x0_name}, u_t, {p_name}, next_tangent, v_u_t, hvp_u_t, stage_work);",
                     f"{helpers.dynamics_vjp_u_jvp_name}({x0_name}, u_t, {p_name}, &lambda_current[..], next_tangent, v_u_t, &mu_current[..], temp_control, stage_work);",
-                    f"for control_index in 0..{control_size} {{",
-                    "    hvp_u_t[control_index] += temp_control[control_index];",
-                    "}",
                 ]
+            )
+            computation_lines.extend(
+                _emit_small_accumulate("hvp_u_t", "temp_control", control_size)
             )
 
     shared_helper_lines = list(
@@ -2297,6 +2335,25 @@ def _emit_single_shooting_stage_range(
     start = "0" if index_expr == "0" else f"({index_expr} * {block_size})"
     end = str(block_size) if index_expr == "0" else f"(({index_expr} + 1) * {block_size})"
     return f"{start}..{end}"
+
+
+def _emit_small_accumulate(
+    target_name: str,
+    source_name: str,
+    size: int,
+    *,
+    indent: str = "",
+) -> list[str]:
+    """Emit direct accumulation for tiny fixed-size vectors, else a loop."""
+    if size <= 0:
+        return []
+    if size <= 2:
+        return [f"{indent}{target_name}[{index}] += {source_name}[{index}];" for index in range(size)]
+    return [
+        f"{indent}for index in 0..{size} {{",
+        f"{indent}    {target_name}[index] += {source_name}[index];",
+        f"{indent}}}",
+    ]
 
 
 def _build_composed_input_specs(

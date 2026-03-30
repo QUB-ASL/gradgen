@@ -22,24 +22,10 @@ pub fn single_shooting_kernel_mpc_cost_f_states_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_f_states",
         workspace_size: 8,
-        input_names: &[
-            "x0",
-            "u_seq",
-            "p",
-        ],
-        input_sizes: &[
-            2,
-            5,
-            2,
-        ],
-        output_names: &[
-            "cost",
-            "x_traj",
-        ],
-        output_sizes: &[
-            1,
-            12,
-        ],
+        input_names: &["x0", "u_seq", "p"],
+        input_sizes: &[2, 5, 2],
+        output_names: &["cost", "x_traj"],
+        output_sizes: &[1, 12],
     }
 }
 
@@ -65,13 +51,39 @@ pub fn single_shooting_kernel_mpc_cost_f_states_meta() -> FunctionMetadata {
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 8.
-pub fn single_shooting_kernel_mpc_cost_f_states(x0: &[f64], u_seq: &[f64], p: &[f64], cost: &mut [f64], x_traj: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 8, "work is length {} but should be at least 8", work.len());
+pub fn single_shooting_kernel_mpc_cost_f_states(
+    x0: &[f64],
+    u_seq: &[f64],
+    p: &[f64],
+    cost: &mut [f64],
+    x_traj: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 8,
+        "work is length {} but should be at least 8",
+        work.len()
+    );
     assert_eq!(x0.len(), 2, "x0 is length {} but should be 2", x0.len());
-    assert_eq!(u_seq.len(), 5, "u_seq is length {} but should be 5", u_seq.len());
+    assert_eq!(
+        u_seq.len(),
+        5,
+        "u_seq is length {} but should be 5",
+        u_seq.len()
+    );
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(cost.len(), 1, "cost is length {} but should be 1", cost.len());
-    assert_eq!(x_traj.len(), 12, "x_traj is length {} but should be 12", x_traj.len());
+    assert_eq!(
+        cost.len(),
+        1,
+        "cost is length {} but should be 1",
+        cost.len()
+    );
+    assert_eq!(
+        x_traj.len(),
+        12,
+        "x_traj is length {} but should be 12",
+        x_traj.len()
+    );
     let rest = work;
     let (state_buffers, rest) = rest.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
@@ -81,7 +93,13 @@ pub fn single_shooting_kernel_mpc_cost_f_states(x0: &[f64], u_seq: &[f64], p: &[
     let mut total_cost = 0.0_f64;
     for stage_index in 0..5 {
         let u_t = &u_seq[stage_index..(stage_index + 1)];
-        single_shooting_kernel_mpc_cost_stage_cost(current_state, u_t, p, scalar_buffer, stage_work);
+        single_shooting_kernel_mpc_cost_stage_cost(
+            current_state,
+            u_t,
+            p,
+            scalar_buffer,
+            stage_work,
+        );
         total_cost += scalar_buffer[0];
         single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
         current_state.copy_from_slice(next_state);
@@ -92,12 +110,27 @@ pub fn single_shooting_kernel_mpc_cost_f_states(x0: &[f64], u_seq: &[f64], p: &[
     cost[0] = total_cost;
 }
 
-fn single_shooting_kernel_mpc_cost_dynamics(x: &[f64], u: &[f64], p: &[f64], x_next: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 3, "work is length {} but should be at least 3", work.len());
+fn single_shooting_kernel_mpc_cost_dynamics(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    x_next: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 3,
+        "work is length {} but should be at least 3",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(x_next.len(), 2, "x_next is length {} but should be 2", x_next.len());
+    assert_eq!(
+        x_next.len(),
+        2,
+        "x_next is length {} but should be 2",
+        x_next.len()
+    );
     work[0] = p[0] * x[1];
     work[0] += x[0];
     work[0] += u[0];
@@ -110,8 +143,18 @@ fn single_shooting_kernel_mpc_cost_dynamics(x: &[f64], u: &[f64], p: &[f64], x_n
     x_next[1] = work[1];
 }
 
-fn single_shooting_kernel_mpc_cost_stage_cost(x: &[f64], u: &[f64], p: &[f64], ell: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+fn single_shooting_kernel_mpc_cost_stage_cost(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    ell: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
@@ -128,8 +171,17 @@ fn single_shooting_kernel_mpc_cost_stage_cost(x: &[f64], u: &[f64], p: &[f64], e
     ell[0] = work[0];
 }
 
-fn single_shooting_kernel_mpc_cost_terminal_cost(x: &[f64], p: &[f64], vf: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+fn single_shooting_kernel_mpc_cost_terminal_cost(
+    x: &[f64],
+    p: &[f64],
+    vf: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
     assert_eq!(vf.len(), 1, "vf is length {} but should be 1", vf.len());
@@ -148,24 +200,10 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq_meta() -> FunctionMetad
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_grad_states_u_seq",
         workspace_size: 24,
-        input_names: &[
-            "x0",
-            "u_seq",
-            "p",
-        ],
-        input_sizes: &[
-            2,
-            5,
-            2,
-        ],
-        output_names: &[
-            "gradient_u_seq",
-            "x_traj",
-        ],
-        output_sizes: &[
-            5,
-            12,
-        ],
+        input_names: &["x0", "u_seq", "p"],
+        input_sizes: &[2, 5, 2],
+        output_names: &["gradient_u_seq", "x_traj"],
+        output_sizes: &[5, 12],
     }
 }
 
@@ -191,13 +229,39 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq_meta() -> FunctionMetad
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 24.
-pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(x0: &[f64], u_seq: &[f64], p: &[f64], gradient_u_seq: &mut [f64], x_traj: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 24, "work is length {} but should be at least 24", work.len());
+pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
+    x0: &[f64],
+    u_seq: &[f64],
+    p: &[f64],
+    gradient_u_seq: &mut [f64],
+    x_traj: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 24,
+        "work is length {} but should be at least 24",
+        work.len()
+    );
     assert_eq!(x0.len(), 2, "x0 is length {} but should be 2", x0.len());
-    assert_eq!(u_seq.len(), 5, "u_seq is length {} but should be 5", u_seq.len());
+    assert_eq!(
+        u_seq.len(),
+        5,
+        "u_seq is length {} but should be 5",
+        u_seq.len()
+    );
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(gradient_u_seq.len(), 5, "gradient_u_seq is length {} but should be 5", gradient_u_seq.len());
-    assert_eq!(x_traj.len(), 12, "x_traj is length {} but should be 12", x_traj.len());
+    assert_eq!(
+        gradient_u_seq.len(),
+        5,
+        "gradient_u_seq is length {} but should be 5",
+        gradient_u_seq.len()
+    );
+    assert_eq!(
+        x_traj.len(),
+        12,
+        "x_traj is length {} but should be 12",
+        x_traj.len()
+    );
     let (state_history, rest) = work.split_at_mut(10);
     let (state_buffers, rest) = rest.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
@@ -215,39 +279,81 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(x0: &[f64], u_seq: &[f6
         current_state.copy_from_slice(next_state);
         x_traj[((stage_index + 1) * 2)..((stage_index + 2) * 2)].copy_from_slice(next_state);
     }
-    single_shooting_kernel_mpc_cost_terminal_cost_grad_x(current_state, p, lambda_current, stage_work);
+    single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
+        current_state,
+        p,
+        lambda_current,
+        stage_work,
+    );
     for stage_index in (1..5).rev() {
         let x_t = &state_history[((stage_index - 1) * 2)..(stage_index * 2)];
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         let grad_u_t = &mut gradient_u_seq[stage_index..(stage_index + 1)];
         single_shooting_kernel_mpc_cost_stage_cost_grad_u(x_t, u_t, p, grad_u_t, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_u(x_t, u_t, p, &lambda_current[..], temp_control, stage_work);
-        for control_index in 0..1 {
-            grad_u_t[control_index] += temp_control[control_index];
-        }
+        single_shooting_kernel_mpc_cost_dynamics_vjp_u(
+            x_t,
+            u_t,
+            p,
+            &lambda_current[..],
+            temp_control,
+            stage_work,
+        );
+        grad_u_t[0] += temp_control[0];
         single_shooting_kernel_mpc_cost_stage_cost_grad_x(x_t, u_t, p, lambda_next, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_x(x_t, u_t, p, &lambda_current[..], temp_state, stage_work);
-        for state_index in 0..2 {
-            lambda_next[state_index] += temp_state[state_index];
-        }
+        single_shooting_kernel_mpc_cost_dynamics_vjp_x(
+            x_t,
+            u_t,
+            p,
+            &lambda_current[..],
+            temp_state,
+            stage_work,
+        );
+        lambda_next[0] += temp_state[0];
+        lambda_next[1] += temp_state[1];
         lambda_current.copy_from_slice(lambda_next);
     }
     let u_t = &u_seq[0..1];
     let grad_u_t = &mut gradient_u_seq[0..1];
     single_shooting_kernel_mpc_cost_stage_cost_grad_u(x0, u_t, p, grad_u_t, stage_work);
-    single_shooting_kernel_mpc_cost_dynamics_vjp_u(x0, u_t, p, &lambda_current[..], temp_control, stage_work);
-    for control_index in 0..1 {
-        grad_u_t[control_index] += temp_control[control_index];
-    }
+    single_shooting_kernel_mpc_cost_dynamics_vjp_u(
+        x0,
+        u_t,
+        p,
+        &lambda_current[..],
+        temp_control,
+        stage_work,
+    );
+    grad_u_t[0] += temp_control[0];
 }
 
-fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(x: &[f64], u: &[f64], p: &[f64], cotangent_x_next: &[f64], vjp_x: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    cotangent_x_next: &[f64],
+    vjp_x: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(cotangent_x_next.len(), 2, "cotangent_x_next is length {} but should be 2", cotangent_x_next.len());
-    assert_eq!(vjp_x.len(), 2, "vjp_x is length {} but should be 2", vjp_x.len());
+    assert_eq!(
+        cotangent_x_next.len(),
+        2,
+        "cotangent_x_next is length {} but should be 2",
+        cotangent_x_next.len()
+    );
+    assert_eq!(
+        vjp_x.len(),
+        2,
+        "vjp_x is length {} but should be 2",
+        vjp_x.len()
+    );
     work[0] = -0.5_f64 * cotangent_x_next[1];
     work[0] += cotangent_x_next[0];
     work[1] = cotangent_x_next[0] * p[0];
@@ -256,20 +362,51 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(x: &[f64], u: &[f64], p: &[f64
     vjp_x[1] = work[1];
 }
 
-fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(x: &[f64], u: &[f64], p: &[f64], cotangent_x_next: &[f64], vjp_u: &mut [f64], work: &mut [f64]) {
-    assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());
+fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    cotangent_x_next: &[f64],
+    vjp_u: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        !work.is_empty(),
+        "work is length {} but should be at least 1",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(cotangent_x_next.len(), 2, "cotangent_x_next is length {} but should be 2", cotangent_x_next.len());
-    assert_eq!(vjp_u.len(), 1, "vjp_u is length {} but should be 1", vjp_u.len());
+    assert_eq!(
+        cotangent_x_next.len(),
+        2,
+        "cotangent_x_next is length {} but should be 2",
+        cotangent_x_next.len()
+    );
+    assert_eq!(
+        vjp_u.len(),
+        1,
+        "vjp_u is length {} but should be 1",
+        vjp_u.len()
+    );
     work[0] = cotangent_x_next[1] * p[1];
     work[0] += cotangent_x_next[0];
     vjp_u[0] = work[0];
 }
 
-fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(x: &[f64], u: &[f64], p: &[f64], ell: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    ell: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
@@ -280,8 +417,18 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(x: &[f64], u: &[f64], p: &[
     ell[1] = work[1];
 }
 
-fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(x: &[f64], u: &[f64], p: &[f64], ell: &mut [f64], work: &mut [f64]) {
-    assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());
+fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    ell: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        !work.is_empty(),
+        "work is length {} but should be at least 1",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
@@ -291,8 +438,17 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(x: &[f64], u: &[f64], p: &[
     ell[0] = work[0];
 }
 
-fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x(x: &[f64], p: &[f64], vf: &mut [f64], work: &mut [f64]) {
-    assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());
+fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
+    x: &[f64],
+    p: &[f64],
+    vf: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        !work.is_empty(),
+        "work is length {} but should be at least 1",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
     assert_eq!(vf.len(), 2, "vf is length {} but should be 2", vf.len());
@@ -307,26 +463,10 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq_meta() -> FunctionMetada
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_hvp_states_u_seq",
         workspace_size: 42,
-        input_names: &[
-            "x0",
-            "u_seq",
-            "p",
-            "v_u_seq",
-        ],
-        input_sizes: &[
-            2,
-            5,
-            2,
-            5,
-        ],
-        output_names: &[
-            "hvp_u_seq",
-            "x_traj",
-        ],
-        output_sizes: &[
-            5,
-            12,
-        ],
+        input_names: &["x0", "u_seq", "p", "v_u_seq"],
+        input_sizes: &[2, 5, 2, 5],
+        output_names: &["hvp_u_seq", "x_traj"],
+        output_sizes: &[5, 12],
     }
 }
 
@@ -356,14 +496,46 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq_meta() -> FunctionMetada
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 42.
-pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(x0: &[f64], u_seq: &[f64], p: &[f64], v_u_seq: &[f64], hvp_u_seq: &mut [f64], x_traj: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 42, "work is length {} but should be at least 42", work.len());
+pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
+    x0: &[f64],
+    u_seq: &[f64],
+    p: &[f64],
+    v_u_seq: &[f64],
+    hvp_u_seq: &mut [f64],
+    x_traj: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 42,
+        "work is length {} but should be at least 42",
+        work.len()
+    );
     assert_eq!(x0.len(), 2, "x0 is length {} but should be 2", x0.len());
-    assert_eq!(u_seq.len(), 5, "u_seq is length {} but should be 5", u_seq.len());
+    assert_eq!(
+        u_seq.len(),
+        5,
+        "u_seq is length {} but should be 5",
+        u_seq.len()
+    );
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(v_u_seq.len(), 5, "v_u_seq is length {} but should be 5", v_u_seq.len());
-    assert_eq!(hvp_u_seq.len(), 5, "hvp_u_seq is length {} but should be 5", hvp_u_seq.len());
-    assert_eq!(x_traj.len(), 12, "x_traj is length {} but should be 12", x_traj.len());
+    assert_eq!(
+        v_u_seq.len(),
+        5,
+        "v_u_seq is length {} but should be 5",
+        v_u_seq.len()
+    );
+    assert_eq!(
+        hvp_u_seq.len(),
+        5,
+        "hvp_u_seq is length {} but should be 5",
+        hvp_u_seq.len()
+    );
+    assert_eq!(
+        x_traj.len(),
+        12,
+        "x_traj is length {} but should be 12",
+        x_traj.len()
+    );
     let (state_history, rest) = work.split_at_mut(10);
     let (tangent_history, rest) = rest.split_at_mut(10);
     let (state_buffers, rest) = rest.split_at_mut(4);
@@ -384,36 +556,94 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(x0: &[f64], u_seq: &[f64
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         let v_u_t = &v_u_seq[stage_index..(stage_index + 1)];
         single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_jvp(current_state, u_t, p, current_tangent, v_u_t, next_tangent, stage_work);
+        single_shooting_kernel_mpc_cost_dynamics_jvp(
+            current_state,
+            u_t,
+            p,
+            current_tangent,
+            v_u_t,
+            next_tangent,
+            stage_work,
+        );
         state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
         tangent_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_tangent);
         current_state.copy_from_slice(next_state);
         current_tangent.copy_from_slice(next_tangent);
         x_traj[((stage_index + 1) * 2)..((stage_index + 2) * 2)].copy_from_slice(next_state);
     }
-    single_shooting_kernel_mpc_cost_terminal_cost_grad_x(current_state, p, lambda_current, stage_work);
-    single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(current_state, p, current_tangent, mu_current, stage_work);
+    single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
+        current_state,
+        p,
+        lambda_current,
+        stage_work,
+    );
+    single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(
+        current_state,
+        p,
+        current_tangent,
+        mu_current,
+        stage_work,
+    );
     for stage_index in (1..5).rev() {
         let x_t = &state_history[((stage_index - 1) * 2)..(stage_index * 2)];
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         let tangent_x_t = &tangent_history[((stage_index - 1) * 2)..(stage_index * 2)];
         let v_u_t = &v_u_seq[stage_index..(stage_index + 1)];
         let hvp_u_t = &mut hvp_u_seq[stage_index..(stage_index + 1)];
-        single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(x_t, u_t, p, tangent_x_t, v_u_t, hvp_u_t, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(x_t, u_t, p, &lambda_current[..], tangent_x_t, v_u_t, &mu_current[..], temp_control, stage_work);
-        for control_index in 0..1 {
-            hvp_u_t[control_index] += temp_control[control_index];
-        }
+        single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
+            x_t,
+            u_t,
+            p,
+            tangent_x_t,
+            v_u_t,
+            hvp_u_t,
+            stage_work,
+        );
+        single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
+            x_t,
+            u_t,
+            p,
+            &lambda_current[..],
+            tangent_x_t,
+            v_u_t,
+            &mu_current[..],
+            temp_control,
+            stage_work,
+        );
+        hvp_u_t[0] += temp_control[0];
         single_shooting_kernel_mpc_cost_stage_cost_grad_x(x_t, u_t, p, lambda_next, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_x(x_t, u_t, p, &lambda_current[..], temp_state, stage_work);
-        for state_index in 0..2 {
-            lambda_next[state_index] += temp_state[state_index];
-        }
-        single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(x_t, u_t, p, tangent_x_t, v_u_t, mu_next, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(x_t, u_t, p, &lambda_current[..], tangent_x_t, v_u_t, &mu_current[..], temp_state, stage_work);
-        for state_index in 0..2 {
-            mu_next[state_index] += temp_state[state_index];
-        }
+        single_shooting_kernel_mpc_cost_dynamics_vjp_x(
+            x_t,
+            u_t,
+            p,
+            &lambda_current[..],
+            temp_state,
+            stage_work,
+        );
+        lambda_next[0] += temp_state[0];
+        lambda_next[1] += temp_state[1];
+        single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(
+            x_t,
+            u_t,
+            p,
+            tangent_x_t,
+            v_u_t,
+            mu_next,
+            stage_work,
+        );
+        single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(
+            x_t,
+            u_t,
+            p,
+            &lambda_current[..],
+            tangent_x_t,
+            v_u_t,
+            &mu_current[..],
+            temp_state,
+            stage_work,
+        );
+        mu_next[0] += temp_state[0];
+        mu_next[1] += temp_state[1];
         lambda_current.copy_from_slice(lambda_next);
         mu_current.copy_from_slice(mu_next);
     }
@@ -421,21 +651,64 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(x0: &[f64], u_seq: &[f64
     next_tangent.fill(0.0_f64);
     let v_u_t = &v_u_seq[0..1];
     let hvp_u_t = &mut hvp_u_seq[0..1];
-    single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(x0, u_t, p, next_tangent, v_u_t, hvp_u_t, stage_work);
-    single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(x0, u_t, p, &lambda_current[..], next_tangent, v_u_t, &mu_current[..], temp_control, stage_work);
-    for control_index in 0..1 {
-        hvp_u_t[control_index] += temp_control[control_index];
-    }
+    single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
+        x0,
+        u_t,
+        p,
+        next_tangent,
+        v_u_t,
+        hvp_u_t,
+        stage_work,
+    );
+    single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
+        x0,
+        u_t,
+        p,
+        &lambda_current[..],
+        next_tangent,
+        v_u_t,
+        &mu_current[..],
+        temp_control,
+        stage_work,
+    );
+    hvp_u_t[0] += temp_control[0];
 }
 
-fn single_shooting_kernel_mpc_cost_dynamics_jvp(x: &[f64], u: &[f64], p: &[f64], tangent_x: &[f64], tangent_u: &[f64], x_next: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 3, "work is length {} but should be at least 3", work.len());
+fn single_shooting_kernel_mpc_cost_dynamics_jvp(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    tangent_x: &[f64],
+    tangent_u: &[f64],
+    x_next: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 3,
+        "work is length {} but should be at least 3",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(tangent_x.len(), 2, "tangent_x is length {} but should be 2", tangent_x.len());
-    assert_eq!(tangent_u.len(), 1, "tangent_u is length {} but should be 1", tangent_u.len());
-    assert_eq!(x_next.len(), 2, "x_next is length {} but should be 2", x_next.len());
+    assert_eq!(
+        tangent_x.len(),
+        2,
+        "tangent_x is length {} but should be 2",
+        tangent_x.len()
+    );
+    assert_eq!(
+        tangent_u.len(),
+        1,
+        "tangent_u is length {} but should be 1",
+        tangent_u.len()
+    );
+    assert_eq!(
+        x_next.len(),
+        2,
+        "x_next is length {} but should be 2",
+        x_next.len()
+    );
     work[0] = p[0] * tangent_x[1];
     work[0] += tangent_x[0];
     work[0] += tangent_u[0];
@@ -449,16 +722,55 @@ fn single_shooting_kernel_mpc_cost_dynamics_jvp(x: &[f64], u: &[f64], p: &[f64],
 }
 
 #[allow(clippy::too_many_arguments)]
-fn single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(x: &[f64], u: &[f64], p: &[f64], cotangent_x_next: &[f64], tangent_x: &[f64], tangent_u: &[f64], tangent_cotangent_x_next: &[f64], vjp_x: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+fn single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    cotangent_x_next: &[f64],
+    tangent_x: &[f64],
+    tangent_u: &[f64],
+    tangent_cotangent_x_next: &[f64],
+    vjp_x: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(cotangent_x_next.len(), 2, "cotangent_x_next is length {} but should be 2", cotangent_x_next.len());
-    assert_eq!(tangent_x.len(), 2, "tangent_x is length {} but should be 2", tangent_x.len());
-    assert_eq!(tangent_u.len(), 1, "tangent_u is length {} but should be 1", tangent_u.len());
-    assert_eq!(tangent_cotangent_x_next.len(), 2, "tangent_cotangent_x_next is length {} but should be 2", tangent_cotangent_x_next.len());
-    assert_eq!(vjp_x.len(), 2, "vjp_x is length {} but should be 2", vjp_x.len());
+    assert_eq!(
+        cotangent_x_next.len(),
+        2,
+        "cotangent_x_next is length {} but should be 2",
+        cotangent_x_next.len()
+    );
+    assert_eq!(
+        tangent_x.len(),
+        2,
+        "tangent_x is length {} but should be 2",
+        tangent_x.len()
+    );
+    assert_eq!(
+        tangent_u.len(),
+        1,
+        "tangent_u is length {} but should be 1",
+        tangent_u.len()
+    );
+    assert_eq!(
+        tangent_cotangent_x_next.len(),
+        2,
+        "tangent_cotangent_x_next is length {} but should be 2",
+        tangent_cotangent_x_next.len()
+    );
+    assert_eq!(
+        vjp_x.len(),
+        2,
+        "vjp_x is length {} but should be 2",
+        vjp_x.len()
+    );
     work[0] = -0.5_f64 * tangent_cotangent_x_next[1];
     work[0] += tangent_cotangent_x_next[0];
     work[1] = p[0] * tangent_cotangent_x_next[0];
@@ -468,28 +780,89 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(x: &[f64], u: &[f64], p: &
 }
 
 #[allow(clippy::too_many_arguments)]
-fn single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(x: &[f64], u: &[f64], p: &[f64], cotangent_x_next: &[f64], tangent_x: &[f64], tangent_u: &[f64], tangent_cotangent_x_next: &[f64], vjp_u: &mut [f64], work: &mut [f64]) {
-    assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());
+fn single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    cotangent_x_next: &[f64],
+    tangent_x: &[f64],
+    tangent_u: &[f64],
+    tangent_cotangent_x_next: &[f64],
+    vjp_u: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        !work.is_empty(),
+        "work is length {} but should be at least 1",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(cotangent_x_next.len(), 2, "cotangent_x_next is length {} but should be 2", cotangent_x_next.len());
-    assert_eq!(tangent_x.len(), 2, "tangent_x is length {} but should be 2", tangent_x.len());
-    assert_eq!(tangent_u.len(), 1, "tangent_u is length {} but should be 1", tangent_u.len());
-    assert_eq!(tangent_cotangent_x_next.len(), 2, "tangent_cotangent_x_next is length {} but should be 2", tangent_cotangent_x_next.len());
-    assert_eq!(vjp_u.len(), 1, "vjp_u is length {} but should be 1", vjp_u.len());
+    assert_eq!(
+        cotangent_x_next.len(),
+        2,
+        "cotangent_x_next is length {} but should be 2",
+        cotangent_x_next.len()
+    );
+    assert_eq!(
+        tangent_x.len(),
+        2,
+        "tangent_x is length {} but should be 2",
+        tangent_x.len()
+    );
+    assert_eq!(
+        tangent_u.len(),
+        1,
+        "tangent_u is length {} but should be 1",
+        tangent_u.len()
+    );
+    assert_eq!(
+        tangent_cotangent_x_next.len(),
+        2,
+        "tangent_cotangent_x_next is length {} but should be 2",
+        tangent_cotangent_x_next.len()
+    );
+    assert_eq!(
+        vjp_u.len(),
+        1,
+        "vjp_u is length {} but should be 1",
+        vjp_u.len()
+    );
     work[0] = p[1] * tangent_cotangent_x_next[1];
     work[0] += tangent_cotangent_x_next[0];
     vjp_u[0] = work[0];
 }
 
-fn single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(x: &[f64], u: &[f64], p: &[f64], tangent_x: &[f64], tangent_u: &[f64], ell: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 2, "work is length {} but should be at least 2", work.len());
+fn single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    tangent_x: &[f64],
+    tangent_u: &[f64],
+    ell: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 2,
+        "work is length {} but should be at least 2",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(tangent_x.len(), 2, "tangent_x is length {} but should be 2", tangent_x.len());
-    assert_eq!(tangent_u.len(), 1, "tangent_u is length {} but should be 1", tangent_u.len());
+    assert_eq!(
+        tangent_x.len(),
+        2,
+        "tangent_x is length {} but should be 2",
+        tangent_x.len()
+    );
+    assert_eq!(
+        tangent_u.len(),
+        1,
+        "tangent_u is length {} but should be 1",
+        tangent_u.len()
+    );
     assert_eq!(ell.len(), 2, "ell is length {} but should be 2", ell.len());
     work[0] = 2.0_f64 * tangent_x[0];
     work[1] = 4.0_f64 * tangent_x[1];
@@ -497,23 +870,60 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(x: &[f64], u: &[f64], p
     ell[1] = work[1];
 }
 
-fn single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(x: &[f64], u: &[f64], p: &[f64], tangent_x: &[f64], tangent_u: &[f64], ell: &mut [f64], work: &mut [f64]) {
-    assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());
+fn single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    tangent_x: &[f64],
+    tangent_u: &[f64],
+    ell: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        !work.is_empty(),
+        "work is length {} but should be at least 1",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(tangent_x.len(), 2, "tangent_x is length {} but should be 2", tangent_x.len());
-    assert_eq!(tangent_u.len(), 1, "tangent_u is length {} but should be 1", tangent_u.len());
+    assert_eq!(
+        tangent_x.len(),
+        2,
+        "tangent_x is length {} but should be 2",
+        tangent_x.len()
+    );
+    assert_eq!(
+        tangent_u.len(),
+        1,
+        "tangent_u is length {} but should be 1",
+        tangent_u.len()
+    );
     assert_eq!(ell.len(), 1, "ell is length {} but should be 1", ell.len());
     work[0] = 0.6_f64 * tangent_u[0];
     ell[0] = work[0];
 }
 
-fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(x: &[f64], p: &[f64], tangent_x: &[f64], vf: &mut [f64], work: &mut [f64]) {
-    assert!(!work.is_empty(), "work is length {} but should be at least 1", work.len());
+fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(
+    x: &[f64],
+    p: &[f64],
+    tangent_x: &[f64],
+    vf: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        !work.is_empty(),
+        "work is length {} but should be at least 1",
+        work.len()
+    );
     assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(tangent_x.len(), 2, "tangent_x is length {} but should be 2", tangent_x.len());
+    assert_eq!(
+        tangent_x.len(),
+        2,
+        "tangent_x is length {} but should be 2",
+        tangent_x.len()
+    );
     assert_eq!(vf.len(), 2, "vf is length {} but should be 2", vf.len());
     work[0] = 6.0_f64 * tangent_x[0];
     vf[0] = work[0];
@@ -525,26 +935,10 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq_meta() -> FunctionMet
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_f_grad_states_u_seq",
         workspace_size: 25,
-        input_names: &[
-            "x0",
-            "u_seq",
-            "p",
-        ],
-        input_sizes: &[
-            2,
-            5,
-            2,
-        ],
-        output_names: &[
-            "cost",
-            "gradient_u_seq",
-            "x_traj",
-        ],
-        output_sizes: &[
-            1,
-            5,
-            12,
-        ],
+        input_names: &["x0", "u_seq", "p"],
+        input_sizes: &[2, 5, 2],
+        output_names: &["cost", "gradient_u_seq", "x_traj"],
+        output_sizes: &[1, 5, 12],
     }
 }
 
@@ -573,14 +967,46 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq_meta() -> FunctionMet
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 25.
-pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(x0: &[f64], u_seq: &[f64], p: &[f64], cost: &mut [f64], gradient_u_seq: &mut [f64], x_traj: &mut [f64], work: &mut [f64]) {
-    assert!(work.len() >= 25, "work is length {} but should be at least 25", work.len());
+pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
+    x0: &[f64],
+    u_seq: &[f64],
+    p: &[f64],
+    cost: &mut [f64],
+    gradient_u_seq: &mut [f64],
+    x_traj: &mut [f64],
+    work: &mut [f64],
+) {
+    assert!(
+        work.len() >= 25,
+        "work is length {} but should be at least 25",
+        work.len()
+    );
     assert_eq!(x0.len(), 2, "x0 is length {} but should be 2", x0.len());
-    assert_eq!(u_seq.len(), 5, "u_seq is length {} but should be 5", u_seq.len());
+    assert_eq!(
+        u_seq.len(),
+        5,
+        "u_seq is length {} but should be 5",
+        u_seq.len()
+    );
     assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(cost.len(), 1, "cost is length {} but should be 1", cost.len());
-    assert_eq!(gradient_u_seq.len(), 5, "gradient_u_seq is length {} but should be 5", gradient_u_seq.len());
-    assert_eq!(x_traj.len(), 12, "x_traj is length {} but should be 12", x_traj.len());
+    assert_eq!(
+        cost.len(),
+        1,
+        "cost is length {} but should be 1",
+        cost.len()
+    );
+    assert_eq!(
+        gradient_u_seq.len(),
+        5,
+        "gradient_u_seq is length {} but should be 5",
+        gradient_u_seq.len()
+    );
+    assert_eq!(
+        x_traj.len(),
+        12,
+        "x_traj is length {} but should be 12",
+        x_traj.len()
+    );
     let (state_history, rest) = work.split_at_mut(10);
     let (state_buffers, rest) = rest.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
@@ -594,7 +1020,13 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(x0: &[f64], u_seq: &[
     let mut total_cost = 0.0_f64;
     for stage_index in 0..5 {
         let u_t = &u_seq[stage_index..(stage_index + 1)];
-        single_shooting_kernel_mpc_cost_stage_cost(current_state, u_t, p, scalar_buffer, stage_work);
+        single_shooting_kernel_mpc_cost_stage_cost(
+            current_state,
+            u_t,
+            p,
+            scalar_buffer,
+            stage_work,
+        );
         total_cost += scalar_buffer[0];
         single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
         state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
@@ -604,28 +1036,49 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(x0: &[f64], u_seq: &[
     single_shooting_kernel_mpc_cost_terminal_cost(current_state, p, scalar_buffer, stage_work);
     total_cost += scalar_buffer[0];
     cost[0] = total_cost;
-    single_shooting_kernel_mpc_cost_terminal_cost_grad_x(current_state, p, lambda_current, stage_work);
+    single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
+        current_state,
+        p,
+        lambda_current,
+        stage_work,
+    );
     for stage_index in (1..5).rev() {
         let x_t = &state_history[((stage_index - 1) * 2)..(stage_index * 2)];
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         let grad_u_t = &mut gradient_u_seq[stage_index..(stage_index + 1)];
         single_shooting_kernel_mpc_cost_stage_cost_grad_u(x_t, u_t, p, grad_u_t, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_u(x_t, u_t, p, &lambda_current[..], temp_control, stage_work);
-        for control_index in 0..1 {
-            grad_u_t[control_index] += temp_control[control_index];
-        }
+        single_shooting_kernel_mpc_cost_dynamics_vjp_u(
+            x_t,
+            u_t,
+            p,
+            &lambda_current[..],
+            temp_control,
+            stage_work,
+        );
+        grad_u_t[0] += temp_control[0];
         single_shooting_kernel_mpc_cost_stage_cost_grad_x(x_t, u_t, p, lambda_next, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_x(x_t, u_t, p, &lambda_current[..], temp_state, stage_work);
-        for state_index in 0..2 {
-            lambda_next[state_index] += temp_state[state_index];
-        }
+        single_shooting_kernel_mpc_cost_dynamics_vjp_x(
+            x_t,
+            u_t,
+            p,
+            &lambda_current[..],
+            temp_state,
+            stage_work,
+        );
+        lambda_next[0] += temp_state[0];
+        lambda_next[1] += temp_state[1];
         lambda_current.copy_from_slice(lambda_next);
     }
     let u_t = &u_seq[0..1];
     let grad_u_t = &mut gradient_u_seq[0..1];
     single_shooting_kernel_mpc_cost_stage_cost_grad_u(x0, u_t, p, grad_u_t, stage_work);
-    single_shooting_kernel_mpc_cost_dynamics_vjp_u(x0, u_t, p, &lambda_current[..], temp_control, stage_work);
-    for control_index in 0..1 {
-        grad_u_t[control_index] += temp_control[control_index];
-    }
+    single_shooting_kernel_mpc_cost_dynamics_vjp_u(
+        x0,
+        u_t,
+        p,
+        &lambda_current[..],
+        temp_control,
+        stage_work,
+    );
+    grad_u_t[0] += temp_control[0];
 }
