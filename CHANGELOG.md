@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Removed all `assert!` and `assert_eq!` from the auto-generated Rust code
+  so that the functions therein don't panic. Instead, we introduced the error
+  `GradgenError` and all public functions return `Result<(), GradgenError>`.
+  Informative messages are also returned (e.g., "workspace too small")
 - Updated the preferred multi-function `CodeGenerationBuilder` API to use a
   scoped `.for_function(...).add_*().done()` flow instead of the older
   callback-based configuration style.
