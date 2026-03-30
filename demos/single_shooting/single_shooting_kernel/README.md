@@ -16,7 +16,7 @@ cargo build
 
 - `single_shooting_kernel_mpc_cost_f_states`: workspace `8`, inputs `(2, 20, 2)`, outputs `(1, 42)`
 - `single_shooting_kernel_mpc_cost_grad_states_u_seq`: workspace `54`, inputs `(2, 20, 2)`, outputs `(20, 42)`
-- `single_shooting_kernel_mpc_cost_hvp_states_u_seq`: workspace `108`, inputs `(2, 20, 2, 20)`, outputs `(20, 42)`
+- `single_shooting_kernel_mpc_cost_hvp_states_u_seq`: workspace `102`, inputs `(2, 20, 2, 20)`, outputs `(20, 42)`
 - `single_shooting_kernel_mpc_cost_f_grad_states_u_seq`: workspace `55`, inputs `(2, 20, 2)`, outputs `(1, 20, 42)`
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.

@@ -120,7 +120,7 @@ project = (
             .add_gradient()
             .add_rollout_states()
         )
-        .with_simplification(0)
+        .with_simplification("medium")
         .done()
     .build(Path(__file__).resolve().parent / "single_shooting_kernel")
 )

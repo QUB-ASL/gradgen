@@ -6,6 +6,8 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+import multiprocessing
+import traceback
 
 import gradgen.rust_codegen as rust_codegen_module
 import gradgen.single_shooting as single_shooting_module
@@ -556,6 +558,60 @@ mod single_shooting_runtime_tests {{
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    @staticmethod
+    def _run_build_very_large_ss_problem(queue: multiprocessing.Queue) -> None:
+        try:
+            problem = RustCodegenTests._build_single_shooting_problem(horizon=20)
+            builder = (
+                CodeGenerationBuilder()
+                .with_backend_config(
+                    RustBackendConfig().with_crate_name("single_shooting_no_expand")
+                )
+                .for_function(problem)
+                .add_primal(include_states=True)
+                .add_gradient(include_states=True)
+                .add_hvp(include_states=True)
+                .add_joint(
+                    SingleShootingBundle()
+                    .add_cost()
+                    .add_gradient()
+                    .add_hvp()
+                    .add_rollout_states()
+                )
+                .with_simplification("medium")
+                .done()
+            )
+
+            with TemporaryDirectory() as tmpdir:
+                builder.build(tmpdir)
+
+            queue.put(None)
+        except Exception:
+            queue.put(traceback.format_exc())
+
+    def test_single_shooting_very_large_pred_horizon(self) -> None:
+        # A timeout of 15s is of course too much, but we just want to make sure 
+        # that it doesn't take forever to generate Rust code. Code generation 
+        # should be almost instantaneous
+        timeout_seconds = 15
+        queue = multiprocessing.Queue()
+        proc = multiprocessing.Process(target=self._run_build_very_large_ss_problem, args=(queue,))
+        proc.start()
+        proc.join(timeout_seconds)
+
+        if proc.is_alive():
+            proc.terminate()
+            proc.join()
+            self.fail(f"builder.build(tmpdir) exceeded timeout of {timeout_seconds:.1f} seconds")
+
+        if proc.exitcode != 0:
+            self.fail(f"Build subprocess exited with code {proc.exitcode}")
+
+        error = queue.get() if not queue.empty() else None
+        if error is not None:
+            self.fail(f"builder.build(tmpdir) raised an exception:\n{error}")
+        
 
     def test_single_shooting_builder_does_not_expand_staged_sources_for_shared_helper_nodes(self) -> None:
         problem = self._build_single_shooting_problem(horizon=20)
