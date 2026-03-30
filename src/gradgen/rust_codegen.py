@@ -1793,7 +1793,7 @@ def _generate_single_shooting_driver_rust(
         for_lines.append(
             f"    {states_output_name}[((stage_index + 1) * {state_size})..((stage_index + 2) * {state_size})].copy_from_slice(next_state);"
         )
-    for_lines.append("    std::mem::swap(&mut current_state, &mut next_state);")
+    for_lines.append("    core::mem::swap(&mut current_state, &mut next_state);")
     if include_hvp:
         for_lines.append("    current_tangent.copy_from_slice(next_tangent);")
     for_lines.append("}")
