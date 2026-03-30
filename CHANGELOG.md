@@ -50,7 +50,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   writing generated projects, while logging and continuing if formatting tools
   are unavailable.
 
+### Fixed
 
+- Fixed issue with redundant memory allocation and cloning in generated code 
+  in single shooting optimal control
 
 ## 0.3.1 - 29-03-2026
 
