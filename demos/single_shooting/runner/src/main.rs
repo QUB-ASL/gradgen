@@ -123,7 +123,7 @@ fn main() {
     let mut benchmark_work = vec![0.0_f64; joint_metadata.workspace_size];
     let mut checksum = 0.0_f64;
 
-    println!("\n---- BENCHMARKIGN gradient computation ----");
+    println!("\n---- BENCHMARKING gradient computation ----");
 
     let started = Instant::now();
     for _ in 0..iterations {
@@ -151,7 +151,7 @@ fn main() {
         average_microseconds, checksum
     );
 
-    println!("\n---- BENCHMARKIGN HVP computation ---------");
+    println!("\n---- BENCHMARKING HVP computation ---------");
 
     let mut benchmark_hvp = vec![0.0_f64; hvp_metadata.output_sizes[0]];
     let mut benchmark_hvp_states = vec![0.0_f64; hvp_metadata.output_sizes[1]];
