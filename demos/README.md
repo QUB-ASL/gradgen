@@ -11,6 +11,7 @@ This directory contains runnable end-to-end examples showing how to use
 - [vjp](./vjp/README.md): Jacobian generation and runtime-seeded vector-Jacobian products
 - [map_zip](./map_zip/README.md): staged loop-preserving packed map/zip kernels
 - [zip_3](./zip_3/README.md): three-input stage-wise zipped kernels with packed sequences
+- [reduce_map](./reduce_map/README.md): map + reduce staged kernels and a loop-preserving fold pipeline
 - [composed_function](./composed_function/README.md): staged compositions with `ComposedFunction` and repeated stages
 - [single_shooting](./single_shooting/README.md): loop-based deterministic single-shooting OCP code generation
 
