@@ -1,0 +1,87 @@
+{
+  "crate_name": "zip_3_kernel",
+  "created_at": "2026-03-31T03:57:32.177618Z",
+  "gradgen_version": "0.3.2a1",
+  "functions": [
+    {
+      "function_name": "zip_3_kernel_zip3_f",
+      "workspace_size": 2,
+      "input_names": [
+        "a_seq",
+        "b_seq",
+        "c_seq"
+      ],
+      "input_sizes": [
+        10,
+        5,
+        5
+      ],
+      "output_names": [
+        "y"
+      ],
+      "output_sizes": [
+        5
+      ]
+    },
+    {
+      "function_name": "zip_3_kernel_zip3_jf_a_seq",
+      "workspace_size": 2,
+      "input_names": [
+        "a_seq",
+        "b_seq",
+        "c_seq"
+      ],
+      "input_sizes": [
+        10,
+        5,
+        5
+      ],
+      "output_names": [
+        "jacobian_y"
+      ],
+      "output_sizes": [
+        50
+      ]
+    },
+    {
+      "function_name": "zip_3_kernel_zip3_jf_b_seq",
+      "workspace_size": 1,
+      "input_names": [
+        "a_seq",
+        "b_seq",
+        "c_seq"
+      ],
+      "input_sizes": [
+        10,
+        5,
+        5
+      ],
+      "output_names": [
+        "jacobian_y"
+      ],
+      "output_sizes": [
+        25
+      ]
+    },
+    {
+      "function_name": "zip_3_kernel_zip3_jf_c_seq",
+      "workspace_size": 2,
+      "input_names": [
+        "a_seq",
+        "b_seq",
+        "c_seq"
+      ],
+      "input_sizes": [
+        10,
+        5,
+        5
+      ],
+      "output_names": [
+        "jacobian_y"
+      ],
+      "output_sizes": [
+        25
+      ]
+    }
+  ]
+}

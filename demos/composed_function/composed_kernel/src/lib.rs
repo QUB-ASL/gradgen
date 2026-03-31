@@ -94,24 +94,6 @@ fn composed_kernel_composed_demo_repeat_0_g(
     next_state: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(
-        state.len(),
-        2,
-        "state is length {} but should be 2",
-        state.len()
-    );
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        next_state.len(),
-        2,
-        "next_state is length {} but should be 2",
-        next_state.len()
-    );
     work[0] = 0.9_f64 * state[0];
     work[0] += p[0];
     work[1] = 0.1_f64 * state[1];
@@ -126,19 +108,6 @@ fn composed_kernel_composed_demo_terminal_h(
     y: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(
-        state.len(),
-        2,
-        "state is length {} but should be 2",
-        state.len()
-    );
-    assert_eq!(pf.len(), 1, "pf is length {} but should be 1", pf.len());
-    assert_eq!(y.len(), 1, "y is length {} but should be 1", y.len());
     work[0] = 2.0_f64 * state[0];
     work[1] = -state[1];
     work[0] += work[1];
@@ -274,36 +243,12 @@ pub fn composed_kernel_composed_demo_grad_x(
 }
 
 fn composed_kernel_composed_demo_repeat_0_g_vjp(
-    state: &[f64],
+    _state: &[f64],
     p: &[f64],
     cotangent_next_state: &[f64],
     vjp_state: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(
-        state.len(),
-        2,
-        "state is length {} but should be 2",
-        state.len()
-    );
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        cotangent_next_state.len(),
-        2,
-        "cotangent_next_state is length {} but should be 2",
-        cotangent_next_state.len()
-    );
-    assert_eq!(
-        vjp_state.len(),
-        2,
-        "vjp_state is length {} but should be 2",
-        vjp_state.len()
-    );
     work[0] = 0.9_f64 * cotangent_next_state[0];
     work[1] = 0.1_f64 * cotangent_next_state[1];
     work[1] *= p[1];
@@ -312,19 +257,11 @@ fn composed_kernel_composed_demo_repeat_0_g_vjp(
 }
 
 fn composed_kernel_composed_demo_terminal_h_grad(
-    state: &[f64],
-    pf: &[f64],
+    _state: &[f64],
+    _pf: &[f64],
     y: &mut [f64],
     _work: &mut [f64],
 ) {
-    assert_eq!(
-        state.len(),
-        2,
-        "state is length {} but should be 2",
-        state.len()
-    );
-    assert_eq!(pf.len(), 1, "pf is length {} but should be 1", pf.len());
-    assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
     y[0] = 2.0_f64;
     y[1] = -1.0_f64;
 }

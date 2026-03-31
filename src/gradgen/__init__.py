@@ -9,6 +9,12 @@ from .custom_elementary import (
 )
 from .composed_function import ComposedFunction, ComposedGradientFunction
 from .function import Function
+from .map_zip import (
+    ZippedFunction,
+    ZippedJacobianFunction,
+    map_function,
+    zip_function,
+)
 from .single_shooting import (
     SingleShootingBundle,
     SingleShootingGradientFunction,
@@ -131,6 +137,7 @@ __all__ = [
     "jvp",
     "log",
     "log1p",
+    "map_function",
     "matvec",
     "maximum",
     "minimum",
@@ -148,4 +155,7 @@ __all__ = [
     "trunc",
     "vector",
     "vjp",
+    "zip_function",
+    "ZippedFunction",
+    "ZippedJacobianFunction",
 ]

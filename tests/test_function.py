@@ -3,10 +3,64 @@ import random
 import unittest
 
 from gradgen.function import Function
+from gradgen.map_zip import map_function, zip_function
 from gradgen.sx import SX, SXVector, bilinear_form, matvec, quadform
 
 
 class FunctionTests(unittest.TestCase):
+    
+    def test_map_function_to_function_supports_constant_symbolic_output(self) -> None:
+        x = SX.sym("x")
+        constant_output = Function("constant", [x], [SX.const(3.0)])
+        mapped = map_function(constant_output, 2, input_name="x_seq", name="constant_map")
+
+        expanded = mapped.to_function()
+
+        self.assertEqual(expanded([1.0, 2.0]), (3.0, 3.0))
+
+    def test_map_function_supports_constant_vector_output(self) -> None:
+        x = SX.sym("x")
+        constant_vec = SXVector((SX.const(1.0), SX.const(-2.0)))
+        constant_output = Function("constant_vec", [x], [constant_vec])
+        mapped = map_function(constant_output, 3, input_name="x_seq", name="constant_vec_map")
+
+        expanded = mapped.to_function()
+
+        self.assertEqual(expanded([0.0, 1.0, 2.0]), (1.0, -2.0, 1.0, -2.0, 1.0, -2.0))
+
+    def test_map_function_supports_mixed_constant_and_symbolic_multi_output(self) -> None:
+        x = SX.sym("x")
+        mixed = Function("mixed", [x], [SX.const(3.0), x + 1.0], output_names=["c", "shifted"])
+        mapped = map_function(mixed, 2, input_name="x_seq", name="mixed_map")
+
+        expanded = mapped.to_function()
+
+        self.assertEqual(expanded([1.0, 5.0]), ((3.0, 3.0), (2.0, 6.0)))
+
+    def test_zip_function_supports_constant_scalar_output(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        constant_output = Function("constant_zip", [x, y], [SX.const(7.0)])
+        zipped = zip_function(constant_output, 3, input_names=["x_seq", "y_seq"], name="constant_zip_batch")
+
+        expanded = zipped.to_function()
+
+        self.assertEqual(expanded([1.0, 2.0, 3.0], [10.0, 20.0, 30.0]), (7.0, 7.0, 7.0))
+
+    def test_zip_function_supports_mixed_symbolic_and_constant_vector_outputs(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+        constant_vec = SXVector((SX.const(1.0), SX.const(2.0)))
+        mixed = Function("mixed_zip", [x, y], [x + y, constant_vec], output_names=["sum", "const_vec"])
+        zipped = zip_function(mixed, 2, input_names=["x_seq", "y_seq"], name="mixed_zip_batch")
+
+        expanded = zipped.to_function()
+
+        self.assertEqual(
+            expanded([1.0, 2.0], [3.0, 4.0]),
+            ((4.0, 6.0), (1.0, 2.0, 1.0, 2.0)),
+        )
+
     def test_function_uses_default_names(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")

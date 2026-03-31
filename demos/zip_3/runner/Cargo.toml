@@ -1,0 +1,7 @@
+[package]
+name = "zip_3_runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+zip_3_kernel = { path = "../zip_3_kernel" }

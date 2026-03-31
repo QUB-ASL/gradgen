@@ -28,9 +28,11 @@ from gradgen import (
     create_rust_derivative_bundle,
     create_rust_project,
     derivative,
+    map_function,
     matvec,
     quadform,
     register_elementary_function,
+    zip_function,
 )
 
 
@@ -945,7 +947,7 @@ mod single_shooting_multi_u_tests {{
             project = builder.build(Path(tmpdir) / "simplified_builder")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("work[0] = x[0].powf(2.0_f64);", lib_text)
+            self.assertIn("work[0] = x[0] * x[0];", lib_text)
             self.assertIn("work[0] = 2.0_f64 * x[0];", lib_text)
             self.assertIn("work[0] = 2.0_f64 * v_x[0];", lib_text)
             self.assertIn("work[1] = 2.0_f64 * x[0];", lib_text)
@@ -1504,7 +1506,8 @@ mod tests {{
         self.assertIn("libm::expf(", result.source)
         self.assertIn("libm::logf(", result.source)
         self.assertIn("libm::sqrtf(", result.source)
-        self.assertIn("libm::powf(", result.source)
+        self.assertIn("x[0] * x[0]", result.source)
+        self.assertNotIn("libm::powf(", result.source)
 
     def test_generated_code_supports_extended_math_methods(self) -> None:
         x = SX.sym("x")
@@ -1763,7 +1766,44 @@ mod tests {{
         self.assertIn(".exp()", result.source)
         self.assertIn(".ln()", result.source)
         self.assertIn(".sqrt()", result.source)
-        self.assertIn(".powf(2.0_f64)", result.source)
+        self.assertIn("x[0] * x[0]", result.source)
+        self.assertNotIn(".powf(2.0_f64)", result.source)
+
+    def test_square_power_is_lowered_to_multiplication_across_backends(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x**2], input_names=["x"], output_names=["y"])
+
+        std_f64 = f.generate_rust(backend_mode="std", scalar_type="f64")
+        no_std_f64 = f.generate_rust(backend_mode="no_std", scalar_type="f64")
+        std_f32 = f.generate_rust(backend_mode="std", scalar_type="f32")
+        no_std_f32 = f.generate_rust(backend_mode="no_std", scalar_type="f32")
+
+        for result in (std_f64, no_std_f64, std_f32, no_std_f32):
+            self.assertIn("x[0] * x[0]", result.source)
+            self.assertNotIn("powf(", result.source)
+            self.assertNotIn("libm::pow(", result.source)
+            self.assertNotIn("libm::powf(", result.source)
+
+    def test_non_square_power_keeps_pow_calls(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x**3], input_names=["x"], output_names=["y"])
+
+        std_result = f.generate_rust(backend_mode="std", scalar_type="f64")
+        no_std_result = f.generate_rust(backend_mode="no_std", scalar_type="f64")
+
+        self.assertIn(".powf(3.0_f64)", std_result.source)
+        self.assertIn("libm::pow(x[0], 3.0_f64)", no_std_result.source)
+
+    def test_only_exact_square_constant_is_lowered(self) -> None:
+        x = SX.sym("x")
+        almost_two = Function("f", [x], [x**2.0000001], input_names=["x"], output_names=["y"])
+
+        std_result = almost_two.generate_rust(backend_mode="std", scalar_type="f64")
+        no_std_result = almost_two.generate_rust(backend_mode="no_std", scalar_type="f64")
+
+        self.assertIn(".powf(2.0000001_f64)", std_result.source)
+        self.assertIn("libm::pow(x[0], 2.0000001_f64)", no_std_result.source)
+        self.assertNotIn("x[0] * x[0]", std_result.source)
 
     def test_no_std_codegen_uses_libm_and_no_std_crate_attr(self) -> None:
         x = SX.sym("x")
@@ -1779,7 +1819,8 @@ mod tests {{
         self.assertIn("libm::exp(", result.source)
         self.assertIn("libm::log(", result.source)
         self.assertIn("libm::sqrt(", result.source)
-        self.assertIn("libm::pow(", result.source)
+        self.assertIn("x[0] * x[0]", result.source)
+        self.assertNotIn("libm::pow(", result.source)
 
     def test_no_std_codegen_supports_sine_explicitly(self) -> None:
         x = SX.sym("x")
@@ -3126,6 +3167,153 @@ mod joint_hessian_tests {
             self.assertIn("pub fn matrix_builder_f_grad_y(", lib_text)
             self.assertIn("pub fn matrix_builder_f_hvp_x(", lib_text)
             self.assertIn("pub fn matrix_builder_f_hvp_y(", lib_text)
+
+    def test_map_function_codegen_matches_expanded_symbolic_reference(self) -> None:
+        x = SXVector.sym("x", 2)
+        g = Function(
+            "g",
+            [x],
+            [SXVector((x[0] + 2.0 * x[1], x[0] * x[1]))],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        mapped = map_function(g, 3, input_name="x_seq", name="g_map", simplification="medium")
+        expanded = mapped.to_function()
+        inputs = ([1.0, 2.0, -1.0, 3.0, 0.5, -2.0],)
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(mapped, Path(tmpdir) / "g_map_kernel")
+            self.assertIn("for stage_index in 0..3", project.lib_rs.read_text(encoding="utf-8"))
+            self._append_reference_test(
+                project.project_dir,
+                expanded,
+                function_name=project.codegen.function_name,
+                inputs=inputs,
+                test_name="mapped_primal_matches_reference",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_map_function_jacobian_codegen_matches_expanded_symbolic_reference(self) -> None:
+        x = SXVector.sym("x", 2)
+        g = Function(
+            "g",
+            [x],
+            [SXVector((x[0] + x[1], x[0] * x[1]))],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        mapped = map_function(g, 2, input_name="x_seq", name="g_map", simplification="medium")
+        mapped_jacobian = mapped.jacobian(0, name="g_map_jacobian_x_seq")
+        expanded = mapped_jacobian.to_function()
+        inputs = ([2.0, 3.0, -1.0, 4.0],)
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(mapped_jacobian, Path(tmpdir) / "g_map_jacobian_kernel")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("for stage_index in 0..2", lib_text)
+            self.assertIn("jacobian_y.fill(0.0_f64);", lib_text)
+            self._append_reference_test(
+                project.project_dir,
+                expanded,
+                function_name=project.codegen.function_name,
+                inputs=inputs,
+                test_name="mapped_jacobian_matches_reference",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_zip_function_codegen_matches_expanded_symbolic_reference(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        g = Function(
+            "pairwise",
+            [x, y],
+            [SXVector((x[0] + y[1], x[1] * y[0] + x[0]))],
+            input_names=["x", "y"],
+            output_names=["z"],
+        )
+        zipped = zip_function(
+            g,
+            3,
+            input_names=("x_seq", "y_seq"),
+            name="pairwise_zip",
+            simplification="medium",
+        )
+        expanded = zipped.to_function()
+        inputs = (
+            [1.0, 2.0, -1.0, 3.0, 0.5, -2.0],
+            [4.0, -1.0, 2.0, 5.0, -3.0, 1.5],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(zipped, Path(tmpdir) / "pairwise_zip_kernel")
+            self.assertIn("for stage_index in 0..3", project.lib_rs.read_text(encoding="utf-8"))
+            self._append_reference_test(
+                project.project_dir,
+                expanded,
+                function_name=project.codegen.function_name,
+                inputs=inputs,
+                test_name="zip_primal_matches_reference",
+                workspace_size_override=project.codegen.workspace_size,
+            )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_zip_function_jacobian_and_builder_match_reference(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 1)
+        g = Function(
+            "pairwise_scalar",
+            [x, y],
+            [x[0] * y[0] + x[1]],
+            input_names=["x", "y"],
+            output_names=["out"],
+        )
+        zipped = zip_function(
+            g,
+            3,
+            input_names=("x_seq", "y_seq"),
+            name="pairwise_zip",
+            simplification="medium",
+        )
+        zipped_jacobian = zipped.jacobian(1, name="pairwise_zip_jacobian_y_seq")
+        expanded = zipped_jacobian.to_function()
+        inputs = (
+            [2.0, 1.0, -1.0, 4.0, 0.5, -2.0],
+            [3.0, -2.0, 1.5],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            builder = (
+                CodeGenerationBuilder()
+                .with_backend_config(RustBackendConfig().with_crate_name("pairwise_zip_kernel"))
+                .for_function(zipped)
+                .add_primal()
+                .add_jacobian()
+                .done()
+            )
+            project = builder.build(Path(tmpdir) / "pairwise_zip_kernel")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("pub fn pairwise_zip_kernel_pairwise_zip_f(", lib_text)
+            self.assertIn("pub fn pairwise_zip_kernel_pairwise_zip_jf_y_seq(", lib_text)
+            self.assertIn("for stage_index in 0..3", lib_text)
+            self._append_reference_test(
+                project.project_dir,
+                expanded,
+                function_name="pairwise_zip_kernel_pairwise_zip_jf_y_seq",
+                inputs=inputs,
+                test_name="zip_jacobian_matches_reference",
+                workspace_size_override=next(
+                    codegen.workspace_size
+                    for codegen in project.codegens
+                    if codegen.function_name == "pairwise_zip_kernel_pairwise_zip_jf_y_seq"
+                ),
+            )
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
 
 
 if __name__ == "__main__":
