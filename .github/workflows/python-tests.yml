@@ -32,27 +32,33 @@ jobs:
         run: pytest tests -v
 
       - name: Generate demo crates
+        run: make -C demos/
+
+      - name: Clippy for demo kernels
         run: |
-          python demos/codegen/main.py
-          python demos/custom_function/main.py
-          python demos/multi_function/main.py
-          python demos/vjp/main.py
-          python demos/composed_function/main.py --repeats 5
-          python demos/single_shooting/main.py --horizon 5
+          cargo clippy --quiet --manifest-path demos/codegen/codegen_kernel/Cargo.toml
+          cargo clippy --quiet --manifest-path demos/custom_function/custom_function_kernel/Cargo.toml
+          cargo clippy --quiet --manifest-path demos/map_zip/map_zip_kernel/Cargo.toml
+          cargo clippy --quiet --manifest-path demos/multi_function/multi_function_kernel/Cargo.toml
+          cargo clippy --quiet --manifest-path demos/vjp/runner/Cargo.toml
+          cargo clippy --quiet --manifest-path demos/composed_function/composed_kernel/Cargo.toml
+          cargo clippy --quiet --manifest-path demos/single_shooting/single_shooting_kernel/Cargo.toml
 
       - name: Run demo runners
         run: |
           cargo run --manifest-path demos/codegen/runner/Cargo.toml
           cargo run --manifest-path demos/custom_function/runner/Cargo.toml
+          cargo run --manifest-path demos/map_zip/runner/Cargo.toml
           cargo run --manifest-path demos/multi_function/runner/Cargo.toml
           cargo run --manifest-path demos/vjp/runner/Cargo.toml
           cargo run --manifest-path demos/composed_function/runner/Cargo.toml
-          cargo run --manifest-path demos/single_shooting/runner/Cargo.toml
+          cargo run --manifest-path demos/single_shooting/runner/Cargo.toml          
 
-      - name: Run clippy for demo runners
+      - name: Clippy for demo runners
         run: |
           cargo clippy --quiet --manifest-path demos/codegen/runner/Cargo.toml
           cargo clippy --quiet --manifest-path demos/custom_function/runner/Cargo.toml
+          cargo clippy --quiet --manifest-path demos/map_zip/runner/Cargo.toml
           cargo clippy --quiet --manifest-path demos/multi_function/runner/Cargo.toml
           cargo clippy --quiet --manifest-path demos/vjp/runner/Cargo.toml
           cargo clippy --quiet --manifest-path demos/composed_function/runner/Cargo.toml
