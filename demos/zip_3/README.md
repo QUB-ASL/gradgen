@@ -3,36 +3,22 @@
 This demo shows `zip_function(...)` with a stage function that has **three inputs**,
 where the first input is a vector.
 
-The stage function is
+The stage function $h:\mathbb{R}^2 \times \mathbb{R} \times \mathbb{R} \to \mathbb{R}$ given by
 
 $$h(a, b, c) = a_1 b + a_2 + \sin(c),$$
 
-with stage input types:
-
-- $a \in \mathbb{R}^2$
-- $b \in \mathbb{R}$
-- $c \in \mathbb{R}$
+with stage input types $a \in \mathbb{R}^2$, $b \in \mathbb{R}$, and $c \in \mathbb{R}$.
 
 For an integer $N$ (`count = N`), the zipped kernel computes
 
 $$
-\bigl(a^{(1)},\dots,a^{(N)}\bigr),\ (b_1,\dots,b_N),\ (c_1,\dots,c_N)
+((a_1,\dots,a_N),\ (b_1,\dots,b_N),\ (c_1,\dots,c_N))
 \mapsto
-\bigl(h(a^{(1)},b_1,c_1),\dots,h(a^{(N)},b_N,c_N)\bigr),
-$$
-
-where each $a^{(k)} \in \mathbb{R}^2$.
-
-So this is the stage-wise behavior:
-
-$$
-(a^{(1)},a^{(2)},\dots),\ (b_1,b_2,\dots),\ (c_1,c_2,\dots)
-\to
-h(a^{(1)},b_1,c_1),\ h(a^{(2)},b_2,c_2),\ \dots
+\bigl(h(a_1,b_1,c_1),\dots,h(a_N, b_N, c_N)\bigr).
 $$
 
 The demo also builds a staged Jacobian source for the zipped function with
-respect to `a_seq` (`wrt_index=0`).
+respect to the sequence of a's, that is, $(a_1, \ldots, a_N)$ (`wrt_index=0`).
 
 ## The code
 
@@ -45,6 +31,8 @@ In [`main.py`](./main.py), we define symbolic variables `a`, `b`, `c` and the
 a = SXVector.sym("a", 2)
 b = SX.sym("b")
 c = SX.sym("c")
+
+# Function h: R^2 x R x R --> R
 h = Function(
     "h",
     [a, b, c],
@@ -79,6 +67,8 @@ zipped_jac_a_fn = zipped_jac_a.to_function()
 ```
 
 ## Code generation
+
+Code generation is as with regular functions...
 
 ```python
 project = (

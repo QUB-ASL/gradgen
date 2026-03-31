@@ -103,8 +103,9 @@ See the [demos](./demos) and this more complete [tutorial](./docs/how_to/how_to.
 
 ## Unique features
 
-- Generates safe embeddable Rust code; [`#[no_std]`](https://docs.rust-embedded.org/book/intro/no-std.html) is an option
+- Truly embdedable safe Rust code with optional [`#[no_std]`](https://docs.rust-embedded.org/book/intro/no-std.html), no dynamic memory allocation, no `panic!`s
 - Specialised code generation tools for optimal control problems ([demo](./demos/single_shooting/))
+- Very efficient code generation thanks to modular code generation using [`map`](./demos/map_zip/), [`zip`](./demos/zip_3/), [`repeat`](./demos/composed_function/), and `chain` high-order functions.
 - Supports both single (`f32`) and double (`f64`) precision arithmetic. You can use [`libm`](https://crates.io/crates/libm) or your own library for numerical operations (e.g., [`micromath`](https://crates.io/crates/micromath))
 
 ## Where to go next?

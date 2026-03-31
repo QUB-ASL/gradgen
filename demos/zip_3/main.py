@@ -29,9 +29,9 @@ def _build_sequence_values(count: int) -> tuple[list[float], list[float], list[f
     """Create packed stage-major values for one vector and two scalar sequences."""
     a_seq: list[float] = []
     for stage in range(count):
-        a_seq.extend([1.0 + (0.5 * stage), -0.2 + (0.25 * stage)])
-    b_seq = [2.0 - (0.25 * stage) for stage in range(count)]
-    c_seq = [0.1 * ((-1.0) ** stage) + (0.2 * stage) for stage in range(count)]
+        a_seq.extend([1.0 + (0.5 * stage), -0.26 + (0.25 * stage)])
+    b_seq = [2.5 - (0.25 * stage) for stage in range(count)]
+    c_seq = [0.1 + 0.1 * ((-1.0) ** stage) + (0.2 * stage) for stage in range(count)]
     return a_seq, b_seq, c_seq
 
 
@@ -43,7 +43,7 @@ c = SX.sym("c")
 h = Function(
     "h",
     [a, b, c],
-    [a[0] * b + a[1] + sin(c)],
+    [a[0] * b + a[1] + sin(c) ],
     input_names=["a", "b", "c"],
     output_names=["y"],
 )
@@ -63,7 +63,7 @@ zipped_jac_a_fn = zipped_jac_a.to_function()
 
 a_seq_value, b_seq_value, c_seq_value = _build_sequence_values(count)
 
-print("count =", count)
+print("N =", count) 
 print("a_seq =", a_seq_value)
 print("b_seq =", b_seq_value)
 print("c_seq =", c_seq_value)
