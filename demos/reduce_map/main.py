@@ -77,19 +77,8 @@ reduced = reduce_function(
     name="reduced_scalar",
 )
 
-mapped_fn = mapped.to_function()
-reduced_fn = reduced.to_function()
 
-x_seq_value, acc0_value = _build_inputs(count)
-mapped_value = mapped_fn(x_seq_value)
-reduced_value = reduced_fn(acc0_value, mapped_value)
-
-print("count =", count)
-print("x_seq =", x_seq_value)
-print("acc0 =", acc0_value)
-print("mapped_seq(x_seq) =", mapped_value)
-print("reduced_scalar(acc0, mapped_seq(x_seq)) =", reduced_value)
-
+# Rust code generation
 project = (
     CodeGenerationBuilder()
     .with_backend_config(
@@ -114,3 +103,19 @@ print("Generated Rust crate:", project.project_dir)
 print("Generated Rust functions:")
 for codegen in project.codegens:
     print(" -", codegen.function_name)
+
+
+# Computations in Python
+print("Computations in Python (these are generally slower!)")
+mapped_fn = mapped.to_function()
+reduced_fn = reduced.to_function()
+
+x_seq_value, acc0_value = _build_inputs(count)
+mapped_value = mapped_fn(x_seq_value)
+reduced_value = reduced_fn(acc0_value, mapped_value)
+
+print("count =", count)
+print("x_seq =", x_seq_value)
+print("acc0 =", acc0_value)
+print("mapped_seq(x_seq) =", mapped_value)
+print("reduced_scalar(acc0, mapped_seq(x_seq)) =", reduced_value)

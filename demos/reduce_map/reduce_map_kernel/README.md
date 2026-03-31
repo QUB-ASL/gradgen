@@ -14,9 +14,9 @@ cargo build
 
 ## Generated Functions
 
-- `reduce_map_kernel_mapped_seq_f`: workspace `2`, inputs `(10,)`, outputs `(10,)`
-- `reduce_map_kernel_mapped_seq_jf_x_seq`: workspace `3`, inputs `(10,)`, outputs `(100,)`
-- `reduce_map_kernel_reduced_scalar_f`: workspace `4`, inputs `(1, 10)`, outputs `(1,)`
+- `reduce_map_kernel_mapped_seq_f`: workspace `2`, inputs `(20,)`, outputs `(20,)`
+- `reduce_map_kernel_mapped_seq_jf_x_seq`: workspace `3`, inputs `(20,)`, outputs `(400,)`
+- `reduce_map_kernel_reduced_scalar_f`: workspace `4`, inputs `(1, 20)`, outputs `(1,)`
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.
