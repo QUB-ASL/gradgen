@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
-const baseUrl = '/';
+const baseUrl = '/gradgen/';
 
 const config: Config = {
   title: 'Gradgen',
@@ -15,10 +15,10 @@ const config: Config = {
     v4: true,
   },
 
-  url: 'https://gradgen.example.com',
+  url: 'https://qub-asl.github.io',
   baseUrl,
 
-  organizationName: 'gradgen',
+  organizationName: 'QUB-ASL',
   projectName: 'gradgen',
 
   onBrokenLinks: 'throw',
@@ -55,7 +55,7 @@ const config: Config = {
       {
         docs: {
           sidebarPath: './sidebars.ts',
-          editUrl: 'https://github.com/gradgen/gradgen/tree/main/docs/website/',
+          editUrl: 'https://github.com/QUB-ASL/gradgen/tree/main/docs/website/',
         },
         blog: {
           showReadingTime: true,
@@ -63,7 +63,7 @@ const config: Config = {
             type: ['rss', 'atom'],
             xslt: true,
           },
-          editUrl: 'https://github.com/gradgen/gradgen/tree/main/docs/website/',
+          editUrl: 'https://github.com/QUB-ASL/gradgen/tree/main/docs/website/',
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
           onUntruncatedBlogPosts: 'warn',
@@ -84,7 +84,7 @@ const config: Config = {
       title: 'Gradgen',
       logo: {
         alt: 'Gradgen Logo',
-        src: 'img/logo.svg',
+        src: 'img/logo.png',
       },
       items: [
         {
@@ -95,7 +95,7 @@ const config: Config = {
         },
         {to: '/blog', label: 'Blog', position: 'left'},
         {
-          href: 'https://github.com/qub-asl/gradgen',
+          href: 'https://github.com/QUB-ASL/gradgen',
           label: 'GitHub',
           position: 'right',
         },
@@ -106,14 +106,14 @@ const config: Config = {
       links: [
         {
           title: 'Documentation',
-          items: [
+          items: [            
             {
-              label: 'Getting Started',
-              to: '/docs/intro',
+              label: 'Getting started',
+              to: '/docs/category/start-here',
             },
             {
-              label: 'API Reference',
-              to: '/docs/api',
+              label: 'Demos',
+              to: '/docs/category/demos',
             },
           ],
         },
@@ -122,7 +122,7 @@ const config: Config = {
           items: [
             {
               label: 'GitHub',
-              href: 'https://github.com/qub-asl/gradgen',
+              href: 'https://github.com/QUB-ASL/gradgen',
             },
           ],
         },
@@ -136,7 +136,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Gradgen. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Gradgen. Built with Docusaurus. 💥`,
     },
     prism: {
       theme: prismThemes.github,

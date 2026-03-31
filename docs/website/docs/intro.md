@@ -6,6 +6,8 @@ sidebar_position: 1
 
 **Gradgen** is a Python library for symbolic automatic differentiation and Rust code generation. It helps you build efficient computational kernels with automatic differentiation capabilities.
 
+<img src="https://camo.githubusercontent.com/0a0a39c7417ae1cc88302a16176929a06aa01de5680f7d3f41bb06e1de7e6284/68747470733a2f2f692e706f7374696d672e63632f47334d32737a7a352f4c6f676f2d4d616b722d347a2d484b61302e706e67" style="margin: auto; display: block; width: 16%">
+
 ## What is Gradgen?
 
 Gradgen provides:
@@ -56,7 +58,3 @@ print(result.source)
 - **Common Subexpression Elimination**: Optimize generated code
 - **Multiple AD modes**: Forward-mode JVP and reverse-mode VJP
 
-## Next Steps
-
-- Explore the [Getting Started](./guide/getting-started) guide
-- Check out [Examples](./examples/basic-examples)
