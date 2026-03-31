@@ -380,3 +380,354 @@ fn map_zip_kernel_binary_zip_jf_b_seq_helper(
     jacobian_z[2] = 0.0_f64;
     jacobian_z[3] = a[1];
 }
+
+/// Return metadata describing [`map_zip_kernel_composed_map_zip_f`].
+pub fn map_zip_kernel_composed_map_zip_f_meta() -> FunctionMetadata {
+    FunctionMetadata {
+        function_name: "map_zip_kernel_composed_map_zip_f",
+        workspace_size: 8,
+        input_names: &["x_seq", "b_seq"],
+        input_sizes: &[6, 6],
+        output_names: &["z_seq"],
+        output_sizes: &[6],
+    }
+}
+
+/// Evaluate the generated symbolic function `map_zip_kernel_composed_map_zip_f`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x_seq`:
+///   input slice for the declared argument `x_seq`
+///   Expected length: 6.
+/// - `b_seq`:
+///   input slice for the declared argument `b_seq`
+///   Expected length: 6.
+/// - `z_seq`:
+///   primal output slice for the declared result `z_seq`
+///   Expected length: 6.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 8.
+pub fn map_zip_kernel_composed_map_zip_f(
+    x_seq: &[f64],
+    b_seq: &[f64],
+    z_seq: &mut [f64],
+    work: &mut [f64],
+) -> Result<(), GradgenError> {
+    if work.len() < 8 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 8"));
+    };
+    if x_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("x_seq expected length 6"));
+    };
+    if b_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("b_seq expected length 6"));
+    };
+    if z_seq.len() != 6 {
+        return Err(GradgenError::OutputTooSmall("z_seq expected length 6"));
+    };
+    work[0] = x_seq[0] * x_seq[0];
+    work[1] = libm::sin(x_seq[1]);
+    work[0] += work[1];
+    work[1] = b_seq[0] * b_seq[0];
+    work[2] = libm::sin(b_seq[1]);
+    work[1] += work[2];
+    work[1] *= 2.0_f64;
+    work[1] += work[0];
+    work[0] = libm::cos(work[0]);
+    work[2] = 0.5_f64 * b_seq[1];
+    work[2] = -work[2];
+    work[2] += b_seq[0];
+    work[3] = 0.5_f64 * x_seq[1];
+    work[3] = -work[3];
+    work[3] += x_seq[0];
+    work[2] *= work[3];
+    work[0] += work[2];
+    work[2] = x_seq[2] * x_seq[2];
+    work[3] = libm::sin(x_seq[3]);
+    work[2] += work[3];
+    work[3] = b_seq[2] * b_seq[2];
+    work[4] = libm::sin(b_seq[3]);
+    work[3] += work[4];
+    work[3] *= 2.0_f64;
+    work[3] += work[2];
+    work[2] = libm::cos(work[2]);
+    work[4] = 0.5_f64 * b_seq[3];
+    work[4] = -work[4];
+    work[4] += b_seq[2];
+    work[5] = 0.5_f64 * x_seq[3];
+    work[5] = -work[5];
+    work[5] += x_seq[2];
+    work[4] *= work[5];
+    work[2] += work[4];
+    work[4] = x_seq[4] * x_seq[4];
+    work[5] = libm::sin(x_seq[5]);
+    work[4] += work[5];
+    work[5] = b_seq[4] * b_seq[4];
+    work[6] = libm::sin(b_seq[5]);
+    work[5] += work[6];
+    work[5] *= 2.0_f64;
+    work[5] += work[4];
+    work[4] = libm::cos(work[4]);
+    work[6] = 0.5_f64 * b_seq[5];
+    work[6] = -work[6];
+    work[6] += b_seq[4];
+    work[7] = 0.5_f64 * x_seq[5];
+    work[7] = -work[7];
+    work[7] += x_seq[4];
+    work[6] *= work[7];
+    work[4] += work[6];
+    z_seq[0] = work[1];
+    z_seq[1] = work[0];
+    z_seq[2] = work[3];
+    z_seq[3] = work[2];
+    z_seq[4] = work[5];
+    z_seq[5] = work[4];
+    Ok(())
+}
+
+/// Return metadata describing [`map_zip_kernel_composed_map_zip_jf_x_seq`].
+pub fn map_zip_kernel_composed_map_zip_jf_x_seq_meta() -> FunctionMetadata {
+    FunctionMetadata {
+        function_name: "map_zip_kernel_composed_map_zip_jf_x_seq",
+        workspace_size: 13,
+        input_names: &["x_seq", "b_seq"],
+        input_sizes: &[6, 6],
+        output_names: &["jacobian_z_seq"],
+        output_sizes: &[36],
+    }
+}
+
+/// Evaluate the generated symbolic function `map_zip_kernel_composed_map_zip_jf_x_seq`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x_seq`:
+///   input slice for the declared argument `x_seq`
+///   Expected length: 6.
+/// - `b_seq`:
+///   input slice for the declared argument `b_seq`
+///   Expected length: 6.
+/// - `jacobian_z_seq`:
+///   output slice receiving the Jacobian block for declared result
+///   `z_seq`
+///   Expected length: 36.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 13.
+pub fn map_zip_kernel_composed_map_zip_jf_x_seq(
+    x_seq: &[f64],
+    b_seq: &[f64],
+    jacobian_z_seq: &mut [f64],
+    work: &mut [f64],
+) -> Result<(), GradgenError> {
+    if work.len() < 13 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 13"));
+    };
+    if x_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("x_seq expected length 6"));
+    };
+    if b_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("b_seq expected length 6"));
+    };
+    if jacobian_z_seq.len() != 36 {
+        return Err(GradgenError::OutputTooSmall(
+            "jacobian_z_seq expected length 36",
+        ));
+    };
+    work[0] = 2.0_f64 * x_seq[0];
+    work[1] = libm::cos(x_seq[1]);
+    work[2] = 0.5_f64 * b_seq[1];
+    work[2] = -work[2];
+    work[2] += b_seq[0];
+    work[3] = x_seq[0] * x_seq[0];
+    work[4] = libm::sin(x_seq[1]);
+    work[3] += work[4];
+    work[3] = libm::sin(work[3]);
+    work[4] = work[3] * x_seq[0];
+    work[4] *= -2.0_f64;
+    work[4] += work[2];
+    work[2] *= -0.5_f64;
+    work[3] *= work[1];
+    work[3] = -work[3];
+    work[2] += work[3];
+    work[3] = 2.0_f64 * x_seq[2];
+    work[5] = libm::cos(x_seq[3]);
+    work[6] = 0.5_f64 * b_seq[3];
+    work[6] = -work[6];
+    work[6] += b_seq[2];
+    work[7] = x_seq[2] * x_seq[2];
+    work[8] = libm::sin(x_seq[3]);
+    work[7] += work[8];
+    work[7] = libm::sin(work[7]);
+    work[8] = work[7] * x_seq[2];
+    work[8] *= -2.0_f64;
+    work[8] += work[6];
+    work[6] *= -0.5_f64;
+    work[7] *= work[5];
+    work[7] = -work[7];
+    work[6] += work[7];
+    work[7] = 2.0_f64 * x_seq[4];
+    work[9] = libm::cos(x_seq[5]);
+    work[10] = 0.5_f64 * b_seq[5];
+    work[10] = -work[10];
+    work[10] += b_seq[4];
+    work[11] = x_seq[4] * x_seq[4];
+    work[12] = libm::sin(x_seq[5]);
+    work[11] += work[12];
+    work[11] = libm::sin(work[11]);
+    work[12] = work[11] * x_seq[4];
+    work[12] *= -2.0_f64;
+    work[12] += work[10];
+    work[10] *= -0.5_f64;
+    work[11] *= work[9];
+    work[11] = -work[11];
+    work[10] += work[11];
+    jacobian_z_seq[0] = work[0];
+    jacobian_z_seq[1] = work[1];
+    jacobian_z_seq[2] = 0.0_f64;
+    jacobian_z_seq[3] = 0.0_f64;
+    jacobian_z_seq[4] = 0.0_f64;
+    jacobian_z_seq[5] = 0.0_f64;
+    jacobian_z_seq[6] = work[4];
+    jacobian_z_seq[7] = work[2];
+    jacobian_z_seq[8] = 0.0_f64;
+    jacobian_z_seq[9] = 0.0_f64;
+    jacobian_z_seq[10] = 0.0_f64;
+    jacobian_z_seq[11] = 0.0_f64;
+    jacobian_z_seq[12] = 0.0_f64;
+    jacobian_z_seq[13] = 0.0_f64;
+    jacobian_z_seq[14] = work[3];
+    jacobian_z_seq[15] = work[5];
+    jacobian_z_seq[16] = 0.0_f64;
+    jacobian_z_seq[17] = 0.0_f64;
+    jacobian_z_seq[18] = 0.0_f64;
+    jacobian_z_seq[19] = 0.0_f64;
+    jacobian_z_seq[20] = work[8];
+    jacobian_z_seq[21] = work[6];
+    jacobian_z_seq[22] = 0.0_f64;
+    jacobian_z_seq[23] = 0.0_f64;
+    jacobian_z_seq[24] = 0.0_f64;
+    jacobian_z_seq[25] = 0.0_f64;
+    jacobian_z_seq[26] = 0.0_f64;
+    jacobian_z_seq[27] = 0.0_f64;
+    jacobian_z_seq[28] = work[7];
+    jacobian_z_seq[29] = work[9];
+    jacobian_z_seq[30] = 0.0_f64;
+    jacobian_z_seq[31] = 0.0_f64;
+    jacobian_z_seq[32] = 0.0_f64;
+    jacobian_z_seq[33] = 0.0_f64;
+    jacobian_z_seq[34] = work[12];
+    jacobian_z_seq[35] = work[10];
+    Ok(())
+}
+
+/// Return metadata describing [`map_zip_kernel_composed_map_zip_jf_b_seq`].
+pub fn map_zip_kernel_composed_map_zip_jf_b_seq_meta() -> FunctionMetadata {
+    FunctionMetadata {
+        function_name: "map_zip_kernel_composed_map_zip_jf_b_seq",
+        workspace_size: 12,
+        input_names: &["x_seq", "b_seq"],
+        input_sizes: &[6, 6],
+        output_names: &["jacobian_z_seq"],
+        output_sizes: &[36],
+    }
+}
+
+/// Evaluate the generated symbolic function `map_zip_kernel_composed_map_zip_jf_b_seq`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x_seq`:
+///   input slice for the declared argument `x_seq`
+///   Expected length: 6.
+/// - `b_seq`:
+///   input slice for the declared argument `b_seq`
+///   Expected length: 6.
+/// - `jacobian_z_seq`:
+///   output slice receiving the Jacobian block for declared result
+///   `z_seq`
+///   Expected length: 36.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 12.
+pub fn map_zip_kernel_composed_map_zip_jf_b_seq(
+    x_seq: &[f64],
+    b_seq: &[f64],
+    jacobian_z_seq: &mut [f64],
+    work: &mut [f64],
+) -> Result<(), GradgenError> {
+    if work.len() < 12 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 12"));
+    };
+    if x_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("x_seq expected length 6"));
+    };
+    if b_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("b_seq expected length 6"));
+    };
+    if jacobian_z_seq.len() != 36 {
+        return Err(GradgenError::OutputTooSmall(
+            "jacobian_z_seq expected length 36",
+        ));
+    };
+    work[0] = 4.0_f64 * b_seq[0];
+    work[1] = libm::cos(b_seq[1]);
+    work[1] *= 2.0_f64;
+    work[2] = 0.5_f64 * x_seq[1];
+    work[2] = -work[2];
+    work[2] += x_seq[0];
+    work[3] = -0.5_f64 * work[2];
+    work[4] = 4.0_f64 * b_seq[2];
+    work[5] = libm::cos(b_seq[3]);
+    work[5] *= 2.0_f64;
+    work[6] = 0.5_f64 * x_seq[3];
+    work[6] = -work[6];
+    work[6] += x_seq[2];
+    work[7] = -0.5_f64 * work[6];
+    work[8] = 4.0_f64 * b_seq[4];
+    work[9] = libm::cos(b_seq[5]);
+    work[9] *= 2.0_f64;
+    work[10] = 0.5_f64 * x_seq[5];
+    work[10] = -work[10];
+    work[10] += x_seq[4];
+    work[11] = -0.5_f64 * work[10];
+    jacobian_z_seq[0] = work[0];
+    jacobian_z_seq[1] = work[1];
+    jacobian_z_seq[2] = 0.0_f64;
+    jacobian_z_seq[3] = 0.0_f64;
+    jacobian_z_seq[4] = 0.0_f64;
+    jacobian_z_seq[5] = 0.0_f64;
+    jacobian_z_seq[6] = work[2];
+    jacobian_z_seq[7] = work[3];
+    jacobian_z_seq[8] = 0.0_f64;
+    jacobian_z_seq[9] = 0.0_f64;
+    jacobian_z_seq[10] = 0.0_f64;
+    jacobian_z_seq[11] = 0.0_f64;
+    jacobian_z_seq[12] = 0.0_f64;
+    jacobian_z_seq[13] = 0.0_f64;
+    jacobian_z_seq[14] = work[4];
+    jacobian_z_seq[15] = work[5];
+    jacobian_z_seq[16] = 0.0_f64;
+    jacobian_z_seq[17] = 0.0_f64;
+    jacobian_z_seq[18] = 0.0_f64;
+    jacobian_z_seq[19] = 0.0_f64;
+    jacobian_z_seq[20] = work[6];
+    jacobian_z_seq[21] = work[7];
+    jacobian_z_seq[22] = 0.0_f64;
+    jacobian_z_seq[23] = 0.0_f64;
+    jacobian_z_seq[24] = 0.0_f64;
+    jacobian_z_seq[25] = 0.0_f64;
+    jacobian_z_seq[26] = 0.0_f64;
+    jacobian_z_seq[27] = 0.0_f64;
+    jacobian_z_seq[28] = work[8];
+    jacobian_z_seq[29] = work[9];
+    jacobian_z_seq[30] = 0.0_f64;
+    jacobian_z_seq[31] = 0.0_f64;
+    jacobian_z_seq[32] = 0.0_f64;
+    jacobian_z_seq[33] = 0.0_f64;
+    jacobian_z_seq[34] = work[10];
+    jacobian_z_seq[35] = work[11];
+    Ok(())
+}

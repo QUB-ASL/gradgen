@@ -3,6 +3,7 @@
 PYTHON ?= python
 REPEATS ?= 5
 HORIZON ?= 5
+COUNT ?= 3
 
 all: codegen custom_function multi_function vjp map_zip composed_function single_shooting
 
@@ -13,7 +14,7 @@ help:
 	@echo "  make custom_function"
 	@echo "  make multi_function"
 	@echo "  make vjp"
-	@echo "  make map_zip"
+	@echo "  make map_zip COUNT=$(COUNT)"
 	@echo "  make composed_function REPEATS=$(REPEATS)"
 	@echo "  make single_shooting HORIZON=$(HORIZON)"
 
@@ -30,7 +31,7 @@ vjp:
 	$(PYTHON) vjp/main.py
 
 map_zip:
-	$(PYTHON) map_zip/main.py
+	$(PYTHON) map_zip/main.py --count $(COUNT)
 
 composed_function:
 	$(PYTHON) composed_function/main.py --repeats $(REPEATS)

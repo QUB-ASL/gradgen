@@ -1,6 +1,6 @@
 {
   "crate_name": "map_zip_kernel",
-  "created_at": "2026-03-31T01:32:42.742802Z",
+  "created_at": "2026-03-31T01:52:27.135607Z",
   "gradgen_version": "0.3.2a1",
   "functions": [
     {
@@ -84,6 +84,60 @@
       ],
       "output_names": [
         "jacobian_z"
+      ],
+      "output_sizes": [
+        36
+      ]
+    },
+    {
+      "function_name": "map_zip_kernel_composed_map_zip_f",
+      "workspace_size": 8,
+      "input_names": [
+        "x_seq",
+        "b_seq"
+      ],
+      "input_sizes": [
+        6,
+        6
+      ],
+      "output_names": [
+        "z_seq"
+      ],
+      "output_sizes": [
+        6
+      ]
+    },
+    {
+      "function_name": "map_zip_kernel_composed_map_zip_jf_x_seq",
+      "workspace_size": 13,
+      "input_names": [
+        "x_seq",
+        "b_seq"
+      ],
+      "input_sizes": [
+        6,
+        6
+      ],
+      "output_names": [
+        "jacobian_z_seq"
+      ],
+      "output_sizes": [
+        36
+      ]
+    },
+    {
+      "function_name": "map_zip_kernel_composed_map_zip_jf_b_seq",
+      "workspace_size": 12,
+      "input_names": [
+        "x_seq",
+        "b_seq"
+      ],
+      "input_sizes": [
+        6,
+        6
+      ],
+      "output_names": [
+        "jacobian_z_seq"
       ],
       "output_sizes": [
         36

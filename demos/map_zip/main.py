@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 import sys
 
@@ -18,6 +19,29 @@ from gradgen import (
     map_function,
     zip_function,
 )
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Generate and evaluate staged map/zip demo kernels.")
+    parser.add_argument(
+        "--count",
+        type=int,
+        default=3,
+        help="Number of map/zip stages (must be positive).",
+    )
+    return parser.parse_args()
+
+
+def _build_sequence_values(count: int) -> tuple[list[float], list[float], list[float]]:
+    """Create packed stage-major demo inputs sized to ``count`` stages."""
+    x_seq: list[float] = []
+    a_seq: list[float] = []
+    b_seq: list[float] = []
+    for stage_index in range(count):
+        x_seq.extend([1.0 - (0.25 * stage_index), 0.5 * ((-1.0) ** stage_index) + (0.2 * stage_index)])
+        a_seq.extend([1.0 - (0.2 * stage_index), 0.5 * ((-1.0) ** stage_index) + (0.3 * stage_index)])
+        b_seq.extend([0.2 + (0.15 * stage_index), 1.1 * ((-1.0) ** stage_index) - (0.1 * stage_index)])
+    return x_seq, a_seq, b_seq
 
 
 # Build one unary function and one binary function to demonstrate
@@ -47,7 +71,10 @@ binary = Function(
 )
 
 
-count = 3
+args = _parse_args()
+count = args.count
+if count <= 0:
+    raise ValueError("count must be a positive integer")
 
 # Stage-preserving mapped and zipped kernels over packed stage-major inputs.
 unary_map = map_function(unary, count, input_name="x_seq", name="unary_map")
@@ -59,39 +86,42 @@ unary_map_fn = unary_map.to_function()
 binary_zip_fn = binary_zip.to_function()
 binary_zip_jac_a_fn = binary_zip_jac_a.to_function()
 
+# Compose mapped unary outputs into both inputs of the zipped binary kernel:
+# composed(x_seq, b_seq) = binary_zip(unary_map(x_seq), unary_map(b_seq))
+x_seq_symbol = SXVector.sym("x_seq", count * len(x))
+b_seq_symbol = SXVector.sym("b_seq", count * len(b))
+mapped_x_seq_symbol = unary_map_fn(x_seq_symbol)
+mapped_b_seq_symbol = unary_map_fn(b_seq_symbol)
+composed_output = binary_zip_fn(mapped_x_seq_symbol, mapped_b_seq_symbol)
+composed = Function(
+    "composed_map_zip",
+    [x_seq_symbol, b_seq_symbol],
+    [composed_output],
+    input_names=["x_seq", "b_seq"],
+    output_names=["z_seq"],
+)
+composed_jac_x = composed.jacobian(wrt_index=0, name="composed_map_zip_jf_x_seq")
+composed_fn = composed
+composed_jac_x_fn = composed_jac_x
+
 
 # Evaluate in Python first.
-x_seq_value = [
-    1.0,
-    0.5,
-    -0.2,
-    2.0,
-    0.8,
-    -1.5,
-]
-a_seq_value = [
-    1.0,
-    0.5,
-    -0.3,
-    2.0,
-    0.7,
-    -1.2,
-]
-b_seq_value = [
-    0.2,
-    1.1,
-    0.4,
-    -0.5,
-    -1.3,
-    0.9,
-]
+x_seq_value, a_seq_value, b_seq_value = _build_sequence_values(count)
 
 print("count =", count)
 print("unary_map(x_seq) =", unary_map_fn(x_seq_value))
 print("binary_zip(a_seq, b_seq) =", binary_zip_fn(a_seq_value, b_seq_value))
 print(
+    "composed_map_zip(x_seq, b_seq) =",
+    composed_fn(x_seq_value, b_seq_value),
+)
+print(
     "J_binary_zip wrt a_seq (flat row-major) =",
     binary_zip_jac_a_fn(a_seq_value, b_seq_value),
+)
+print(
+    "J_composed_map_zip wrt x_seq (flat row-major) =",
+    composed_jac_x_fn(x_seq_value, b_seq_value),
 )
 
 
@@ -110,6 +140,11 @@ project = (
         .with_simplification("medium")
         .done()
     .for_function(binary_zip)
+        .add_primal()
+        .add_jacobian()
+        .with_simplification("medium")
+        .done()
+    .for_function(composed)
         .add_primal()
         .add_jacobian()
         .with_simplification("medium")

@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   product, and rollout states in one generated function.
 - Added a dedicated `demos/single_shooting` demo and runner crate showing how
   to generate and call the resulting Rust crate in practice.
+- Important: implement `map` and `zip`
 
 ### Changed
 

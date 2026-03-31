@@ -19,6 +19,9 @@ cargo build
 - `map_zip_kernel_binary_zip_f`: workspace `3`, inputs `(6, 6)`, outputs `(6,)`
 - `map_zip_kernel_binary_zip_jf_a_seq`: workspace `5`, inputs `(6, 6)`, outputs `(36,)`
 - `map_zip_kernel_binary_zip_jf_b_seq`: workspace `4`, inputs `(6, 6)`, outputs `(36,)`
+- `map_zip_kernel_composed_map_zip_f`: workspace `8`, inputs `(6, 6)`, outputs `(6,)`
+- `map_zip_kernel_composed_map_zip_jf_x_seq`: workspace `13`, inputs `(6, 6)`, outputs `(36,)`
+- `map_zip_kernel_composed_map_zip_jf_b_seq`: workspace `12`, inputs `(6, 6)`, outputs `(36,)`
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.

@@ -1,7 +1,8 @@
 # Map/Zip Function Demo
 
 This demo shows how to build loop-structured staged batched kernels with
-`map_function(...)` and `zip_function(...)`.
+`map_function(...)` and `zip_function(...)`, and how to compose them into a
+single packed pipeline.
 
 The unary base function is
 
@@ -19,7 +20,9 @@ a_1 + 2 c_1 \\
 a_2 c_2 + \cos(a_1)
 \end{bmatrix}.$$
 
-For `count = N`, `map_function(u, N)` consumes one packed sequence
+### The map function 
+
+For an integer $N$ (`count = N`), the **map** function (`map_function(u, N)`) consumes one packed sequence
 
 $$x_{\mathrm{seq}} = (x^{(1)}, x^{(2)}, \dots, x^{(N)}),$$
 
@@ -27,17 +30,49 @@ and returns packed outputs
 
 $$y_{\mathrm{seq}} = (u(x^{(1)}), u(x^{(2)}), \dots, u(x^{(N)})).$$
 
-Similarly, `zip_function(b, N)` consumes two packed sequences
+In other words, it is the mapping 
 
-$$a_{\mathrm{seq}} = (a^{(1)}, \dots, a^{(N)}), \qquad
-c_{\mathrm{seq}} = (c^{(1)}, \dots, c^{(N)}),$$
+$$\mathrm{map}_{u, N}: x_{\mathrm{seq}} \mapsto y_{\mathrm{seq}}.$$
+
+![](../../docs/img/map.png)
+
+### The zip function
+
+Similarly, for an integer $M$, the **zip** function (`zip_function(b, N)`) consumes two packed sequences
+
+$$a_{\mathrm{seq}} = (a^{(1)}, \dots, a^{(M)}), \qquad
+c_{\mathrm{seq}} = (c^{(1)}, \dots, c^{(M)}),$$
 
 and returns
 
-$$z_{\mathrm{seq}} = (b(a^{(1)}, c^{(1)}), \dots, b(a^{(N)}, c^{(N)})).$$
+$$z_{\mathrm{seq}} = (g(a^{(1)}, c^{(1)}), \dots, g(a^{(M)}, c^{(M)})).$$
 
-The demo also constructs a staged Jacobian source for the zipped function with
-respect to the first packed input sequence.
+In other words, it is the mapping 
+
+$$\mathrm{zip}_{b, M}: a_{\mathrm{seq}} \mapsto b_{\mathrm{seq}}.$$
+
+![](../../docs/img/zip.png)
+
+### Map and zip
+
+This demo computes a two-stage pipeline over packed sequences:
+
+1. Map the unary kernel over both packed inputs, stage by stage:
+
+$$\tilde{x}^{(k)} = u\!\left(x^{(k)}\right), \qquad
+\tilde{c}^{(k)} = u\!\left(c^{(k)}\right), \qquad k = 1, \dots, N$$
+
+2. Zip the binary kernel over those mapped stage pairs:
+
+$$z^{(k)} = b\!\left(\tilde{x}^{(k)}, \tilde{c}^{(k)}\right), \qquad k = 1, \dots, N$$
+
+So the packed output sequence is
+
+$$z_{\mathrm{seq}} = \bigl(z^{(1)}, z^{(2)}, \dots, z^{(N)}\bigr),$$
+
+equivalently
+
+$$z_{\mathrm{seq}} = \mathrm{zip}_{b, N}\!\Bigl(\mathrm{map}_{u, N}(x_{\mathrm{seq}}),\ \mathrm{map}_{u, N}(c_{\mathrm{seq}})\Bigr).$$
 
 ## Files
 
@@ -58,8 +93,8 @@ python demos/map_zip/main.py
 
 This will:
 
-- evaluate mapped and zipped functions in Python
-- evaluate the zipped Jacobian in Python
+- evaluate mapped, zipped, and composed map+zip functions in Python
+- evaluate Jacobians for zipped and composed functions in Python
 - generate a Rust crate in:
 
 ```text
