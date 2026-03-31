@@ -73,7 +73,7 @@ pub fn map_zip_kernel_unary_map_f(
 }
 
 fn map_zip_kernel_unary_map_f_helper(x: &[f64], y: &mut [f64], work: &mut [f64]) {
-    work[0] = x[0] * x[0];
+    work[0] = libm::pow(x[0], 2.0_f64);
     work[1] = libm::sin(x[1]);
     work[0] += work[1];
     work[1] = 0.5_f64 * x[1];
@@ -427,10 +427,10 @@ pub fn map_zip_kernel_composed_map_zip_f(
     if z_seq.len() != 6 {
         return Err(GradgenError::OutputTooSmall("z_seq expected length 6"));
     };
-    work[0] = x_seq[0] * x_seq[0];
+    work[0] = libm::pow(x_seq[0], 2.0_f64);
     work[1] = libm::sin(x_seq[1]);
     work[0] += work[1];
-    work[1] = b_seq[0] * b_seq[0];
+    work[1] = libm::pow(b_seq[0], 2.0_f64);
     work[2] = libm::sin(b_seq[1]);
     work[1] += work[2];
     work[1] *= 2.0_f64;
@@ -444,10 +444,10 @@ pub fn map_zip_kernel_composed_map_zip_f(
     work[3] += x_seq[0];
     work[2] *= work[3];
     work[0] += work[2];
-    work[2] = x_seq[2] * x_seq[2];
+    work[2] = libm::pow(x_seq[2], 2.0_f64);
     work[3] = libm::sin(x_seq[3]);
     work[2] += work[3];
-    work[3] = b_seq[2] * b_seq[2];
+    work[3] = libm::pow(b_seq[2], 2.0_f64);
     work[4] = libm::sin(b_seq[3]);
     work[3] += work[4];
     work[3] *= 2.0_f64;
@@ -461,10 +461,10 @@ pub fn map_zip_kernel_composed_map_zip_f(
     work[5] += x_seq[2];
     work[4] *= work[5];
     work[2] += work[4];
-    work[4] = x_seq[4] * x_seq[4];
+    work[4] = libm::pow(x_seq[4], 2.0_f64);
     work[5] = libm::sin(x_seq[5]);
     work[4] += work[5];
-    work[5] = b_seq[4] * b_seq[4];
+    work[5] = libm::pow(b_seq[4], 2.0_f64);
     work[6] = libm::sin(b_seq[5]);
     work[5] += work[6];
     work[5] *= 2.0_f64;
@@ -541,7 +541,7 @@ pub fn map_zip_kernel_composed_map_zip_jf_x_seq(
     work[2] = 0.5_f64 * b_seq[1];
     work[2] = -work[2];
     work[2] += b_seq[0];
-    work[3] = x_seq[0] * x_seq[0];
+    work[3] = libm::pow(x_seq[0], 2.0_f64);
     work[4] = libm::sin(x_seq[1]);
     work[3] += work[4];
     work[3] = libm::sin(work[3]);
@@ -557,7 +557,7 @@ pub fn map_zip_kernel_composed_map_zip_jf_x_seq(
     work[6] = 0.5_f64 * b_seq[3];
     work[6] = -work[6];
     work[6] += b_seq[2];
-    work[7] = x_seq[2] * x_seq[2];
+    work[7] = libm::pow(x_seq[2], 2.0_f64);
     work[8] = libm::sin(x_seq[3]);
     work[7] += work[8];
     work[7] = libm::sin(work[7]);
@@ -573,7 +573,7 @@ pub fn map_zip_kernel_composed_map_zip_jf_x_seq(
     work[10] = 0.5_f64 * b_seq[5];
     work[10] = -work[10];
     work[10] += b_seq[4];
-    work[11] = x_seq[4] * x_seq[4];
+    work[11] = libm::pow(x_seq[4], 2.0_f64);
     work[12] = libm::sin(x_seq[5]);
     work[11] += work[12];
     work[11] = libm::sin(work[11]);

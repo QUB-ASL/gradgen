@@ -947,7 +947,7 @@ mod single_shooting_multi_u_tests {{
             project = builder.build(Path(tmpdir) / "simplified_builder")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("work[0] = x[0].powf(2.0_f64);", lib_text)
+            self.assertIn("work[0] = x[0] * x[0];", lib_text)
             self.assertIn("work[0] = 2.0_f64 * x[0];", lib_text)
             self.assertIn("work[0] = 2.0_f64 * v_x[0];", lib_text)
             self.assertIn("work[1] = 2.0_f64 * x[0];", lib_text)
@@ -1506,7 +1506,8 @@ mod tests {{
         self.assertIn("libm::expf(", result.source)
         self.assertIn("libm::logf(", result.source)
         self.assertIn("libm::sqrtf(", result.source)
-        self.assertIn("libm::powf(", result.source)
+        self.assertIn("x[0] * x[0]", result.source)
+        self.assertNotIn("libm::powf(", result.source)
 
     def test_generated_code_supports_extended_math_methods(self) -> None:
         x = SX.sym("x")
@@ -1765,7 +1766,44 @@ mod tests {{
         self.assertIn(".exp()", result.source)
         self.assertIn(".ln()", result.source)
         self.assertIn(".sqrt()", result.source)
-        self.assertIn(".powf(2.0_f64)", result.source)
+        self.assertIn("x[0] * x[0]", result.source)
+        self.assertNotIn(".powf(2.0_f64)", result.source)
+
+    def test_square_power_is_lowered_to_multiplication_across_backends(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x**2], input_names=["x"], output_names=["y"])
+
+        std_f64 = f.generate_rust(backend_mode="std", scalar_type="f64")
+        no_std_f64 = f.generate_rust(backend_mode="no_std", scalar_type="f64")
+        std_f32 = f.generate_rust(backend_mode="std", scalar_type="f32")
+        no_std_f32 = f.generate_rust(backend_mode="no_std", scalar_type="f32")
+
+        for result in (std_f64, no_std_f64, std_f32, no_std_f32):
+            self.assertIn("x[0] * x[0]", result.source)
+            self.assertNotIn("powf(", result.source)
+            self.assertNotIn("libm::pow(", result.source)
+            self.assertNotIn("libm::powf(", result.source)
+
+    def test_non_square_power_keeps_pow_calls(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x**3], input_names=["x"], output_names=["y"])
+
+        std_result = f.generate_rust(backend_mode="std", scalar_type="f64")
+        no_std_result = f.generate_rust(backend_mode="no_std", scalar_type="f64")
+
+        self.assertIn(".powf(3.0_f64)", std_result.source)
+        self.assertIn("libm::pow(x[0], 3.0_f64)", no_std_result.source)
+
+    def test_only_exact_square_constant_is_lowered(self) -> None:
+        x = SX.sym("x")
+        almost_two = Function("f", [x], [x**2.0000001], input_names=["x"], output_names=["y"])
+
+        std_result = almost_two.generate_rust(backend_mode="std", scalar_type="f64")
+        no_std_result = almost_two.generate_rust(backend_mode="no_std", scalar_type="f64")
+
+        self.assertIn(".powf(2.0000001_f64)", std_result.source)
+        self.assertIn("libm::pow(x[0], 2.0000001_f64)", no_std_result.source)
+        self.assertNotIn("x[0] * x[0]", std_result.source)
 
     def test_no_std_codegen_uses_libm_and_no_std_crate_attr(self) -> None:
         x = SX.sym("x")
@@ -1781,7 +1819,8 @@ mod tests {{
         self.assertIn("libm::exp(", result.source)
         self.assertIn("libm::log(", result.source)
         self.assertIn("libm::sqrt(", result.source)
-        self.assertIn("libm::pow(", result.source)
+        self.assertIn("x[0] * x[0]", result.source)
+        self.assertNotIn("libm::pow(", result.source)
 
     def test_no_std_codegen_supports_sine_explicitly(self) -> None:
         x = SX.sym("x")
