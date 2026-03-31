@@ -1593,15 +1593,19 @@ def _generate_zipped_primal_rust(
     computation_lines.append(f"for stage_index in 0..{zipped.count} {{")
     for input_spec, formal in zip(input_specs, zipped.function.inputs):
         block_size = _arg_size(formal)
+        start_expr = _scaled_index_expr("stage_index", block_size)
+        end_expr = _scaled_index_expr("stage_index + 1", block_size)
         computation_lines.append(
             f"    let {input_spec.rust_name}_stage = "
-            f"&{input_spec.rust_name}[(stage_index * {block_size})..((stage_index + 1) * {block_size})];"
+            f"&{input_spec.rust_name}[{start_expr}..{end_expr}];"
         )
     for output_spec, formal in zip(output_specs, zipped.function.outputs):
         block_size = _arg_size(formal)
+        start_expr = _scaled_index_expr("stage_index", block_size)
+        end_expr = _scaled_index_expr("stage_index + 1", block_size)
         computation_lines.append(
             f"    let {output_spec.rust_name}_stage = "
-            f"&mut {output_spec.rust_name}[(stage_index * {block_size})..((stage_index + 1) * {block_size})];"
+            f"&mut {output_spec.rust_name}[{start_expr}..{end_expr}];"
         )
     helper_args = ", ".join(
         [
@@ -1785,9 +1789,11 @@ def _generate_zipped_jacobian_rust(
     computation_lines.append(f"for stage_index in 0..{zipped.count} {{")
     for input_spec, formal in zip(input_specs, zipped.function.inputs):
         block_size = _arg_size(formal)
+        start_expr = _scaled_index_expr("stage_index", block_size)
+        end_expr = _scaled_index_expr("stage_index + 1", block_size)
         computation_lines.append(
             f"    let {input_spec.rust_name}_stage = "
-            f"&{input_spec.rust_name}[(stage_index * {block_size})..((stage_index + 1) * {block_size})];"
+            f"&{input_spec.rust_name}[{start_expr}..{end_expr}];"
         )
     helper_args = ", ".join(
         [
@@ -1799,13 +1805,18 @@ def _generate_zipped_jacobian_rust(
     computation_lines.append(f"    {helper_name}({helper_args});")
     for spec, row_size, local_size in zip(output_specs_tuple, row_sizes, local_output_sizes):
         computation_lines.append(f"    for local_row in 0..{row_size} {{")
+        dest_row_base = _scaled_index_expr("stage_index", row_size)
+        dest_stage_offset = _scaled_index_expr("stage_index", wrt_size)
+        src_row_base = _scaled_index_expr("local_row", wrt_size)
+        if wrt_size > 1:
+            src_row_base = src_row_base.replace("(", "", 1).rsplit(")", 1)[0]
         computation_lines.append(
-            f"        let dest_row = (stage_index * {row_size}) + local_row;"
+            f"        let dest_row = {dest_row_base} + local_row;"
         )
         computation_lines.append(
-            f"        let dest_start = (dest_row * {packed_wrt_size}) + (stage_index * {wrt_size});"
+            f"        let dest_start = (dest_row * {packed_wrt_size}) + {dest_stage_offset};"
         )
-        computation_lines.append(f"        let src_start = local_row * {wrt_size};")
+        computation_lines.append(f"        let src_start = {src_row_base};")
         computation_lines.append(
             f"        {spec.rust_name}[dest_start..(dest_start + {wrt_size})]"
             f".copy_from_slice(&temp_{spec.rust_name}[src_start..(src_start + {wrt_size})]);"
@@ -4638,6 +4649,15 @@ def _flatten_arg(arg: SX | SXVector) -> tuple[SX, ...]:
 def _arg_size(arg: SX | SXVector) -> int:
     """Return the number of scalar elements in an argument."""
     return len(_flatten_arg(arg))
+
+
+def _scaled_index_expr(base_expr: str, scale: int) -> str:
+    """Return ``base_expr * scale`` while removing identity multipliers."""
+    if scale == 1:
+        return base_expr
+    if base_expr.isidentifier():
+        return f"{base_expr} * {scale}"
+    return f"(({base_expr}) * {scale})"
 
 
 def _format_float(value: float | None, scalar_type: RustScalarType) -> str:
