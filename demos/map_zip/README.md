@@ -35,7 +35,7 @@ In other words, it is the mapping
 $$\mathrm{map}_{u, N}: x_{\mathrm{seq}} \mapsto y_{\mathrm{seq}}.$$
 
 <p align="center">
-  <img src="../../docs/img/map.png" alt="Map function diagram" width="60%">
+  <img src="../../docs/img/map.png" alt="Map function diagram" width="45%">
 </p>
 
 ### The zip function
@@ -54,7 +54,7 @@ In other words, it is the mapping
 $$\mathrm{zip}_{b, M}: a_{\mathrm{seq}} \mapsto b_{\mathrm{seq}}.$$
 
 <p align="center">
-  <img src="../../docs/img/zip.png" alt="Zip function diagram" width="60%">
+  <img src="../../docs/img/zip.png" alt="Zip function diagram" width="45%">
 </p>
 
 ### Map and zip
