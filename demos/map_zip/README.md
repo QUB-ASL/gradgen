@@ -61,14 +61,14 @@ $$\mathrm{zip}_{b, M}: a_{\mathrm{seq}} \mapsto b_{\mathrm{seq}}.$$
 
 This demo computes a two-stage pipeline over packed sequences:
 
-1. Map the unary kernel over both packed inputs, stage by stage:
+Firstly, map the unary kernel over both packed inputs, stage by stage:
 
-$$\tilde{x}^{(k)} = u\!\left(x^{(k)}\right), \qquad
-\tilde{c}^{(k)} = u\!\left(c^{(k)}\right), \qquad k = 1, \dots, N$$
+$$\tilde{x}^{(k)} = u(x^{(k)}), \qquad
+\tilde{c}^{(k)} = u(c^{(k)}), \qquad k = 1, \dots, N$$
 
-2. Zip the binary kernel over those mapped stage pairs:
+Then, zip the binary kernel over those mapped stage pairs:
 
-$$z^{(k)} = b\!\left(\tilde{x}^{(k)}, \tilde{c}^{(k)}\right), \qquad k = 1, \dots, N$$
+$$z^{(k)} = b\left(\tilde{x}^{(k)}, \tilde{c}^{(k)}\right), \qquad k = 1, \dots, N$$
 
 So the packed output sequence is
 
@@ -76,7 +76,7 @@ $$z_{\mathrm{seq}} = \bigl(z^{(1)}, z^{(2)}, \dots, z^{(N)}\bigr),$$
 
 equivalently
 
-$$z_{\mathrm{seq}} = \mathrm{zip}_{b, N}\!\Bigl(\mathrm{map}_{u, N}(x_{\mathrm{seq}}),\ \mathrm{map}_{u, N}(c_{\mathrm{seq}})\Bigr).$$
+$$z_{\mathrm{seq}} = \mathrm{zip}_{b, N}\Bigl(\mathrm{map}_{u, N}(x_{\mathrm{seq}}),\ \mathrm{map}_{u, N}(c_{\mathrm{seq}})\Bigr).$$
 
 ## Files
 
