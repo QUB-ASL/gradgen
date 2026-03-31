@@ -243,7 +243,7 @@ pub fn composed_kernel_composed_demo_grad_x(
 }
 
 fn composed_kernel_composed_demo_repeat_0_g_vjp(
-    state: &[f64],
+    _state: &[f64],
     p: &[f64],
     cotangent_next_state: &[f64],
     vjp_state: &mut [f64],
@@ -257,8 +257,8 @@ fn composed_kernel_composed_demo_repeat_0_g_vjp(
 }
 
 fn composed_kernel_composed_demo_terminal_h_grad(
-    state: &[f64],
-    pf: &[f64],
+    _state: &[f64],
+    _pf: &[f64],
     y: &mut [f64],
     _work: &mut [f64],
 ) {

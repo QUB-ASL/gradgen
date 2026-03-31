@@ -364,16 +364,23 @@ def generate_rust(
     name = sanitize_ident(resolved_config.function_name or function.name)
     input_sizes = tuple(_arg_size(arg) for arg in function.inputs)
     output_sizes = tuple(_arg_size(arg) for arg in function.outputs)
-    input_specs = tuple(
-        _ArgSpec(
-            raw_name=raw_name,
-            rust_name=sanitize_ident(raw_name),
-            rust_label=_format_rust_string_literal(raw_name),
-            doc_description=_describe_input_arg(raw_name),
-            size=size,
+    input_specs: list[_ArgSpec] = []
+    reachable_nodes = _collect_reachable_nodes(tuple(scalar for arg in function.outputs for scalar in _flatten_arg(arg)))
+    public_function = function_keyword.startswith("pub")
+    for raw_name, size, input_arg in zip(function.input_names, input_sizes, function.inputs):
+        rust_name = sanitize_ident(raw_name)
+        if not public_function and all(scalar.node not in reachable_nodes for scalar in _flatten_arg(input_arg)):
+            rust_name = sanitize_ident(f"_{raw_name}")
+        input_specs.append(
+            _ArgSpec(
+                raw_name=raw_name,
+                rust_name=rust_name,
+                rust_label=_format_rust_string_literal(raw_name),
+                doc_description=_describe_input_arg(raw_name),
+                size=size,
+            )
         )
-        for raw_name, size in zip(function.input_names, input_sizes)
-    )
+    input_specs = tuple(input_specs)
     output_specs = tuple(
         _ArgSpec(
             raw_name=raw_name,
@@ -3145,6 +3152,8 @@ def _emit_node_expr(
     if expr.op == "div":
         return f"{args[0]} / {args[1]}"
     if expr.op == "pow":
+        if expr.args[1].op == "const" and expr.args[1].value == 2.0:
+            return f"{args[0]} * {args[0]}"
         return _emit_math_call("pow", args, backend_mode, scalar_type, math_library)
     if expr.op == "custom_scalar":
         spec, value, params = parse_custom_scalar_args(expr.name, expr.args)
@@ -3559,6 +3568,19 @@ def _collect_required_workspace_nodes(output_refs: tuple[SX, ...]) -> set[SXNode
         required.add(node)
         stack.extend(node.args)
     return required
+
+
+def _collect_reachable_nodes(output_refs: tuple[SX, ...]) -> set[SXNode]:
+    """Return all reachable nodes (including symbols/constants) from outputs."""
+    reachable: set[SXNode] = set()
+    stack = [expr.node for expr in output_refs]
+    while stack:
+        node = stack.pop()
+        if node in reachable:
+            continue
+        reachable.add(node)
+        stack.extend(node.args)
+    return reachable
 
 
 def _reemit_direct_output_helper_call(

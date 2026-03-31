@@ -114,10 +114,6 @@ project = (
         .add_jacobian()
         .with_simplification("medium")
         .done()
-    .for_function(binary_zip_jac_a)
-        .add_primal()
-        .with_simplification("medium")
-        .done()
     .build(Path(__file__).resolve().parent / "map_zip_kernel")
 )
 

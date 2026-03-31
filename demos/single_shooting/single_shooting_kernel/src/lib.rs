@@ -139,11 +139,11 @@ fn single_shooting_kernel_mpc_cost_stage_cost(
     ell: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = libm::pow(x[1], 2.0_f64);
+    work[0] = x[1] * x[1];
     work[0] *= 2.0_f64;
-    work[1] = libm::pow(x[0], 2.0_f64);
+    work[1] = x[0] * x[0];
     work[0] += work[1];
-    work[1] = libm::pow(u[0], 2.0_f64);
+    work[1] = u[0] * u[0];
     work[1] *= 0.3_f64;
     work[0] += work[1];
     work[1] = p[0] * u[0];
@@ -157,9 +157,9 @@ fn single_shooting_kernel_mpc_cost_terminal_cost(
     vf: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = libm::pow(x[1], 2.0_f64);
+    work[0] = x[1] * x[1];
     work[0] *= 0.5_f64;
-    work[1] = libm::pow(x[0], 2.0_f64);
+    work[1] = x[0] * x[0];
     work[1] *= 3.0_f64;
     work[0] += work[1];
     work[1] = p[1] * x[0];
@@ -297,8 +297,8 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
 }
 
 fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(
-    x: &[f64],
-    u: &[f64],
+    _x: &[f64],
+    _u: &[f64],
     p: &[f64],
     cotangent_x_next: &[f64],
     vjp_x: &mut [f64],
@@ -313,8 +313,8 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(
 }
 
 fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(
-    x: &[f64],
-    u: &[f64],
+    _x: &[f64],
+    _u: &[f64],
     p: &[f64],
     cotangent_x_next: &[f64],
     vjp_u: &mut [f64],
@@ -327,8 +327,8 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(
 
 fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(
     x: &[f64],
-    u: &[f64],
-    p: &[f64],
+    _u: &[f64],
+    _p: &[f64],
     ell: &mut [f64],
     work: &mut [f64],
 ) {
@@ -339,7 +339,7 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(
 }
 
 fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(
-    x: &[f64],
+    _x: &[f64],
     u: &[f64],
     p: &[f64],
     ell: &mut [f64],
@@ -572,8 +572,8 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
 }
 
 fn single_shooting_kernel_mpc_cost_dynamics_jvp(
-    x: &[f64],
-    u: &[f64],
+    _x: &[f64],
+    _u: &[f64],
     p: &[f64],
     tangent_x: &[f64],
     tangent_u: &[f64],
@@ -594,12 +594,12 @@ fn single_shooting_kernel_mpc_cost_dynamics_jvp(
 
 #[allow(clippy::too_many_arguments)]
 fn single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(
-    x: &[f64],
-    u: &[f64],
+    _x: &[f64],
+    _u: &[f64],
     p: &[f64],
-    cotangent_x_next: &[f64],
-    tangent_x: &[f64],
-    tangent_u: &[f64],
+    _cotangent_x_next: &[f64],
+    _tangent_x: &[f64],
+    _tangent_u: &[f64],
     tangent_cotangent_x_next: &[f64],
     vjp_x: &mut [f64],
     work: &mut [f64],
@@ -614,12 +614,12 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(
 
 #[allow(clippy::too_many_arguments)]
 fn single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
-    x: &[f64],
-    u: &[f64],
+    _x: &[f64],
+    _u: &[f64],
     p: &[f64],
-    cotangent_x_next: &[f64],
-    tangent_x: &[f64],
-    tangent_u: &[f64],
+    _cotangent_x_next: &[f64],
+    _tangent_x: &[f64],
+    _tangent_u: &[f64],
     tangent_cotangent_x_next: &[f64],
     vjp_u: &mut [f64],
     work: &mut [f64],
@@ -630,11 +630,11 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
 }
 
 fn single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(
-    x: &[f64],
-    u: &[f64],
-    p: &[f64],
+    _x: &[f64],
+    _u: &[f64],
+    _p: &[f64],
     tangent_x: &[f64],
-    tangent_u: &[f64],
+    _tangent_u: &[f64],
     ell: &mut [f64],
     work: &mut [f64],
 ) {
@@ -645,10 +645,10 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(
 }
 
 fn single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
-    x: &[f64],
-    u: &[f64],
-    p: &[f64],
-    tangent_x: &[f64],
+    _x: &[f64],
+    _u: &[f64],
+    _p: &[f64],
+    _tangent_x: &[f64],
     tangent_u: &[f64],
     ell: &mut [f64],
     work: &mut [f64],
@@ -658,8 +658,8 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
 }
 
 fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(
-    x: &[f64],
-    p: &[f64],
+    _x: &[f64],
+    _p: &[f64],
     tangent_x: &[f64],
     vf: &mut [f64],
     work: &mut [f64],

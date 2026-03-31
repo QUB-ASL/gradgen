@@ -1,6 +1,6 @@
 {
   "crate_name": "map_zip_kernel",
-  "created_at": "2026-03-31T01:19:21.059278Z",
+  "created_at": "2026-03-31T01:32:42.742802Z",
   "gradgen_version": "0.3.2a1",
   "functions": [
     {
@@ -74,24 +74,6 @@
     {
       "function_name": "map_zip_kernel_binary_zip_jf_b_seq",
       "workspace_size": 4,
-      "input_names": [
-        "a_seq",
-        "b_seq"
-      ],
-      "input_sizes": [
-        6,
-        6
-      ],
-      "output_names": [
-        "jacobian_z"
-      ],
-      "output_sizes": [
-        36
-      ]
-    },
-    {
-      "function_name": "map_zip_kernel_binary_zip_jacobian_a_seq_f",
-      "workspace_size": 5,
       "input_names": [
         "a_seq",
         "b_seq"

@@ -73,7 +73,7 @@ pub fn map_zip_kernel_unary_map_f(
 }
 
 fn map_zip_kernel_unary_map_f_helper(x: &[f64], y: &mut [f64], work: &mut [f64]) {
-    work[0] = libm::pow(x[0], 2.0_f64);
+    work[0] = x[0] * x[0];
     work[1] = libm::sin(x[1]);
     work[0] += work[1];
     work[1] = 0.5_f64 * x[1];
@@ -371,7 +371,7 @@ pub fn map_zip_kernel_binary_zip_jf_b_seq(
 
 fn map_zip_kernel_binary_zip_jf_b_seq_helper(
     a: &[f64],
-    b: &[f64],
+    _b: &[f64],
     jacobian_z: &mut [f64],
     _work: &mut [f64],
 ) {
@@ -379,88 +379,4 @@ fn map_zip_kernel_binary_zip_jf_b_seq_helper(
     jacobian_z[1] = 0.0_f64;
     jacobian_z[2] = 0.0_f64;
     jacobian_z[3] = a[1];
-}
-
-/// Return metadata describing [`map_zip_kernel_binary_zip_jacobian_a_seq_f`].
-pub fn map_zip_kernel_binary_zip_jacobian_a_seq_f_meta() -> FunctionMetadata {
-    FunctionMetadata {
-        function_name: "map_zip_kernel_binary_zip_jacobian_a_seq_f",
-        workspace_size: 5,
-        input_names: &["a_seq", "b_seq"],
-        input_sizes: &[6, 6],
-        output_names: &["jacobian_z"],
-        output_sizes: &[36],
-    }
-}
-
-/// Evaluate the generated symbolic function `map_zip_kernel_binary_zip_jacobian_a_seq_f`.
-///
-/// All numeric slices use the `f64` scalar type.
-///
-/// Arguments:
-/// - `a_seq`:
-///   input slice for the declared argument `a_seq`
-///   Expected length: 6.
-/// - `b_seq`:
-///   input slice for the declared argument `b_seq`
-///   Expected length: 6.
-/// - `jacobian_z`:
-///   output slice receiving the Jacobian block for declared result `z`
-///   Expected length: 36.
-/// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 5.
-pub fn map_zip_kernel_binary_zip_jacobian_a_seq_f(
-    a_seq: &[f64],
-    b_seq: &[f64],
-    jacobian_z: &mut [f64],
-    work: &mut [f64],
-) -> Result<(), GradgenError> {
-    if work.len() < 5 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 5"));
-    };
-    if a_seq.len() != 6 {
-        return Err(GradgenError::InputTooSmall("a_seq expected length 6"));
-    };
-    if b_seq.len() != 6 {
-        return Err(GradgenError::InputTooSmall("b_seq expected length 6"));
-    };
-    if jacobian_z.len() != 36 {
-        return Err(GradgenError::OutputTooSmall(
-            "jacobian_z expected length 36",
-        ));
-    };
-    jacobian_z.fill(0.0_f64);
-    let (temp_jacobian_z, helper_work) = work.split_at_mut(4);
-    for stage_index in 0..3 {
-        let a_seq_stage = &a_seq[(stage_index * 2)..((stage_index + 1) * 2)];
-        let b_seq_stage = &b_seq[(stage_index * 2)..((stage_index + 1) * 2)];
-        map_zip_kernel_binary_zip_jacobian_a_seq_f_helper(
-            a_seq_stage,
-            b_seq_stage,
-            temp_jacobian_z,
-            helper_work,
-        );
-        for local_row in 0..2 {
-            let dest_row = (stage_index * 2) + local_row;
-            let dest_start = (dest_row * 6) + (stage_index * 2);
-            let src_start = local_row * 2;
-            jacobian_z[dest_start..(dest_start + 2)]
-                .copy_from_slice(&temp_jacobian_z[src_start..(src_start + 2)]);
-        }
-    }
-    Ok(())
-}
-
-fn map_zip_kernel_binary_zip_jacobian_a_seq_f_helper(
-    a: &[f64],
-    b: &[f64],
-    jacobian_z: &mut [f64],
-    work: &mut [f64],
-) {
-    work[0] = libm::sin(a[0]);
-    work[0] = -work[0];
-    jacobian_z[0] = 1.0_f64;
-    jacobian_z[1] = 0.0_f64;
-    jacobian_z[2] = work[0];
-    jacobian_z[3] = b[1];
 }
