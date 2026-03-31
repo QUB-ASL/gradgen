@@ -1,0 +1,11 @@
+[package]
+name = "map_zip_kernel"
+version = "0.1.0"
+edition = "2021"
+description = "Generated gradgen crate using f64"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+libm = "0.2"

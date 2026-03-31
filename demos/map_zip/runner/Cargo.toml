@@ -1,0 +1,7 @@
+[package]
+name = "map_zip_runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+map_zip_kernel = { path = "../map_zip_kernel" }
