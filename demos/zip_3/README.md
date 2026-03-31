@@ -43,14 +43,12 @@ In [`main.py`](./main.py), we define symbolic variables `a`, `b`, `c` and the
 # Symbols
 # a: R^2, b: R, c: R
 a = SXVector.sym("a", 2)
-b = SXVector.sym("b", 1)
-c = SXVector.sym("c", 1)
-
-# Stage function h(a, b, c): R^2 x R x R -> R
+b = SX.sym("b")
+c = SX.sym("c")
 h = Function(
     "h",
     [a, b, c],
-    [a[0] * b[0] + a[1] + c[0].sin()],
+    [a[0] * b + a[1] + sin(c)],
     input_names=["a", "b", "c"],
     output_names=["y"],
 )

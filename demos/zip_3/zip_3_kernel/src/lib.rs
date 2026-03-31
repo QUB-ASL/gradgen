@@ -30,9 +30,9 @@ pub fn zip_3_kernel_zip3_f_meta() -> FunctionMetadata {
         function_name: "zip_3_kernel_zip3_f",
         workspace_size: 2,
         input_names: &["a_seq", "b_seq", "c_seq"],
-        input_sizes: &[10, 5, 5],
+        input_sizes: &[6, 3, 3],
         output_names: &["y"],
-        output_sizes: &[5],
+        output_sizes: &[3],
     }
 }
 
@@ -43,16 +43,16 @@ pub fn zip_3_kernel_zip3_f_meta() -> FunctionMetadata {
 /// Arguments:
 /// - `a_seq`:
 ///   input slice for the declared argument `a_seq`
-///   Expected length: 10.
+///   Expected length: 6.
 /// - `b_seq`:
 ///   input slice for the declared argument `b_seq`
-///   Expected length: 5.
+///   Expected length: 3.
 /// - `c_seq`:
 ///   input slice for the declared argument `c_seq`
-///   Expected length: 5.
+///   Expected length: 3.
 /// - `y`:
 ///   primal output slice for the declared result `y`
-///   Expected length: 5.
+///   Expected length: 3.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
 pub fn zip_3_kernel_zip3_f(
@@ -65,20 +65,20 @@ pub fn zip_3_kernel_zip3_f(
     if work.len() < 2 {
         return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
     };
-    if a_seq.len() != 10 {
-        return Err(GradgenError::InputTooSmall("a_seq expected length 10"));
+    if a_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("a_seq expected length 6"));
     };
-    if b_seq.len() != 5 {
-        return Err(GradgenError::InputTooSmall("b_seq expected length 5"));
+    if b_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("b_seq expected length 3"));
     };
-    if c_seq.len() != 5 {
-        return Err(GradgenError::InputTooSmall("c_seq expected length 5"));
+    if c_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("c_seq expected length 3"));
     };
-    if y.len() != 5 {
-        return Err(GradgenError::OutputTooSmall("y expected length 5"));
+    if y.len() != 3 {
+        return Err(GradgenError::OutputTooSmall("y expected length 3"));
     };
     let helper_work = &mut work[..2];
-    for stage_index in 0..5 {
+    for stage_index in 0..3 {
         let a_seq_stage = &a_seq[stage_index * 2..((stage_index + 1) * 2)];
         let b_seq_stage = &b_seq[stage_index..stage_index + 1];
         let c_seq_stage = &c_seq[stage_index..stage_index + 1];
@@ -102,9 +102,9 @@ pub fn zip_3_kernel_zip3_jf_a_seq_meta() -> FunctionMetadata {
         function_name: "zip_3_kernel_zip3_jf_a_seq",
         workspace_size: 2,
         input_names: &["a_seq", "b_seq", "c_seq"],
-        input_sizes: &[10, 5, 5],
+        input_sizes: &[6, 3, 3],
         output_names: &["jacobian_y"],
-        output_sizes: &[50],
+        output_sizes: &[18],
     }
 }
 
@@ -115,16 +115,16 @@ pub fn zip_3_kernel_zip3_jf_a_seq_meta() -> FunctionMetadata {
 /// Arguments:
 /// - `a_seq`:
 ///   input slice for the declared argument `a_seq`
-///   Expected length: 10.
+///   Expected length: 6.
 /// - `b_seq`:
 ///   input slice for the declared argument `b_seq`
-///   Expected length: 5.
+///   Expected length: 3.
 /// - `c_seq`:
 ///   input slice for the declared argument `c_seq`
-///   Expected length: 5.
+///   Expected length: 3.
 /// - `jacobian_y`:
 ///   output slice receiving the Jacobian block for declared result `y`
-///   Expected length: 50.
+///   Expected length: 18.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
 pub fn zip_3_kernel_zip3_jf_a_seq(
@@ -137,23 +137,23 @@ pub fn zip_3_kernel_zip3_jf_a_seq(
     if work.len() < 2 {
         return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
     };
-    if a_seq.len() != 10 {
-        return Err(GradgenError::InputTooSmall("a_seq expected length 10"));
+    if a_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("a_seq expected length 6"));
     };
-    if b_seq.len() != 5 {
-        return Err(GradgenError::InputTooSmall("b_seq expected length 5"));
+    if b_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("b_seq expected length 3"));
     };
-    if c_seq.len() != 5 {
-        return Err(GradgenError::InputTooSmall("c_seq expected length 5"));
+    if c_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("c_seq expected length 3"));
     };
-    if jacobian_y.len() != 50 {
+    if jacobian_y.len() != 18 {
         return Err(GradgenError::OutputTooSmall(
-            "jacobian_y expected length 50",
+            "jacobian_y expected length 18",
         ));
     };
     jacobian_y.fill(0.0_f64);
     let (temp_jacobian_y, helper_work) = work.split_at_mut(2);
-    for stage_index in 0..5 {
+    for stage_index in 0..3 {
         let a_seq_stage = &a_seq[stage_index * 2..((stage_index + 1) * 2)];
         let b_seq_stage = &b_seq[stage_index..stage_index + 1];
         let c_seq_stage = &c_seq[stage_index..stage_index + 1];
@@ -166,7 +166,7 @@ pub fn zip_3_kernel_zip3_jf_a_seq(
         );
         for local_row in 0..1 {
             let dest_row = stage_index + local_row;
-            let dest_start = (dest_row * 10) + stage_index * 2;
+            let dest_start = (dest_row * 6) + stage_index * 2;
             let src_start = local_row * 2;
             jacobian_y[dest_start..(dest_start + 2)]
                 .copy_from_slice(&temp_jacobian_y[src_start..(src_start + 2)]);
@@ -192,9 +192,9 @@ pub fn zip_3_kernel_zip3_jf_b_seq_meta() -> FunctionMetadata {
         function_name: "zip_3_kernel_zip3_jf_b_seq",
         workspace_size: 1,
         input_names: &["a_seq", "b_seq", "c_seq"],
-        input_sizes: &[10, 5, 5],
+        input_sizes: &[6, 3, 3],
         output_names: &["jacobian_y"],
-        output_sizes: &[25],
+        output_sizes: &[9],
     }
 }
 
@@ -205,16 +205,16 @@ pub fn zip_3_kernel_zip3_jf_b_seq_meta() -> FunctionMetadata {
 /// Arguments:
 /// - `a_seq`:
 ///   input slice for the declared argument `a_seq`
-///   Expected length: 10.
+///   Expected length: 6.
 /// - `b_seq`:
 ///   input slice for the declared argument `b_seq`
-///   Expected length: 5.
+///   Expected length: 3.
 /// - `c_seq`:
 ///   input slice for the declared argument `c_seq`
-///   Expected length: 5.
+///   Expected length: 3.
 /// - `jacobian_y`:
 ///   output slice receiving the Jacobian block for declared result `y`
-///   Expected length: 25.
+///   Expected length: 9.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 1.
 pub fn zip_3_kernel_zip3_jf_b_seq(
@@ -227,23 +227,21 @@ pub fn zip_3_kernel_zip3_jf_b_seq(
     if work.is_empty() {
         return Err(GradgenError::WorkspaceTooSmall("work expected at least 1"));
     };
-    if a_seq.len() != 10 {
-        return Err(GradgenError::InputTooSmall("a_seq expected length 10"));
+    if a_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("a_seq expected length 6"));
     };
-    if b_seq.len() != 5 {
-        return Err(GradgenError::InputTooSmall("b_seq expected length 5"));
+    if b_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("b_seq expected length 3"));
     };
-    if c_seq.len() != 5 {
-        return Err(GradgenError::InputTooSmall("c_seq expected length 5"));
+    if c_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("c_seq expected length 3"));
     };
-    if jacobian_y.len() != 25 {
-        return Err(GradgenError::OutputTooSmall(
-            "jacobian_y expected length 25",
-        ));
+    if jacobian_y.len() != 9 {
+        return Err(GradgenError::OutputTooSmall("jacobian_y expected length 9"));
     };
     jacobian_y.fill(0.0_f64);
     let (temp_jacobian_y, helper_work) = work.split_at_mut(1);
-    for stage_index in 0..5 {
+    for stage_index in 0..3 {
         let a_seq_stage = &a_seq[stage_index * 2..((stage_index + 1) * 2)];
         let b_seq_stage = &b_seq[stage_index..stage_index + 1];
         let c_seq_stage = &c_seq[stage_index..stage_index + 1];
@@ -256,7 +254,7 @@ pub fn zip_3_kernel_zip3_jf_b_seq(
         );
         for local_row in 0..1 {
             let dest_row = stage_index + local_row;
-            let dest_start = (dest_row * 5) + stage_index;
+            let dest_start = (dest_row * 3) + stage_index;
             let src_start = local_row;
             jacobian_y[dest_start..(dest_start + 1)]
                 .copy_from_slice(&temp_jacobian_y[src_start..(src_start + 1)]);
@@ -281,9 +279,9 @@ pub fn zip_3_kernel_zip3_jf_c_seq_meta() -> FunctionMetadata {
         function_name: "zip_3_kernel_zip3_jf_c_seq",
         workspace_size: 2,
         input_names: &["a_seq", "b_seq", "c_seq"],
-        input_sizes: &[10, 5, 5],
+        input_sizes: &[6, 3, 3],
         output_names: &["jacobian_y"],
-        output_sizes: &[25],
+        output_sizes: &[9],
     }
 }
 
@@ -294,16 +292,16 @@ pub fn zip_3_kernel_zip3_jf_c_seq_meta() -> FunctionMetadata {
 /// Arguments:
 /// - `a_seq`:
 ///   input slice for the declared argument `a_seq`
-///   Expected length: 10.
+///   Expected length: 6.
 /// - `b_seq`:
 ///   input slice for the declared argument `b_seq`
-///   Expected length: 5.
+///   Expected length: 3.
 /// - `c_seq`:
 ///   input slice for the declared argument `c_seq`
-///   Expected length: 5.
+///   Expected length: 3.
 /// - `jacobian_y`:
 ///   output slice receiving the Jacobian block for declared result `y`
-///   Expected length: 25.
+///   Expected length: 9.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
 pub fn zip_3_kernel_zip3_jf_c_seq(
@@ -316,23 +314,21 @@ pub fn zip_3_kernel_zip3_jf_c_seq(
     if work.len() < 2 {
         return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
     };
-    if a_seq.len() != 10 {
-        return Err(GradgenError::InputTooSmall("a_seq expected length 10"));
+    if a_seq.len() != 6 {
+        return Err(GradgenError::InputTooSmall("a_seq expected length 6"));
     };
-    if b_seq.len() != 5 {
-        return Err(GradgenError::InputTooSmall("b_seq expected length 5"));
+    if b_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("b_seq expected length 3"));
     };
-    if c_seq.len() != 5 {
-        return Err(GradgenError::InputTooSmall("c_seq expected length 5"));
+    if c_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("c_seq expected length 3"));
     };
-    if jacobian_y.len() != 25 {
-        return Err(GradgenError::OutputTooSmall(
-            "jacobian_y expected length 25",
-        ));
+    if jacobian_y.len() != 9 {
+        return Err(GradgenError::OutputTooSmall("jacobian_y expected length 9"));
     };
     jacobian_y.fill(0.0_f64);
     let (temp_jacobian_y, helper_work) = work.split_at_mut(1);
-    for stage_index in 0..5 {
+    for stage_index in 0..3 {
         let a_seq_stage = &a_seq[stage_index * 2..((stage_index + 1) * 2)];
         let b_seq_stage = &b_seq[stage_index..stage_index + 1];
         let c_seq_stage = &c_seq[stage_index..stage_index + 1];
@@ -345,7 +341,7 @@ pub fn zip_3_kernel_zip3_jf_c_seq(
         );
         for local_row in 0..1 {
             let dest_row = stage_index + local_row;
-            let dest_start = (dest_row * 5) + stage_index;
+            let dest_start = (dest_row * 3) + stage_index;
             let src_start = local_row;
             jacobian_y[dest_start..(dest_start + 1)]
                 .copy_from_slice(&temp_jacobian_y[src_start..(src_start + 1)]);

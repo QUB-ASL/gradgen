@@ -65,8 +65,8 @@ pub fn map_zip_kernel_unary_map_f(
     };
     let helper_work = &mut work[..2];
     for stage_index in 0..3 {
-        let x_seq_stage = &x_seq[(stage_index * 2)..((stage_index + 1) * 2)];
-        let y_stage = &mut y[(stage_index * 2)..((stage_index + 1) * 2)];
+        let x_seq_stage = &x_seq[stage_index * 2..((stage_index + 1) * 2)];
+        let y_stage = &mut y[stage_index * 2..((stage_index + 1) * 2)];
         map_zip_kernel_unary_map_f_helper(x_seq_stage, y_stage, helper_work);
     }
     Ok(())
@@ -127,11 +127,11 @@ pub fn map_zip_kernel_unary_map_jf_x_seq(
     jacobian_y.fill(0.0_f64);
     let (temp_jacobian_y, helper_work) = work.split_at_mut(4);
     for stage_index in 0..3 {
-        let x_seq_stage = &x_seq[(stage_index * 2)..((stage_index + 1) * 2)];
+        let x_seq_stage = &x_seq[stage_index * 2..((stage_index + 1) * 2)];
         map_zip_kernel_unary_map_jf_x_seq_helper(x_seq_stage, temp_jacobian_y, helper_work);
         for local_row in 0..2 {
-            let dest_row = (stage_index * 2) + local_row;
-            let dest_start = (dest_row * 6) + (stage_index * 2);
+            let dest_row = stage_index * 2 + local_row;
+            let dest_start = (dest_row * 6) + stage_index * 2;
             let src_start = local_row * 2;
             jacobian_y[dest_start..(dest_start + 2)]
                 .copy_from_slice(&temp_jacobian_y[src_start..(src_start + 2)]);
@@ -197,9 +197,9 @@ pub fn map_zip_kernel_binary_zip_f(
     };
     let helper_work = &mut work[..3];
     for stage_index in 0..3 {
-        let a_seq_stage = &a_seq[(stage_index * 2)..((stage_index + 1) * 2)];
-        let b_seq_stage = &b_seq[(stage_index * 2)..((stage_index + 1) * 2)];
-        let z_stage = &mut z[(stage_index * 2)..((stage_index + 1) * 2)];
+        let a_seq_stage = &a_seq[stage_index * 2..((stage_index + 1) * 2)];
+        let b_seq_stage = &b_seq[stage_index * 2..((stage_index + 1) * 2)];
+        let z_stage = &mut z[stage_index * 2..((stage_index + 1) * 2)];
         map_zip_kernel_binary_zip_f_helper(a_seq_stage, b_seq_stage, z_stage, helper_work);
     }
     Ok(())
@@ -266,8 +266,8 @@ pub fn map_zip_kernel_binary_zip_jf_a_seq(
     jacobian_z.fill(0.0_f64);
     let (temp_jacobian_z, helper_work) = work.split_at_mut(4);
     for stage_index in 0..3 {
-        let a_seq_stage = &a_seq[(stage_index * 2)..((stage_index + 1) * 2)];
-        let b_seq_stage = &b_seq[(stage_index * 2)..((stage_index + 1) * 2)];
+        let a_seq_stage = &a_seq[stage_index * 2..((stage_index + 1) * 2)];
+        let b_seq_stage = &b_seq[stage_index * 2..((stage_index + 1) * 2)];
         map_zip_kernel_binary_zip_jf_a_seq_helper(
             a_seq_stage,
             b_seq_stage,
@@ -275,8 +275,8 @@ pub fn map_zip_kernel_binary_zip_jf_a_seq(
             helper_work,
         );
         for local_row in 0..2 {
-            let dest_row = (stage_index * 2) + local_row;
-            let dest_start = (dest_row * 6) + (stage_index * 2);
+            let dest_row = stage_index * 2 + local_row;
+            let dest_start = (dest_row * 6) + stage_index * 2;
             let src_start = local_row * 2;
             jacobian_z[dest_start..(dest_start + 2)]
                 .copy_from_slice(&temp_jacobian_z[src_start..(src_start + 2)]);
@@ -350,8 +350,8 @@ pub fn map_zip_kernel_binary_zip_jf_b_seq(
     jacobian_z.fill(0.0_f64);
     let (temp_jacobian_z, helper_work) = work.split_at_mut(4);
     for stage_index in 0..3 {
-        let a_seq_stage = &a_seq[(stage_index * 2)..((stage_index + 1) * 2)];
-        let b_seq_stage = &b_seq[(stage_index * 2)..((stage_index + 1) * 2)];
+        let a_seq_stage = &a_seq[stage_index * 2..((stage_index + 1) * 2)];
+        let b_seq_stage = &b_seq[stage_index * 2..((stage_index + 1) * 2)];
         map_zip_kernel_binary_zip_jf_b_seq_helper(
             a_seq_stage,
             b_seq_stage,
@@ -359,8 +359,8 @@ pub fn map_zip_kernel_binary_zip_jf_b_seq(
             helper_work,
         );
         for local_row in 0..2 {
-            let dest_row = (stage_index * 2) + local_row;
-            let dest_start = (dest_row * 6) + (stage_index * 2);
+            let dest_row = stage_index * 2 + local_row;
+            let dest_start = (dest_row * 6) + stage_index * 2;
             let src_start = local_row * 2;
             jacobian_z[dest_start..(dest_start + 2)]
                 .copy_from_slice(&temp_jacobian_z[src_start..(src_start + 2)]);

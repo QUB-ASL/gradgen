@@ -11,7 +11,7 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from gradgen import CodeGenerationBuilder, Function, RustBackendConfig, SXVector, zip_function
+from gradgen import CodeGenerationBuilder, Function, RustBackendConfig, SXVector, zip_function, sin, SX
 
 
 def _parse_args() -> argparse.Namespace:
@@ -38,12 +38,12 @@ def _build_sequence_values(count: int) -> tuple[list[float], list[float], list[f
 # Stage function h(a, b, c) with three inputs and one scalar output.
 # Here a is a 2-vector, while b and c are scalars.
 a = SXVector.sym("a", 2)
-b = SXVector.sym("b", 1)
-c = SXVector.sym("c", 1)
+b = SX.sym("b")
+c = SX.sym("c")
 h = Function(
     "h",
     [a, b, c],
-    [a[0] * b[0] + a[1] + c[0].sin()],
+    [a[0] * b + a[1] + sin(c)],
     input_names=["a", "b", "c"],
     output_names=["y"],
 )
