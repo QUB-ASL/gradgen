@@ -321,14 +321,21 @@ class SXVectorTests(unittest.TestCase):
 
     def test_scalar_vector_product_is_supported(self) -> None:
         x = SXVector.sym("x", 2)
+        u = SX.sym("u")
 
         left = 2 * x
         right = x * 3
+        symbolic_left = u * x
+        symbolic_right = x * u
 
         self.assertTrue(all(item.op == "mul" for item in left))
         self.assertTrue(all(item.op == "mul" for item in right))
+        self.assertTrue(all(item.op == "mul" for item in symbolic_left))
+        self.assertTrue(all(item.op == "mul" for item in symbolic_right))
         self.assertEqual({arg.value for arg in left[0].args}, {None, 2.0})
         self.assertEqual({arg.value for arg in right[0].args}, {None, 3.0})
+        self.assertEqual({arg.name for arg in symbolic_left[0].args}, {"u", "x_0"})
+        self.assertEqual({arg.name for arg in symbolic_right[1].args}, {"u", "x_1"})
 
     def test_vector_vector_multiplication_is_not_supported(self) -> None:
         x = SXVector.sym("x", 2)
@@ -362,6 +369,27 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(reverse_div[0].args[0].value, 2.0)
         self.assertEqual(vector_div[0].args[0].name, "x_0")
         self.assertEqual(vector_div[0].args[1].name, "y_0")
+
+    def test_power_supports_scalar_and_vector_cases(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        scalar_pow = x**2
+        reverse_pow = 2**x
+
+        self.assertEqual(scalar_pow[0].op, "pow")
+        self.assertEqual(scalar_pow[0].args[1].value, 2.0)
+        self.assertEqual(reverse_pow[0].op, "pow")
+        self.assertEqual(reverse_pow[0].args[0].value, 2.0)
+
+    def test_vector_power_rejects_vector_exponent(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+
+        with self.assertRaises(TypeError):
+            _ = x**y
+
+        with self.assertRaises(TypeError):
+            _ = y**x
 
     def test_vector_division_validates_lengths(self) -> None:
         x = SXVector.sym("x", 2)
@@ -570,8 +598,11 @@ class SXVectorTests(unittest.TestCase):
         x = SXVector.sym("x", 2)
         s = SX.sym("s")
 
-        with self.assertRaises(TypeError):
-            _ = s * x
+        elementwise = s * x
+        self.assertIsInstance(elementwise, SXVector)
+        self.assertEqual(len(elementwise), 2)
+        self.assertTrue(all(item.op == "mul" for item in elementwise))
+        self.assertEqual({arg.name for arg in elementwise[0].args}, {"s", "x_0"})
 
         with self.assertRaises(TypeError):
             _ = x + s

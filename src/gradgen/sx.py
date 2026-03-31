@@ -204,10 +204,18 @@ class SX:
     def __rsub__(self, other: object) -> SX:
         return _binary("sub", other, self)
 
-    def __mul__(self, other: object) -> SX:
+    def __mul__(self, other: object) -> SX | SXVector:
+        if isinstance(other, SXVector):
+            if len(other) == 1:
+                return _binary("mul", self, other[0])
+            return SXVector(tuple(self * element for element in other.elements))
         return _binary("mul", self, other)
 
-    def __rmul__(self, other: object) -> SX:
+    def __rmul__(self, other: object) -> SX | SXVector:
+        if isinstance(other, SXVector):
+            if len(other) == 1:
+                return _binary("mul", other[0], self)
+            return SXVector(tuple(element * self for element in other.elements))
         return _binary("mul", other, self)
 
     def __truediv__(self, other: object) -> SX:
@@ -473,6 +481,22 @@ class SXVector:
             return scalar / self.elements[0]
         scalar = _coerce_scalar(other)
         return SXVector(tuple(scalar / element for element in self.elements))
+
+    def __pow__(self, other: object) -> SXVector | SX:
+        """Return elementwise power with a scalar exponent."""
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return self.elements[0] ** scalar
+        scalar = _coerce_scalar(other)
+        return SXVector(tuple(element ** scalar for element in self.elements))
+
+    def __rpow__(self, other: object) -> SXVector | SX:
+        """Return scalar raised to each vector element."""
+        scalar = self._coerce_mixed_scalar(other)
+        if scalar is not None:
+            return scalar ** self.elements[0]
+        scalar = _coerce_scalar(other)
+        return SXVector(tuple(scalar ** element for element in self.elements))
 
     def __neg__(self) -> SXVector:
         """Return the elementwise negation of the vector."""
@@ -886,15 +910,56 @@ def matvec(matrix: Sequence[Sequence[float | int]], x: object) -> SXVector:
     )
 
 
-def quadform(matrix: Sequence[Sequence[float | int]], x: object) -> SX:
-    """Return the symbolic quadratic form ``x' P x`` for a constant matrix."""
+def quadform(
+    matrix: Sequence[Sequence[float | int]],
+    x: object,
+    is_symmetric: bool = True,
+) -> SX:
+    """Return a symbolic quadratic form ``x^\top P x`` for a constant matrix ``P``.
+
+    Args:
+        matrix: Constant numeric matrix in row-major form.
+        x: Symbolic vector operand with the same dimension as ``matrix``.
+        is_symmetric: When ``True`` (default), ``matrix`` is treated as
+            symmetric: the function verifies symmetry and builds the
+            expression using only upper-triangular entries of the provided
+            matrix. When ``False``, all entries of ``matrix`` are used.
+
+    Returns:
+        A scalar ``SX`` expression representing ``x^\top P x``.
+
+    Raises:
+        ValueError: If ``matrix`` is not square, dimensions do not match ``x``,
+            or ``is_symmetric=True`` and ``matrix`` is not symmetric.
+    """
     x_vector = _coerce_vector(x)
     rows, cols, values = _coerce_constant_matrix(matrix)
     if rows != cols:
         raise ValueError("quadratic form requires a square matrix")
     if rows != len(x_vector):
         raise ValueError("matrix size must match vector length")
-    return SX(SXNode.make("quadform", _build_quadform_args(rows, values, x_vector.elements)))
+
+    matrix_values = values
+    if is_symmetric:
+        for row in range(rows):
+            for col in range(row + 1, rows):
+                upper = values[row * rows + col]
+                lower = values[col * rows + row]
+                if upper != lower:
+                    raise ValueError(
+                        "quadratic form requires a symmetric matrix when is_symmetric=True"
+                    )
+
+        sym_values: list[float] = []
+        for row in range(rows):
+            for col in range(rows):
+                if col < row:
+                    sym_values.append(values[col * rows + row])
+                else:
+                    sym_values.append(values[row * rows + col])
+        matrix_values = tuple(sym_values)
+
+    return SX(SXNode.make("quadform", _build_quadform_args(rows, matrix_values, x_vector.elements)))
 
 
 def bilinear_form(
