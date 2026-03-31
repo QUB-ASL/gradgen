@@ -8,7 +8,7 @@ from typing import Callable, Protocol
 
 from ..composed_function import ComposedFunction, ComposedGradientFunction
 from ..function import Function
-from ..map_zip import ZippedFunction, ZippedJacobianFunction
+from ..map_zip import ZippedFunction, ZippedJacobianFunction, ReducedFunction
 from ..single_shooting import (
     SingleShootingBundle,
     SingleShootingGradientFunction,
@@ -26,6 +26,7 @@ BuilderSource = (
     | ComposedGradientFunction
     | ZippedFunction
     | ZippedJacobianFunction
+    | ReducedFunction
     | SingleShootingProblem
     | SingleShootingPrimalFunction
     | SingleShootingGradientFunction
@@ -370,7 +371,7 @@ def _resolve_builder_functions(
             include_base_name=include_base_name,
             function_name=function_name,
         )
-    if isinstance(function, (ZippedFunction, ZippedJacobianFunction)):
+    if isinstance(function, (ZippedFunction, ZippedJacobianFunction, ReducedFunction)):
         return _resolve_builder_zipped_sources(
             function,
             config,
@@ -588,7 +589,7 @@ def _resolve_builder_composed_sources(
 
 
 def _resolve_builder_zipped_sources(
-    function: ZippedFunction | ZippedJacobianFunction,
+    function: ZippedFunction | ZippedJacobianFunction | ReducedFunction,
     config: RustBuilderConfigLike,
     requests: tuple[_BuilderRequest, ...],
     simplification: int | str | None,
@@ -596,7 +597,7 @@ def _resolve_builder_zipped_sources(
     include_base_name: bool = False,
     function_name: str | None = None,
 ) -> tuple[BuilderSource, ...]:
-    """Expand builder requests for staged map/zip sources."""
+    """Expand builder requests for staged map/zip/reduce sources."""
     crate_prefix = sanitize_ident(config.crate_name or function.name)
     base_name = function_name or function.name
     resolved: list[BuilderSource] = []
@@ -609,7 +610,7 @@ def _resolve_builder_zipped_sources(
                     "currently support only add_primal()"
                 )
             if request.components:
-                raise ValueError("include_states is not supported for map/zip sources")
+                raise ValueError("include_states is not supported for map/zip/reduce sources")
             resolved.append(
                 _rename_builder_source(
                     replace(function, simplification=simplification),
@@ -627,7 +628,7 @@ def _resolve_builder_zipped_sources(
     for request in requests:
         if request.kind == "primal":
             if request.components:
-                raise ValueError("include_states is not supported for map/zip sources")
+                raise ValueError("include_states is not supported for map/zip/reduce sources")
             resolved.append(
                 _rename_builder_source(
                     simplified_function,
@@ -642,7 +643,9 @@ def _resolve_builder_zipped_sources(
             continue
         if request.kind == "jacobian":
             if request.components:
-                raise ValueError("include_states is not supported for map/zip sources")
+                raise ValueError("include_states is not supported for map/zip/reduce sources")
+            if not isinstance(simplified_function, ZippedFunction):
+                raise ValueError("add_jacobian() is only supported for map/zip sources")
             for input_index, input_name in enumerate(simplified_function.input_names):
                 resolved.append(
                     _rename_builder_source(
@@ -659,7 +662,7 @@ def _resolve_builder_zipped_sources(
                 )
             continue
         raise ValueError(
-            "map/zip sources currently support only add_primal() and add_jacobian()"
+            "map/zip/reduce sources currently support only add_primal(), and add_jacobian() only for map/zip"
         )
 
     return tuple(resolved)
