@@ -39,6 +39,7 @@ from gradgen.sx import (
     vector,
 )
 import gradgen
+from gradgen import Function
 
 
 class SXTests(unittest.TestCase):
@@ -439,6 +440,14 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(expr.op, "add")
         self.assertTrue(all(term.op == "mul" for term in expr.args))
 
+    def test_dot_product_accepts_python_sequences(self) -> None:
+        x = SXVector.sym("x", 2)
+        expr = x.dot([1, 2])
+        reference = x.dot(SXVector([1, 2]))
+
+        self.assertEqual(expr.op, "add")
+        self.assertIs(expr.node, reference.node)
+
     def test_vector_norms_build_expected_scalar_expressions(self) -> None:
         x = SXVector.sym("x", 2)
 
@@ -510,6 +519,20 @@ class SXVectorTests(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             _ = matvec([["bad", 1.0], [2.0, 3.0]], x)
+
+    def test_quadform_validates_symmetry_by_default(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        with self.assertRaises(ValueError):
+            _ = quadform([[1.0, 2.0], [3.0, 4.0]], x)
+
+    def test_quadform_allows_non_symmetric_matrix_when_disabled(self) -> None:
+        x = SXVector.sym("x", 2)
+        expr = quadform([[1.0, 2.0], [3.0, 4.0]], x, is_symmetric=False)
+        f = Function("quad_nonsymmetric", [x], [expr])
+
+        # x^T P x = [2, 5] [[1,2],[3,4]] [2,5]^T = 154
+        self.assertEqual(f([2.0, 5.0]), 154.0)
 
     def test_empty_vector_reductions_follow_documented_behavior(self) -> None:
         x = SXVector.sym("x", 0)

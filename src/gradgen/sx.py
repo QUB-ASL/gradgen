@@ -921,9 +921,10 @@ def quadform(
         matrix: Constant numeric matrix in row-major form.
         x: Symbolic vector operand with the same dimension as ``matrix``.
         is_symmetric: When ``True`` (default), ``matrix`` is treated as
-            symmetric: the function verifies symmetry and builds the
-            expression using only upper-triangular entries of the provided
-            matrix. When ``False``, all entries of ``matrix`` are used.
+            symmetric: the function verifies symmetry and builds a compact
+            equivalent form that keeps diagonal terms and doubles
+            upper-triangular cross terms (with lower-triangular entries set
+            to zero). When ``False``, all entries of ``matrix`` are used.
 
     Returns:
         A scalar ``SX`` expression representing ``x^\top P x``.
@@ -950,14 +951,17 @@ def quadform(
                         "quadratic form requires a symmetric matrix when is_symmetric=True"
                     )
 
-        sym_values: list[float] = []
+        compact_values: list[float] = []
         for row in range(rows):
             for col in range(rows):
+                value = values[row * rows + col]
                 if col < row:
-                    sym_values.append(values[col * rows + row])
+                    compact_values.append(0.0)
+                elif col == row:
+                    compact_values.append(value)
                 else:
-                    sym_values.append(values[row * rows + col])
-        matrix_values = tuple(sym_values)
+                    compact_values.append(2.0 * value)
+        matrix_values = tuple(compact_values)
 
     return SX(SXNode.make("quadform", _build_quadform_args(rows, matrix_values, x_vector.elements)))
 
@@ -1025,10 +1029,19 @@ def _coerce_scalar(value: object) -> SX:
 
 
 def _coerce_vector(value: object) -> SXVector:
-    """Convert a supported vector-like value into ``SXVector``."""
+    """Convert a supported vector-like value into ``SXVector``.
+
+    ``SXVector`` values pass through unchanged. Python sequences are
+    interpreted as element lists and coerced via :func:`vector`.
+    """
     if isinstance(value, SXVector):
         return value
-    raise TypeError(f"cannot convert {type(value).__name__} to SXVector")
+    if isinstance(value, (str, bytes)):
+        raise TypeError(f"cannot convert {type(value).__name__} to SXVector")
+    try:
+        return vector(value)
+    except TypeError as exc:
+        raise TypeError(f"cannot convert {type(value).__name__} to SXVector") from exc
 
 
 def _coerce_constant_matrix(

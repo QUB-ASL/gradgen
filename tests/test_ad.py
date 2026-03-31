@@ -815,7 +815,7 @@ class HessianTests(unittest.TestCase):
     def test_hessian_of_nonsymmetric_quadratic_form_uses_p_plus_p_transpose(self) -> None:
         x = SXVector.sym("x", 2)
         matrix = [[1.0, 2.0], [3.0, 4.0]]
-        f = Function("f", [x], [quadform(matrix, x)])
+        f = Function("f", [x], [quadform(matrix, x, is_symmetric=False)])
         hes = f.hessian(0)
 
         self.assertEqual(hes([2.0, 5.0]), (2.0, 5.0, 5.0, 8.0))

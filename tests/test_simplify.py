@@ -275,7 +275,7 @@ class SimplifyTests(unittest.TestCase):
         matrix = [[1.0, 2.0], [3.0, 4.0]]
 
         simplified_matvec = simplify(matvec(matrix, x))
-        simplified_quadform = simplify(quadform(matrix, x))
+        simplified_quadform = simplify(quadform(matrix, x, is_symmetric=False))
         simplified_bilinear = simplify(bilinear_form(x, matrix, y))
 
         self.assertEqual(tuple(element.value for element in simplified_matvec), (8.0, 18.0))

@@ -1674,7 +1674,7 @@ mod tests {{
         self.assertIn("fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {", result.source)
         self.assertIn("fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {", result.source)
         self.assertIn("matvec(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, x, mx);", result.source)
-        self.assertIn("work[0] = quadform(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, x);", result.source)
+        self.assertIn("work[0] = quadform(&[2.0_f64, 2.0_f64, 0.0_f64, 3.0_f64], 2, x);", result.source)
         self.assertIn("work[1] = bilinear_form(x, &[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, y);", result.source)
 
     def test_generated_code_supports_f32_constant_matrix_helpers(self) -> None:

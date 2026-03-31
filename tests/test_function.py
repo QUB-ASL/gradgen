@@ -313,7 +313,7 @@ class FunctionTests(unittest.TestCase):
             f = Function(
                 f"f_{size}",
                 [x, y],
-                [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+                [matvec(matrix, x), quadform(matrix, x, is_symmetric=False), bilinear_form(x, matrix, y)],
             )
 
             result = f(x_value, y_value)
