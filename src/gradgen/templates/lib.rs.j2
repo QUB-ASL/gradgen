@@ -91,25 +91,21 @@ pub fn {{ function_name }}_meta() -> FunctionMetadata {
 #[allow(clippy::too_many_arguments)]
 {% endif -%}
 {{ function_keyword }} {{ function_name }}({{ parameters }}){% if function_keyword.startswith('pub') %} -> Result<(), GradgenError>{% endif %} {
-{% if workspace_assert_line %}
-    {% if function_keyword.startswith('pub') %}
+{% if function_keyword.startswith('pub') %}
+    {% if workspace_return_line %}
     {{ workspace_return_line }}
-    {% else %}
-    {{ workspace_assert_line }}
     {% endif %}
+{% elif workspace_assert_line %}
+    {{ workspace_assert_line }}
 {% endif %}
 {% for line in input_assert_lines %}
     {% if function_keyword.startswith('pub') %}
     {{ input_return_lines[loop.index0] }}
-    {% else %}
-    {{ line }}
     {% endif %}
 {% endfor %}
 {% for line in output_assert_lines %}
     {% if function_keyword.startswith('pub') %}
     {{ output_return_lines[loop.index0] }}
-    {% else %}
-    {{ line }}
     {% endif %}
 {% endfor %}
 {% for line in computation_lines %}

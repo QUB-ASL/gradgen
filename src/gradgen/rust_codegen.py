@@ -3451,18 +3451,14 @@ def _workspace_ref_for_node(node: SXNode, workspace_map: dict[SXNode, int]) -> s
     return f"work[{work_index}]"
 
 
-def _emit_exact_length_assert(rust_name: str, display_name: str, expected_size: int) -> str:
-    """Emit an ``assert_eq!`` with a clear length mismatch message.
+def _emit_exact_length_assert(rust_name: str, display_name: str, expected_size: int) -> tuple[str, str, str]:
+    """Emit exact-length checks for generated Rust entrypoints.
 
     Returns a triple of strings: (assert_line, input_return_line, output_return_line).
-    The caller can use the assert_line for legacy emission or the return
-    variants for public API generation that returns ``Result``.
+    Private helpers intentionally emit no assert line so all runtime shape
+    validation stays in public ``Result``-returning functions.
     """
-    assert_line = (
-        f'assert_eq!({rust_name}.len(), {expected_size}, '
-        f'"{display_name} is length {{}} but should be {expected_size}", '
-        f"{rust_name}.len());"
-    )
+    assert_line = ""
     input_return = (
         f'if {rust_name}.len() != {expected_size} {{ '
         f'return Err(GradgenError::InputTooSmall("{display_name} expected length {expected_size}")); '
@@ -3476,29 +3472,22 @@ def _emit_exact_length_assert(rust_name: str, display_name: str, expected_size: 
     return (assert_line, input_return, output_return)
 
 
-def _emit_min_length_assert(rust_name: str, display_name: str, minimum_size: int) -> str:
-    """Emit an ``assert!`` with a clear minimum-length mismatch message.
+def _emit_min_length_assert(rust_name: str, display_name: str, minimum_size: int) -> tuple[str, str]:
+    """Emit minimum-length checks for generated Rust entrypoints.
 
-    Returns a pair: (assert_line, return_line) where return_line is the
-    `Result`-returning form using `GradgenError::WorkspaceTooSmall`.
+    Returns a pair: (assert_line, return_line). Private helpers intentionally
+    emit no assert line so all runtime workspace validation stays in public
+    ``Result``-returning functions.
     """
     if minimum_size == 1:
-        assert_line = (
-            f'assert!(!{rust_name}.is_empty(), '
-            f'"{display_name} is length {{}} but should be at least 1", '
-            f"{rust_name}.len());"
-        )
+        assert_line = ""
         return_line = (
             f'if {rust_name}.is_empty() {{ '
             f'return Err(GradgenError::WorkspaceTooSmall("{display_name} expected at least 1")); '
             f'}};'
         )
         return (assert_line, return_line)
-    assert_line = (
-        f'assert!({rust_name}.len() >= {minimum_size}, '
-        f'"{display_name} is length {{}} but should be at least {minimum_size}", '
-        f"{rust_name}.len());"
-    )
+    assert_line = ""
     return_line = (
         f'if {rust_name}.len() < {minimum_size} {{ '
         f'return Err(GradgenError::WorkspaceTooSmall("{display_name} expected at least {minimum_size}")); '
@@ -3984,8 +3973,6 @@ def _build_shared_helper_lines(
         lines.extend(
             [
                 f"fn matvec_component(matrix: &[{scalar_type}], rows: usize, cols: usize, row: usize, x: &[{scalar_type}]) -> {scalar_type} {{",
-                "    debug_assert_eq!(matrix.len(), rows * cols);",
-                "    debug_assert_eq!(x.len(), cols);",
                 "    let start = row * cols;",
                 "    matrix[start..start + cols]",
                 "        .iter()",
@@ -3994,14 +3981,11 @@ def _build_shared_helper_lines(
                 "        .sum()",
                 "}",
                 f"fn matvec(matrix: &[{scalar_type}], rows: usize, cols: usize, x: &[{scalar_type}], y: &mut [{scalar_type}]) {{",
-                "    debug_assert_eq!(y.len(), rows);",
                 "    for row in 0..rows {",
                 "        y[row] = matvec_component(matrix, rows, cols, row, x);",
                 "    }",
                 "}",
                 f"fn bilinear_form(x: &[{scalar_type}], matrix: &[{scalar_type}], rows: usize, cols: usize, y: &[{scalar_type}]) -> {scalar_type} {{",
-                "    debug_assert_eq!(x.len(), rows);",
-                "    debug_assert_eq!(y.len(), cols);",
                 "    x.iter()",
                 "        .enumerate()",
                 "        .map(|(row, x_value)| {",

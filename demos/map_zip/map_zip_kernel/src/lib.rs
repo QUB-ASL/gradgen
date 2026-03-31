@@ -73,13 +73,6 @@ pub fn map_zip_kernel_unary_map_f(
 }
 
 fn map_zip_kernel_unary_map_f_helper(x: &[f64], y: &mut [f64], work: &mut [f64]) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(y.len(), 2, "y is length {} but should be 2", y.len());
     work[0] = libm::pow(x[0], 2.0_f64);
     work[1] = libm::sin(x[1]);
     work[0] += work[1];
@@ -148,18 +141,6 @@ pub fn map_zip_kernel_unary_map_jf_x_seq(
 }
 
 fn map_zip_kernel_unary_map_jf_x_seq_helper(x: &[f64], jacobian_y: &mut [f64], work: &mut [f64]) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(
-        jacobian_y.len(),
-        4,
-        "jacobian_y is length {} but should be 4",
-        jacobian_y.len()
-    );
     work[0] = 2.0_f64 * x[0];
     work[1] = libm::cos(x[1]);
     jacobian_y[0] = work[0];
@@ -225,14 +206,6 @@ pub fn map_zip_kernel_binary_zip_f(
 }
 
 fn map_zip_kernel_binary_zip_f_helper(a: &[f64], b: &[f64], z: &mut [f64], work: &mut [f64]) {
-    assert!(
-        work.len() >= 3,
-        "work is length {} but should be at least 3",
-        work.len()
-    );
-    assert_eq!(a.len(), 2, "a is length {} but should be 2", a.len());
-    assert_eq!(b.len(), 2, "b is length {} but should be 2", b.len());
-    assert_eq!(z.len(), 2, "z is length {} but should be 2", z.len());
     work[0] = 2.0_f64 * b[0];
     work[0] += a[0];
     work[1] = libm::cos(a[0]);
@@ -318,19 +291,6 @@ fn map_zip_kernel_binary_zip_jf_a_seq_helper(
     jacobian_z: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(a.len(), 2, "a is length {} but should be 2", a.len());
-    assert_eq!(b.len(), 2, "b is length {} but should be 2", b.len());
-    assert_eq!(
-        jacobian_z.len(),
-        4,
-        "jacobian_z is length {} but should be 4",
-        jacobian_z.len()
-    );
     work[0] = libm::sin(a[0]);
     work[0] = -work[0];
     jacobian_z[0] = 1.0_f64;
@@ -415,14 +375,6 @@ fn map_zip_kernel_binary_zip_jf_b_seq_helper(
     jacobian_z: &mut [f64],
     _work: &mut [f64],
 ) {
-    assert_eq!(a.len(), 2, "a is length {} but should be 2", a.len());
-    assert_eq!(b.len(), 2, "b is length {} but should be 2", b.len());
-    assert_eq!(
-        jacobian_z.len(),
-        4,
-        "jacobian_z is length {} but should be 4",
-        jacobian_z.len()
-    );
     jacobian_z[0] = 2.0_f64;
     jacobian_z[1] = 0.0_f64;
     jacobian_z[2] = 0.0_f64;
@@ -505,19 +457,6 @@ fn map_zip_kernel_binary_zip_jacobian_a_seq_f_helper(
     jacobian_z: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(a.len(), 2, "a is length {} but should be 2", a.len());
-    assert_eq!(b.len(), 2, "b is length {} but should be 2", b.len());
-    assert_eq!(
-        jacobian_z.len(),
-        4,
-        "jacobian_z is length {} but should be 4",
-        jacobian_z.len()
-    );
     work[0] = libm::sin(a[0]);
     work[0] = -work[0];
     jacobian_z[0] = 1.0_f64;

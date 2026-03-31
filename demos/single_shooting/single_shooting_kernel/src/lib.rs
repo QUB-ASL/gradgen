@@ -120,20 +120,6 @@ fn single_shooting_kernel_mpc_cost_dynamics(
     x_next: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 3,
-        "work is length {} but should be at least 3",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        x_next.len(),
-        2,
-        "x_next is length {} but should be 2",
-        x_next.len()
-    );
     work[0] = p[0] * x[1];
     work[0] += x[0];
     work[0] += u[0];
@@ -153,15 +139,6 @@ fn single_shooting_kernel_mpc_cost_stage_cost(
     ell: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(ell.len(), 1, "ell is length {} but should be 1", ell.len());
     work[0] = libm::pow(x[1], 2.0_f64);
     work[0] *= 2.0_f64;
     work[1] = libm::pow(x[0], 2.0_f64);
@@ -180,14 +157,6 @@ fn single_shooting_kernel_mpc_cost_terminal_cost(
     vf: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(vf.len(), 1, "vf is length {} but should be 1", vf.len());
     work[0] = libm::pow(x[1], 2.0_f64);
     work[0] *= 0.5_f64;
     work[1] = libm::pow(x[0], 2.0_f64);
@@ -335,26 +304,6 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(
     vjp_x: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        cotangent_x_next.len(),
-        2,
-        "cotangent_x_next is length {} but should be 2",
-        cotangent_x_next.len()
-    );
-    assert_eq!(
-        vjp_x.len(),
-        2,
-        "vjp_x is length {} but should be 2",
-        vjp_x.len()
-    );
     work[0] = -0.5_f64 * cotangent_x_next[1];
     work[0] += cotangent_x_next[0];
     work[1] = cotangent_x_next[0] * p[0];
@@ -371,26 +320,6 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(
     vjp_u: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        cotangent_x_next.len(),
-        2,
-        "cotangent_x_next is length {} but should be 2",
-        cotangent_x_next.len()
-    );
-    assert_eq!(
-        vjp_u.len(),
-        1,
-        "vjp_u is length {} but should be 1",
-        vjp_u.len()
-    );
     work[0] = cotangent_x_next[1] * p[1];
     work[0] += cotangent_x_next[0];
     vjp_u[0] = work[0];
@@ -403,15 +332,6 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(
     ell: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(ell.len(), 2, "ell is length {} but should be 2", ell.len());
     work[0] = 2.0_f64 * x[0];
     work[1] = 4.0_f64 * x[1];
     ell[0] = work[0];
@@ -425,15 +345,6 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(
     ell: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(ell.len(), 1, "ell is length {} but should be 1", ell.len());
     work[0] = 0.6_f64 * u[0];
     work[0] += p[0];
     ell[0] = work[0];
@@ -445,14 +356,6 @@ fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
     vf: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(vf.len(), 2, "vf is length {} but should be 2", vf.len());
     work[0] = 6.0_f64 * x[0];
     work[0] += p[1];
     vf[0] = work[0];
@@ -677,32 +580,6 @@ fn single_shooting_kernel_mpc_cost_dynamics_jvp(
     x_next: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 3,
-        "work is length {} but should be at least 3",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        tangent_x.len(),
-        2,
-        "tangent_x is length {} but should be 2",
-        tangent_x.len()
-    );
-    assert_eq!(
-        tangent_u.len(),
-        1,
-        "tangent_u is length {} but should be 1",
-        tangent_u.len()
-    );
-    assert_eq!(
-        x_next.len(),
-        2,
-        "x_next is length {} but should be 2",
-        x_next.len()
-    );
     work[0] = p[0] * tangent_x[1];
     work[0] += tangent_x[0];
     work[0] += tangent_u[0];
@@ -727,44 +604,6 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(
     vjp_x: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        cotangent_x_next.len(),
-        2,
-        "cotangent_x_next is length {} but should be 2",
-        cotangent_x_next.len()
-    );
-    assert_eq!(
-        tangent_x.len(),
-        2,
-        "tangent_x is length {} but should be 2",
-        tangent_x.len()
-    );
-    assert_eq!(
-        tangent_u.len(),
-        1,
-        "tangent_u is length {} but should be 1",
-        tangent_u.len()
-    );
-    assert_eq!(
-        tangent_cotangent_x_next.len(),
-        2,
-        "tangent_cotangent_x_next is length {} but should be 2",
-        tangent_cotangent_x_next.len()
-    );
-    assert_eq!(
-        vjp_x.len(),
-        2,
-        "vjp_x is length {} but should be 2",
-        vjp_x.len()
-    );
     work[0] = -0.5_f64 * tangent_cotangent_x_next[1];
     work[0] += tangent_cotangent_x_next[0];
     work[1] = p[0] * tangent_cotangent_x_next[0];
@@ -785,44 +624,6 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
     vjp_u: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        cotangent_x_next.len(),
-        2,
-        "cotangent_x_next is length {} but should be 2",
-        cotangent_x_next.len()
-    );
-    assert_eq!(
-        tangent_x.len(),
-        2,
-        "tangent_x is length {} but should be 2",
-        tangent_x.len()
-    );
-    assert_eq!(
-        tangent_u.len(),
-        1,
-        "tangent_u is length {} but should be 1",
-        tangent_u.len()
-    );
-    assert_eq!(
-        tangent_cotangent_x_next.len(),
-        2,
-        "tangent_cotangent_x_next is length {} but should be 2",
-        tangent_cotangent_x_next.len()
-    );
-    assert_eq!(
-        vjp_u.len(),
-        1,
-        "vjp_u is length {} but should be 1",
-        vjp_u.len()
-    );
     work[0] = p[1] * tangent_cotangent_x_next[1];
     work[0] += tangent_cotangent_x_next[0];
     vjp_u[0] = work[0];
@@ -837,27 +638,6 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(
     ell: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        work.len() >= 2,
-        "work is length {} but should be at least 2",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        tangent_x.len(),
-        2,
-        "tangent_x is length {} but should be 2",
-        tangent_x.len()
-    );
-    assert_eq!(
-        tangent_u.len(),
-        1,
-        "tangent_u is length {} but should be 1",
-        tangent_u.len()
-    );
-    assert_eq!(ell.len(), 2, "ell is length {} but should be 2", ell.len());
     work[0] = 2.0_f64 * tangent_x[0];
     work[1] = 4.0_f64 * tangent_x[1];
     ell[0] = work[0];
@@ -873,27 +653,6 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
     ell: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(u.len(), 1, "u is length {} but should be 1", u.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        tangent_x.len(),
-        2,
-        "tangent_x is length {} but should be 2",
-        tangent_x.len()
-    );
-    assert_eq!(
-        tangent_u.len(),
-        1,
-        "tangent_u is length {} but should be 1",
-        tangent_u.len()
-    );
-    assert_eq!(ell.len(), 1, "ell is length {} but should be 1", ell.len());
     work[0] = 0.6_f64 * tangent_u[0];
     ell[0] = work[0];
 }
@@ -905,20 +664,6 @@ fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(
     vf: &mut [f64],
     work: &mut [f64],
 ) {
-    assert!(
-        !work.is_empty(),
-        "work is length {} but should be at least 1",
-        work.len()
-    );
-    assert_eq!(x.len(), 2, "x is length {} but should be 2", x.len());
-    assert_eq!(p.len(), 2, "p is length {} but should be 2", p.len());
-    assert_eq!(
-        tangent_x.len(),
-        2,
-        "tangent_x is length {} but should be 2",
-        tangent_x.len()
-    );
-    assert_eq!(vf.len(), 2, "vf is length {} but should be 2", vf.len());
     work[0] = 6.0_f64 * tangent_x[0];
     vf[0] = work[0];
     vf[1] = tangent_x[1];
