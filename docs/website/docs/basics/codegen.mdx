@@ -1,0 +1,277 @@
+---
+sidebar_position: 4
+---
+
+# Rust Code Generation
+
+The library can generate Rust code for primal functions, derivative functions,
+and combined multi-kernel crates.
+
+The generated Rust currently uses:
+
+- deterministic naming
+- a slice-based ABI
+- explicit workspace variables stored in a mutable workspace slice
+- configurable scalar types (`f64` or `f32`)
+- `std` and `no_std` backend modes
+
+When the generated code uses vector norms or special functions that need shared
+support code, `gradgen` emits auxiliary Rust helpers once at module scope. This
+includes helpers such as `norm2`, `norm2sq`, `norm1`, `norm_inf`, `norm_p`,
+`norm_p_to_p`, `erf`, and `erfc` when they are required by the generated crate.
+
+### Generate Rust source in memory
+
+```python
+from gradgen import Function, SX
+
+x = SX.sym("x")
+f = Function("square_plus_one", [x], [x * x + 1], input_names=["x"], output_names=["y"])
+
+result = f.generate_rust()
+print(result.source)
+print(result.workspace_size)
+```
+
+The generated function looks like a plain Rust function with this style of signature:
+
+```rust
+pub fn square_plus_one(x: &[f64], y: &mut [f64], work: &mut [f64]) {
+    // ...
+}
+```
+
+For multiple inputs and outputs, each declared input and output becomes its own slice argument.
+If a generated kernel does not need workspace, the argument is still present but
+named `_work` to avoid an unused-variable warning in Rust.
+
+You can also configure the backend explicitly:
+
+```python
+from gradgen import RustBackendConfig
+
+config = (
+    RustBackendConfig()
+    .with_backend_mode("no_std")
+    .with_scalar_type("f32")
+    .with_math_lib("libm")
+    .with_function_name("eval_kernel")
+)
+
+result = f.generate_rust(config=config)
+```
+
+Rust-facing names follow two different rules:
+
+- symbolic `Function(...)` names and input/output names may still be ordinary
+  user-facing strings such as `"my function"` or `"out value"`. During code
+  generation they are sanitized into simple Rust identifiers.
+- explicit backend overrides such as `crate_name=` and
+  `RustBackendConfig.with_function_name(...)` are validated strictly and must
+  already be valid Rust-style identifiers matching
+  `[A-Za-z_][A-Za-z0-9_]*`.
+
+In addition, generated Rust now fails early if sanitization would create an
+ambiguous API, for example when:
+
+- two different Python names collapse to the same Rust identifier
+- a generated argument name would collide with internal ABI names such as
+  `work`
+- an explicit crate or function name is a Rust keyword like `fn`
+
+This keeps naming problems visible at Python/codegen time instead of surfacing
+later as confusing Rust compiler errors.
+
+### Create a Rust project on disk
+
+You can also create a minimal Cargo project at a user-specified path:
+
+```python
+from gradgen import Function, SX
+
+x = SX.sym("x")
+f = Function("square_plus_one", [x], [x * x + 1], input_names=["x"], output_names=["y"])
+
+project = f.create_rust_project("./square_plus_one")
+print(project.project_dir)
+```
+
+This writes:
+
+- `Cargo.toml`
+- `README.md`
+- `src/lib.rs`
+
+The generated `README.md` contains simple generic instructions such as:
+
+```bash
+cargo build
+```
+
+### Custom crate and function names
+
+```python
+project = f.create_rust_project(
+    "/tmp/my_kernel",
+    crate_name="my_kernel",
+    function_name="eval_kernel",
+)
+```
+
+There is also a module-level helper if you prefer:
+
+```python
+from gradgen import create_rust_project
+
+project = create_rust_project(f, "/tmp/my_kernel")
+```
+
+### Create a derivative Rust bundle
+
+You can generate a directory containing Rust crates for the primal function, Jacobians, and Hessians:
+
+```python
+bundle = f.create_rust_derivative_bundle(
+    "/tmp/my_bundle",
+    simplify_derivatives="high",
+)
+```
+
+This creates a bundle directory with entries such as:
+
+- `primal/`
+- `f_jacobian_<input_name>/`
+- `f_hessian_<input_name>/` for scalar-output functions
+
+There is also a module-level helper:
+
+```python
+from gradgen import create_rust_derivative_bundle
+
+bundle = create_rust_derivative_bundle(f, "/tmp/my_bundle")
+```
+
+### Build a single crate with one or more source functions
+
+If you want one Cargo crate containing several related kernels, use
+`CodeGenerationBuilder`. The builder can target one source function or many:
+
+```python
+from gradgen import CodeGenerationBuilder, FunctionBundle, RustBackendConfig
+
+builder = (
+    CodeGenerationBuilder()
+    .with_backend_config(
+        RustBackendConfig()
+        .with_backend_mode("no_std")
+        .with_scalar_type("f32")
+    )
+    .for_function(f)
+        .add_primal()
+        .add_gradient()
+        .add_hvp()
+        .add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=0)
+        )
+        .with_simplification("medium")
+        .done()
+)
+
+project = builder.build("/tmp/my_kernel")
+```
+
+Each scoped builder returned by `for_function(...)` configures the kernels
+generated for one source `Function`. Call `.done()` to commit that block back
+to the parent builder. Inside that scoped builder, currently supported builder
+requests include:
+
+- `add_primal()`
+- `add_gradient()`
+- `add_jacobian()`
+- `add_vjp()`
+- `add_joint(FunctionBundle().add_f().add_jf(wrt=0))`
+- `add_joint(FunctionBundle().add_f().add_hvp(wrt=0))`
+- `add_joint(FunctionBundle().add_f().add_jf(wrt=0).add_hvp(wrt=0))`
+- `add_hessian()`
+- `add_hvp()`
+
+For backward compatibility, `CodeGenerationBuilder(f)` still works as a
+single-function shorthand. The examples below use the more general
+`for_function(...).done()` style.
+
+More generally, `add_joint(...)` accepts a `FunctionBundle`, which can describe
+primal outputs plus one or more derivative artifacts for one or more `wrt`
+blocks. The builder expands that bundle into one or more combined symbolic
+functions, simplifies them, and then generates Rust from those shared
+expression graphs. This helps the generated kernels reuse intermediate work
+across the requested outputs.
+
+For example:
+
+```python
+bundle = (
+    FunctionBundle()
+    .add_f()
+    .add_jf(wrt=[0, 1, 2])
+    .add_hessian(wrt=[0, 1])
+)
+
+builder = (
+    CodeGenerationBuilder()
+    .for_function(f)
+    .add_joint(bundle)
+    .done()
+)
+```
+
+Builder-generated function names are prefixed with the crate name and include
+the source function name. For example, with crate name `my_kernel` and a single
+source function named `f` the generated Rust API looks like:
+
+- `my_kernel_f_f`
+- `my_kernel_f_grad`
+- `my_kernel_f_jf`
+- `my_kernel_f_hessian`
+- `my_kernel_f_hvp`
+- `my_kernel_f_f_jf`
+- `my_kernel_f_f_jf_hvp`
+
+If the crate contains multiple source functions, the source function name is
+still used to keep the Rust entrypoints distinct:
+
+- `my_kernel_f_f`
+- `my_kernel_f_jf`
+- `my_kernel_g_f`
+- `my_kernel_g_hvp`
+
+If you explicitly set `crate_name` or `function_name`, those names must already
+be acceptable Rust identifiers. The builder and backend will reject values that
+need sanitization, values that start with digits, and Rust keywords. By
+contrast, source-function names and input/output names are still sanitized
+automatically when Rust is generated.
+
+You can also request a uniform simplification pass for every generated kernel:
+
+```python
+builder = (
+    CodeGenerationBuilder()
+    .for_function(f)
+        .add_primal()
+        .add_jacobian()
+        .add_hvp()
+        .add_joint(
+            FunctionBundle()
+            .add_f()
+            .add_jf(wrt=0)
+            .add_hvp(wrt=0)
+        )
+        .with_simplification("medium")
+        .done()
+)
+```
+
+With this setting, simplification is applied to all generated kernels for that
+source function, including the separate primal/Jacobian/HVP kernels and the
+joint kernel.

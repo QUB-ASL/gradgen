@@ -39,6 +39,14 @@ x = x[0]
 
 </details>
 
+Lastly, note that `x[a:b]` returns an `SXVector` view.
+
+```
+n = 10
+x = SXVector.sym("x", n)
+x_slice = x[1:4] # <-- this is (x[1], x[2], x[3])
+```
+
 ## Symbolic expressions
 
 Using scalar and vector symbols we can construct symbolic expressions. 
@@ -73,11 +81,39 @@ For vectors, the following scalar-valued operations are available:
 - `norm_p(p)`: $p$-norm
 - `norm_p_to_p(p)`: $p$-norm to the power $p$ 
 
-Moreover, 
+In optimal control applications we frequently encounter terms of the form 
+$x^\intercal P x$, where $P$ is a symmetric matrix. Such expressions can be
+constructed with `quadform` as follows
+
+```python
+import gradgen as gg
+
+x = SXVector.sym("x", 2)
+P = [[1, 4], 
+     [4, 5]]
+f = gg.quadform(P, x, is_symmetric=True)
+```
+
+If `is_symmetric=True` is used, then a simpler expression is generated,
+however, an exception is raised if the provided matrix `P` is not truly 
+symmetric.
+
+One limitation of the current framework is that $P$ needs to be a constant 
+matrix. Quadratic forms with a symbolic matrix will be supported in a future 
+version.
+
+Likewise, we often need to compute dot products. This can be done with `dot`:
+
+```python
+n = 3
+x = SXVector.sym("x", n)
+q = SXVector.sym("x", n)
+f = x.dot(q)
+```
 
 
 
-## Example
+<!-- ## Complete Example
 
 Here is an example where we will define the function 
 
@@ -177,4 +213,4 @@ Create a file at `src/pages/my-markdown-page.md`:
 This is a Markdown page
 ```
 
-A new page is now available at [http://localhost:3000/my-markdown-page](http://localhost:3000/my-markdown-page).
+A new page is now available at [http://localhost:3000/my-markdown-page](http://localhost:3000/my-markdown-page). -->
