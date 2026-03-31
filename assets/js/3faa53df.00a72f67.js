@@ -1,0 +1,1 @@
+"use strict";(globalThis.webpackChunkwebsite=globalThis.webpackChunkwebsite||[]).push([[372],{4673(e){e.exports=JSON.parse('{"tags":[{"label":"New version","permalink":"/gradgen/blog/tags/new_version","description":"Release of new version","count":1}]}')}}]);
