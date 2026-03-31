@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
-from .function import Function, _make_symbolic_input_like
+from .function import Function
 from .sx import SX, SXVector
 
 
@@ -142,7 +142,7 @@ class ZippedFunction:
                     for sequence, formal in zip(packed_inputs, self.function.inputs)
                 )
                 stage_result = self.function(*stage_inputs)
-                stage_output = _normalize_function_result(stage_result, len(self.function.outputs))[output_index]
+                stage_output = _normalize_function_result(stage_result, self.function.outputs)[output_index]
                 scalars.extend(_flatten_arg(stage_output))
             packed_outputs.append(SXVector(tuple(scalars)))
 
@@ -269,19 +269,48 @@ def _flatten_arg(value: FunctionArg) -> tuple[SX, ...]:
     return value.elements
 
 
-def _normalize_function_result(value: object, output_count: int) -> tuple[FunctionArg, ...]:
+def _normalize_function_result(
+    value: object,
+    output_formals: tuple[FunctionArg, ...],
+) -> tuple[FunctionArg, ...]:
     """Normalize a function call result to a tuple of symbolic outputs."""
+    output_count = len(output_formals)
+
+    if output_count == 1:
+        return (_coerce_function_arg_like(value, output_formals[0]),)
+
     if isinstance(value, tuple):
         if len(value) != output_count:
             raise ValueError("unexpected number of function outputs")
-        return tuple(_coerce_function_arg(item) for item in value)
-    if output_count != 1:
-        raise ValueError("expected multiple outputs from the staged function")
-    return (_coerce_function_arg(value),)
+        return tuple(
+            _coerce_function_arg_like(item, formal)
+            for item, formal in zip(value, output_formals)
+        )
+    raise ValueError("expected multiple outputs from the staged function")
 
 
-def _coerce_function_arg(value: object) -> FunctionArg:
-    """Ensure a function output is symbolic."""
-    if isinstance(value, (SX, SXVector)):
+def _coerce_function_arg_like(value: object, formal: FunctionArg) -> FunctionArg:
+    """Coerce a staged output value to the symbolic shape of ``formal``."""
+    if isinstance(formal, SX):
+        return _coerce_scalar_output(value)
+
+    if isinstance(value, SXVector):
+        if len(value) != len(formal):
+            raise ValueError("unexpected vector output length")
         return value
+
+    if isinstance(value, (list, tuple)):
+        if len(value) != len(formal):
+            raise ValueError("unexpected vector output length")
+        return SXVector(tuple(_coerce_scalar_output(item) for item in value))
+
+    raise TypeError("zipped functions require symbolic outputs")
+
+
+def _coerce_scalar_output(value: object) -> SX:
+    """Coerce a scalar staged output to ``SX``."""
+    if isinstance(value, SX):
+        return value
+    if isinstance(value, (int, float)):
+        return SX.const(value)
     raise TypeError("zipped functions require symbolic outputs")

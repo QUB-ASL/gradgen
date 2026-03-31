@@ -13,6 +13,8 @@ from gradgen import (
     SXVector,
     SingleShootingBundle,
     SingleShootingProblem,
+    map_function,
+    zip_function,
 )
 
 
@@ -201,6 +203,144 @@ mod integration_sympy_vector {{
         let mut vjp_work = [0.0_f64; {vjp_codegen.workspace_size}];
         {vjp_codegen.function_name}(&x, &cotangent_y, &mut vjp_y, &mut vjp_work);
         assert_close_slice(&vjp_y, &{self._rust_array_literal(expected_vjp, "f64")}, 1e-10_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_map_zip_pipeline_matches_sympy_primal_and_jacobian(self) -> None:
+        # Build a SymPy reference for a 4-stage map->zip pipeline.
+        # Each stage uses two state entries z=(z0,z1) and one exogenous scalar w.
+        # The map stage emits a nonlinear dynamic term plus a constant term,
+        # and the zip stage combines them into the final per-stage output.
+        z_symbols = sp.symbols("z0:8", real=True)
+        w_symbols = sp.symbols("w0:4", real=True)
+
+        sympy_outputs: list[sp.Expr] = []
+        for stage_index in range(4):
+            z0 = z_symbols[2 * stage_index]
+            z1 = z_symbols[(2 * stage_index) + 1]
+            w = w_symbols[stage_index]
+            mapped_dynamic = z0**2 + sp.sin(z1)
+            mapped_constant = sp.Float("2.5")
+            sympy_outputs.append(sp.exp(mapped_dynamic + w) + mapped_constant * w + 1)
+
+        sympy_output_vector = sp.Matrix(sympy_outputs)
+        sympy_jacobian = sympy_output_vector.jacobian(z_symbols)
+
+        z_values = [0.2, -0.3, 0.4, 0.1, -0.5, 0.25, 0.3, -0.2]
+        w_values = [0.05, -0.1, 0.2, -0.15]
+        substitutions = {
+            **{symbol: value for symbol, value in zip(z_symbols, z_values)},
+            **{symbol: value for symbol, value in zip(w_symbols, w_values)},
+        }
+        expected_primal = self._flatten_sympy_matrix(sympy_output_vector.subs(substitutions).evalf())
+        expected_jacobian = self._flatten_sympy_matrix(sympy_jacobian.subs(substitutions).evalf())
+
+        # Symbolically define and expand the map stage over 4 stages.
+        # The second output is effectively constant but still symbolic.
+        z_stage = SXVector.sym("z", 2)
+        map_kernel = Function(
+            "map_kernel",
+            [z_stage],
+            [z_stage[0] * z_stage[0] + z_stage[1].sin(), z_stage[0] * 0 + 2.5],
+            input_names=["z"],
+            output_names=["dynamic", "constant"],
+        )
+        mapped = map_function(map_kernel, 4, input_name="z_seq", name="mapped_stage").to_function()
+
+        # Define and expand the zip stage, consuming mapped outputs and w.
+        dynamic_stage = SXVector.sym("dynamic", 1)
+        constant_stage = SXVector.sym("constant", 1)
+        w_stage = SXVector.sym("w", 1)
+        zip_kernel = Function(
+            "zip_kernel",
+            [dynamic_stage, constant_stage, w_stage],
+            [
+                (dynamic_stage[0] + w_stage[0]).exp()
+                + constant_stage[0] * w_stage[0]
+                + 1.0
+            ],
+            input_names=["dynamic", "constant", "w"],
+            output_names=["y"],
+        )
+        zipped = zip_function(
+            zip_kernel,
+            4,
+            input_names=["dynamic_seq", "constant_seq", "w_seq"],
+            name="zipped_stage",
+        ).to_function()
+
+        # Compose map + zip into one function with packed sequence inputs.
+        z_seq = SXVector.sym("z_seq", 8)
+        w_seq = SXVector.sym("w_seq", 4)
+        mapped_dynamic_seq, mapped_constant_seq = mapped(z_seq)
+        pipeline_output = zipped(mapped_dynamic_seq, mapped_constant_seq, w_seq)
+        pipeline = Function(
+            "map_zip_pipeline",
+            [z_seq, w_seq],
+            [pipeline_output],
+            input_names=["z_seq", "w_seq"],
+            output_names=["y_seq"],
+        )
+
+        # Generate Rust for primal and Jacobian, then verify numeric outputs
+        # against the SymPy reference end-to-end through cargo test.
+        builder = (
+            CodeGenerationBuilder(pipeline)
+            .with_backend_config(RustBackendConfig().with_crate_name("sympy_map_zip_pipeline"))
+            .add_primal()
+            .add_jacobian()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_map_zip_pipeline")
+            primal_codegen = next(
+                codegen
+                for codegen in project.codegens
+                if codegen.function_name.endswith("_f")
+            )
+            jacobian_codegen = next(
+                codegen
+                for codegen in project.codegens
+                if codegen.function_name.endswith("_jf_z_seq")
+            )
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_map_zip_pipeline {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let z_seq = {self._rust_array_literal(z_values, "f64")};
+        let w_seq = {self._rust_array_literal(w_values, "f64")};
+
+        let mut primal_y_seq = [0.0_f64; 4];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        {primal_codegen.function_name}(&z_seq, &w_seq, &mut primal_y_seq, &mut primal_work);
+        assert_close_slice(&primal_y_seq, &{self._rust_array_literal(expected_primal, "f64")}, 1e-10_f64);
+
+        let mut jacobian_y_seq = [0.0_f64; 32];
+        let mut jacobian_work = [0.0_f64; {jacobian_codegen.workspace_size}];
+        {jacobian_codegen.function_name}(&z_seq, &w_seq, &mut jacobian_y_seq, &mut jacobian_work);
+        assert_close_slice(&jacobian_y_seq, &{self._rust_array_literal(expected_jacobian, "f64")}, 1e-10_f64);
     }}
 }}
 """.lstrip(),
