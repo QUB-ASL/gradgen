@@ -68,7 +68,10 @@ class RegisteredElementaryFunction:
             resolved_values = tuple(w)
         return tuple(coerce_parameter_value(value) for value in resolved_values)
 
-    def __call__(self, value: SX | SXVector, *, w: Sequence[float | int | SX] | SXVector | None = None) -> SX:
+    def __call__(self, 
+                 value: SX | SXVector, 
+                 *, 
+                 w: Sequence[float | int | SX] | SXVector | None = None) -> SX:
         """Build a symbolic call to the registered elementary function."""
         parameter_values = self.resolve_parameters(w)
 
