@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Important: implement and tested `map` and `zip`; introduced two new demos
   to demonstrate how to use them.
 - For instances of `SXVector`, the operation `x**a` applies the power element-wise.
-- Created project website using Docusaurus v3.
+- Created project website using Docusaurus v3. Added user-friendly documentation.
 
 ### Changed
 
@@ -64,7 +64,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Fixed issue with operations between `SX` and `SXVector` types. 
   Scalar products, `a * x` and `x * a` work without issues.
 - `x.dot([1, 2])` now works the same way as `x.dot(SXVector([1, 2]))`.
-
+- In custom functions, Jacobian, Hessians, and Hessian-vector products can now 
+  be `None`
 
 ## 0.3.1 - 29-03-2026
 
