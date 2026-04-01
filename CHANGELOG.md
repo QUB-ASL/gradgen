@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   to generate and call the resulting Rust crate in practice.
 - Important: implement and tested `map` and `zip`; introduced two new demos
   to demonstrate how to use them.
+- For instances of `SXVector`, the operation `x**a` applies the power element-wise.
+- Created project website using Docusaurus v3.
 
 ### Changed
 
@@ -31,6 +33,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   so that the functions therein don't panic. Instead, we introduced the error
   `GradgenError` and all public functions return `Result<(), GradgenError>`.
   Informative messages are also returned (e.g., "workspace too small")
+- Added the option `is_symmetric` to `quad_form`
 - Updated the preferred multi-function `CodeGenerationBuilder` API to use a
   scoped `.for_function(...).add_*().done()` flow instead of the older
   callback-based configuration style.
@@ -58,6 +61,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   in single shooting optimal control
 - In single shooting OCP, using `std::mem::swap` to avoid unnecessary memory 
   moves
+- Fixed issue with operations between `SX` and `SXVector` types. 
+  Scalar products, `a * x` and `x * a` work without issues.
+- `x.dot([1, 2])` now works the same way as `x.dot(SXVector([1, 2]))`.
+
 
 ## 0.3.1 - 29-03-2026
 

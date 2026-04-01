@@ -1,0 +1,7 @@
+[package]
+name = "reduce_map_runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reduce_map_kernel = { path = "../reduce_map_kernel" }

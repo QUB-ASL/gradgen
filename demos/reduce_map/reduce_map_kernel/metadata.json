@@ -1,0 +1,57 @@
+{
+  "crate_name": "reduce_map_kernel",
+  "created_at": "2026-03-31T17:21:05.177954Z",
+  "gradgen_version": "0.3.2a2",
+  "functions": [
+    {
+      "function_name": "reduce_map_kernel_mapped_seq_f",
+      "workspace_size": 2,
+      "input_names": [
+        "x_seq"
+      ],
+      "input_sizes": [
+        20
+      ],
+      "output_names": [
+        "m"
+      ],
+      "output_sizes": [
+        20
+      ]
+    },
+    {
+      "function_name": "reduce_map_kernel_mapped_seq_jf_x_seq",
+      "workspace_size": 3,
+      "input_names": [
+        "x_seq"
+      ],
+      "input_sizes": [
+        20
+      ],
+      "output_names": [
+        "jacobian_m"
+      ],
+      "output_sizes": [
+        400
+      ]
+    },
+    {
+      "function_name": "reduce_map_kernel_reduced_scalar_f",
+      "workspace_size": 4,
+      "input_names": [
+        "acc0",
+        "m_seq"
+      ],
+      "input_sizes": [
+        1,
+        20
+      ],
+      "output_names": [
+        "acc_final"
+      ],
+      "output_sizes": [
+        1
+      ]
+    }
+  ]
+}

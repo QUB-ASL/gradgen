@@ -1,4 +1,4 @@
-"""Loop-structured batched map/zip function abstractions."""
+"""Loop-structured batched map/zip/reduce function abstractions."""
 
 from __future__ import annotations
 
@@ -204,6 +204,123 @@ class ZippedFunction:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ReducedFunction:
+    """Loop-structured left-fold reduction over a packed input sequence."""
+
+    function: Function
+    count: int
+    name: str
+    accumulator_input_name: str
+    input_name: str
+    output_name: str
+    simplification: int | str | None = None
+
+    def __post_init__(self) -> None:
+        """Validate reduce metadata and stage-function contract."""
+        if self.count <= 0:
+            raise ValueError("count must be a positive integer")
+        if len(self.function.inputs) != 2:
+            raise ValueError("reduce_function requires a function with exactly two inputs")
+        if len(self.function.outputs) != 1:
+            raise ValueError("reduce_function requires a function with exactly one output")
+        accumulator_formal = self.function.inputs[0]
+        accumulator_output = self.function.outputs[0]
+        if not _same_arg_shape(accumulator_formal, accumulator_output):
+            raise ValueError("reduce_function output shape must match accumulator input shape")
+
+    @property
+    def input_names(self) -> tuple[str, ...]:
+        """Return packed reduce input names: ``(acc0, x_seq)``."""
+        return (self.accumulator_input_name, self.input_name)
+
+    @property
+    def output_names(self) -> tuple[str, ...]:
+        """Return reduce output names."""
+        return (self.output_name,)
+
+    @property
+    def nodes(self):
+        """Return dependency nodes for symbolic fallback usage."""
+        return self.to_function().nodes
+
+    def to_function(self, name: str | None = None) -> Function:
+        """Expand this staged reduce into a regular symbolic ``Function``."""
+        accumulator_formal = self.function.inputs[0]
+        sequence_formal = self.function.inputs[1]
+
+        accumulator_initial: FunctionArg
+        if isinstance(accumulator_formal, SX):
+            accumulator_initial = SX.sym(self.accumulator_input_name)
+        else:
+            accumulator_initial = SXVector.sym(self.accumulator_input_name, len(accumulator_formal))
+
+        sequence_input = SXVector.sym(self.input_name, self.count * _arg_size(sequence_formal))
+
+        accumulator_state = accumulator_initial
+        for stage_index in range(self.count):
+            sequence_stage = _slice_packed_input(sequence_input, stage_index, sequence_formal)
+            stage_result = self.function(accumulator_state, sequence_stage)
+            accumulator_state = _normalize_function_result(stage_result, self.function.outputs)[0]
+
+        function = Function(
+            name or self.name,
+            (accumulator_initial, sequence_input),
+            (accumulator_state,),
+            input_names=(self.accumulator_input_name, self.input_name),
+            output_names=(self.output_name,),
+        )
+        if self.simplification is None:
+            return function
+        return function.simplify(max_effort=self.simplification, name=function.name)
+
+    def generate_rust(
+        self,
+        *,
+        config=None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+        math_library: str | None = None,
+    ):
+        """Generate compact Rust for the staged reduce kernel."""
+        from .rust_codegen import generate_rust
+
+        return generate_rust(
+            self,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+        )
+
+    def create_rust_project(
+        self,
+        path: str,
+        *,
+        config=None,
+        crate_name: str | None = None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+        math_library: str | None = None,
+    ):
+        """Create a Rust crate containing the staged reduce kernel."""
+        from .rust_codegen import create_rust_project
+
+        return create_rust_project(
+            self,
+            path,
+            config=config,
+            crate_name=crate_name,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+        )
+
+
 def map_function(
     function: Function,
     count: int,
@@ -244,6 +361,41 @@ def zip_function(
         input_sequence_names=resolved_names,
         simplification=simplification,
     )
+
+
+def reduce_function(
+    function: Function,
+    count: int,
+    *,
+    accumulator_input_name: str | None = None,
+    input_name: str | None = None,
+    output_name: str | None = None,
+    name: str | None = None,
+    simplification: int | str | None = None,
+) -> ReducedFunction:
+    """Return a staged left-fold reduction for a binary stage ``function``."""
+    if len(function.inputs) != 2:
+        raise ValueError("reduce_function requires a function with exactly two inputs")
+    if len(function.outputs) != 1:
+        raise ValueError("reduce_function requires a function with exactly one output")
+    return ReducedFunction(
+        function=function,
+        count=count,
+        name=name or f"{function.name}_reduce",
+        accumulator_input_name=accumulator_input_name or f"{function.input_names[0]}0",
+        input_name=input_name or f"{function.input_names[1]}_seq",
+        output_name=output_name or function.output_names[0],
+        simplification=simplification,
+    )
+
+
+def _same_arg_shape(left: FunctionArg, right: FunctionArg) -> bool:
+    """Return whether two function arguments share the same scalar/vector shape."""
+    if isinstance(left, SX) and isinstance(right, SX):
+        return True
+    if isinstance(left, SXVector) and isinstance(right, SXVector):
+        return len(left) == len(right)
+    return False
 
 
 def _arg_size(value: FunctionArg) -> int:

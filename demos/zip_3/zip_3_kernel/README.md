@@ -14,10 +14,10 @@ cargo build
 
 ## Generated Functions
 
-- `zip_3_kernel_zip3_f`: workspace `2`, inputs `(10, 5, 5)`, outputs `(5,)`
-- `zip_3_kernel_zip3_jf_a_seq`: workspace `2`, inputs `(10, 5, 5)`, outputs `(50,)`
-- `zip_3_kernel_zip3_jf_b_seq`: workspace `1`, inputs `(10, 5, 5)`, outputs `(25,)`
-- `zip_3_kernel_zip3_jf_c_seq`: workspace `2`, inputs `(10, 5, 5)`, outputs `(25,)`
+- `zip_3_kernel_zip3_f`: workspace `2`, inputs `(6, 3, 3)`, outputs `(3,)`
+- `zip_3_kernel_zip3_jf_a_seq`: workspace `2`, inputs `(6, 3, 3)`, outputs `(18,)`
+- `zip_3_kernel_zip3_jf_b_seq`: workspace `1`, inputs `(6, 3, 3)`, outputs `(9,)`
+- `zip_3_kernel_zip3_jf_c_seq`: workspace `2`, inputs `(6, 3, 3)`, outputs `(9,)`
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.

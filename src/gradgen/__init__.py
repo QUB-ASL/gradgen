@@ -12,8 +12,10 @@ from .function import Function
 from .map_zip import (
     ZippedFunction,
     ZippedJacobianFunction,
+    ReducedFunction,
     map_function,
     zip_function,
+    reduce_function,
 )
 from .single_shooting import (
     SingleShootingBundle,
@@ -138,6 +140,7 @@ __all__ = [
     "log",
     "log1p",
     "map_function",
+    "reduce_function",
     "matvec",
     "maximum",
     "minimum",
@@ -158,4 +161,5 @@ __all__ = [
     "zip_function",
     "ZippedFunction",
     "ZippedJacobianFunction",
+    "ReducedFunction",
 ]

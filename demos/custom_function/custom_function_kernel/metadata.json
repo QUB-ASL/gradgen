@@ -1,7 +1,7 @@
 {
   "crate_name": "custom_function_kernel",
-  "created_at": "2026-03-31T03:01:07.608194Z",
-  "gradgen_version": "0.3.2a1",
+  "created_at": "2026-03-31T15:50:45.410204Z",
+  "gradgen_version": "0.3.2a2",
   "functions": [
     {
       "function_name": "custom_function_kernel_custom_energy_f",

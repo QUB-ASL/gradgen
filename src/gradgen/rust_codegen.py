@@ -23,7 +23,7 @@ from ._rust_codegen import (
 )
 from .ad import jvp
 from .function import Function, _add_like, _make_symbolic_input_like, _zero_like
-from .map_zip import ZippedFunction, ZippedJacobianFunction
+from .map_zip import ZippedFunction, ZippedJacobianFunction, ReducedFunction
 from .single_shooting import (
     SingleShootingGradientFunction,
     SingleShootingHvpFunction,
@@ -286,6 +286,16 @@ def generate_rust(
         )
     if isinstance(function, ZippedJacobianFunction):
         return _generate_zipped_jacobian_rust(
+            function,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+    if isinstance(function, ReducedFunction):
+        return _generate_reduced_primal_rust(
             function,
             config=config,
             function_name=function_name,
@@ -1873,6 +1883,192 @@ def _generate_zipped_jacobian_rust(
         input_sizes=tuple(spec.size for spec in input_specs),
         output_names=tuple(spec.raw_name for spec in output_specs_tuple),
         output_sizes=tuple(spec.size for spec in output_specs_tuple),
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+    )
+
+
+def _generate_reduced_primal_rust(
+    reduced: ReducedFunction,
+    *,
+    config: RustBackendConfig | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
+    math_library: str | None = None,
+    function_index: int = 0,
+) -> RustCodegenResult:
+    """Generate loop-based Rust for a staged reduce primal kernel."""
+    resolved_config = _resolve_backend_config(
+        config,
+        function_name=function_name,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    resolved_math_library = _resolve_math_library(
+        resolved_config.backend_mode,
+        resolved_config.math_library,
+    )
+    name = sanitize_ident(resolved_config.function_name or reduced.name)
+    helper_name = sanitize_ident(f"{name}_helper")
+
+    helper_function = reduced.function
+    if reduced.simplification is not None:
+        helper_function = helper_function.simplify(
+            max_effort=reduced.simplification,
+            name=helper_function.name,
+        )
+
+    helper_config = resolved_config.with_emit_metadata_helpers(False)
+    helper_codegen = generate_rust(
+        helper_function,
+        config=helper_config,
+        function_name=helper_name,
+        function_index=1,
+        shared_helper_nodes=(),
+        emit_crate_header=False,
+        emit_docs=False,
+        function_keyword="fn",
+    )
+
+    accumulator_formal = reduced.function.inputs[0]
+    sequence_formal = reduced.function.inputs[1]
+
+    accumulator_size = _arg_size(accumulator_formal)
+    sequence_size = reduced.count * _arg_size(sequence_formal)
+    output_size = accumulator_size
+
+    input_specs = (
+        _ArgSpec(
+            raw_name=reduced.accumulator_input_name,
+            rust_name=sanitize_ident(reduced.accumulator_input_name),
+            rust_label=_format_rust_string_literal(reduced.accumulator_input_name),
+            doc_description=_describe_input_arg(reduced.accumulator_input_name),
+            size=accumulator_size,
+        ),
+        _ArgSpec(
+            raw_name=reduced.input_name,
+            rust_name=sanitize_ident(reduced.input_name),
+            rust_label=_format_rust_string_literal(reduced.input_name),
+            doc_description=_describe_input_arg(reduced.input_name),
+            size=sequence_size,
+        ),
+    )
+    output_specs = (
+        _ArgSpec(
+            raw_name=reduced.output_name,
+            rust_name=sanitize_ident(reduced.output_name),
+            rust_label=_format_rust_string_literal(reduced.output_name),
+            doc_description=_describe_output_arg(reduced.output_name),
+            size=output_size,
+        ),
+    )
+    _validate_generated_argument_names(input_specs, output_specs)
+
+    input_assert_lines: list[str] = []
+    input_return_lines: list[str] = []
+    output_assert_lines: list[str] = []
+    output_return_lines: list[str] = []
+
+    for spec in input_specs:
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            spec.rust_name,
+            spec.raw_name,
+            spec.size,
+        )
+        input_assert_lines.append(_assert)
+        input_return_lines.append(_in_return)
+    for spec in output_specs:
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            spec.rust_name,
+            spec.raw_name,
+            spec.size,
+        )
+        output_assert_lines.append(_assert)
+        output_return_lines.append(_out_return)
+
+    helper_workspace_size = helper_codegen.workspace_size
+    temp_acc_size = 2 * accumulator_size
+    total_workspace_size = helper_workspace_size + temp_acc_size
+
+    zero_literal = _format_float(0.0, resolved_config.scalar_type)
+    acc0_name = input_specs[0].rust_name
+    seq_name = input_specs[1].rust_name
+    out_name = output_specs[0].rust_name
+
+    computation_lines: list[str] = []
+    if helper_workspace_size > 0:
+        computation_lines.append(
+            f"let (acc_work, helper_work) = work.split_at_mut({temp_acc_size});"
+        )
+    else:
+        computation_lines.append("let acc_work = work;")
+        computation_lines.append("let helper_work = &mut work[..0];")
+    computation_lines.append(f"let (acc_curr_buf, acc_next_buf) = acc_work.split_at_mut({accumulator_size});")
+    computation_lines.append(f"acc_curr_buf.copy_from_slice({acc0_name});")
+    computation_lines.append(f"for stage_index in 0..{reduced.count} {{")
+    block_size = _arg_size(sequence_formal)
+    start_expr = _scaled_index_expr("stage_index", block_size)
+    end_expr = _scaled_index_expr("stage_index + 1", block_size)
+    computation_lines.append(f"    let x_stage = &{seq_name}[{start_expr}..{end_expr}];")
+    computation_lines.append("    acc_next_buf.fill(" + zero_literal + ");")
+    computation_lines.append(f"    {helper_name}(acc_curr_buf, x_stage, acc_next_buf, helper_work);")
+    computation_lines.append("    acc_curr_buf.copy_from_slice(acc_next_buf);")
+    computation_lines.append("}")
+    computation_lines.append(f"{out_name}.copy_from_slice(acc_curr_buf);")
+
+    parameters = ", ".join(
+        [
+            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
+            *[f"{spec.rust_name}: &mut [{resolved_config.scalar_type}]" for spec in output_specs],
+            f"work: &mut [{resolved_config.scalar_type}]",
+        ]
+    )
+
+    if total_workspace_size > 0:
+        _ws_assert, _ws_return = _emit_min_length_assert("work", "work", total_workspace_size)
+    else:
+        _ws_assert = None
+        _ws_return = None
+
+    driver_source = _get_template("lib.rs.j2").render(
+        function_name=name,
+        function_label=_format_rust_string_literal(name),
+        function_index=function_index,
+        emit_crate_header=True,
+        emit_docs=True,
+        function_keyword="pub fn",
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+        workspace_size=total_workspace_size,
+        workspace_assert_line=_ws_assert,
+        workspace_return_line=_ws_return,
+        emit_metadata_helpers=resolved_config.emit_metadata_helpers,
+        input_specs=input_specs,
+        output_specs=output_specs,
+        function_parameter_count=len(input_specs) + len(output_specs) + 1,
+        parameters=parameters,
+        input_assert_lines=input_assert_lines,
+        input_return_lines=input_return_lines,
+        output_assert_lines=output_assert_lines,
+        output_return_lines=output_return_lines,
+        computation_lines=computation_lines,
+        output_write_lines=[],
+        shared_helper_lines=[],
+    ).rstrip()
+    source = "\n\n".join([driver_source, helper_codegen.source.rstrip()])
+
+    return RustCodegenResult(
+        source=source if source.endswith("\n") else f"{source}\n",
+        function_name=name,
+        workspace_size=total_workspace_size,
+        input_names=tuple(spec.raw_name for spec in input_specs),
+        input_sizes=tuple(spec.size for spec in input_specs),
+        output_names=tuple(spec.raw_name for spec in output_specs),
+        output_sizes=tuple(spec.size for spec in output_specs),
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,

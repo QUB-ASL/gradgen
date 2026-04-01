@@ -166,8 +166,10 @@ def validate_registered_function(spec: RegisteredElementaryFunction) -> None:
     x = tuple(float(index + 1) for index in range(dim))
     tangent = tuple(float(index + 2) for index in range(dim))
     params = tuple(spec.parameter_defaults)
-    _ = evaluate_custom_jacobian(spec, x, params)
-    _ = evaluate_custom_hessian(spec, x, params)
+    if spec.jacobian is not None:
+        _ = evaluate_custom_jacobian(spec, x, params)
+    if spec.hessian is not None:
+        _ = evaluate_custom_hessian(spec, x, params)
     if spec.hvp is not None:
         _ = evaluate_custom_hvp(spec, x, tangent, params)
 
