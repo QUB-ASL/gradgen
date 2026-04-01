@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gradgen"
-version = "0.3.2a2"
+version = "0.4.0a3"
 description = "Symbolic differentiation and Rust code generation library."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -20,9 +20,12 @@ keywords = [
   "mathematics",
 ]
 authors = [
-  { name = "Pantelis Sopasakis", email = "xzu.trustful191@passinbox.com" },
-  { name = "Ruairi Moran" },
-  { name = "Jie Lin" },  
+  { name = "Pantelis Sopasakis"},
+  { name = "Ruairi Moran"},
+  { name = "Jie Lin"},  
+]
+maintainers = [
+  { name = "Pantelis Sopasakis"},
 ]
 license = { text = "MIT" }
 dependencies = ["jinja2>=3.1"]
@@ -51,3 +54,18 @@ gradgen = ["templates/*.j2"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# List URLs that are relevant to your project
+#
+# This field corresponds to the "Project-URL" and "Home-Page" metadata fields:
+# https://packaging.python.org/specifications/core-metadata/#project-url-multiple-use
+# https://packaging.python.org/specifications/core-metadata/#home-page-optional
+#
+# Examples listed include a pattern for specifying where the package tracks
+# issues, where the source is hosted, where to say thanks to the package
+# maintainers, and where to support the project financially. The key is
+# what's used to render the link text on PyPI.
+[project.urls]
+"Homepage" = "https://qub-asl.github.io/gradgen/"
+"Bug Reports" = "https://github.com/QUB-ASL/gradgen/issues"
+"Source" = "https://github.com/QUB-ASL/gradgen"
