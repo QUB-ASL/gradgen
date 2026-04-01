@@ -2,7 +2,7 @@
 sidebar_position: 5
 ---
 
-# Optimal Control
+# Optimal control
 
 For deterministic fixed-horizon optimal-control problems, `SingleShootingProblem`
 keeps the rollout and adjoint structure explicit instead of expanding the whole

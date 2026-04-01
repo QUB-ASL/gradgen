@@ -2,7 +2,7 @@
 sidebar_position: 3
 ---
 
-# Automatic Differentiation
+# Automatic differentiation
 
 The current AD layer supports both forward-mode and reverse-mode symbolic differentiation.
 
@@ -309,33 +309,3 @@ f_simplified = f.simplify(max_effort="high")
 ```
 
 This works for ordinary functions and derived ones such as Jacobians and Hessians.
-
-## Common Subexpression Elimination
-
-The library can extract reusable intermediate expressions into a computation plan, which is especially useful as a precursor to Rust code generation.
-
-```python
-from gradgen import SX, cse
-
-x = SX.sym("x")
-z = x * x + 1
-expr = z + z * z
-
-plan = cse([expr])
-for assignment in plan.assignments:
-    print(assignment.name, assignment.expr, assignment.use_count)
-```
-
-You can also build a plan directly from a function:
-
-```python
-plan = f.cse(prefix="w", min_uses=2)
-```
-
-`CSEPlan` currently contains:
-
-- `assignments`: named reusable intermediates in topological order
-- `outputs`: flattened scalar outputs
-- `use_counts`: DAG reference counts for all visited nodes
-
-This is intended to become the bridge between symbolic graphs and workspace-based Rust code generation.

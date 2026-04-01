@@ -2,7 +2,7 @@
 sidebar_position: 4
 ---
 
-# Rust Code Generation
+# Rust codegen
 
 The library can generate Rust code for primal functions, derivative functions,
 and combined multi-kernel crates.
@@ -275,3 +275,50 @@ builder = (
 With this setting, simplification is applied to all generated kernels for that
 source function, including the separate primal/Jacobian/HVP kernels and the
 joint kernel.
+
+## Common Subexpression Elimination
+
+Common Subexpression Elimination (CSE) searches for instances of 
+identical symbolic expressions and replaces them with a single 
+variable. This simplifies the overall expression.
+This is especially useful as a precursor to Rust code generation.
+
+As an example, if we have 
+
+```python
+z = x * x + 1
+y = z + z * z
+```
+
+then, `y` evaluates
+
+$$y = x^2 + 1 + (x^2 + 1)(x^2 + 1),$$
+
+where $x^2$ shows up *three times*, and so does $x^2 + 1$. 
+It make sense, therefore, to  compute `y` as follows
+
+$$w_0 \gets x^2, \quad w_1 \gets w_0 + 1, \quad y \gets w_1 + w_1 \cdot w_1.$$
+
+The following script identifies the auxiliary variables $w_i$:
+
+```python
+from gradgen import SX, cse
+
+x = SX.sym("x")
+z = x * x + 1
+y = z + z * z
+
+plan = cse([y])
+for assignment in plan.assignments:
+    print(assignment.name, assignment.expr, assignment.use_count)
+```
+
+You can also build a plan directly from a function:
+
+```python
+plan = f.cse(min_uses=2)
+```
+
+where `min_uses` is the minimum number of times a symbolic 
+sub-expressions needs to be present in the overall symbolic 
+expression to be considered for elimination.
