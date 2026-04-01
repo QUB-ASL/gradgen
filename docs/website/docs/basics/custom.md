@@ -133,10 +133,23 @@ functions.
 
 ## Code generation
 
+Custom functions can be used in code generation. To this end, the user
+needs to provide a Rust implementation of $f$ (and, optionally, its gradient
+and Hessian or Hessian-vector products).
+
+When the writing your custom Rust implementation, please note:
+
+- instead of `f32` or `f64` data types, it is best to use `{{ scalar_type }}`; 
+  this will be replaced by the correct data type during code generation
+- instead of explicitly using `libm` (or other math libraries), it is best to 
+  use `{{ math_library }}`.
+
+Here is a Rust implementation of the function
+
 ```python
 # Rust implementation of the f(x, w)...
 RUST_F = """
-fn custom_energy_demo(
+fn f(
     x: &[{{ scalar_type }}],
     w: &[{{ scalar_type }}],
 ) -> {{ scalar_type }} {
@@ -146,3 +159,54 @@ fn custom_energy_demo(
 }
 """
 ```
+
+:::warning Important note!
+
+It is important for the name of the function, `f`, to be the same as in `register_elementary_function`.
+
+:::
+
+
+:::note Additional libraries
+
+Currently, it is not possible to import additional libraries to use in your custom implementation. This will be supported in a future version.
+
+:::
+
+The gradient of $f$ can be defined similarly as shown below
+
+```python
+RUST_JACOBIAN = """
+fn f_jacobian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let xy = x[0] * x[1];
+    out[0] = 2.0_{{ scalar_type }} * {{ math_library }}::exp2(w[0]) * x[0]
+        + x[1] * {{ math_library }}::cos(xy);
+    out[1] = 2.0_{{ scalar_type }} * w[1] * x[1]
+        + x[0] * {{ math_library }}::cos(xy);
+}
+"""
+```
+
+We can now register this function and specify both its Python implementations and the above Rust implementations:
+
+```python
+f = register_elementary_function(
+    name="f",
+    input_dimension=2,           # dimension of x
+    parameter_dimension=2,       # dimension of w
+    eval_python=eval_f, 
+    jacobian=eval_jf
+    rust_primal=RUST_PRIMAL,     # Rust code for f
+    rust_jacobian=RUST_JACOBIAN  # Rust code for grad f
+)
+```
+
+
+## Hessian-vector products
+
+
+## Hessians
