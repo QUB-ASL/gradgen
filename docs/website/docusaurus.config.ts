@@ -109,7 +109,7 @@ const config: Config = {
           items: [            
             {
               label: 'Getting started',
-              to: '/docs/category/start-here',
+              to: '/docs/category/learn',
             },
             {
               label: 'Demos',
