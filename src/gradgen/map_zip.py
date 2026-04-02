@@ -350,7 +350,42 @@ def zip_function(
     name: str | None = None,
     simplification: int | str | None = None,
 ) -> ZippedFunction:
-    """Return a staged zipped function for a multi-input ``function``."""
+    """Return a staged zipped function for a multi-input ``function``.
+
+    This helper creates a loop-structured wrapper around ``function`` so it can
+    be evaluated repeatedly over packed input sequences. The returned object is
+    a :class:`ZippedFunction`, which can later be expanded back into a regular
+    symbolic :class:`~gradgen.function.Function` or used for Rust code
+    generation.
+
+    Args:
+        function: The symbolic function to stage. It may accept one or more
+            inputs, and each input can be either a scalar ``SX`` or an
+            ``SXVector``.
+        count: The number of times the function should be applied over the
+            packed input sequences.
+        input_names: Optional names for the packed input sequences. When not
+            provided, each input name defaults to ``"<input_name>_seq"``.
+        name: Optional name for the staged zipped function. When not provided,
+            the generated name defaults to ``"<function.name>_zip"``.
+        simplification: Optional simplification effort passed through to the
+            generated symbolic function when the staged wrapper is expanded.
+
+    Returns:
+        A :class:`ZippedFunction` describing the staged batched version of
+        ``function``.
+
+    Example:
+        >>> from gradgen import Function, SX
+        >>> x = SX.sym("x")
+        >>> y = SX.sym("y")
+        >>> f = Function("add", (x, y), (x + y,))
+        >>> zipped = zip_function(f, 4)
+        >>> zipped.name
+        'add_zip'
+        >>> zipped.input_names
+        ('x_seq', 'y_seq')
+    """
     resolved_names = tuple(input_names) if input_names is not None else tuple(
         f"{input_name}_seq" for input_name in function.input_names
     )
