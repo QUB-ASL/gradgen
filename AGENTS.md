@@ -6,6 +6,7 @@
     - `demos/Makefile`: Makefile to build all demos
     - `demos/README`: main README with links to all demos
 - `docs`: detailed user-friendly docs
+    - `docs/website/`: A Docusaurus v3 website for gradgen with user-friendly documentation
 - `src`
     - `src/gradgen`: Python code
         - `src/gradgen/_custom_elementary`: Internal helpers for custom elementary functions

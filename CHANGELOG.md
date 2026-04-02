@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   to demonstrate how to use them.
 - For instances of `SXVector`, the operation `x**a` applies the power element-wise.
 - Created project website using Docusaurus v3. Added user-friendly documentation.
+- Added `AGENTS.md` with detailed instructions for agents.
 
 ### Changed
 

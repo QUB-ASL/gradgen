@@ -72,11 +72,11 @@ to gradgen
 
 ```python
 f = register_elementary_function(
-    name="f",
-    input_dimension=2, # dimension of x
-    parameter_dimension=2, # dimension of w
-    eval_python=eval_f, 
-    jacobian=eval_jf
+    name="f",               # name of registered function
+    input_dimension=2,      # dimension of x
+    parameter_dimension=2,  # dimension of w
+    eval_python=eval_f,     # Python callback for f
+    jacobian=eval_jf        # Python callback for the gradient of f
 )
 ```
 
@@ -112,7 +112,7 @@ a = f_fun([1, 2], [3, 4])
 ```
 
 Since we have specified the Jacobian, we can also determine 
-$Jf(x, w)$
+$\nabla_x f(x, w)$
 
 ```python
 jf_fun = f_fun.jacobian(wrt_index=0)
@@ -128,7 +128,7 @@ simple example:
 g = Function(
     "g",
     [x, w],
-    [f(x.sin() * w[1], 2 * w.asinh())],
+    [f_fun(x.sin() * w[1], 2 * w.asinh())],
     input_names=["x", "w"],
     output_names=["z"],
 )
@@ -136,7 +136,7 @@ jg = g.jacobian(wrt_index=0)
 print(jg([1, 2], [3, 4]))
 ```
 
-We will come back to Hessians later. Let us see how we can generated 
+We will come back to Hessians later. Let us see how we can generate 
 Rust code for custom functions, or for functions that involve custom 
 functions.
 
@@ -267,27 +267,136 @@ pub fn custom_energy_f_jf_x(
 The name is the function is the name of the crate, followed by 
 the name of the function we defined [earlier](#create-function), 
 followed `_f`, which means that the function itself it being 
-computed, follwed by `_jf_x` meaning that its gradient is being
+computed, followed by `_jf_x` meaning that its gradient is being
 computed too.
 
 
 
 ## Hessian-vector products
 
-For a function $f:\mathbb{R}^n\times \mathbb{R}^p \to \mathbb{R}$ we
-may want to calculate Hessian-vector products, i.e., the mapping 
+For a function $f:\mathbb{R}^n\times \mathbb{R}^p \to \mathbb{R}$ we may want
+to calculate Hessian-vector products, i.e. the mapping
 
-$$(x, w, v) \mapsto \nabla_x^2 f(x, w) v.$$
+$$(x, w, v) \mapsto \nabla_x^2 f(x, w)\,v.$$
 
-For the above function,
+This is often cheaper than building the full Hessian, especially when you only
+need second-order directional information. For the example above, the
+Hessian-vector product is
+
+$$\nabla_x^2 f(x, w) v = \begin{bmatrix} \left(2 \cdot 2^{w_1} - x_2^2 \sin(x_1 x_2)\right)v_1 + \left(\cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2)\right)v_2 \\\\ \left(\cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2)\right)v_1 + \left(2 w_2 - x_1^2 \sin(x_1 x_2)\right)v_2 \end{bmatrix}.$$
+
+You can provide a Python callback for the product directly when registering
+the function:
+
+```python
+def custom_energy_hvp(x: tuple[float, float], v: tuple[float, float], w: tuple[float, float]) -> list[float]:
+    """Return the Hessian-vector product H(x, w) v."""
+    return list(np.matmul(np.asarray(custom_energy_hessian(x, w), dtype=float), np.asarray(v, dtype=float)))
+```
+
+A Rust implementation is 
+
+```python
+# Rust implementation of the Hessian-vector product H_x f(x, w) v.
+RUST_HVP = """
+fn custom_energy_demo_hvp(
+    x: &[{{ scalar_type }}],
+    v_x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let xy = x[0] * x[1];
+    let sin_xy = {{ math_library }}::sin(xy);
+    let cross = {{ math_library }}::cos(xy) - x[0] * x[1] * sin_xy;
+    let h00 = 2.0_{{ scalar_type }} * {{ math_library }}::exp2(w[0]) - x[1] * x[1] * sin_xy;
+    let h11 = 2.0_{{ scalar_type }} * w[1] - x[0] * x[0] * sin_xy;
+    out[0] = h00 * v_x[0] + cross * v_x[1];
+    out[1] = cross * v_x[0] + h11 * v_x[1];
+}
+"""
+```
+
+These can be provided with the function registration as follows:
+
+```python
+custom_energy = register_elementary_function(
+    name="f",
+    input_dimension=2, 
+    parameter_dimension=2,
+    eval_python=custom_energy_eval,
+    jacobian=custom_energy_jacobian,
+    hvp=custom_energy_hvp,
+    rust_primal=RUST_PRIMAL,
+    rust_jacobian=RUST_JACOBIAN,
+    rust_hvp=RUST_HVP,
+)
+```
+
+
+## Hessians
+
+The Hessian is the full matrix of second derivatives with respect to $x$, that is,
 
 $$\nabla_x^2 f(x, w) =
+\begin{bmatrix}
+\frac{\partial^2 f}{\partial x_1^2} & \cdots & \frac{\partial^2 f}{\partial x_1 \partial x_n} \\\\
+\vdots & \ddots & \vdots \\\\
+\frac{\partial^2 f}{\partial x_n \partial x_1} & \cdots & \frac{\partial^2 f}{\partial x_n^2}
+\end{bmatrix}.$$
+
+For the example above, this becomes
+
+$$
+\nabla_x^2 f(x, w) =
 \begin{bmatrix}
 2 \cdot 2^{w_1} - x_2^2 \sin(x_1 x_2) &
 \cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2) \\\\
 \cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2) &
 2 w_2 - x_1^2 \sin(x_1 x_2)
-\end{bmatrix}.$$
+\end{bmatrix}.
+$$
 
+To provide a Hessian callback, return the matrix as rows. For a scalar input
+this can be a single scalar; for a vector input, a nested list or `SXVector`
+rows both work well:
 
-## Hessians
+```python
+def eval_hessian(x, w):
+    return [
+        [
+            2. * np.exp2(w[0]) - x[1] * x[1] * np.sin(x[0] * x[1]),
+            np.cos(x[0] * x[1]) - x[0] * x[1] * np.sin(x[0] * x[1]),
+        ],
+        [
+            np.cos(x[0] * x[1]) - x[0] * x[1] * np.sin(x[0] * x[1]),
+            2. * w[1] - x[0] * x[0] * np.sin(x[0] * x[1]),
+        ],
+    ]
+```
+
+A Rust implementation is 
+
+```python
+RUST_HESSIAN = """
+fn custom_energy_demo_hessian(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    let xy = x[0] * x[1];
+    let sin_xy = {{ math_library }}::sin(xy);
+    let cross = {{ math_library }}::cos(xy) - x[0] * x[1] * sin_xy;
+    out[0] = 2.0_{{ scalar_type }} * {{ math_library }}::exp2(w[0]) - x[1] * x[1] * sin_xy;
+    out[1] = cross;
+    out[2] = cross;
+    out[3] = 2.0_{{ scalar_type }} * w[1] - x[0] * x[0] * sin_xy;
+}
+"""
+```
+
+If you provide `hessian=` when registering the custom function, gradgen can
+use it for symbolic differentiation and Rust code generation. If you do not
+provide `hvp=`, gradgen can still form Hessian-vector products from the
+Hessian. 
+When generating Rust, the full Hessian is written into a flat output
+buffer in row-major order.
