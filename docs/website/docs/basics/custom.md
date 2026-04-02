@@ -80,15 +80,24 @@ f = register_elementary_function(
 )
 ```
 
+:::note
+
+Note that every registered function needs to have a unique name.
+
+:::
+
+<span id="create-function">
+
 The object `f` is an instance of `RegisteredElementaryFunction`
-and can be used to create a `Function` object as follows
+and can be used to create a `Function` object as follows 
+
 
 ```python
 x = SXVector.sym("x", 2)
 w = SXVector.sym("w", 2)
 
-f = Function(
-    "f",
+f_fun = Function(
+    "energy",
     [x, w],
     [f(x, w=w)],
     input_names=["x", "w"],
@@ -99,15 +108,15 @@ f = Function(
 We can now evaluate this function
 
 ```python
-a = f([1, 2], [3, 4])
+a = f_fun([1, 2], [3, 4])
 ```
 
 Since we have specified the Jacobian, we can also determine 
 $Jf(x, w)$
 
 ```python
-jf = f.jacobian(wrt_index=0)
-print(jf([1, 2], [3, 4]))
+jf_fun = f_fun.jacobian(wrt_index=0)
+print(jf_fun([1, 2], [3, 4]))
 ```
 
 More importantly, we can use `f` in other expressions and 
@@ -136,6 +145,10 @@ functions.
 Custom functions can be used in code generation. To this end, the user
 needs to provide a Rust implementation of $f$ (and, optionally, its gradient
 and Hessian or Hessian-vector products).
+
+**See first:** [Rust code generation](./codegen)
+
+### Custom Rust implementation 
 
 When the writing your custom Rust implementation, please note:
 
@@ -198,12 +211,65 @@ f = register_elementary_function(
     name="f",
     input_dimension=2,           # dimension of x
     parameter_dimension=2,       # dimension of w
-    eval_python=eval_f, 
-    jacobian=eval_jf
-    rust_primal=RUST_PRIMAL,     # Rust code for f
+    eval_python=eval_f,          # Python callback for f
+    jacobian=eval_jf,            # Python callback for the gradient of f
+    rust_primal=RUST_F,          # Rust code for f
     rust_jacobian=RUST_JACOBIAN  # Rust code for grad f
 )
 ```
+
+### A code generation example
+
+To generate Rust code for our function (and its gradient) we first 
+need to construct a `Function` object (see [above](#create-function)).
+
+We can then generate a Rust crate as follows:
+
+```python
+project = (
+    CodeGenerationBuilder()
+    .with_backend_config(
+        RustBackendConfig()
+        .with_crate_name("custom")
+        .with_backend_mode("no_std")
+        .with_scalar_type("f64")
+    )
+    # Specify what needs to be generated
+    .for_function(f_fun)
+        .add_joint(      
+            FunctionBundle()
+                .add_f()
+                .add_jf(wrt=0)
+        )
+        .done()
+    .build("./my_crates/custom")
+)
+```
+
+Here we generate Rust code for both $f$ and $\gradient f$,
+which are computed in the same function. This is what the 
+`add_joint` does.
+
+The generated Rust function looks like this...
+
+```rust
+pub fn custom_energy_f_jf_x(
+    x: &[f64],
+    w: &[f64],
+    y: &mut [f64],
+    jacobian_y: &mut [f64],
+    work: &mut [f64],
+) -> Result<(), GradgenError> {
+    // implementation ...
+}
+```
+
+The name is the function is the name of the crate, followed by 
+the name of the function we defined [earlier](#create-function), 
+followed `_f`, which means that the function itself it being 
+computed, follwed by `_jf_x` meaning that its gradient is being
+computed too.
+
 
 
 ## Hessian-vector products
