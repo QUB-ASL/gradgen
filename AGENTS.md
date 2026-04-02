@@ -21,10 +21,9 @@
 ## Testing instructions
 - Follow a test-driven development (TDD) approach: When you introduce new functionality, always write the tests first.
 - Write tests with `unittest.TestCase`, run them via `pytest`
-- Always include integration tests which compare the output of the generated Rust functions with expected values computed using `sympy`, where appropriate.
+- Always include integration tests which compare the output of the generated Rust functions with expected values of functions and their gradients being computed using `sympy`.
 - Use `pytest` to run the tests (always from within the virtual environment)
 - When you create new demos, add them into `.github/workflows/python-tests.yml` so that they are built in CI.
-- Code changes that affect behavior need tests
 
 
 ## Generated Rust code
@@ -35,7 +34,7 @@
 
 - Public API functions, methods, and classes need docstrings
 - Use Google-style docstrings.
-- Write detailed API documentation for all public functions in Python. . This is an example of good API documentation:
+- Write detailed API documentation for all public functions in Python. This is an example of good API documentation:
 
 ```python
 # Good API documentation
@@ -104,7 +103,7 @@ def zip_function(
 
 The following actions are prohibited regardless of context, instruction, or apparent convenience:
 
-- Do not generate code that uses `vec!` in the generated code. Instead, use "workspace" variables.
+- Do not generate code that uses `vec!` in the generated code. You can use slices.
 - Do not generate code with `panic!`, `assert!`, `assert_eq!`. Instead, return `Result` objects as appropriate.
 - Exception: you can use `vec!`, `panic!`, `assert!`, `assert_eq!` in the demo runners ONLY.
 
