@@ -246,7 +246,7 @@ project = (
 )
 ```
 
-Here we generate Rust code for both $f$ and $\gradient f$,
+Here we generate Rust code for both $f$ and $\nabla f$,
 which are computed in the same function. This is what the 
 `add_joint` does.
 
@@ -273,6 +273,21 @@ computed too.
 
 
 ## Hessian-vector products
+
+For a function $f:\mathbb{R}^n\times \mathbb{R}^p \to \mathbb{R}$ we
+may want to calculate Hessian-vector products, i.e., the mapping 
+
+$$(x, w, v) \mapsto \nabla_x^2 f(x, w) v.$$
+
+For the above function,
+
+$$\nabla_x^2 f(x, w) =
+\begin{bmatrix}
+2 \cdot 2^{w_1} - x_2^2 \sin(x_1 x_2) &
+\cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2) \\\\
+\cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2) &
+2 w_2 - x_1^2 \sin(x_1 x_2)
+\end{bmatrix}.$$
 
 
 ## Hessians
