@@ -3,8 +3,7 @@
     
     
 <!-- ![PyPI - Downloads](https://img.shields.io/pypi/dm/gradgen?color=blue&style=flat-square)  -->
-[![CI](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml/badge.svg)](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml)    
-    
+[![CI](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml/badge.svg)](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml)  [![Docs site](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://qub-asl.github.io/gradgen/)   
 </div>    
 
 
