@@ -66,7 +66,7 @@ project = (
         .add_jacobian()
         .with_simplification("medium")
         .done()
-    .build(Path(__file__).resolve().parent / "codegen_kernel")
+    .build(Path(__file__).resolve().parent)
 )
 
 print("Generated Rust crate:", project.project_dir)

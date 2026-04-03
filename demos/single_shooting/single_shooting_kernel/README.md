@@ -23,4 +23,7 @@ The generated ABI uses input slices, output slices, and a mutable workspace slic
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.
 The crate root also contains a `metadata.json` file with the same metadata for
 all generated functions in a machine-readable form.
+This crate stays pure Rust. A separate PyO3 wrapper crate is generated at
+`../single_shooting_kernel_python` so the kernels can be imported from
+Python without giving up `no_std` support here.
 The generated crate is `no_std` and uses `libm` for transcendental math functions.

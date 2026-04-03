@@ -77,7 +77,7 @@ project = (
         )
         .with_simplification("medium")
         .done()
-    .build(Path(__file__).resolve().parent / "multi_function_kernel")
+    .build(Path(__file__).resolve().parent)
 )
 
 print("Generated Rust crate:", project.project_dir)

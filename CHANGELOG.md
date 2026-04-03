@@ -48,6 +48,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Updated the preferred multi-function `CodeGenerationBuilder` API to use a
   scoped `.for_function(...).add_*().done()` flow instead of the older
   callback-based configuration style.
+- Changed `CodeGenerationBuilder.build()` so its argument is treated as the
+  parent directory for the generated crate. For example,
+  `.build("./my_crates")` with `with_crate_name("abc")` now writes the crate
+  to `./my_crates/abc` and the Python wrapper to `./my_crates/abc_python`,
+  while `.build()` defaults to `./<crate_name>`.
 - Kept backward compatibility for the older callback-based
   `for_function(function, lambda b: ...)` form.
 - Updated the tests, demos, README examples, and demo documentation to use the
@@ -82,6 +87,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   be `None`
 
 ## 0.3.1 - 29-03-2026
+
+Link: https://pypi.org/project/gradgen/0.3.1/ 
 
 ### Fixed
 

@@ -1,7 +1,7 @@
 {
   "crate_name": "vjp_kernel",
-  "created_at": "2026-04-03T02:33:05.896546Z",
-  "gradgen_version": "0.4.0a4",
+  "created_at": "2026-04-03T12:40:58.598732Z",
+  "gradgen_version": "0.4.0a5",
   "functions": [
     {
       "function_name": "vjp_kernel_g_f",

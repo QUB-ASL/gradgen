@@ -246,7 +246,7 @@ project = (
                 .add_jf(wrt=0)
         )
         .done()
-    .build("./my_crates/custom")
+    .build("./my_crates")
 )
 ```
 
@@ -408,7 +408,6 @@ provide `hvp=`, gradgen can still form Hessian-vector products from the
 Hessian. 
 When generating Rust, the full Hessian is written into a flat output
 buffer in row-major order.
-
 
 
 

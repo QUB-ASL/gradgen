@@ -180,7 +180,7 @@ project = (
         .add_primal()
         .with_simplification("medium")
         .done()
-    .build(Path(__file__).resolve().parent / "custom_function_kernel")
+    .build(Path(__file__).resolve().parent)
 )
 
 print("Generated Rust crate:", project.project_dir)

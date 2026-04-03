@@ -84,7 +84,7 @@ project = (
         .add_jacobian()
         .with_simplification("medium")
         .done()
-    .build("path/to/crate")
+    .build("./my_crates")
 )
 ```
 

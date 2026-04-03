@@ -149,7 +149,7 @@ project = (
         .add_jacobian()
         .with_simplification("medium")
         .done()
-    .build(Path(__file__).resolve().parent / "map_zip_kernel")
+    .build(Path(__file__).resolve().parent)
 )
 
 print("Generated Rust crate:", project.project_dir)

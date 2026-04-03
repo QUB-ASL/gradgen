@@ -34,12 +34,12 @@ project = (
     .for_function(energy)
         .add_primal()
         .done()
-    .build("./blah")
+    .build("./my_crates")
 )
 ```
 
-This will generate a crate (in folder `./blah`) and a Python interface, 
-which will be stored in the folder `./blah_python`.
+This will generate a crate in `./my_crates/blah` and a Python interface in
+`./my_crates/blah_python`.
 
 You can now use this as a **python module**. You can then do
 

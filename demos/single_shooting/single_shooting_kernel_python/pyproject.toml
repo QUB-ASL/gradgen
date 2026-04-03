@@ -1,0 +1,12 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "single_shooting_kernel_python"
+version = "0.1.0"
+description = "Generated gradgen Python wrapper for single_shooting_kernel"
+requires-python = ">=3.11"
+
+[tool.maturin]
+module-name = "single_shooting_kernel"

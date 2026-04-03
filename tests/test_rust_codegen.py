@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+import contextlib
 import subprocess
 import re
 import unittest
@@ -1047,6 +1048,39 @@ mod single_shooting_multi_u_tests {{
             self.assertIsNotNone(project.python_interface)
             assert project.python_interface is not None
             self.assertTrue(project.python_interface.project_dir.is_dir())
+
+    def test_builder_build_uses_parent_directory_and_crate_name(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("abc"))
+            .for_function(f)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "my_crates")
+            root = Path(tmpdir).resolve()
+            self.assertEqual(project.project_dir, root / "my_crates" / "abc")
+
+    def test_builder_build_defaults_to_current_directory(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("abc"))
+            .for_function(f)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir, contextlib.chdir(tmpdir):
+            project = builder.build()
+            self.assertEqual(project.project_dir, Path(tmpdir).resolve() / "abc")
 
     def test_create_rust_project_with_python_interface_is_immediately_importable(self) -> None:
         x = SXVector.sym("x", 2)
