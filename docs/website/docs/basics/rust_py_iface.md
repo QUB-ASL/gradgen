@@ -61,6 +61,8 @@ You can now use this as a **python module**. You can then do
 
 ```python
 import blah
+print(blah.__version__)
+print(blah.__all__)
 ```
 
 If you want to get a list of all functions in `blah`, do

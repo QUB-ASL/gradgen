@@ -5226,12 +5226,14 @@ def _render_python_interface_source(
     codegens: tuple[RustCodegenResult, ...],
     low_level_crate_name: str,
     module_name: str,
+    project_version: str,
 ) -> str:
     """Render the PyO3 Python interface for one or more generated functions."""
     return _get_template("python_interface.rs.j2").render(
         codegens=codegens,
         module_name=module_name,
         low_level_crate_name=low_level_crate_name,
+        project_version=project_version,
         scalar_type=codegens[0].scalar_type,
     ).rstrip()
 
@@ -5309,6 +5311,7 @@ def _create_python_interface_project(
             codegens,
             low_level_crate_name=low_level_crate_name,
             module_name=module_name,
+            project_version=project_version,
         )
         + "\n",
         encoding="utf-8",

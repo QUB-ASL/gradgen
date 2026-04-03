@@ -1013,6 +1013,9 @@ mod single_shooting_multi_u_tests {{
             self.assertIn('module-name = "energy"', wrapper_pyproject)
             self.assertIn('version = "0.1.0"', wrapper_pyproject)
             self.assertIn("Python Interface Wrapper", wrapper_readme)
+            self.assertIn("__version__", wrapper_lib)
+            self.assertIn("__all__", wrapper_lib)
+            self.assertIn("__getattr__", wrapper_lib)
 
     def test_create_rust_project_bumps_python_interface_version_on_regeneration(self) -> None:
         x = SXVector.sym("x", 2)
@@ -1214,6 +1217,8 @@ mod single_shooting_multi_u_tests {{
                     "-c",
                     (
                         "import immediate_import_demo\n"
+                        "print(immediate_import_demo.__version__)\n"
+                        "print(immediate_import_demo.__all__)\n"
                         "print(immediate_import_demo.all_functions())\n"
                     ),
                 ],
@@ -1223,6 +1228,10 @@ mod single_shooting_multi_u_tests {{
                 text=True,
             )
 
+            self.assertIn("0.1.0", completed.stdout)
+            self.assertIn("__version__", completed.stdout)
+            self.assertIn("Workspace", completed.stdout)
+            self.assertIn("all_functions", completed.stdout)
             self.assertIn("energy", completed.stdout)
 
     def test_single_output_python_interface_returns_dictionary(self) -> None:

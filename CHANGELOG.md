@@ -13,9 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `RustBackendConfig().with_enable_python_interface(True)`, now emitted as a
   separate sibling wrapper crate so the low-level generated crate can stay
   pure Rust and `no_std`-friendly. The wrapper includes generated
-  `workspace_for_function(...)` and `call(...)` helpers, and by default the
-  wrapper is compiled immediately with the same Python interpreter that ran
-  the generator.
+  `workspace_for_function(...)` and `call(...)` helpers, plus module-level
+  `__version__` and `__all__` metadata. By default the wrapper is compiled
+  immediately with the same Python interpreter that ran the generator.
 - The generated Python wrapper now manages its own `pyproject.toml` version:
   first generation starts at `0.1.0`, and regenerating the same interface
   bumps the minor version to `0.2.0`, `0.3.0`, and so on. The Cargo crate
