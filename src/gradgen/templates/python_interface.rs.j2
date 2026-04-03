@@ -1,0 +1,186 @@
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
+use pyo3::types::{PyAnyMethods, PyDict, PyFloat, PyList, PyTuple};
+use std::vec::Vec;
+
+impl From<GradgenError> for PyErr {
+    fn from(error: GradgenError) -> Self {
+        match error {
+            GradgenError::WorkspaceTooSmall(message)
+            | GradgenError::InputTooSmall(message)
+            | GradgenError::OutputTooSmall(message) => PyValueError::new_err(message),
+        }
+    }
+}
+
+fn extract_values(
+    obj: &Bound<'_, PyAny>,
+    expected_size: usize,
+    label: &str,
+) -> PyResult<Vec<{{ scalar_type }}>> {
+    if expected_size == 0 {
+        return Ok(Vec::new());
+    }
+
+    if expected_size == 1 {
+        if let Ok(value) = obj.extract::<f64>() {
+            let mut values = Vec::with_capacity(1);
+            values.push(value as {{ scalar_type }});
+            return Ok(values);
+        }
+    }
+
+    let values: Vec<f64> = obj.extract()?;
+    if values.len() != expected_size {
+        return Err(PyValueError::new_err(format!(
+            "{label} expected length {expected_size}"
+        )));
+    }
+    Ok(values.into_iter().map(|value| value as {{ scalar_type }}).collect())
+}
+
+fn extract_workspace(
+    obj: &Bound<'_, PyAny>,
+    expected_size: usize,
+) -> PyResult<Vec<{{ scalar_type }}>> {
+    if expected_size == 0 {
+        return Ok(Vec::new());
+    }
+
+    if expected_size == 1 {
+        if let Ok(value) = obj.extract::<f64>() {
+            let mut values = Vec::with_capacity(1);
+            values.push(value as {{ scalar_type }});
+            return Ok(values);
+        }
+    }
+
+    let values: Vec<f64> = obj.extract()?;
+    if values.len() < expected_size {
+        return Err(PyValueError::new_err(format!(
+            "workspace expected at least {expected_size}"
+        )));
+    }
+    Ok(
+        values
+            .into_iter()
+            .take(expected_size)
+            .map(|value| value as {{ scalar_type }})
+            .collect(),
+    )
+}
+
+fn wrap_output(py: Python<'_>, values: &[{{ scalar_type }}]) -> PyResult<Py<PyAny>> {
+    if values.len() == 1 {
+        return Ok(PyFloat::new(py, values[0] as f64).into_any().unbind());
+    }
+
+    Ok(PyList::new(py, values.iter().copied().map(|value| value as f64))?
+        .into_any()
+        .unbind())
+}
+
+fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
+    match function_name {
+{% for codegen in codegens %}
+        "{{ codegen.function_name }}" => {
+{% if codegen.workspace_size == 0 %}
+            Ok(PyList::empty(py).into_any().unbind())
+{% else %}
+            Ok(PyList::new(
+                py,
+                (0..{{ codegen.workspace_size }}).map(|_| 0.0_f64),
+            )?
+            .into_any()
+            .unbind())
+{% endif %}
+        }
+{% endfor %}
+        _ => Err(PyValueError::new_err(format!(
+            "unknown generated function {function_name:?}"
+        ))),
+    }
+}
+
+fn call_impl(py: Python<'_>, function_name: &str, inputs: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny>> {
+    match function_name {
+{% for codegen in codegens %}
+        "{{ codegen.function_name }}" => call_{{ codegen.function_name }}(py, inputs),
+{% endfor %}
+        _ => Err(PyValueError::new_err(format!(
+            "unknown generated function {function_name:?}"
+        ))),
+    }
+}
+
+{% for codegen in codegens %}
+fn call_{{ codegen.function_name }}(
+    py: Python<'_>,
+    inputs: &Bound<'_, PyTuple>,
+) -> PyResult<Py<PyAny>> {
+    let expected_arg_count = {{ codegen.input_names|length + 1 }};
+    if inputs.len() != expected_arg_count {
+        return Err(PyValueError::new_err(format!(
+            "{{ codegen.function_name }} expected {expected_arg_count} arguments including workspace"
+        )));
+    }
+
+{% for input_index in range(codegen.input_names|length) %}
+    let {{ codegen.input_names[input_index] }} = extract_values(&inputs.get_item({{ input_index }})?, {{ codegen.input_sizes[input_index] }}, "{{ codegen.input_names[input_index] }}")?;
+{% endfor %}
+
+{% if codegen.workspace_size == 0 %}
+    let mut workspace: [{{ scalar_type }}; 0] = [];
+{% else %}
+    let workspace_values = extract_workspace(&inputs.get_item({{ codegen.input_names|length }})?, {{ codegen.workspace_size }})?;
+    let mut workspace = [0.0_{{ scalar_type }}; {{ codegen.workspace_size }}];
+    workspace.copy_from_slice(&workspace_values[..{{ codegen.workspace_size }}]);
+{% endif %}
+
+{% for output_index in range(codegen.output_names|length) %}
+    let mut {{ codegen.output_names[output_index] }} = [0.0_{{ scalar_type }}; {{ codegen.output_sizes[output_index] }}];
+{% endfor %}
+
+    {{ codegen.function_name }}(
+{% for input_name in codegen.input_names %}
+        &{{ input_name }}[..],
+{% endfor %}
+{% for output_name in codegen.output_names %}
+        &mut {{ output_name }}[..],
+{% endfor %}
+{% if codegen.workspace_size == 0 %}
+        &mut workspace[..],
+{% else %}
+        &mut workspace[..],
+{% endif %}
+    )?;
+
+{% if codegen.output_names|length == 1 %}
+    Ok(wrap_output(py, &{{ codegen.output_names[0] }})?)
+{% else %}
+    let result = PyDict::new(py);
+{% for output_index in range(codegen.output_names|length) %}
+    result.set_item("{{ codegen.output_names[output_index] }}", wrap_output(py, &{{ codegen.output_names[output_index] }})?)?;
+{% endfor %}
+    Ok(result.into_any().unbind())
+{% endif %}
+}
+
+{% endfor %}
+#[pyfunction]
+fn workspace_for_function(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
+    workspace_for_function_impl(py, function_name)
+}
+
+#[pyfunction(signature = (function_name, *inputs))]
+fn call(py: Python<'_>, function_name: &str, inputs: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny>> {
+    call_impl(py, function_name, inputs)
+}
+
+#[pymodule]
+#[pyo3(name = "{{ crate_name }}")]
+fn gradgen_python_interface(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(workspace_for_function, m)?)?;
+    m.add_function(wrap_pyfunction!(call, m)?)?;
+    Ok(())
+}

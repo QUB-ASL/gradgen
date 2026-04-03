@@ -902,6 +902,7 @@ mod single_shooting_multi_u_tests {{
             .with_crate_name("my_kernel")
             .with_function_name("eval_kernel")
             .with_emit_metadata_helpers(False)
+            .with_enable_python_interface(False)
         )
 
         self.assertEqual(config.backend_mode, "no_std")
@@ -910,6 +911,65 @@ mod single_shooting_multi_u_tests {{
         self.assertEqual(config.crate_name, "my_kernel")
         self.assertEqual(config.function_name, "eval_kernel")
         self.assertFalse(config.emit_metadata_helpers)
+        self.assertFalse(config.enable_python_interface)
+
+    def test_backend_config_can_enable_python_interface(self) -> None:
+        config = RustBackendConfig().with_enable_python_interface(True)
+
+        self.assertTrue(config.enable_python_interface)
+
+    def test_backend_config_rejects_python_interface_for_no_std(self) -> None:
+        with self.assertRaises(ValueError):
+            RustBackendConfig().with_backend_mode("no_std").with_enable_python_interface(True)
+
+    def test_create_rust_project_with_python_interface_writes_python_scaffolding(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = RustBackendConfig().with_enable_python_interface(True)
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+            cargo_text = project.cargo_toml.read_text(encoding="utf-8")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            pyproject = project.project_dir / "pyproject.toml"
+
+            self.assertTrue(pyproject.is_file())
+            self.assertIn("[dependencies.pyo3]", cargo_text)
+            self.assertIn('version = "0.28.2"', cargo_text)
+            self.assertIn('crate-type = ["cdylib", "rlib"]', cargo_text)
+            self.assertIn("#[pymodule]", lib_text)
+            self.assertIn("workspace_for_function", lib_text)
+            self.assertIn("call(", lib_text)
+            self.assertIn("impl From<GradgenError> for PyErr", lib_text)
+            self.assertIn("PyValueError::new_err", lib_text)
+            self.assertIn("cost", lib_text)
+            self.assertIn("state", lib_text)
+
+    def test_create_rust_project_with_python_interface_builds(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = RustBackendConfig().with_enable_python_interface(True)
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+            completed = self._run_cargo(project.project_dir, "check")
+            self.assertEqual(completed.returncode, 0)
 
     def test_function_bundle_supports_chainable_updates(self) -> None:
         bundle = (

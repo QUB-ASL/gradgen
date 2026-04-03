@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- Added an optional PyO3-based Python interface for generated Rust crates via
+  `RustBackendConfig().with_enable_python_interface(True)`, including generated
+  `workspace_for_function(...)` and `call(...)` helpers.
+- Added a new `demos/python_interface` demo and runner showing how to generate
+  a Rust crate that can be installed and imported from Python.
 - Added deterministic single-shooting optimal-control support through
   `SingleShootingProblem` and `SingleShootingBundle`.
 - Added loop-based Rust code generation for fixed-horizon single-shooting

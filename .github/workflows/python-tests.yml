@@ -34,6 +34,9 @@ jobs:
       - name: Generate demo crates
         run: make -C demos/
 
+      - name: Test Python-Rust interface
+        run: python demos/python_interface/runner/main.py
+
       - name: Clippy for demo kernels
         run: |
           cargo clippy --quiet --manifest-path demos/codegen/codegen_kernel/Cargo.toml -- -D warnings

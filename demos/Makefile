@@ -1,11 +1,11 @@
-.PHONY: all codegen custom_function multi_function vjp map_zip zip_3 reduce_map composed_function single_shooting help
+.PHONY: all codegen custom_function multi_function vjp map_zip zip_3 reduce_map composed_function single_shooting python_interface help
 
 PYTHON ?= python
 REPEATS ?= 5
 HORIZON ?= 5
 COUNT ?= 3
 
-all: codegen custom_function multi_function vjp map_zip zip_3 reduce_map composed_function single_shooting
+all: codegen custom_function multi_function vjp map_zip zip_3 reduce_map composed_function single_shooting python_interface
 
 help:
 	@echo "Available targets:"
@@ -19,6 +19,7 @@ help:
 	@echo "  make reduce_map COUNT=$(COUNT)"
 	@echo "  make composed_function REPEATS=$(REPEATS)"
 	@echo "  make single_shooting HORIZON=$(HORIZON)"
+	@echo "  make python_interface"
 
 codegen:
 	$(PYTHON) codegen/main.py
@@ -46,3 +47,6 @@ composed_function:
 
 single_shooting:
 	$(PYTHON) single_shooting/main.py --horizon $(HORIZON)
+
+python_interface:
+	$(PYTHON) python_interface/main.py

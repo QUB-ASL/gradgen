@@ -63,6 +63,8 @@ class RustBackendConfig:
 
     The same config can be reused for both source generation and project
     creation, which keeps backend behavior consistent as options grow.
+    When enabled, the Python interface option adds a PyO3 extension module on
+    top of the generated Rust crate.
     """
 
     backend_mode: RustBackendMode = "std"
@@ -71,6 +73,7 @@ class RustBackendConfig:
     crate_name: str | None = None
     function_name: str | None = None
     emit_metadata_helpers: bool = True
+    enable_python_interface: bool = False
 
     def with_backend_mode(self, backend_mode: RustBackendMode) -> RustBackendConfig:
         """Return a copy with a different Rust backend mode.
@@ -120,6 +123,17 @@ class RustBackendConfig:
         metadata or their own bookkeeping when allocating buffers.
         """
         return replace(self, emit_metadata_helpers=emit_metadata_helpers)
+
+    def with_enable_python_interface(self, enable_python_interface: bool) -> RustBackendConfig:
+        """Return a copy with optional PyO3-based Python bindings enabled.
+
+        When enabled, generated Rust projects include a Python extension module
+        which can call the generated kernels from Python. This option requires
+        the standard library backend mode.
+        """
+        updated = replace(self, enable_python_interface=enable_python_interface)
+        _validate_python_interface_support(updated)
+        return updated
 
 
 @dataclass(frozen=True, slots=True)
@@ -366,6 +380,7 @@ def generate_rust(
     )
     _validate_backend_mode(resolved_config.backend_mode)
     _validate_scalar_type(resolved_config.scalar_type)
+    _validate_python_interface_support(resolved_config)
     resolved_math_library = _resolve_math_library(
         resolved_config.backend_mode,
         resolved_config.math_library,
@@ -583,7 +598,7 @@ def generate_rust(
         ),
     ).rstrip()
 
-    return RustCodegenResult(
+    codegen = RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
         function_name=name,
         workspace_size=workspace_size,
@@ -595,6 +610,11 @@ def generate_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
     )
+    if resolved_config.enable_python_interface:
+        module_name = sanitize_ident(resolved_config.crate_name or name)
+        python_source = _render_python_interface_source((codegen,), module_name)
+        codegen = replace(codegen, source=f"{codegen.source}\n\n{python_source}")
+    return codegen
 
 
 def create_rust_project(
@@ -640,6 +660,7 @@ def create_rust_project(
             backend_mode=resolved_config.backend_mode,
             scalar_type=resolved_config.scalar_type,
             math_library=codegen.math_library,
+            enable_python_interface=resolved_config.enable_python_interface,
         ),
         encoding="utf-8",
     )
@@ -650,6 +671,7 @@ def create_rust_project(
             backend_mode=resolved_config.backend_mode,
             scalar_type=resolved_config.scalar_type,
             math_library=codegen.math_library,
+            enable_python_interface=resolved_config.enable_python_interface,
         ),
         encoding="utf-8",
     )
@@ -658,6 +680,14 @@ def create_rust_project(
         encoding="utf-8",
     )
     lib_rs.write_text(codegen.source, encoding="utf-8")
+    if resolved_config.enable_python_interface:
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text(
+            _get_template("pyproject.toml.j2").render(
+                crate_name=crate,
+            ),
+            encoding="utf-8",
+        )
     _try_run_cargo_fmt(project_dir)
 
     return RustProjectResult(
@@ -737,6 +767,7 @@ def create_multi_function_rust_project(
     resolved_config = config or RustBackendConfig()
     _validate_backend_mode(resolved_config.backend_mode)
     _validate_scalar_type(resolved_config.scalar_type)
+    _validate_python_interface_support(resolved_config)
 
     project_dir = Path(path).expanduser().resolve()
     crate = sanitize_ident(resolved_config.crate_name or functions[0].name)
@@ -748,6 +779,11 @@ def create_multi_function_rust_project(
     lib_rs = src_dir / "lib.rs"
 
     src_dir.mkdir(parents=True, exist_ok=True)
+    generation_config = (
+        replace(resolved_config, enable_python_interface=False)
+        if resolved_config.enable_python_interface
+        else resolved_config
+    )
     shared_helper_nodes = tuple(
         node
         for generated_function in functions
@@ -758,7 +794,7 @@ def create_multi_function_rust_project(
     codegens = tuple(
         generate_rust(
             function,
-            config=resolved_config,
+            config=generation_config,
             function_name=function.name,
             function_index=index,
             shared_helper_nodes=shared_helper_nodes if index == 0 else (),
@@ -793,6 +829,7 @@ def create_multi_function_rust_project(
                 resolved_config.backend_mode,
                 resolved_config.math_library,
             ),
+            enable_python_interface=resolved_config.enable_python_interface,
         ),
         encoding="utf-8",
     )
@@ -806,6 +843,7 @@ def create_multi_function_rust_project(
                 resolved_config.math_library,
             ),
             codegens=codegens,
+            enable_python_interface=resolved_config.enable_python_interface,
         ),
         encoding="utf-8",
     )
@@ -813,7 +851,17 @@ def create_multi_function_rust_project(
         _render_metadata_json(crate, codegens),
         encoding="utf-8",
     )
-    lib_rs.write_text(_render_multi_function_lib(codegens, resolved_config), encoding="utf-8")
+    lib_source = _render_multi_function_lib(codegens, resolved_config)
+    if resolved_config.enable_python_interface:
+        lib_source = f"{lib_source}\n\n{_render_python_interface_source(codegens, crate)}"
+        pyproject = project_dir / "pyproject.toml"
+        pyproject.write_text(
+            _get_template("pyproject.toml.j2").render(
+                crate_name=crate,
+            ),
+            encoding="utf-8",
+        )
+    lib_rs.write_text(lib_source, encoding="utf-8")
     _try_run_cargo_fmt(project_dir)
 
     return RustMultiFunctionProjectResult(
@@ -4934,6 +4982,12 @@ def _validate_crate_name(crate_name: str | None) -> None:
     validate_rust_ident(crate_name, label="crate_name")
 
 
+def _validate_python_interface_support(config: RustBackendConfig) -> None:
+    """Validate that the Python interface settings are internally consistent."""
+    if config.enable_python_interface and config.backend_mode != "std":
+        raise ValueError("enable_python_interface requires backend_mode='std'")
+
+
 def _validate_generated_argument_names(
     input_specs: tuple[_ArgSpec, ...],
     output_specs: tuple[_ArgSpec, ...],
@@ -4985,6 +5039,7 @@ def _resolve_backend_config(
         resolved = resolved.with_scalar_type(scalar_type)
     if math_library is not None:
         resolved = resolved.with_math_lib(math_library)
+    _validate_python_interface_support(resolved)
     return resolved
 
 
@@ -5024,6 +5079,18 @@ def _render_multi_function_lib(
 
     rendered = "\n\n".join(section for section in sections if section)
     return rendered if rendered.endswith("\n") else f"{rendered}\n"
+
+
+def _render_python_interface_source(
+    codegens: tuple[RustCodegenResult, ...],
+    crate_name: str,
+) -> str:
+    """Render the PyO3 Python interface for one or more generated functions."""
+    return _get_template("python_interface.rs.j2").render(
+        codegens=codegens,
+        crate_name=crate_name,
+        scalar_type=codegens[0].scalar_type,
+    ).rstrip()
 
 
 def _private_helper_section_key(section: str) -> str | None:

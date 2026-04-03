@@ -6,10 +6,19 @@ description = "Generated gradgen crate using {{ scalar_type }}"
 
 [lib]
 path = "src/lib.rs"
+{% if enable_python_interface %}
+crate-type = ["cdylib", "rlib"]
+{% endif %}
 {% if backend_mode == "no_std" %}
 
 [dependencies]
 {% if math_library == "libm" %}
 libm = "0.2"
 {% endif %}
+{% endif %}
+{% if enable_python_interface %}
+
+[dependencies.pyo3]
+version = "0.28.2"
+features = ["extension-module"]
 {% endif %}

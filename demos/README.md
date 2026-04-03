@@ -14,6 +14,7 @@ This directory contains runnable end-to-end examples showing how to use
 - [reduce_map](./reduce_map/README.md): map + reduce staged kernels and a loop-preserving fold pipeline
 - [composed_function](./composed_function/README.md): staged compositions with `ComposedFunction` and repeated stages
 - [single_shooting](./single_shooting/README.md): loop-based deterministic single-shooting OCP code generation
+- [python_interface](./python_interface/README.md): generate a Rust crate that can be imported from Python
 
 ## Running all demos
 
