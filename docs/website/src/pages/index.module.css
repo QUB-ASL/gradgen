@@ -8,8 +8,8 @@
   padding: 5rem 0 4rem;
   background:
     radial-gradient(circle at top left, rgba(255, 196, 0, 0.18), transparent 34%),
-    radial-gradient(circle at top right, rgba(51, 173, 255, 0.18), transparent 32%),
-    linear-gradient(180deg, rgba(7, 12, 20, 0.96), rgba(9, 18, 32, 0.98));
+    radial-gradient(circle at top right, rgba(51, 173, 255, 0.12), transparent 32%),
+    linear-gradient(180deg, #f7fbff, #eef4ff);
 }
 
 .hero::after {
@@ -17,7 +17,7 @@
   position: absolute;
   inset: auto -10% -3rem;
   height: 12rem;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  background: linear-gradient(90deg, transparent, rgba(58, 134, 255, 0.08), transparent);
   filter: blur(24px);
   pointer-events: none;
 }
@@ -30,7 +30,7 @@
 }
 
 .heroCopy {
-  color: #eef4ff;
+  color: #10213b;
 }
 
 .kicker {
@@ -40,8 +40,8 @@
   margin-bottom: 1rem;
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #ffd56a;
+  background: rgba(58, 134, 255, 0.08);
+  color: #2457b7;
   font-size: 0.9rem;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -57,7 +57,7 @@
 
 .subtitle {
   margin: 1.1rem 0 0;
-  color: #b7c6e6;
+  color: #304466;
   font-size: 1.15rem;
   line-height: 1.6;
   max-width: 58ch;
@@ -65,7 +65,7 @@
 
 .description {
   margin: 1rem 0 0;
-  color: #d5def0;
+  color: #40567a;
   font-size: 1rem;
   line-height: 1.75;
   max-width: 62ch;
@@ -83,30 +83,30 @@
   flex-wrap: wrap;
   gap: 0.6rem;
   margin-top: 1.4rem;
-  color: #9fb3d9;
+  color: #496288;
   font-size: 0.92rem;
 }
 
 .metaRow span {
   padding: 0.45rem 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(36, 87, 183, 0.12);
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .heroPanel {
   position: relative;
   padding: 1.1rem;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(36, 87, 183, 0.12);
   border-radius: 1.25rem;
-  background: rgba(6, 11, 20, 0.72);
-  box-shadow: 0 24px 90px rgba(0, 0, 0, 0.36);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 24px 90px rgba(36, 87, 183, 0.12);
   backdrop-filter: blur(14px);
 }
 
 .panelLabel {
   margin-bottom: 0.75rem;
-  color: #ffd56a;
+  color: #2457b7;
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -117,8 +117,8 @@
   margin: 0;
   padding: 1rem;
   border-radius: 1rem;
-  background: #0b1424;
-  color: #e7eefb;
+  background: #f4f8ff;
+  color: #183153;
   font-size: 0.92rem;
   line-height: 1.7;
   overflow: auto;
@@ -126,6 +126,7 @@
 
 .features {
   padding: 4rem 0 3rem;
+  background: linear-gradient(180deg, #ffffff, #f9fbff);
 }
 
 .sectionHeading {
@@ -140,7 +141,7 @@
 
 .sectionHeading p {
   margin: 0;
-  color: var(--ifm-color-emphasis-700);
+  color: #42526d;
   font-size: 1.05rem;
   line-height: 1.7;
 }
@@ -168,10 +169,10 @@
 .card {
   position: relative;
   padding: 1.25rem 1.2rem 1.3rem;
-  border: 1px solid var(--ifm-color-emphasis-200);
+  border: 1px solid rgba(36, 87, 183, 0.12);
   border-radius: 1rem;
-  background: var(--ifm-background-surface-color);
-  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+  background: #ffffff;
+  box-shadow: 0 10px 30px rgba(36, 87, 183, 0.08);
 }
 
 .cardAccent {
@@ -189,8 +190,16 @@
 
 .card p {
   margin: 0;
-  color: var(--ifm-color-emphasis-800);
+  color: #42526d;
   line-height: 1.65;
+}
+
+.card:nth-child(2) .cardAccent {
+  background: linear-gradient(90deg, #3a86ff, #8ecae6);
+}
+
+.card:nth-child(3) .cardAccent {
+  background: linear-gradient(90deg, #2a9d8f, #8ecae6);
 }
 
 @media screen and (max-width: 996px) {
