@@ -1,0 +1,374 @@
+use pyo3::exceptions::{PyAttributeError, PyValueError};
+use pyo3::prelude::*;
+use pyo3::types::{PyAnyMethods, PyDict, PyFloat, PyList, PyTuple};
+use std::vec::Vec;
+
+use ::{{ low_level_crate_name }} as gradgen_low_level;
+
+#[pyclass]
+struct Workspace {
+    function_name: &'static str,
+    values: Vec<{{ scalar_type }}>,
+}
+
+#[pymethods]
+impl Workspace {
+    #[getter]
+    fn function_name(&self) -> &str {
+        self.function_name
+    }
+
+    fn __len__(&self) -> usize {
+        self.values.len()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Workspace(function_name={:?}, size={})",
+            self.function_name,
+            self.values.len()
+        )
+    }
+}
+
+fn pyerr_from_gradgen_error(error: gradgen_low_level::GradgenError) -> PyErr {
+    match error {
+        gradgen_low_level::GradgenError::WorkspaceTooSmall(message)
+        | gradgen_low_level::GradgenError::InputTooSmall(message)
+        | gradgen_low_level::GradgenError::OutputTooSmall(message) => {
+            PyValueError::new_err(message)
+        }
+    }
+}
+
+fn build_function_info(
+    py: Python<'_>,
+    python_name: &str,
+    metadata: gradgen_low_level::FunctionMetadata,
+) -> PyResult<Py<PyAny>> {
+    let info = PyDict::new(py);
+    info.set_item("name", python_name)?;
+    info.set_item("rust_name", metadata.function_name)?;
+    info.set_item("workspace_size", metadata.workspace_size)?;
+    info.set_item(
+        "input_names",
+        PyList::new(py, metadata.input_names.iter().copied())?,
+    )?;
+    info.set_item(
+        "input_sizes",
+        PyList::new(py, metadata.input_sizes.iter().copied())?,
+    )?;
+    info.set_item(
+        "output_names",
+        PyList::new(py, metadata.output_names.iter().copied())?,
+    )?;
+    info.set_item(
+        "output_sizes",
+        PyList::new(py, metadata.output_sizes.iter().copied())?,
+    )?;
+    Ok(info.into_any().unbind())
+}
+
+fn extract_values(
+    obj: &Bound<'_, PyAny>,
+    expected_size: usize,
+    label: &str,
+) -> PyResult<Vec<{{ scalar_type }}>> {
+    if expected_size == 0 {
+        return Ok(Vec::new());
+    }
+
+    if expected_size == 1 {
+        if let Ok(value) = obj.extract::<f64>() {
+{% if scalar_type == "f64" %}
+            return Ok(std::iter::once(value).collect());
+{% else %}
+            return Ok(std::iter::once(value as {{ scalar_type }}).collect());
+{% endif %}
+        }
+    }
+
+    let values: Vec<f64> = obj.extract()?;
+    if values.len() != expected_size {
+        return Err(PyValueError::new_err(format!(
+            "{label} expected length {expected_size}"
+        )));
+    }
+{% if scalar_type == "f64" %}
+    Ok(values.into_iter().collect())
+{% else %}
+    Ok(values.into_iter().map(|value| value as {{ scalar_type }}).collect())
+{% endif %}
+}
+
+fn wrap_output(py: Python<'_>, values: &[{{ scalar_type }}]) -> PyResult<Py<PyAny>> {
+    if values.len() == 1 {
+{% if scalar_type == "f64" %}
+        return Ok(PyFloat::new(py, values[0]).into_any().unbind());
+{% else %}
+        return Ok(PyFloat::new(py, values[0] as f64).into_any().unbind());
+{% endif %}
+    }
+
+{% if scalar_type == "f64" %}
+    Ok(PyList::new(py, values.iter().copied())?.into_any().unbind())
+{% else %}
+    Ok(PyList::new(py, values.iter().copied().map(|value| value as f64))?
+        .into_any()
+        .unbind())
+{% endif %}
+}
+
+fn all_functions_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    Ok(PyList::new(
+        py,
+        [
+{% for codegen in codegens %}
+            "{{ codegen.python_name }}",
+{% endfor %}
+        ],
+    )?
+    .into_any()
+    .unbind())
+}
+
+fn module_all_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    Ok(PyList::new(
+        py,
+        [
+            "__version__",
+            "Workspace",
+            "all_functions",
+            "function_info",
+            "workspace_for_function",
+            "call",
+{% for codegen in codegens %}
+            "{{ codegen.python_name }}",
+{% endfor %}
+        ],
+    )?
+    .into_any()
+    .unbind())
+}
+
+#[pyfunction(name = "__getattr__")]
+fn module_getattr(name: &str) -> PyResult<String> {
+    match name {
+        "__version__" => Ok("{{ project_version }}".to_string()),
+        _ => Err(PyAttributeError::new_err(format!(
+            "module has no attribute {name:?}"
+        ))),
+    }
+}
+
+fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<Workspace>> {
+    match function_name {
+{% for codegen in codegens %}
+{% if codegen.python_name == codegen.function_name %}
+        "{{ codegen.python_name }}" => {
+{% else %}
+        "{{ codegen.python_name }}" | "{{ codegen.function_name }}" => {
+{% endif %}
+            let mut values = Vec::with_capacity({{ codegen.workspace_size }});
+            values.resize({{ codegen.workspace_size }}, 0.0_{{ scalar_type }});
+            Py::new(
+                py,
+                Workspace {
+                    function_name: "{{ codegen.python_name }}",
+                    values,
+                },
+            )
+        }
+{% endfor %}
+        _ => Err(PyValueError::new_err(format!(
+            "unknown generated function {function_name:?}"
+        ))),
+    }
+}
+
+fn function_info_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
+    match function_name {
+{% for codegen in codegens %}
+{% if codegen.python_name == codegen.function_name %}
+        "{{ codegen.python_name }}" => {
+{% else %}
+        "{{ codegen.python_name }}" | "{{ codegen.function_name }}" => {
+{% endif %}
+            let metadata = gradgen_low_level::{{ codegen.function_name }}_meta();
+            build_function_info(py, "{{ codegen.python_name }}", metadata)
+        }
+{% endfor %}
+        _ => Err(PyValueError::new_err(format!(
+            "unknown generated function {function_name:?}"
+        ))),
+    }
+}
+
+fn call_impl(
+    py: Python<'_>,
+    function_name: &str,
+    inputs: &Bound<'_, PyTuple>,
+) -> PyResult<Py<PyAny>> {
+    match function_name {
+{% for codegen in codegens %}
+{% if codegen.python_name == codegen.function_name %}
+        "{{ codegen.python_name }}" => call_{{ codegen.function_name }}_from_tuple_impl(py, inputs),
+{% else %}
+        "{{ codegen.python_name }}" | "{{ codegen.function_name }}" => {
+            call_{{ codegen.function_name }}_from_tuple_impl(py, inputs)
+        }
+{% endif %}
+{% endfor %}
+        _ => Err(PyValueError::new_err(format!(
+            "unknown generated function {function_name:?}"
+        ))),
+    }
+}
+
+{% for codegen in codegens %}
+fn call_{{ codegen.function_name }}_impl(
+    py: Python<'_>,
+{% for input_index in range(codegen.input_names|length) %}
+    input_{{ input_index }}: Vec<{{ scalar_type }}>,
+{% endfor %}
+    mut workspace: PyRefMut<'_, Workspace>,
+) -> PyResult<Py<PyAny>> {
+    let metadata = gradgen_low_level::{{ codegen.function_name }}_meta();
+    if workspace.function_name != "{{ codegen.python_name }}" && workspace.function_name != metadata.function_name {
+        return Err(PyValueError::new_err(format!(
+            "workspace_for_function({:?}) must be used with {}",
+            workspace.function_name, "{{ codegen.python_name }}"
+        )));
+    }
+    if workspace.values.len() < metadata.workspace_size {
+        return Err(PyValueError::new_err(format!(
+            "workspace expected at least {}",
+            metadata.workspace_size
+        )));
+    }
+
+{% for output_index in range(codegen.output_names|length) %}
+    let mut output_{{ output_index }} = [0.0_{{ scalar_type }}; {{ codegen.output_sizes[output_index] }}];
+{% endfor %}
+
+    gradgen_low_level::{{ codegen.function_name }}(
+{% for input_index in range(codegen.input_names|length) %}
+        &input_{{ input_index }}[..],
+{% endfor %}
+{% for output_index in range(codegen.output_names|length) %}
+        &mut output_{{ output_index }}[..],
+{% endfor %}
+        workspace.values.as_mut_slice(),
+    )
+    .map_err(pyerr_from_gradgen_error)?;
+
+    let result = PyDict::new(py);
+{% if codegen.output_names|length == 1 %}
+    result.set_item(
+        metadata.output_names[0],
+        wrap_output(py, &output_0)?,
+    )?;
+    Ok(result.into_any().unbind())
+{% else %}
+{% for output_index in range(codegen.output_names|length) %}
+    result.set_item(
+        metadata.output_names[{{ output_index }}],
+        wrap_output(py, &output_{{ output_index }})?,
+    )?;
+{% endfor %}
+    Ok(result.into_any().unbind())
+{% endif %}
+}
+
+fn call_{{ codegen.function_name }}_from_tuple_impl(
+    py: Python<'_>,
+    inputs: &Bound<'_, PyTuple>,
+) -> PyResult<Py<PyAny>> {
+    let metadata = gradgen_low_level::{{ codegen.function_name }}_meta();
+    let expected_arg_count = metadata.input_sizes.len() + 1;
+    if inputs.len() != expected_arg_count {
+        return Err(PyValueError::new_err(format!(
+            "{{ codegen.python_name }} expected {expected_arg_count} arguments including workspace"
+        )));
+    }
+
+{% for input_index in range(codegen.input_names|length) %}
+    let input_{{ input_index }} = extract_values(
+        &inputs.get_item({{ input_index }})?,
+        metadata.input_sizes[{{ input_index }}],
+        metadata.input_names[{{ input_index }}],
+    )?;
+{% endfor %}
+
+    let workspace = inputs
+        .get_item({{ codegen.input_names|length }})?
+        .extract::<PyRefMut<'_, Workspace>>()?;
+    call_{{ codegen.function_name }}_impl(
+        py,
+{% for input_index in range(codegen.input_names|length) %}
+        input_{{ input_index }},
+{% endfor %}
+        workspace,
+    )
+}
+
+#[pyfunction(name = "{{ codegen.python_name }}")]
+fn py_{{ codegen.function_name }}(
+    py: Python<'_>,
+{% for input_index in range(codegen.input_names|length) %}
+    arg_{{ input_index }}: &Bound<'_, PyAny>,
+{% endfor %}
+    workspace: PyRefMut<'_, Workspace>,
+) -> PyResult<Py<PyAny>> {
+{% for input_index in range(codegen.input_names|length) %}
+    let input_{{ input_index }} = extract_values(
+        arg_{{ input_index }},
+        {{ codegen.input_sizes[input_index] }},
+        "{{ codegen.input_names[input_index] }}",
+    )?;
+{% endfor %}
+    call_{{ codegen.function_name }}_impl(
+        py,
+{% for input_index in range(codegen.input_names|length) %}
+        input_{{ input_index }},
+{% endfor %}
+        workspace,
+    )
+}
+
+{% endfor %}
+#[pyfunction]
+fn all_functions(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    all_functions_impl(py)
+}
+
+#[pyfunction]
+fn workspace_for_function(py: Python<'_>, function_name: &str) -> PyResult<Py<Workspace>> {
+    workspace_for_function_impl(py, function_name)
+}
+
+#[pyfunction]
+fn function_info(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
+    function_info_impl(py, function_name)
+}
+
+#[pyfunction(signature = (function_name, *inputs))]
+fn call(py: Python<'_>, function_name: &str, inputs: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny>> {
+    call_impl(py, function_name, inputs)
+}
+
+#[pymodule]
+#[pyo3(name = "{{ module_name }}")]
+fn gradgen_python_interface(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<Workspace>()?;
+    m.add_function(wrap_pyfunction!(all_functions, m)?)?;
+    m.add_function(wrap_pyfunction!(function_info, m)?)?;
+    m.add_function(wrap_pyfunction!(module_getattr, m)?)?;
+    m.add_function(wrap_pyfunction!(workspace_for_function, m)?)?;
+    m.add_function(wrap_pyfunction!(call, m)?)?;
+{% for codegen in codegens %}
+    m.add_function(wrap_pyfunction!(py_{{ codegen.function_name }}, m)?)?;
+{% endfor %}
+    m.dict().set_item("__all__", module_all_impl(_py)?)?;
+    Ok(())
+}

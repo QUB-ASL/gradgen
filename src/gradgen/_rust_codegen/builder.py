@@ -179,22 +179,49 @@ class CodeGenerationBuilder:
             ),
         )
 
-    def build(self, path: str | Path):
-        """Generate a single Rust crate containing all requested kernels."""
+    def build(self, path: str | Path = "."):
+        """Generate a single Rust crate inside ``path``.
+
+        The argument is treated as the parent directory that will contain the
+        generated crate. The crate directory itself is named from
+        ``with_crate_name(...)`` when provided, or otherwise from the first
+        generated source function.
+        """
         from ..rust_codegen import RustBackendConfig, create_multi_function_rust_project
 
         resolved_config = self.config or RustBackendConfig()
-        if resolved_config.crate_name is None:
-            resolved_config = resolved_config.with_crate_name(
-                sanitize_ident(Path(path).expanduser().resolve().name)
-            )
+        raw_path = Path(path).expanduser()
+        if resolved_config.crate_name is not None:
+            crate_name = sanitize_ident(resolved_config.crate_name)
+        else:
+            if raw_path != Path("."):
+                crate_name = sanitize_ident(raw_path.name)
+                resolved_config = resolved_config.with_crate_name(crate_name)
+            else:
+                crate_name = None
         functions = resolve_builder_function_specs(
             self._resolved_function_specs(),
             resolved_config,
         )
+        if crate_name is None:
+            crate_name = sanitize_ident(functions[0].name)
+            resolved_config = resolved_config.with_crate_name(crate_name)
+            functions = resolve_builder_function_specs(
+                self._resolved_function_specs(),
+                resolved_config,
+            )
+        if raw_path == Path("."):
+            project_dir = raw_path.resolve() / crate_name
+        else:
+            resolved_path = raw_path.resolve()
+            project_dir = (
+                resolved_path
+                if resolved_path.name == crate_name
+                else resolved_path / crate_name
+            )
         return create_multi_function_rust_project(
             functions,
-            path,
+            project_dir,
             config=resolved_config,
         )
 

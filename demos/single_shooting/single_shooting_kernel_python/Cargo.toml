@@ -1,0 +1,16 @@
+[package]
+name = "single_shooting_kernel_python"
+version = "0.1.0"
+edition = "2021"
+description = "Generated gradgen Python wrapper for single_shooting_kernel"
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+single_shooting_kernel = { path = "../single_shooting_kernel" }
+
+[dependencies.pyo3]
+version = "0.28.2"
+features = ["extension-module"]

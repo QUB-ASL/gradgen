@@ -1,5 +1,5 @@
 ---
-sidebar_position: 5
+sidebar_position: 6
 ---
 
 # Optimal control
@@ -116,7 +116,7 @@ builder = (
         .done()
 )
 
-project = builder.build("./single_shooting_kernel")
+project = builder.build("./my_crates")
 ```
 
 The generated Rust uses forward and backward `for` loops over the horizon

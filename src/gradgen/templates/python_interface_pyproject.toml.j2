@@ -1,0 +1,12 @@
+[build-system]
+requires = ["maturin>=1.8,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "{{ crate_name }}"
+version = "{{ project_version }}"
+description = "Generated gradgen Python wrapper for {{ low_level_crate_name }}"
+requires-python = ">=3.11"
+
+[tool.maturin]
+module-name = "{{ module_name }}"

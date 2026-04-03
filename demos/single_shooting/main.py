@@ -104,6 +104,7 @@ backend_config = (
     .with_backend_mode("no_std")
     .with_scalar_type("f64")
     .with_crate_name("single_shooting_kernel")
+    .with_enable_python_interface()
 )
 
 print("Building project...")
@@ -122,7 +123,7 @@ project = (
         )
         .with_simplification("medium")
         .done()
-    .build(Path(__file__).resolve().parent / "single_shooting_kernel")
+    .build(Path(__file__).resolve().parent)
 )
 print("Building project done!")
 

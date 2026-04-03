@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+import contextlib
 import subprocess
 import re
 import unittest
@@ -8,6 +9,8 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 import multiprocessing
 import traceback
+import sys
+import venv
 
 import gradgen.rust_codegen as rust_codegen_module
 import gradgen.single_shooting as single_shooting_module
@@ -53,6 +56,12 @@ class RustCodegenTests(unittest.TestCase):
     @classmethod
     def _run_cargo_clippy_clean(cls, project_dir: Path) -> subprocess.CompletedProcess[str]:
         return cls._run_cargo(project_dir, "clippy", "--quiet", "--", "-D", "warnings")
+
+    @staticmethod
+    def _venv_python(venv_dir: Path) -> Path:
+        if sys.platform == "win32":
+            return venv_dir / "Scripts" / "python.exe"
+        return venv_dir / "bin" / "python"
 
     @staticmethod
     def _append_rust_test(project_dir: Path, test_source: str) -> None:
@@ -902,6 +911,8 @@ mod single_shooting_multi_u_tests {{
             .with_crate_name("my_kernel")
             .with_function_name("eval_kernel")
             .with_emit_metadata_helpers(False)
+            .with_enable_python_interface(False)
+            .with_build_python_interface(False)
         )
 
         self.assertEqual(config.backend_mode, "no_std")
@@ -910,6 +921,372 @@ mod single_shooting_multi_u_tests {{
         self.assertEqual(config.crate_name, "my_kernel")
         self.assertEqual(config.function_name, "eval_kernel")
         self.assertFalse(config.emit_metadata_helpers)
+        self.assertFalse(config.enable_python_interface)
+        self.assertFalse(config.build_python_interface)
+
+    def test_backend_config_defaults_to_building_python_interface(self) -> None:
+        config = RustBackendConfig()
+
+        self.assertTrue(config.build_python_interface)
+
+    def test_backend_config_can_enable_python_interface(self) -> None:
+        config = RustBackendConfig().with_enable_python_interface(True)
+
+        self.assertTrue(config.enable_python_interface)
+
+    def test_backend_config_can_disable_python_interface_build(self) -> None:
+        config = RustBackendConfig().with_build_python_interface(False)
+
+        self.assertFalse(config.build_python_interface)
+
+    def test_backend_config_defaults_to_not_building_crate(self) -> None:
+        config = RustBackendConfig()
+
+        self.assertFalse(config.build_crate)
+
+    def test_backend_config_can_enable_crate_build(self) -> None:
+        config = RustBackendConfig().with_build_crate(True)
+
+        self.assertTrue(config.build_crate)
+
+    def test_backend_config_allows_python_interface_with_no_std(self) -> None:
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_enable_python_interface(True)
+        )
+
+        self.assertEqual(config.backend_mode, "no_std")
+        self.assertTrue(config.enable_python_interface)
+
+    def test_create_rust_project_with_python_interface_writes_python_scaffolding(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = RustBackendConfig().with_enable_python_interface(True)
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+            cargo_text = project.cargo_toml.read_text(encoding="utf-8")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            readme_text = project.readme.read_text(encoding="utf-8")
+            wrapper = project.python_interface
+
+            self.assertIsNotNone(wrapper)
+            assert wrapper is not None
+
+            wrapper_cargo = wrapper.cargo_toml.read_text(encoding="utf-8")
+            wrapper_lib = wrapper.lib_rs.read_text(encoding="utf-8")
+            wrapper_pyproject = wrapper.pyproject.read_text(encoding="utf-8")
+            wrapper_readme = wrapper.readme.read_text(encoding="utf-8")
+
+            self.assertNotIn("[dependencies.pyo3]", cargo_text)
+            self.assertNotIn('crate-type = ["cdylib", "rlib"]', cargo_text)
+            self.assertFalse((project.project_dir / "pyproject.toml").exists())
+            self.assertIn("This crate stays pure Rust", readme_text)
+            self.assertIn("separate PyO3 wrapper crate", readme_text)
+            self.assertIn("cargo build", readme_text)
+            self.assertIn("[dependencies.pyo3]", wrapper_cargo)
+            self.assertIn('version = "0.28.2"', wrapper_cargo)
+            self.assertIn("energy = { path = \"../energy_kernel\" }", wrapper_cargo)
+            self.assertIn('crate-type = ["cdylib", "rlib"]', wrapper_cargo)
+            self.assertIn("#[pyclass]", wrapper_lib)
+            self.assertIn("struct Workspace", wrapper_lib)
+            self.assertIn("all_functions", wrapper_lib)
+            self.assertIn("function_info", wrapper_lib)
+            self.assertIn("#[pymodule]", wrapper_lib)
+            self.assertIn("workspace_for_function", wrapper_lib)
+            self.assertIn("call(", wrapper_lib)
+            self.assertIn('#[pyfunction(name = "energy"', wrapper_lib)
+            self.assertIn("pyerr_from_gradgen_error", wrapper_lib)
+            self.assertIn("PyValueError::new_err", wrapper_lib)
+            self.assertIn("cost", lib_text)
+            self.assertIn("state", lib_text)
+            self.assertIn("maturin", wrapper_pyproject)
+            self.assertIn('module-name = "energy"', wrapper_pyproject)
+            self.assertIn('version = "0.1.0"', wrapper_pyproject)
+            self.assertIn("Python Interface Wrapper", wrapper_readme)
+            self.assertIn("__version__", wrapper_lib)
+            self.assertIn("__all__", wrapper_lib)
+            self.assertIn("__getattr__", wrapper_lib)
+
+    def test_create_rust_project_bumps_python_interface_version_on_regeneration(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = (
+            RustBackendConfig()
+            .with_crate_name("blah")
+            .with_enable_python_interface(True)
+            .with_build_python_interface(False)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project_dir = Path(tmpdir) / "energy_kernel"
+
+            first_project = create_rust_project(f, project_dir, config=config)
+            first_wrapper = first_project.python_interface
+            assert first_wrapper is not None
+            first_pyproject = first_wrapper.pyproject.read_text(encoding="utf-8")
+
+            second_project = create_rust_project(f, project_dir, config=config)
+            second_wrapper = second_project.python_interface
+            assert second_wrapper is not None
+            second_pyproject = second_wrapper.pyproject.read_text(encoding="utf-8")
+
+            self.assertIn('version = "0.1.0"', first_pyproject)
+            self.assertIn('version = "0.2.0"', second_pyproject)
+
+    def test_create_rust_project_can_build_generated_crate(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = RustBackendConfig().with_build_crate(True)
+
+        with TemporaryDirectory() as tmpdir, patch.object(
+            rust_codegen_module,
+            "_run_cargo_build",
+        ) as run_cargo_build:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+
+            self.assertIsNotNone(project)
+            run_cargo_build.assert_called_once_with(Path(tmpdir).resolve() / "energy_kernel")
+
+    def test_create_rust_project_raises_when_cargo_missing_for_build(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir, patch.object(
+            rust_codegen_module.shutil,
+            "which",
+            return_value=None,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "cargo is required to build"):
+                create_rust_project(
+                    f,
+                    Path(tmpdir) / "energy_kernel",
+                    config=RustBackendConfig().with_build_crate(True),
+                )
+
+    def test_create_rust_project_with_python_interface_builds(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = RustBackendConfig().with_enable_python_interface(True)
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+            completed = self._run_cargo(project.project_dir, "check")
+            self.assertEqual(completed.returncode, 0)
+            self.assertIsNotNone(project.python_interface)
+            wrapper = project.python_interface
+            assert wrapper is not None
+            completed_wrapper = self._run_cargo(wrapper.project_dir, "check")
+            self.assertEqual(completed_wrapper.returncode, 0)
+
+    def test_create_rust_project_can_skip_python_interface_build(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = (
+            RustBackendConfig()
+            .with_enable_python_interface(True)
+            .with_build_python_interface(False)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+            self.assertIsNotNone(project.python_interface)
+            assert project.python_interface is not None
+            self.assertTrue(project.python_interface.project_dir.is_dir())
+
+    def test_builder_build_uses_parent_directory_and_crate_name(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("abc"))
+            .for_function(f)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "my_crates")
+            root = Path(tmpdir).resolve()
+            self.assertEqual(project.project_dir, root / "my_crates" / "abc")
+
+    def test_builder_build_defaults_to_current_directory(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("abc"))
+            .for_function(f)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir, contextlib.chdir(tmpdir):
+            project = builder.build()
+            self.assertEqual(project.project_dir, Path(tmpdir).resolve() / "abc")
+
+    def test_builder_build_can_build_generated_crate(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("abc").with_build_crate(True))
+            .for_function(f)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir, patch.object(
+            rust_codegen_module,
+            "_run_cargo_build",
+        ) as run_cargo_build:
+            builder.build(Path(tmpdir) / "my_crates")
+            run_cargo_build.assert_called_once_with(Path(tmpdir).resolve() / "my_crates" / "abc")
+
+    def test_create_rust_project_with_python_interface_is_immediately_importable(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = (
+            RustBackendConfig()
+            .with_crate_name("immediate_import_demo")
+            .with_enable_python_interface(True)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+            assert project.python_interface is not None
+
+            scratch_dir = Path(tmpdir) / "scratch"
+            scratch_dir.mkdir()
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import immediate_import_demo\n"
+                        "print(immediate_import_demo.__version__)\n"
+                        "print(immediate_import_demo.__all__)\n"
+                        "print(immediate_import_demo.all_functions())\n"
+                    ),
+                ],
+                cwd=scratch_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertIn("0.1.0", completed.stdout)
+            self.assertIn("__version__", completed.stdout)
+            self.assertIn("Workspace", completed.stdout)
+            self.assertIn("all_functions", completed.stdout)
+            self.assertIn("energy", completed.stdout)
+
+    def test_single_output_python_interface_returns_dictionary(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "magic",
+            [x, w],
+            [x.sin().norm2sq() * w[0]],
+            input_names=["x", "w"],
+            output_names=["a"],
+        )
+
+        config = (
+            RustBackendConfig()
+            .with_crate_name("blah")
+            .with_enable_python_interface(True)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "magic_kernel", config=config)
+            self._run_cargo(project.project_dir, "check")
+
+            assert project.python_interface is not None
+            wrapper = project.python_interface
+            self._run_cargo(wrapper.project_dir, "check")
+
+            venv_dir = Path(tmpdir) / "venv"
+            venv.EnvBuilder(with_pip=True).create(venv_dir)
+            python_bin = self._venv_python(venv_dir)
+
+            subprocess.run(
+                [str(python_bin), "-m", "pip", "install", "-e", str(wrapper.project_dir)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            completed = subprocess.run(
+                [
+                    str(python_bin),
+                    "-c",
+                    (
+                        "import blah\n"
+                        "ws = blah.workspace_for_function('magic')\n"
+                        "result = blah.magic([1.0, 2.0], [5.0], ws)\n"
+                        "print(result)\n"
+                    ),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertIn("'a':", completed.stdout)
 
     def test_function_bundle_supports_chainable_updates(self) -> None:
         bundle = (

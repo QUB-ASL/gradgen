@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- Added an optional PyO3-based Python interface for generated Rust crates via
+  `RustBackendConfig().with_enable_python_interface(True)`, now emitted as a
+  separate sibling wrapper crate so the low-level generated crate can stay
+  pure Rust and `no_std`-friendly. The wrapper includes generated
+  `workspace_for_function(...)` and `call(...)` helpers, plus module-level
+  `__version__` and `__all__` metadata. By default the wrapper is compiled
+  immediately with the same Python interpreter that ran the generator.
+- The generated Python wrapper now manages its own `pyproject.toml` version:
+  first generation starts at `0.1.0`, and regenerating the same interface
+  bumps the minor version to `0.2.0`, `0.3.0`, and so on. The Cargo crate
+  version is unchanged.
+- Added a new `demos/python_interface` demo and runner showing how to generate
+  a Rust crate that can be installed and imported from Python.
 - Added deterministic single-shooting optimal-control support through
   `SingleShootingProblem` and `SingleShootingBundle`.
 - Added loop-based Rust code generation for fixed-horizon single-shooting
@@ -25,7 +38,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Important: implement and tested `map` and `zip`; introduced two new demos
   to demonstrate how to use them.
 - For instances of `SXVector`, the operation `x**a` applies the power element-wise.
-- Created project website using Docusaurus v3. Added user-friendly documentation.
+- Created project website using Docusaurus v3. Added user-friendly documentation and
+  links to Google Colab Python notebooks.
+- Added `AGENTS.md` with detailed instructions for agents.
 
 ### Changed
 
@@ -37,12 +52,24 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Updated the preferred multi-function `CodeGenerationBuilder` API to use a
   scoped `.for_function(...).add_*().done()` flow instead of the older
   callback-based configuration style.
+- Changed `CodeGenerationBuilder.build()` so its argument is treated as the
+  parent directory for the generated crate. For example,
+  `.build("./my_crates")` with `with_crate_name("abc")` now writes the crate
+  to `./my_crates/abc` and the Python wrapper to `./my_crates/abc_python`,
+  while `.build()` defaults to `./<crate_name>`.
+- Added `RustBackendConfig().with_build_crate()` to run `cargo build` on
+  the generated low-level Rust crate after it is written to disk. The default
+  remains off, and generation raises an informative error if `cargo` is not
+  available when this option is enabled.
 - Kept backward compatibility for the older callback-based
   `for_function(function, lambda b: ...)` form.
 - Updated the tests, demos, README examples, and demo documentation to use the
   new scoped builder API.
 - Updated CI and demo tooling so the single-shooting demo is generated and run
   alongside the other demos.
+- Split the Python-interface demo output into a low-level crate and a separate
+  `foo_python` wrapper crate, and updated the demo runner to install the
+  wrapper rather than the kernel crate directly.
 - Expanded the single-shooting test coverage with additional scalar, horizon-1,
   multi-control, integration, and generated-Rust runtime checks.
 - Updated the single-shooting demo and runner to generate and execute the new
@@ -68,6 +95,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   be `None`
 
 ## 0.3.1 - 29-03-2026
+
+Link: https://pypi.org/project/gradgen/0.3.1/ 
 
 ### Fixed
 

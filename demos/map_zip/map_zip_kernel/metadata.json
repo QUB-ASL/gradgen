@@ -1,7 +1,7 @@
 {
   "crate_name": "map_zip_kernel",
-  "created_at": "2026-03-31T15:50:46.218636Z",
-  "gradgen_version": "0.3.2a2",
+  "created_at": "2026-04-03T13:18:13.766799Z",
+  "gradgen_version": "0.4.0a5",
   "functions": [
     {
       "function_name": "map_zip_kernel_unary_map_f",

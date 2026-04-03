@@ -111,7 +111,7 @@ project = (
     .add_gradient()
     .with_simplification("medium")
     .done()
-    .build(Path(__file__).resolve().parent / "composed_kernel")
+    .build(Path(__file__).resolve().parent)
 )
 
 print("Generated Rust crate:", project.project_dir)

@@ -5,12 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as package_version
+import os
 import json
 import logging
+import tomllib
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -71,6 +74,9 @@ class RustBackendConfig:
     crate_name: str | None = None
     function_name: str | None = None
     emit_metadata_helpers: bool = True
+    enable_python_interface: bool = False
+    build_python_interface: bool = True
+    build_crate: bool = False
 
     def with_backend_mode(self, backend_mode: RustBackendMode) -> RustBackendConfig:
         """Return a copy with a different Rust backend mode.
@@ -121,12 +127,42 @@ class RustBackendConfig:
         """
         return replace(self, emit_metadata_helpers=emit_metadata_helpers)
 
+    def with_enable_python_interface(self, enable_python_interface: bool = True) -> RustBackendConfig:
+        """Return a copy with optional PyO3-based Python bindings enabled.
+
+        When enabled, generated Rust projects include a separate Python wrapper
+        crate that depends on the low-level Rust crate. This keeps the low-level
+        crate usable on its own, including in ``no_std`` environments.
+        """
+        return replace(self, enable_python_interface=enable_python_interface)
+
+    def with_build_python_interface(self, build_python_interface: bool = True) -> RustBackendConfig:
+        """Return a copy with Python wrapper compilation enabled or disabled.
+
+        When enabled, Gradgen will build and install the generated Python
+        wrapper into the active interpreter environment after emitting the
+        wrapper crate.
+        """
+        return replace(self, build_python_interface=build_python_interface)
+
+    def with_build_crate(self, build_crate: bool = True) -> RustBackendConfig:
+        """Return a copy with low-level crate compilation enabled or disabled.
+
+        When enabled, Gradgen will run ``cargo build`` for the generated Rust
+        crate after writing it to disk. If ``cargo`` is not available, project
+        generation raises a ``RuntimeError`` with an informative message. The
+        default is disabled so code generation remains a write-only step unless
+        users explicitly opt into compilation.
+        """
+        return replace(self, build_crate=build_crate)
+
 
 @dataclass(frozen=True, slots=True)
 class RustCodegenResult:
     """Generated Rust source and metadata for a symbolic function."""
 
     source: str
+    python_name: str
     function_name: str
     workspace_size: int
     input_names: tuple[str, ...]
@@ -139,6 +175,19 @@ class RustCodegenResult:
 
 
 @dataclass(frozen=True, slots=True)
+class RustPythonInterfaceProjectResult:
+    """Information about a generated Python wrapper crate."""
+
+    project_dir: Path
+    cargo_toml: Path
+    pyproject: Path
+    readme: Path
+    lib_rs: Path
+    module_name: str
+    low_level_crate_name: str
+
+
+@dataclass(frozen=True, slots=True)
 class RustProjectResult:
     """Information about a generated Rust project on disk."""
 
@@ -148,6 +197,7 @@ class RustProjectResult:
     metadata_json: Path
     lib_rs: Path
     codegen: RustCodegenResult
+    python_interface: RustPythonInterfaceProjectResult | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -170,6 +220,7 @@ class RustMultiFunctionProjectResult:
     metadata_json: Path
     lib_rs: Path
     codegens: tuple[RustCodegenResult, ...]
+    python_interface: RustPythonInterfaceProjectResult | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -583,8 +634,12 @@ def generate_rust(
         ),
     ).rstrip()
 
-    return RustCodegenResult(
+    codegen = RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(
+            name,
+            resolved_config.crate_name,
+        ),
         function_name=name,
         workspace_size=workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -595,6 +650,7 @@ def generate_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
     )
+    return codegen
 
 
 def create_rust_project(
@@ -650,6 +706,10 @@ def create_rust_project(
             backend_mode=resolved_config.backend_mode,
             scalar_type=resolved_config.scalar_type,
             math_library=codegen.math_library,
+            enable_python_interface=resolved_config.enable_python_interface,
+            python_interface_project_name=(
+                f"{crate}_python" if resolved_config.enable_python_interface else None
+            ),
         ),
         encoding="utf-8",
     )
@@ -658,6 +718,19 @@ def create_rust_project(
         encoding="utf-8",
     )
     lib_rs.write_text(codegen.source, encoding="utf-8")
+    stale_pyproject = project_dir / "pyproject.toml"
+    if stale_pyproject.exists():
+        stale_pyproject.unlink()
+    if resolved_config.build_crate:
+        _run_cargo_build(project_dir)
+    python_interface = None
+    if resolved_config.enable_python_interface:
+        python_interface = _create_python_interface_project(
+            low_level_project_dir=project_dir,
+            low_level_crate_name=crate,
+            codegens=(codegen,),
+            build_python_interface=resolved_config.build_python_interface,
+        )
     _try_run_cargo_fmt(project_dir)
 
     return RustProjectResult(
@@ -667,6 +740,7 @@ def create_rust_project(
         metadata_json=metadata_json,
         lib_rs=lib_rs,
         codegen=codegen,
+        python_interface=python_interface,
     )
 
 
@@ -748,6 +822,11 @@ def create_multi_function_rust_project(
     lib_rs = src_dir / "lib.rs"
 
     src_dir.mkdir(parents=True, exist_ok=True)
+    generation_config = (
+        replace(resolved_config, enable_python_interface=False)
+        if resolved_config.enable_python_interface
+        else resolved_config
+    )
     shared_helper_nodes = tuple(
         node
         for generated_function in functions
@@ -758,7 +837,7 @@ def create_multi_function_rust_project(
     codegens = tuple(
         generate_rust(
             function,
-            config=resolved_config,
+            config=generation_config,
             function_name=function.name,
             function_index=index,
             shared_helper_nodes=shared_helper_nodes if index == 0 else (),
@@ -806,6 +885,10 @@ def create_multi_function_rust_project(
                 resolved_config.math_library,
             ),
             codegens=codegens,
+            enable_python_interface=resolved_config.enable_python_interface,
+            python_interface_project_name=(
+                f"{crate}_python" if resolved_config.enable_python_interface else None
+            ),
         ),
         encoding="utf-8",
     )
@@ -813,7 +896,21 @@ def create_multi_function_rust_project(
         _render_metadata_json(crate, codegens),
         encoding="utf-8",
     )
-    lib_rs.write_text(_render_multi_function_lib(codegens, resolved_config), encoding="utf-8")
+    lib_source = _render_multi_function_lib(codegens, resolved_config)
+    lib_rs.write_text(lib_source, encoding="utf-8")
+    stale_pyproject = project_dir / "pyproject.toml"
+    if stale_pyproject.exists():
+        stale_pyproject.unlink()
+    if resolved_config.build_crate:
+        _run_cargo_build(project_dir)
+    python_interface = None
+    if resolved_config.enable_python_interface:
+        python_interface = _create_python_interface_project(
+            low_level_project_dir=project_dir,
+            low_level_crate_name=crate,
+            codegens=codegens,
+            build_python_interface=resolved_config.build_python_interface,
+        )
     _try_run_cargo_fmt(project_dir)
 
     return RustMultiFunctionProjectResult(
@@ -823,6 +920,7 @@ def create_multi_function_rust_project(
         metadata_json=metadata_json,
         lib_rs=lib_rs,
         codegens=codegens,
+        python_interface=python_interface,
     )
 
 
@@ -854,6 +952,98 @@ def _try_run_cargo_fmt(project_dir: Path) -> None:
             project_dir,
             f": {details}" if details else ".",
         )
+
+
+def _run_python_interface_build(project_dir: Path) -> None:
+    """Install a generated Python wrapper crate into the active Python environment."""
+    if shutil.which("cargo") is None:
+        raise RuntimeError("cargo is required to compile the generated Python interface")
+
+    env = os.environ.copy()
+    env["PYO3_PYTHON"] = sys.executable
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-e", str(project_dir)],
+            cwd=project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("cargo is required to compile the generated Python interface") from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        details = stderr or stdout
+        raise RuntimeError(
+            "failed to install the generated Python interface"
+            + (f": {details}" if details else "")
+        ) from exc
+
+
+def _next_python_interface_version(wrapper_project_dir: Path) -> str:
+    """Return the next Python wrapper version for ``wrapper_project_dir``.
+
+    The first generation uses ``0.1.0``. Regenerating an existing wrapper
+    bumps the minor version while resetting the patch component to zero, so
+    repeated generations produce ``0.2.0``, ``0.3.0``, and so on.
+    """
+    pyproject = wrapper_project_dir / "pyproject.toml"
+    if not pyproject.exists():
+        return "0.1.0"
+
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise RuntimeError(
+            f"failed to read the existing Python interface version from {pyproject}"
+        ) from exc
+
+    project_section = data.get("project")
+    if not isinstance(project_section, dict):
+        raise RuntimeError(
+            f"existing Python interface metadata at {pyproject} does not define [project]"
+        )
+
+    version = project_section.get("version")
+    if not isinstance(version, str):
+        raise RuntimeError(
+            f"existing Python interface metadata at {pyproject} does not define a string version"
+        )
+
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
+    if match is None:
+        raise RuntimeError(
+            f"existing Python interface version {version!r} in {pyproject} is not a semantic version"
+        )
+
+    major, minor, _patch = (int(group) for group in match.groups())
+    return f"{major}.{minor + 1}.0"
+
+
+def _run_cargo_build(project_dir: Path) -> None:
+    """Compile a generated Rust crate with Cargo."""
+    if shutil.which("cargo") is None:
+        raise RuntimeError("cargo is required to build the generated Rust crate")
+    try:
+        subprocess.run(
+            ["cargo", "build"],
+            cwd=project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("cargo is required to build the generated Rust crate") from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        details = stderr or stdout
+        raise RuntimeError(
+            "failed to build the generated Rust crate"
+            + (f": {details}" if details else "")
+        ) from exc
 
 
 def _generate_composed_primal_rust(
@@ -1130,6 +1320,7 @@ def _generate_composed_primal_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -1492,6 +1683,7 @@ def _generate_composed_gradient_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -1670,6 +1862,7 @@ def _generate_zipped_primal_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=helper_workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -1877,6 +2070,7 @@ def _generate_zipped_jacobian_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=total_workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -2063,6 +2257,7 @@ def _generate_reduced_primal_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=total_workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -2565,6 +2760,7 @@ def _generate_single_shooting_driver_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -5024,6 +5220,115 @@ def _render_multi_function_lib(
 
     rendered = "\n\n".join(section for section in sections if section)
     return rendered if rendered.endswith("\n") else f"{rendered}\n"
+
+
+def _render_python_interface_source(
+    codegens: tuple[RustCodegenResult, ...],
+    low_level_crate_name: str,
+    module_name: str,
+    project_version: str,
+) -> str:
+    """Render the PyO3 Python interface for one or more generated functions."""
+    return _get_template("python_interface.rs.j2").render(
+        codegens=codegens,
+        module_name=module_name,
+        low_level_crate_name=low_level_crate_name,
+        project_version=project_version,
+        scalar_type=codegens[0].scalar_type,
+    ).rstrip()
+
+
+def _derive_python_function_name(function_name: str, crate_name: str | None) -> str:
+    """Derive the public Python name from a generated Rust symbol name."""
+    candidate = function_name
+    if crate_name:
+        crate_prefix = sanitize_ident(crate_name)
+        prefix = f"{crate_prefix}_"
+        if candidate.startswith(prefix):
+            candidate = candidate[len(prefix) :]
+    if candidate.endswith("_f"):
+        candidate = candidate[:-2]
+    return candidate or function_name
+
+
+def _create_python_interface_project(
+    *,
+    low_level_project_dir: Path,
+    low_level_crate_name: str,
+    codegens: tuple[RustCodegenResult, ...],
+    build_python_interface: bool,
+) -> RustPythonInterfaceProjectResult:
+    """Create a sibling PyO3 wrapper crate for generated Rust kernels."""
+    validate_unique_rust_names(
+        [(codegen.function_name, codegen.python_name) for codegen in codegens],
+        label="generated Python function",
+    )
+    wrapper_project_dir = low_level_project_dir.parent / f"{low_level_crate_name}_python"
+    wrapper_crate_name = wrapper_project_dir.name
+    module_name = low_level_crate_name
+
+    wrapper_project_dir.mkdir(parents=True, exist_ok=True)
+    src_dir = wrapper_project_dir / "src"
+    src_dir.mkdir(parents=True, exist_ok=True)
+
+    cargo_toml = wrapper_project_dir / "Cargo.toml"
+    pyproject = wrapper_project_dir / "pyproject.toml"
+    readme = wrapper_project_dir / "README.md"
+    lib_rs = src_dir / "lib.rs"
+    project_version = _next_python_interface_version(wrapper_project_dir)
+
+    dependency_path = Path("..") / low_level_project_dir.name
+    cargo_toml.write_text(
+        _get_template("python_interface_Cargo.toml.j2").render(
+            crate_name=wrapper_crate_name,
+            module_name=module_name,
+            low_level_crate_name=low_level_crate_name,
+            low_level_crate_path=dependency_path.as_posix(),
+        ),
+        encoding="utf-8",
+    )
+    pyproject.write_text(
+        _get_template("python_interface_pyproject.toml.j2").render(
+            crate_name=wrapper_crate_name,
+            module_name=module_name,
+            low_level_crate_name=low_level_crate_name,
+            project_version=project_version,
+        ),
+        encoding="utf-8",
+    )
+    readme.write_text(
+        _get_template("python_interface_README.md.j2").render(
+            crate_name=wrapper_crate_name,
+            module_name=module_name,
+            low_level_crate_name=low_level_crate_name,
+            low_level_project_dir=low_level_project_dir.name,
+            codegens=codegens,
+        ),
+        encoding="utf-8",
+    )
+    lib_rs.write_text(
+        _render_python_interface_source(
+            codegens,
+            low_level_crate_name=low_level_crate_name,
+            module_name=module_name,
+            project_version=project_version,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _try_run_cargo_fmt(wrapper_project_dir)
+    if build_python_interface:
+        _run_python_interface_build(wrapper_project_dir)
+
+    return RustPythonInterfaceProjectResult(
+        project_dir=wrapper_project_dir,
+        cargo_toml=cargo_toml,
+        pyproject=pyproject,
+        readme=readme,
+        lib_rs=lib_rs,
+        module_name=module_name,
+        low_level_crate_name=low_level_crate_name,
+    )
 
 
 def _private_helper_section_key(section: str) -> str | None:

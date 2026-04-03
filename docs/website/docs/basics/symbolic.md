@@ -172,7 +172,7 @@ project = (
         )
         .with_simplification("medium")
         .done()
-    .build(Path(__file__).resolve().parent / "codegen_kernel")
+    .build(Path(__file__).resolve().parent)
 )
 ```
 

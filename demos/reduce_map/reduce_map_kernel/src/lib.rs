@@ -30,9 +30,9 @@ pub fn reduce_map_kernel_mapped_seq_f_meta() -> FunctionMetadata {
         function_name: "reduce_map_kernel_mapped_seq_f",
         workspace_size: 2,
         input_names: &["x_seq"],
-        input_sizes: &[20],
+        input_sizes: &[3],
         output_names: &["m"],
-        output_sizes: &[20],
+        output_sizes: &[3],
     }
 }
 
@@ -43,10 +43,10 @@ pub fn reduce_map_kernel_mapped_seq_f_meta() -> FunctionMetadata {
 /// Arguments:
 /// - `x_seq`:
 ///   input slice for the declared argument `x_seq`
-///   Expected length: 20.
+///   Expected length: 3.
 /// - `m`:
 ///   primal output slice for the declared result `m`
-///   Expected length: 20.
+///   Expected length: 3.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 2.
 pub fn reduce_map_kernel_mapped_seq_f(
@@ -57,14 +57,14 @@ pub fn reduce_map_kernel_mapped_seq_f(
     if work.len() < 2 {
         return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
     };
-    if x_seq.len() != 20 {
-        return Err(GradgenError::InputTooSmall("x_seq expected length 20"));
+    if x_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("x_seq expected length 3"));
     };
-    if m.len() != 20 {
-        return Err(GradgenError::OutputTooSmall("m expected length 20"));
+    if m.len() != 3 {
+        return Err(GradgenError::OutputTooSmall("m expected length 3"));
     };
     let helper_work = &mut work[..2];
-    for stage_index in 0..20 {
+    for stage_index in 0..3 {
         let x_seq_stage = &x_seq[stage_index..stage_index + 1];
         let m_stage = &mut m[stage_index..stage_index + 1];
         reduce_map_kernel_mapped_seq_f_helper(x_seq_stage, m_stage, helper_work);
@@ -85,9 +85,9 @@ pub fn reduce_map_kernel_mapped_seq_jf_x_seq_meta() -> FunctionMetadata {
         function_name: "reduce_map_kernel_mapped_seq_jf_x_seq",
         workspace_size: 3,
         input_names: &["x_seq"],
-        input_sizes: &[20],
+        input_sizes: &[3],
         output_names: &["jacobian_m"],
-        output_sizes: &[400],
+        output_sizes: &[9],
     }
 }
 
@@ -98,10 +98,10 @@ pub fn reduce_map_kernel_mapped_seq_jf_x_seq_meta() -> FunctionMetadata {
 /// Arguments:
 /// - `x_seq`:
 ///   input slice for the declared argument `x_seq`
-///   Expected length: 20.
+///   Expected length: 3.
 /// - `jacobian_m`:
 ///   output slice receiving the Jacobian block for declared result `m`
-///   Expected length: 400.
+///   Expected length: 9.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 3.
 pub fn reduce_map_kernel_mapped_seq_jf_x_seq(
@@ -112,22 +112,20 @@ pub fn reduce_map_kernel_mapped_seq_jf_x_seq(
     if work.len() < 3 {
         return Err(GradgenError::WorkspaceTooSmall("work expected at least 3"));
     };
-    if x_seq.len() != 20 {
-        return Err(GradgenError::InputTooSmall("x_seq expected length 20"));
+    if x_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("x_seq expected length 3"));
     };
-    if jacobian_m.len() != 400 {
-        return Err(GradgenError::OutputTooSmall(
-            "jacobian_m expected length 400",
-        ));
+    if jacobian_m.len() != 9 {
+        return Err(GradgenError::OutputTooSmall("jacobian_m expected length 9"));
     };
     jacobian_m.fill(0.0_f64);
     let (temp_jacobian_m, helper_work) = work.split_at_mut(1);
-    for stage_index in 0..20 {
+    for stage_index in 0..3 {
         let x_seq_stage = &x_seq[stage_index..stage_index + 1];
         reduce_map_kernel_mapped_seq_jf_x_seq_helper(x_seq_stage, temp_jacobian_m, helper_work);
         for local_row in 0..1 {
             let dest_row = stage_index + local_row;
-            let dest_start = (dest_row * 20) + stage_index;
+            let dest_start = (dest_row * 3) + stage_index;
             let src_start = local_row;
             jacobian_m[dest_start..(dest_start + 1)]
                 .copy_from_slice(&temp_jacobian_m[src_start..(src_start + 1)]);
@@ -153,7 +151,7 @@ pub fn reduce_map_kernel_reduced_scalar_f_meta() -> FunctionMetadata {
         function_name: "reduce_map_kernel_reduced_scalar_f",
         workspace_size: 4,
         input_names: &["acc0", "m_seq"],
-        input_sizes: &[1, 20],
+        input_sizes: &[1, 3],
         output_names: &["acc_final"],
         output_sizes: &[1],
     }
@@ -169,7 +167,7 @@ pub fn reduce_map_kernel_reduced_scalar_f_meta() -> FunctionMetadata {
 ///   Expected length: 1.
 /// - `m_seq`:
 ///   input slice for the declared argument `m_seq`
-///   Expected length: 20.
+///   Expected length: 3.
 /// - `acc_final`:
 ///   primal output slice for the declared result `acc_final`
 ///   Expected length: 1.
@@ -187,8 +185,8 @@ pub fn reduce_map_kernel_reduced_scalar_f(
     if acc0.len() != 1 {
         return Err(GradgenError::InputTooSmall("acc0 expected length 1"));
     };
-    if m_seq.len() != 20 {
-        return Err(GradgenError::InputTooSmall("m_seq expected length 20"));
+    if m_seq.len() != 3 {
+        return Err(GradgenError::InputTooSmall("m_seq expected length 3"));
     };
     if acc_final.len() != 1 {
         return Err(GradgenError::OutputTooSmall("acc_final expected length 1"));
@@ -196,7 +194,7 @@ pub fn reduce_map_kernel_reduced_scalar_f(
     let (acc_work, helper_work) = work.split_at_mut(2);
     let (acc_curr_buf, acc_next_buf) = acc_work.split_at_mut(1);
     acc_curr_buf.copy_from_slice(acc0);
-    for stage_index in 0..20 {
+    for stage_index in 0..3 {
         let x_stage = &m_seq[stage_index..stage_index + 1];
         acc_next_buf.fill(0.0_f64);
         reduce_map_kernel_reduced_scalar_f_helper(acc_curr_buf, x_stage, acc_next_buf, helper_work);
