@@ -4,6 +4,10 @@ sidebar_position: 5
 
 # Rust-Python interface
 
+<div align="center">
+<img src="/gradgen/img/python-rust-iface.png" width="50%" />
+</div>
+
 [![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1xueMa6EcfOR_M9mPvCGdqhyCyyW8NI-_?usp=sharing)
 
 Once you have generated a Rust crate for your functions, you can consume it directly from Python. 
@@ -41,10 +45,17 @@ project = (
 This will generate a crate in `./my_crates/blah` and a Python interface in
 `./my_crates/blah_python`.
 
+<details>
+
 The generated Python wrapper uses its own `pyproject.toml` version. The first
 time the interface is generated, that version is `0.1.0`. If you regenerate
 the same interface later, Gradgen bumps the wrapper version to `0.2.0`, then
 `0.3.0`, and so on. The low-level Cargo crate version does not change.
+
+Moreover, the low-level Rust code is `no_std`, but the Python interface is not.
+
+</details>
+
 
 If you also want Gradgen to compile the generated Rust crate immediately after
 writing it, enable:
@@ -75,6 +86,8 @@ print(blah.all_functions()) # prints ['energy']
 
 [![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1xueMa6EcfOR_M9mPvCGdqhyCyyW8NI-_?usp=sharing)
 
+### Create a workspace
+
 To call any function from the generated package, `blah`, you first need 
 to create a workspace variable. This is the only time you will need to allocate 
 memory. To allocate memory for the function `energy` do
@@ -84,7 +97,9 @@ memory. To allocate memory for the function `energy` do
 wspace = blah.workspace_for_function('energy')
 ```
 
-and then
+### Call the function
+
+You can now call the function as follows
 
 ```python
 x = [1., 2.]
@@ -100,3 +115,36 @@ This returns a dictionary with the output or outputs of the function - in this c
     'state': 3.0
 }
 ```
+
+Alternatively, you can also call functions using `call` as follows
+
+```python
+result = blah.call('energy', x, w, wspace)
+```
+
+### Metadata
+
+If you want to get metadata about a function (e.g., inputs, outputs and their dimensions)
+you can use `function_info`. For example,
+
+```python
+print(xyz.function_info('energy'))
+```
+
+prints out the following information
+
+```json
+{
+    'name': 'energy', 
+    'rust_name': 'xyz_energy_f', 
+    'workspace_size': 2, 
+    'input_names': ['x', 'w'], 
+    'input_sizes': [2, 1], 
+    'output_names': ['cost', 'state'], 
+    'output_sizes': [1, 1]
+}
+```
+
+
+## Example with multiple functions
+
