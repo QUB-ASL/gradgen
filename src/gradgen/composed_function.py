@@ -111,7 +111,6 @@ class ComposedGradientFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the staged gradient kernel."""
         from .rust_codegen import generate_rust
@@ -122,7 +121,6 @@ class ComposedGradientFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -134,7 +132,6 @@ class ComposedGradientFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the staged gradient kernel."""
         from .rust_codegen import create_rust_project
@@ -147,7 +144,6 @@ class ComposedGradientFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
 
@@ -293,7 +289,6 @@ class ComposedFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the staged primal kernel."""
         from .rust_codegen import generate_rust
@@ -304,7 +299,6 @@ class ComposedFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -316,7 +310,6 @@ class ComposedFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the staged primal kernel."""
         from .rust_codegen import create_rust_project
@@ -329,7 +322,6 @@ class ComposedFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def __call__(self, *args):

@@ -44,7 +44,6 @@ class ZippedJacobianFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the staged Jacobian kernel."""
         from .rust_codegen import generate_rust
@@ -55,7 +54,6 @@ class ZippedJacobianFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -67,7 +65,6 @@ class ZippedJacobianFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the staged Jacobian kernel."""
         from .rust_codegen import create_rust_project
@@ -80,7 +77,6 @@ class ZippedJacobianFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
 
@@ -164,7 +160,6 @@ class ZippedFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the staged batched kernel."""
         from .rust_codegen import generate_rust
@@ -175,7 +170,6 @@ class ZippedFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -187,7 +181,6 @@ class ZippedFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the staged batched kernel."""
         from .rust_codegen import create_rust_project
@@ -200,7 +193,6 @@ class ZippedFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
 
@@ -281,7 +273,6 @@ class ReducedFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the staged reduce kernel."""
         from .rust_codegen import generate_rust
@@ -292,7 +283,6 @@ class ReducedFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -304,7 +294,6 @@ class ReducedFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the staged reduce kernel."""
         from .rust_codegen import create_rust_project
@@ -317,7 +306,6 @@ class ReducedFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
 

@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   separate sibling wrapper crate so the low-level generated crate can stay
   pure Rust and `no_std`-friendly. The wrapper includes generated
   `workspace_for_function(...)` and `call(...)` helpers, plus module-level
-  `__version__` and `__all__` metadata. By default the wrapper is compiled
+  `__version__` and `__all__` metadata. By default, the wrapper is compiled
   immediately with the same Python interpreter that ran the generator.
 - The generated Python wrapper now manages its own `pyproject.toml` version:
   first generation starts at `0.1.0`, and regenerating the same interface
@@ -35,11 +35,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   product, and rollout states in one generated function.
 - Added a dedicated `demos/single_shooting` demo and runner crate showing how
   to generate and call the resulting Rust crate in practice.
-- Important: implement and tested `map` and `zip`; introduced two new demos
+- Important: implemented and tested `map` and `zip`; introduced two new demos
   to demonstrate how to use them.
 - For instances of `SXVector`, the operation `x**a` applies the power element-wise.
-- Created project website using Docusaurus v3. Added user-friendly documentation and
-  links to Google Colab Python notebooks.
 - Added `AGENTS.md` with detailed instructions for agents.
 
 ### Changed
@@ -57,6 +55,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `.build("./my_crates")` with `with_crate_name("abc")` now writes the crate
   to `./my_crates/abc` and the Python wrapper to `./my_crates/abc_python`,
   while `.build()` defaults to `./<crate_name>`.
+- Generated low-level Rust crates now start with `#![forbid(unsafe_code)]`,
+  while the separate PyO3 wrapper crate keeps its existing build settings.
 - Added `RustBackendConfig().with_build_crate()` to run `cargo build` on
   the generated low-level Rust crate after it is written to disk. The default
   remains off, and generation raises an informative error if `cargo` is not
@@ -91,8 +91,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Fixed issue with operations between `SX` and `SXVector` types. 
   Scalar products, `a * x` and `x * a` work without issues.
 - `x.dot([1, 2])` now works the same way as `x.dot(SXVector([1, 2]))`.
-- In custom functions, Jacobian, Hessians, and Hessian-vector products can now 
+- In custom functions, Jacobians, Hessians, and Hessian-vector products can now 
   be `None`
+
+### Removed
+
+- `no_std` crates now default to `libm` as their math dependency. The
+  config-level `with_math_lib(...)` option has been removed, so the generated
+  crates consistently use `libm` when targeting `no_std`.
+
+
+### Documentation
+
+- Created project website using Docusaurus v3. Added user-friendly documentation and
+  links to Google Colab Python notebooks.
 
 ## 0.3.1 - 29-03-2026
 

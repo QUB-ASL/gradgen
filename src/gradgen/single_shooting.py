@@ -81,7 +81,6 @@ class SingleShootingPrimalFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the staged primal kernel."""
         from .rust_codegen import generate_rust
@@ -92,7 +91,6 @@ class SingleShootingPrimalFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -104,7 +102,6 @@ class SingleShootingPrimalFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the staged primal kernel."""
         from .rust_codegen import create_rust_project
@@ -117,7 +114,6 @@ class SingleShootingPrimalFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
 
@@ -168,7 +164,6 @@ class SingleShootingGradientFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the staged gradient kernel."""
         from .rust_codegen import generate_rust
@@ -179,7 +174,6 @@ class SingleShootingGradientFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -191,7 +185,6 @@ class SingleShootingGradientFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the staged gradient kernel."""
         from .rust_codegen import create_rust_project
@@ -204,7 +197,6 @@ class SingleShootingGradientFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
 
@@ -255,7 +247,6 @@ class SingleShootingHvpFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the staged HVP kernel."""
         from .rust_codegen import generate_rust
@@ -266,7 +257,6 @@ class SingleShootingHvpFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -278,7 +268,6 @@ class SingleShootingHvpFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the staged HVP kernel."""
         from .rust_codegen import create_rust_project
@@ -291,7 +280,6 @@ class SingleShootingHvpFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
 
@@ -336,7 +324,6 @@ class SingleShootingJointFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the staged joint kernel."""
         from .rust_codegen import generate_rust
@@ -347,7 +334,6 @@ class SingleShootingJointFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -359,7 +345,6 @@ class SingleShootingJointFunction:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the staged joint kernel."""
         from .rust_codegen import create_rust_project
@@ -372,7 +357,6 @@ class SingleShootingJointFunction:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
 
@@ -638,7 +622,6 @@ class SingleShootingProblem:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate compact Rust for the primal total-cost kernel."""
         from .rust_codegen import generate_rust
@@ -649,7 +632,6 @@ class SingleShootingProblem:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -661,7 +643,6 @@ class SingleShootingProblem:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust crate containing the total-cost kernel."""
         from .rust_codegen import create_rust_project
@@ -674,7 +655,6 @@ class SingleShootingProblem:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
 

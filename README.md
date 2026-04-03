@@ -3,13 +3,12 @@
     
     
 <!-- ![PyPI - Downloads](https://img.shields.io/pypi/dm/gradgen?color=blue&style=flat-square)  -->
-[![CI](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml/badge.svg)](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml)  [![Docs site](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://qub-asl.github.io/gradgen/)   
+[![CI](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml/badge.svg)](https://github.com/QUB-ASL/gradgen/actions/workflows/python-tests.yml)  [![Docs site](https://img.shields.io/badge/docs-GitHub_Pages-blue)](https://qub-asl.github.io/gradgen/) [![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
+ 
 </div>    
 
 
-# Gradgen
-
-## What it does
+# Gradgen: what it does
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/QUB-ASL/gradgen/refs/heads/main/docs/img/gradgen-what-it-does.png" alt="Gradgen overview" width="80%" />
@@ -105,7 +104,7 @@ See this complete [tutorial](https://qub-asl.github.io/gradgen/docs/basics/ocp) 
 - Truly embdedable safe Rust code with optional [`#[no_std]`](https://docs.rust-embedded.org/book/intro/no-std.html), no dynamic memory allocation, no `panic!`s
 - Specialised code generation tools for optimal control problems ([docs](https://qub-asl.github.io/gradgen/docs/basics/ocp))
 - Very efficient code generation thanks to modular code generation using [`map`](./demos/map_zip/), [`zip`](./demos/zip_3/), [`repeat`](./demos/composed_function/), and `chain` high-order functions.
-- Supports both single (`f32`) and double (`f64`) precision arithmetic. You can use [`libm`](https://crates.io/crates/libm) or your own library for numerical operations (e.g., [`micromath`](https://crates.io/crates/micromath))
+- Supports both single (`f32`) and double (`f64`) precision arithmetic
 
 ## Where to go next?
 

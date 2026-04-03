@@ -62,7 +62,7 @@ class RustBackendConfig:
     The config object groups Rust backend options into a single immutable
     value. Users can build it incrementally with ``with_...`` methods:
 
-    ``RustBackendConfig().with_backend_mode("no_std").with_math_lib("libm")``
+    ``RustBackendConfig().with_backend_mode("no_std")``
 
     The same config can be reused for both source generation and project
     creation, which keeps backend behavior consistent as options grow.
@@ -70,7 +70,6 @@ class RustBackendConfig:
 
     backend_mode: RustBackendMode = "std"
     scalar_type: RustScalarType = "f64"
-    math_library: str | None = None
     crate_name: str | None = None
     function_name: str | None = None
     emit_metadata_helpers: bool = True
@@ -86,10 +85,6 @@ class RustBackendConfig:
         """
         _validate_backend_mode(backend_mode)
         return replace(self, backend_mode=backend_mode)
-
-    def with_math_lib(self, math_library: str | None) -> RustBackendConfig:
-        """Return a copy with a different ``no_std`` math namespace."""
-        return replace(self, math_library=math_library)
 
     def with_scalar_type(self, scalar_type: RustScalarType) -> RustBackendConfig:
         """Return a copy with a different generated Rust scalar type.
@@ -417,10 +412,12 @@ def generate_rust(
     )
     _validate_backend_mode(resolved_config.backend_mode)
     _validate_scalar_type(resolved_config.scalar_type)
-    resolved_math_library = _resolve_math_library(
-        resolved_config.backend_mode,
-        resolved_config.math_library,
-    )
+    if resolved_config.backend_mode == "std":
+        if math_library is not None:
+            raise ValueError("math_library is only supported for no_std backend mode")
+        resolved_math_library = None
+    else:
+        resolved_math_library = math_library or "libm"
 
     name = sanitize_ident(resolved_config.function_name or function.name)
     input_sizes = tuple(_arg_size(arg) for arg in function.inputs)
@@ -678,6 +675,8 @@ def create_rust_project(
 
     project_dir = Path(path).expanduser().resolve()
     crate = sanitize_ident(resolved_config.crate_name or function.name)
+    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
+    resolved_math_library_version = "0.2" if resolved_math_library == "libm" else None
     codegen = generate_rust(
         function,
         config=resolved_config,
@@ -695,7 +694,8 @@ def create_rust_project(
             crate_name=crate,
             backend_mode=resolved_config.backend_mode,
             scalar_type=resolved_config.scalar_type,
-            math_library=codegen.math_library,
+            math_library=resolved_math_library,
+            math_library_version=resolved_math_library_version,
         ),
         encoding="utf-8",
     )
@@ -705,7 +705,7 @@ def create_rust_project(
             codegen=codegen,
             backend_mode=resolved_config.backend_mode,
             scalar_type=resolved_config.scalar_type,
-            math_library=codegen.math_library,
+            math_library=resolved_math_library,
             enable_python_interface=resolved_config.enable_python_interface,
             python_interface_project_name=(
                 f"{crate}_python" if resolved_config.enable_python_interface else None
@@ -811,6 +811,8 @@ def create_multi_function_rust_project(
     resolved_config = config or RustBackendConfig()
     _validate_backend_mode(resolved_config.backend_mode)
     _validate_scalar_type(resolved_config.scalar_type)
+    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
+    resolved_math_library_version = "0.2" if resolved_math_library == "libm" else None
 
     project_dir = Path(path).expanduser().resolve()
     crate = sanitize_ident(resolved_config.crate_name or functions[0].name)
@@ -850,10 +852,7 @@ def create_multi_function_rust_project(
                         generated_function,
                         resolved_config.backend_mode,
                         resolved_config.scalar_type,
-                        _resolve_math_library(
-                            resolved_config.backend_mode,
-                            resolved_config.math_library,
-                        ),
+                        "libm" if resolved_config.backend_mode == "no_std" else None,
                     )
                 }
                 if index == 0
@@ -868,10 +867,8 @@ def create_multi_function_rust_project(
             crate_name=crate,
             backend_mode=resolved_config.backend_mode,
             scalar_type=resolved_config.scalar_type,
-            math_library=_resolve_math_library(
-                resolved_config.backend_mode,
-                resolved_config.math_library,
-            ),
+            math_library=resolved_math_library,
+            math_library_version=resolved_math_library_version,
         ),
         encoding="utf-8",
     )
@@ -880,10 +877,7 @@ def create_multi_function_rust_project(
             crate_name=crate,
             backend_mode=resolved_config.backend_mode,
             scalar_type=resolved_config.scalar_type,
-            math_library=_resolve_math_library(
-                resolved_config.backend_mode,
-                resolved_config.math_library,
-            ),
+            math_library=resolved_math_library,
             codegens=codegens,
             enable_python_interface=resolved_config.enable_python_interface,
             python_interface_project_name=(
@@ -1069,10 +1063,12 @@ def _generate_composed_primal_rust(
     )
     _validate_backend_mode(resolved_config.backend_mode)
     _validate_scalar_type(resolved_config.scalar_type)
-    resolved_math_library = _resolve_math_library(
-        resolved_config.backend_mode,
-        resolved_config.math_library,
-    )
+    if resolved_config.backend_mode == "std":
+        if math_library is not None:
+            raise ValueError("math_library is only supported for no_std backend mode")
+        resolved_math_library = None
+    else:
+        resolved_math_library = math_library or "libm"
     helper_simplification = composed.simplification
 
     name = sanitize_ident(resolved_config.function_name or composed.name)
@@ -1357,10 +1353,7 @@ def _generate_composed_gradient_rust(
     )
     _validate_backend_mode(resolved_config.backend_mode)
     _validate_scalar_type(resolved_config.scalar_type)
-    resolved_math_library = _resolve_math_library(
-        resolved_config.backend_mode,
-        resolved_config.math_library,
-    )
+    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
     helper_simplification = gradient.simplification
 
     name = sanitize_ident(resolved_config.function_name or gradient.name)
@@ -1714,10 +1707,7 @@ def _generate_zipped_primal_rust(
         scalar_type=scalar_type,
         math_library=math_library,
     )
-    resolved_math_library = _resolve_math_library(
-        resolved_config.backend_mode,
-        resolved_config.math_library,
-    )
+    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
     name = sanitize_ident(resolved_config.function_name or zipped.name)
     helper_name = sanitize_ident(f"{name}_helper")
 
@@ -1893,10 +1883,7 @@ def _generate_zipped_jacobian_rust(
         scalar_type=scalar_type,
         math_library=math_library,
     )
-    resolved_math_library = _resolve_math_library(
-        resolved_config.backend_mode,
-        resolved_config.math_library,
-    )
+    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
     name = sanitize_ident(resolved_config.function_name or zipped_jacobian.name)
     helper_name = sanitize_ident(f"{name}_helper")
 
@@ -2101,10 +2088,7 @@ def _generate_reduced_primal_rust(
         scalar_type=scalar_type,
         math_library=math_library,
     )
-    resolved_math_library = _resolve_math_library(
-        resolved_config.backend_mode,
-        resolved_config.math_library,
-    )
+    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
     name = sanitize_ident(resolved_config.function_name or reduced.name)
     helper_name = sanitize_ident(f"{name}_helper")
 
@@ -2402,10 +2386,12 @@ def _generate_single_shooting_driver_rust(
     )
     _validate_backend_mode(resolved_config.backend_mode)
     _validate_scalar_type(resolved_config.scalar_type)
-    resolved_math_library = _resolve_math_library(
-        resolved_config.backend_mode,
-        resolved_config.math_library,
-    )
+    if resolved_config.backend_mode == "std":
+        if math_library is not None:
+            raise ValueError("math_library is only supported for no_std backend mode")
+        resolved_math_library = None
+    else:
+        resolved_math_library = math_library or "libm"
 
     name = sanitize_ident(resolved_config.function_name or problem.name)
     helper_simplification = problem.simplification
@@ -5145,16 +5131,6 @@ def _validate_generated_argument_names(
     )
 
 
-def _resolve_math_library(
-    backend_mode: RustBackendMode,
-    math_library: str | None,
-) -> str | None:
-    """Resolve the math library namespace for the selected backend mode."""
-    if backend_mode == "std":
-        return math_library
-    return math_library or "libm"
-
-
 def _resolve_backend_config(
     config: RustBackendConfig | None,
     *,
@@ -5179,8 +5155,6 @@ def _resolve_backend_config(
         resolved = resolved.with_backend_mode(backend_mode)
     if scalar_type != "f64":
         resolved = resolved.with_scalar_type(scalar_type)
-    if math_library is not None:
-        resolved = resolved.with_math_lib(math_library)
     return resolved
 
 

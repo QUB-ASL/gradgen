@@ -907,7 +907,6 @@ mod single_shooting_multi_u_tests {{
         config = (
             RustBackendConfig()
             .with_backend_mode("no_std")
-            .with_math_lib("libm")
             .with_crate_name("my_kernel")
             .with_function_name("eval_kernel")
             .with_emit_metadata_helpers(False)
@@ -917,7 +916,6 @@ mod single_shooting_multi_u_tests {{
 
         self.assertEqual(config.backend_mode, "no_std")
         self.assertEqual(config.scalar_type, "f64")
-        self.assertEqual(config.math_library, "libm")
         self.assertEqual(config.crate_name, "my_kernel")
         self.assertEqual(config.function_name, "eval_kernel")
         self.assertFalse(config.emit_metadata_helpers)
@@ -948,6 +946,13 @@ mod single_shooting_multi_u_tests {{
         config = RustBackendConfig().with_build_crate(True)
 
         self.assertTrue(config.build_crate)
+
+    def test_backend_config_does_not_expose_math_library_settings(self) -> None:
+        config = RustBackendConfig().with_backend_mode("no_std")
+
+        self.assertFalse(hasattr(config, "with_math_lib"))
+        self.assertFalse(hasattr(config, "math_library"))
+        self.assertFalse(hasattr(config, "math_library_version"))
 
     def test_backend_config_allows_python_interface_with_no_std(self) -> None:
         config = (
@@ -1791,7 +1796,6 @@ mod tests {{
         config = (
             RustBackendConfig()
             .with_backend_mode("no_std")
-            .with_math_lib("libm")
             .with_function_name("eval_kernel")
             .with_emit_metadata_helpers(False)
         )
@@ -1808,6 +1812,13 @@ mod tests {{
         self.assertNotIn("pub fn eval_kernel_work_size()", result.source)
         self.assertNotIn("pub fn eval_kernel_input_names()", result.source)
         self.assertNotIn("pub fn eval_kernel_output_names()", result.source)
+
+    def test_generate_rust_no_longer_accepts_math_library_keyword(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x.sin()], input_names=["x"], output_names=["y"])
+
+        with self.assertRaises(TypeError):
+            f.generate_rust(backend_mode="no_std", math_library="micromath")
 
     def test_create_rust_project_accepts_backend_config(self) -> None:
         x = SX.sym("x")
@@ -2208,17 +2219,17 @@ mod tests {{
         self.assertIn("#![no_std]", result.source)
         self.assertIn("libm::sin(x[0])", result.source)
 
-    def test_no_std_codegen_supports_custom_math_library_namespace(self) -> None:
+    def test_no_std_codegen_uses_libm_namespace(self) -> None:
         x = SX.sym("x")
         f = Function("custom_math", [x], [x.sin() + x.cos()], input_names=["x"], output_names=["y"])
 
-        result = f.generate_rust(backend_mode="no_std", math_library="xyz")
+        result = f.generate_rust(backend_mode="no_std")
 
         self.assertEqual(result.backend_mode, "no_std")
-        self.assertEqual(result.math_library, "xyz")
+        self.assertEqual(result.math_library, "libm")
         self.assertIn("#![no_std]", result.source)
-        self.assertIn("xyz::sin(x[0])", result.source)
-        self.assertIn("xyz::cos(x[0])", result.source)
+        self.assertIn("libm::sin(x[0])", result.source)
+        self.assertIn("libm::cos(x[0])", result.source)
         self.assertNotIn('libm = "0.2"', result.source)
 
     def test_function_level_codegen_works_for_derived_functions(self) -> None:
@@ -2296,6 +2307,7 @@ mod tests {{
             self.assertIn('libm = "0.2"', cargo_text)
             self.assertIn("Backend mode: `no_std`", readme_text)
             self.assertIn("uses `libm`", readme_text)
+            self.assertIn("#![forbid(unsafe_code)]", lib_text)
             self.assertIn("#![no_std]", lib_text)
 
             try:
@@ -2306,7 +2318,7 @@ mod tests {{
                 raise
             self.assertEqual(completed.returncode, 0)
 
-    def test_no_std_project_uses_custom_math_library_metadata(self) -> None:
+    def test_no_std_project_uses_libm_even_with_math_library_kwarg(self) -> None:
         x = SX.sym("x")
         f = Function("custom_math", [x], [x.sin()], input_names=["x"], output_names=["y"])
 
@@ -2314,61 +2326,17 @@ mod tests {{
             project = f.create_rust_project(
                 Path(tmpdir) / "custom_math",
                 backend_mode="no_std",
-                math_library="xyz",
             )
 
             cargo_text = project.cargo_toml.read_text(encoding="utf-8")
             readme_text = project.readme.read_text(encoding="utf-8")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertNotIn('libm = "0.2"', cargo_text)
-            self.assertIn("Math library namespace: `xyz`", readme_text)
-            self.assertIn("uses `xyz`", readme_text)
-            self.assertIn("xyz::sin(x[0])", lib_text)
-
-    def test_no_std_project_builds_with_micromath_shim(self) -> None:
-        x = SX.sym("x")
-        f = Function("micro_kernel", [x], [x.sin() + x.cos()], input_names=["x"], output_names=["y"])
-
-        with TemporaryDirectory() as tmpdir:
-            project = f.create_rust_project(
-                Path(tmpdir) / "micro_kernel",
-                backend_mode="no_std",
-                math_library="crate::math",
-            )
-
-            cargo_toml = project.cargo_toml.read_text(encoding="utf-8")
-            cargo_toml += 'micromath = "2"\n'
-            project.cargo_toml.write_text(cargo_toml, encoding="utf-8")
-
-            shim = """
-mod math {
-    use micromath::F32Ext;
-
-    pub fn sin(x: f64) -> f64 {
-        (x as f32).sin() as f64
-    }
-
-    pub fn cos(x: f64) -> f64 {
-        (x as f32).cos() as f64
-    }
-}
-
-"""
-            lib_text = project.lib_rs.read_text(encoding="utf-8")
-            if lib_text.startswith("#![no_std]\n"):
-                lib_text = lib_text.replace("#![no_std]\n", f"#![no_std]\n\n{shim}", 1)
-            else:
-                lib_text = shim + lib_text
-            project.lib_rs.write_text(lib_text, encoding="utf-8")
-
-            try:
-                completed = self._run_cargo(project.project_dir, "build", "--quiet")
-            except subprocess.CalledProcessError as exc:
-                if "Could not resolve host: index.crates.io" in exc.stderr:
-                    self.skipTest("cargo could not fetch micromath in the offline test environment")
-                raise
-            self.assertEqual(completed.returncode, 0)
+            self.assertIn('libm = "0.2"', cargo_text)
+            self.assertIn("Math library namespace: `libm`", readme_text)
+            self.assertIn("uses `libm`", readme_text)
+            self.assertIn("libm::sin(x[0])", lib_text)
+            self.assertIn("#![forbid(unsafe_code)]", lib_text)
 
     def test_invalid_backend_mode_is_rejected(self) -> None:
         x = SX.sym("x")
@@ -2663,7 +2631,6 @@ mod math {
         config = (
             RustBackendConfig()
             .with_backend_mode("no_std")
-            .with_math_lib("libm")
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -3504,6 +3471,7 @@ mod joint_hessian_tests {
             self.assertIn("-> Result<(), GradgenError>", lib_text)
             self.assertIn('libm = "0.2"', cargo_text)
             self.assertIn('name = "my_kernel"', cargo_text)
+            self.assertIn("#![forbid(unsafe_code)]", lib_text)
 
             try:
                 completed = self._run_cargo(project.project_dir, "build", "--quiet")
