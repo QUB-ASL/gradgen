@@ -9,6 +9,8 @@ $f:\mathbb{R}^n\times \mathbb{R}^p \to \mathbb{R}$, that is not currently implem
 
 ## Registering custom functions
 
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/16ZjugHH0tDIXJ6btsTSQir9jHokx7bvd?usp=sharing)
+
 Your function must have the signature
 
 ```python
@@ -142,6 +144,8 @@ functions.
 
 ## Code generation
 
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/16ZjugHH0tDIXJ6btsTSQir9jHokx7bvd?usp=sharing)
+
 Custom functions can be used in code generation. To this end, the user
 needs to provide a Rust implementation of $f$ (and, optionally, its gradient
 and Hessian or Hessian-vector products).
@@ -274,6 +278,8 @@ computed too.
 
 ## Hessian-vector products
 
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/16ZjugHH0tDIXJ6btsTSQir9jHokx7bvd?usp=sharing)
+
 For a function $f:\mathbb{R}^n\times \mathbb{R}^p \to \mathbb{R}$ we may want
 to calculate Hessian-vector products, i.e. the mapping
 
@@ -334,6 +340,8 @@ custom_energy = register_elementary_function(
 
 
 ## Hessians
+
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/16ZjugHH0tDIXJ6btsTSQir9jHokx7bvd?usp=sharing)
 
 The Hessian is the full matrix of second derivatives with respect to $x$, that is,
 
@@ -400,3 +408,7 @@ provide `hvp=`, gradgen can still form Hessian-vector products from the
 Hessian. 
 When generating Rust, the full Hessian is written into a flat output
 buffer in row-major order.
+
+
+
+
