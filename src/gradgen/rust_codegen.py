@@ -137,6 +137,7 @@ class RustCodegenResult:
     """Generated Rust source and metadata for a symbolic function."""
 
     source: str
+    python_name: str
     function_name: str
     workspace_size: int
     input_names: tuple[str, ...]
@@ -610,6 +611,10 @@ def generate_rust(
 
     codegen = RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(
+            name,
+            resolved_config.crate_name,
+        ),
         function_name=name,
         workspace_size=workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -1192,6 +1197,7 @@ def _generate_composed_primal_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -1554,6 +1560,7 @@ def _generate_composed_gradient_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -1732,6 +1739,7 @@ def _generate_zipped_primal_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=helper_workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -1939,6 +1947,7 @@ def _generate_zipped_jacobian_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=total_workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -2125,6 +2134,7 @@ def _generate_reduced_primal_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=total_workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -2627,6 +2637,7 @@ def _generate_single_shooting_driver_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
+        python_name=_derive_python_function_name(name, resolved_config.crate_name),
         function_name=name,
         workspace_size=workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -5102,6 +5113,19 @@ def _render_python_interface_source(
     ).rstrip()
 
 
+def _derive_python_function_name(function_name: str, crate_name: str | None) -> str:
+    """Derive the public Python name from a generated Rust symbol name."""
+    candidate = function_name
+    if crate_name:
+        crate_prefix = sanitize_ident(crate_name)
+        prefix = f"{crate_prefix}_"
+        if candidate.startswith(prefix):
+            candidate = candidate[len(prefix) :]
+    if candidate.endswith("_f"):
+        candidate = candidate[:-2]
+    return candidate or function_name
+
+
 def _create_python_interface_project(
     *,
     low_level_project_dir: Path,
@@ -5109,6 +5133,10 @@ def _create_python_interface_project(
     codegens: tuple[RustCodegenResult, ...],
 ) -> RustPythonInterfaceProjectResult:
     """Create a sibling PyO3 wrapper crate for generated Rust kernels."""
+    validate_unique_rust_names(
+        [(codegen.function_name, codegen.python_name) for codegen in codegens],
+        label="generated Python function",
+    )
     wrapper_project_dir = low_level_project_dir.parent / f"{low_level_crate_name}_python"
     wrapper_crate_name = wrapper_project_dir.name
     module_name = low_level_crate_name

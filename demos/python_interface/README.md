@@ -10,8 +10,11 @@ The generated crates:
 
 The Python wrapper:
 
+- provides `all_functions()` for discovery
+- provides `function_info("energy")` for metadata
 - provides `workspace_for_function("energy")`
 - provides `call("energy", x, w, workspace)`
+- exposes direct callables like `foo.energy(...)`
 - returns a dictionary when the generated function has multiple outputs
 
 ## Files

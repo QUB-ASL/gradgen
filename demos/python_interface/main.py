@@ -52,8 +52,8 @@ project = create_rust_project(
     energy,
     args.output_dir,
     config=RustBackendConfig()
-    .with_crate_name("foo")
-    .with_enable_python_interface(True),
+        .with_crate_name("foo")
+        .with_enable_python_interface(True),
 )
 
 print("Generated Rust crate:", project.project_dir)

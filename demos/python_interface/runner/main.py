@@ -51,11 +51,14 @@ def main() -> None:
         snippet = """
 import foo
 
+print("all_functions() =", foo.all_functions())
+print("function_info('energy') =", foo.function_info("energy"))
 workspace = foo.workspace_for_function("energy")
-result = foo.call("energy", [1.0, 2.0], [3.0], workspace)
+result = foo.energy([1.0, 2.0], [3.0], workspace)
 
+print("workspace =", workspace)
+print("foo.energy([1.0, 2.0], [3.0], workspace) =", result)
 print("workspace_for_function('energy') =", workspace)
-print("call('energy', [1.0, 2.0], [3.0], workspace) =", result)
 """
         subprocess.run([str(python_bin), "-c", snippet], check=True, text=True)
 

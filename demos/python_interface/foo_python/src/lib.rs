@@ -3,12 +3,66 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyDict, PyFloat, PyList, PyTuple};
 use std::vec::Vec;
 
+#[pyclass]
+struct Workspace {
+    function_name: &'static str,
+    values: Vec<f64>,
+}
+
+#[pymethods]
+impl Workspace {
+    #[getter]
+    fn function_name(&self) -> &str {
+        self.function_name
+    }
+
+    fn __len__(&self) -> usize {
+        self.values.len()
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Workspace(function_name={:?}, size={})",
+            self.function_name,
+            self.values.len()
+        )
+    }
+}
+
 fn pyerr_from_gradgen_error(error: foo::GradgenError) -> PyErr {
     match error {
         foo::GradgenError::WorkspaceTooSmall(message)
         | foo::GradgenError::InputTooSmall(message)
         | foo::GradgenError::OutputTooSmall(message) => PyValueError::new_err(message),
     }
+}
+
+fn build_function_info(
+    py: Python<'_>,
+    python_name: &str,
+    metadata: foo::FunctionMetadata,
+) -> PyResult<Py<PyAny>> {
+    let info = PyDict::new(py);
+    info.set_item("name", python_name)?;
+    info.set_item("rust_name", metadata.function_name)?;
+    info.set_item("workspace_size", metadata.workspace_size)?;
+    info.set_item(
+        "input_names",
+        PyList::new(py, metadata.input_names.iter().copied())?,
+    )?;
+    info.set_item(
+        "input_sizes",
+        PyList::new(py, metadata.input_sizes.iter().copied())?,
+    )?;
+    info.set_item(
+        "output_names",
+        PyList::new(py, metadata.output_names.iter().copied())?,
+    )?;
+    info.set_item(
+        "output_sizes",
+        PyList::new(py, metadata.output_sizes.iter().copied())?,
+    )?;
+    Ok(info.into_any().unbind())
 }
 
 fn extract_values(obj: &Bound<'_, PyAny>, expected_size: usize, label: &str) -> PyResult<Vec<f64>> {
@@ -31,26 +85,6 @@ fn extract_values(obj: &Bound<'_, PyAny>, expected_size: usize, label: &str) -> 
     Ok(values.into_iter().collect())
 }
 
-fn extract_workspace(obj: &Bound<'_, PyAny>, expected_size: usize) -> PyResult<Vec<f64>> {
-    if expected_size == 0 {
-        return Ok(Vec::new());
-    }
-
-    if expected_size == 1 {
-        if let Ok(value) = obj.extract::<f64>() {
-            return Ok(std::iter::once(value).collect());
-        }
-    }
-
-    let values: Vec<f64> = obj.extract()?;
-    if values.len() < expected_size {
-        return Err(PyValueError::new_err(format!(
-            "workspace expected at least {expected_size}"
-        )));
-    }
-    Ok(values.into_iter().take(expected_size).collect())
-}
-
 fn wrap_output(py: Python<'_>, values: &[f64]) -> PyResult<Py<PyAny>> {
     if values.len() == 1 {
         return Ok(PyFloat::new(py, values[0]).into_any().unbind());
@@ -59,15 +93,34 @@ fn wrap_output(py: Python<'_>, values: &[f64]) -> PyResult<Py<PyAny>> {
     Ok(PyList::new(py, values.iter().copied())?.into_any().unbind())
 }
 
-fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
+fn all_functions_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    Ok(PyList::new(py, ["energy"])?.into_any().unbind())
+}
+
+fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<Workspace>> {
+    match function_name {
+        "energy" => {
+            let mut values = Vec::with_capacity(2);
+            values.resize(2, 0.0_f64);
+            Py::new(
+                py,
+                Workspace {
+                    function_name: "energy",
+                    values,
+                },
+            )
+        }
+        _ => Err(PyValueError::new_err(format!(
+            "unknown generated function {function_name:?}"
+        ))),
+    }
+}
+
+fn function_info_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
     match function_name {
         "energy" => {
             let metadata = foo::energy_meta();
-            Ok(
-                PyList::new(py, std::iter::repeat_n(0.0_f64, metadata.workspace_size))?
-                    .into_any()
-                    .unbind(),
-            )
+            build_function_info(py, "energy", metadata)
         }
         _ => Err(PyValueError::new_err(format!(
             "unknown generated function {function_name:?}"
@@ -81,14 +134,52 @@ fn call_impl(
     inputs: &Bound<'_, PyTuple>,
 ) -> PyResult<Py<PyAny>> {
     match function_name {
-        "energy" => call_energy(py, inputs),
+        "energy" => call_energy_from_tuple_impl(py, inputs),
         _ => Err(PyValueError::new_err(format!(
             "unknown generated function {function_name:?}"
         ))),
     }
 }
 
-fn call_energy(py: Python<'_>, inputs: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny>> {
+fn call_energy_impl(
+    py: Python<'_>,
+    input_0: Vec<f64>,
+    input_1: Vec<f64>,
+    mut workspace: PyRefMut<'_, Workspace>,
+) -> PyResult<Py<PyAny>> {
+    let metadata = foo::energy_meta();
+    if workspace.function_name != "energy" && workspace.function_name != metadata.function_name {
+        return Err(PyValueError::new_err(format!(
+            "workspace_for_function({:?}) must be used with {}",
+            workspace.function_name, "energy"
+        )));
+    }
+    if workspace.values.len() < metadata.workspace_size {
+        return Err(PyValueError::new_err(format!(
+            "workspace expected at least {}",
+            metadata.workspace_size
+        )));
+    }
+
+    let mut output_0 = [0.0_f64; 1];
+    let mut output_1 = [0.0_f64; 1];
+
+    foo::energy(
+        &input_0[..],
+        &input_1[..],
+        &mut output_0[..],
+        &mut output_1[..],
+        workspace.values.as_mut_slice(),
+    )
+    .map_err(pyerr_from_gradgen_error)?;
+
+    let result = PyDict::new(py);
+    result.set_item(metadata.output_names[0], wrap_output(py, &output_0)?)?;
+    result.set_item(metadata.output_names[1], wrap_output(py, &output_1)?)?;
+    Ok(result.into_any().unbind())
+}
+
+fn call_energy_from_tuple_impl(py: Python<'_>, inputs: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny>> {
     let metadata = foo::energy_meta();
     let expected_arg_count = metadata.input_sizes.len() + 1;
     if inputs.len() != expected_arg_count {
@@ -97,42 +188,46 @@ fn call_energy(py: Python<'_>, inputs: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny
         )));
     }
 
-    let x = extract_values(
+    let input_0 = extract_values(
         &inputs.get_item(0)?,
         metadata.input_sizes[0],
         metadata.input_names[0],
     )?;
-    let w = extract_values(
+    let input_1 = extract_values(
         &inputs.get_item(1)?,
         metadata.input_sizes[1],
         metadata.input_names[1],
     )?;
 
-    let workspace_values = extract_workspace(&inputs.get_item(2)?, metadata.workspace_size)?;
-    let mut workspace = [0.0_f64; 2];
-    workspace.copy_from_slice(&workspace_values[..2]);
+    let workspace = inputs.get_item(2)?.extract::<PyRefMut<'_, Workspace>>()?;
+    call_energy_impl(py, input_0, input_1, workspace)
+}
 
-    let mut cost = [0.0_f64; 1];
-    let mut state = [0.0_f64; 1];
-
-    foo::energy(
-        &x[..],
-        &w[..],
-        &mut cost[..],
-        &mut state[..],
-        &mut workspace[..],
-    )
-    .map_err(pyerr_from_gradgen_error)?;
-
-    let result = PyDict::new(py);
-    result.set_item(metadata.output_names[0], wrap_output(py, &cost)?)?;
-    result.set_item(metadata.output_names[1], wrap_output(py, &state)?)?;
-    Ok(result.into_any().unbind())
+#[pyfunction(name = "energy")]
+fn energy(
+    py: Python<'_>,
+    arg_0: &Bound<'_, PyAny>,
+    arg_1: &Bound<'_, PyAny>,
+    workspace: PyRefMut<'_, Workspace>,
+) -> PyResult<Py<PyAny>> {
+    let input_0 = extract_values(arg_0, 2, "x")?;
+    let input_1 = extract_values(arg_1, 1, "w")?;
+    call_energy_impl(py, input_0, input_1, workspace)
 }
 
 #[pyfunction]
-fn workspace_for_function(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
+fn all_functions(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    all_functions_impl(py)
+}
+
+#[pyfunction]
+fn workspace_for_function(py: Python<'_>, function_name: &str) -> PyResult<Py<Workspace>> {
     workspace_for_function_impl(py, function_name)
+}
+
+#[pyfunction]
+fn function_info(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
+    function_info_impl(py, function_name)
 }
 
 #[pyfunction(signature = (function_name, *inputs))]
@@ -143,7 +238,11 @@ fn call(py: Python<'_>, function_name: &str, inputs: &Bound<'_, PyTuple>) -> PyR
 #[pymodule]
 #[pyo3(name = "foo")]
 fn gradgen_python_interface(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<Workspace>()?;
+    m.add_function(wrap_pyfunction!(all_functions, m)?)?;
+    m.add_function(wrap_pyfunction!(function_info, m)?)?;
     m.add_function(wrap_pyfunction!(workspace_for_function, m)?)?;
     m.add_function(wrap_pyfunction!(call, m)?)?;
+    m.add_function(wrap_pyfunction!(energy, m)?)?;
     Ok(())
 }

@@ -51,6 +51,10 @@ class PythonInterfaceDemoTests(unittest.TestCase):
             )
 
             self.assertIn("workspace_for_function(", completed.stdout)
-            self.assertIn("call(", completed.stdout)
+            self.assertIn("all_functions()", completed.stdout)
+            self.assertIn("function_info('energy')", completed.stdout)
+            self.assertIn("workspace =", completed.stdout)
+            self.assertIn("Workspace(", completed.stdout)
+            self.assertIn("foo.energy(", completed.stdout)
             self.assertIn("'cost':", completed.stdout)
             self.assertIn("'state':", completed.stdout)
