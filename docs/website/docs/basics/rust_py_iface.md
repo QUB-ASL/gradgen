@@ -4,6 +4,8 @@ sidebar_position: 5
 
 # Rust-Python interface
 
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1xueMa6EcfOR_M9mPvCGdqhyCyyW8NI-_?usp=sharing)
+
 Once you have generated a Rust crate for your functions, you can consume it directly from Python. 
 This is done by using `.with_enable_python_interface()` as shown below
 
@@ -52,6 +54,8 @@ print(blah.all_functions()) # prints ['energy']
 ```
 
 ## Calling functions
+
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1xueMa6EcfOR_M9mPvCGdqhyCyyW8NI-_?usp=sharing)
 
 To call any function from the generated package, `blah`, you first need 
 to create a workspace variable. This is the only time you will need to allocate 
