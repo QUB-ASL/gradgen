@@ -24,9 +24,11 @@ fn extract_values(
 
     if expected_size == 1 {
         if let Ok(value) = obj.extract::<f64>() {
-            let mut values = Vec::with_capacity(1);
-            values.push(value as {{ scalar_type }});
-            return Ok(values);
+{% if scalar_type == "f64" %}
+            return Ok(std::iter::once(value).collect());
+{% else %}
+            return Ok(std::iter::once(value as {{ scalar_type }}).collect());
+{% endif %}
         }
     }
 
@@ -36,7 +38,11 @@ fn extract_values(
             "{label} expected length {expected_size}"
         )));
     }
+{% if scalar_type == "f64" %}
+    Ok(values.into_iter().collect())
+{% else %}
     Ok(values.into_iter().map(|value| value as {{ scalar_type }}).collect())
+{% endif %}
 }
 
 fn extract_workspace(
@@ -49,9 +55,11 @@ fn extract_workspace(
 
     if expected_size == 1 {
         if let Ok(value) = obj.extract::<f64>() {
-            let mut values = Vec::with_capacity(1);
-            values.push(value as {{ scalar_type }});
-            return Ok(values);
+{% if scalar_type == "f64" %}
+            return Ok(std::iter::once(value).collect());
+{% else %}
+            return Ok(std::iter::once(value as {{ scalar_type }}).collect());
+{% endif %}
         }
     }
 
@@ -61,6 +69,9 @@ fn extract_workspace(
             "workspace expected at least {expected_size}"
         )));
     }
+{% if scalar_type == "f64" %}
+    Ok(values.into_iter().take(expected_size).collect())
+{% else %}
     Ok(
         values
             .into_iter()
@@ -68,16 +79,25 @@ fn extract_workspace(
             .map(|value| value as {{ scalar_type }})
             .collect(),
     )
+{% endif %}
 }
 
 fn wrap_output(py: Python<'_>, values: &[{{ scalar_type }}]) -> PyResult<Py<PyAny>> {
     if values.len() == 1 {
+{% if scalar_type == "f64" %}
+        return Ok(PyFloat::new(py, values[0]).into_any().unbind());
+{% else %}
         return Ok(PyFloat::new(py, values[0] as f64).into_any().unbind());
+{% endif %}
     }
 
+{% if scalar_type == "f64" %}
+    Ok(PyList::new(py, values.iter().copied())?.into_any().unbind())
+{% else %}
     Ok(PyList::new(py, values.iter().copied().map(|value| value as f64))?
         .into_any()
         .unbind())
+{% endif %}
 }
 
 fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
@@ -91,7 +111,7 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
             let metadata = {{ low_level_crate_name }}::{{ codegen.function_name }}_meta();
             Ok(PyList::new(
                 py,
-                (0..metadata.workspace_size).map(|_| 0.0_f64),
+                std::iter::repeat_n(0.0_f64, metadata.workspace_size),
             )?
             .into_any()
             .unbind())

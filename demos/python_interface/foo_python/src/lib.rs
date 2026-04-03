@@ -18,9 +18,7 @@ fn extract_values(obj: &Bound<'_, PyAny>, expected_size: usize, label: &str) -> 
 
     if expected_size == 1 {
         if let Ok(value) = obj.extract::<f64>() {
-            let mut values = Vec::with_capacity(1);
-            values.push(value as f64);
-            return Ok(values);
+            return Ok(std::iter::once(value).collect());
         }
     }
 
@@ -30,7 +28,7 @@ fn extract_values(obj: &Bound<'_, PyAny>, expected_size: usize, label: &str) -> 
             "{label} expected length {expected_size}"
         )));
     }
-    Ok(values.into_iter().map(|value| value as f64).collect())
+    Ok(values.into_iter().collect())
 }
 
 fn extract_workspace(obj: &Bound<'_, PyAny>, expected_size: usize) -> PyResult<Vec<f64>> {
@@ -40,9 +38,7 @@ fn extract_workspace(obj: &Bound<'_, PyAny>, expected_size: usize) -> PyResult<V
 
     if expected_size == 1 {
         if let Ok(value) = obj.extract::<f64>() {
-            let mut values = Vec::with_capacity(1);
-            values.push(value as f64);
-            return Ok(values);
+            return Ok(std::iter::once(value).collect());
         }
     }
 
@@ -52,23 +48,15 @@ fn extract_workspace(obj: &Bound<'_, PyAny>, expected_size: usize) -> PyResult<V
             "workspace expected at least {expected_size}"
         )));
     }
-    Ok(values
-        .into_iter()
-        .take(expected_size)
-        .map(|value| value as f64)
-        .collect())
+    Ok(values.into_iter().take(expected_size).collect())
 }
 
 fn wrap_output(py: Python<'_>, values: &[f64]) -> PyResult<Py<PyAny>> {
     if values.len() == 1 {
-        return Ok(PyFloat::new(py, values[0] as f64).into_any().unbind());
+        return Ok(PyFloat::new(py, values[0]).into_any().unbind());
     }
 
-    Ok(
-        PyList::new(py, values.iter().copied().map(|value| value as f64))?
-            .into_any()
-            .unbind(),
-    )
+    Ok(PyList::new(py, values.iter().copied())?.into_any().unbind())
 }
 
 fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
@@ -76,7 +64,7 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
         "energy" => {
             let metadata = foo::energy_meta();
             Ok(
-                PyList::new(py, (0..metadata.workspace_size).map(|_| 0.0_f64))?
+                PyList::new(py, std::iter::repeat_n(0.0_f64, metadata.workspace_size))?
                     .into_any()
                     .unbind(),
             )
