@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `workspace_for_function(...)` and `call(...)` helpers, and by default the
   wrapper is compiled immediately with the same Python interpreter that ran
   the generator.
+- The generated Python wrapper now manages its own `pyproject.toml` version:
+  first generation starts at `0.1.0`, and regenerating the same interface
+  bumps the minor version to `0.2.0`, `0.3.0`, and so on. The Cargo crate
+  version is unchanged.
 - Added a new `demos/python_interface` demo and runner showing how to generate
   a Rust crate that can be installed and imported from Python.
 - Added deterministic single-shooting optimal-control support through

@@ -41,6 +41,22 @@ project = (
 This will generate a crate in `./my_crates/blah` and a Python interface in
 `./my_crates/blah_python`.
 
+The generated Python wrapper uses its own `pyproject.toml` version. The first
+time the interface is generated, that version is `0.1.0`. If you regenerate
+the same interface later, Gradgen bumps the wrapper version to `0.2.0`, then
+`0.3.0`, and so on. The low-level Cargo crate version does not change.
+
+If you also want Gradgen to compile the generated Rust crate immediately after
+writing it, enable:
+
+```python
+RustBackendConfig().with_build_crate()
+```
+
+That step is optional and defaults to off. When it is enabled, Gradgen runs
+`cargo build` for the generated low-level crate and raises an informative error
+if `cargo` is not installed.
+
 You can now use this as a **python module**. You can then do
 
 ```python

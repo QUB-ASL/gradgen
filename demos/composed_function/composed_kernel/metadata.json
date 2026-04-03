@@ -1,7 +1,7 @@
 {
   "crate_name": "composed_kernel",
-  "created_at": "2026-04-03T13:18:14.507186Z",
-  "gradgen_version": "0.4.0a5",
+  "created_at": "2026-04-03T13:32:16.922936Z",
+  "gradgen_version": "0.4.0a6",
   "functions": [
     {
       "function_name": "composed_kernel_composed_demo_f",

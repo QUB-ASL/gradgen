@@ -1011,7 +1011,42 @@ mod single_shooting_multi_u_tests {{
             self.assertIn("state", lib_text)
             self.assertIn("maturin", wrapper_pyproject)
             self.assertIn('module-name = "energy"', wrapper_pyproject)
+            self.assertIn('version = "0.1.0"', wrapper_pyproject)
             self.assertIn("Python Interface Wrapper", wrapper_readme)
+
+    def test_create_rust_project_bumps_python_interface_version_on_regeneration(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = (
+            RustBackendConfig()
+            .with_crate_name("blah")
+            .with_enable_python_interface(True)
+            .with_build_python_interface(False)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project_dir = Path(tmpdir) / "energy_kernel"
+
+            first_project = create_rust_project(f, project_dir, config=config)
+            first_wrapper = first_project.python_interface
+            assert first_wrapper is not None
+            first_pyproject = first_wrapper.pyproject.read_text(encoding="utf-8")
+
+            second_project = create_rust_project(f, project_dir, config=config)
+            second_wrapper = second_project.python_interface
+            assert second_wrapper is not None
+            second_pyproject = second_wrapper.pyproject.read_text(encoding="utf-8")
+
+            self.assertIn('version = "0.1.0"', first_pyproject)
+            self.assertIn('version = "0.2.0"', second_pyproject)
 
     def test_create_rust_project_can_build_generated_crate(self) -> None:
         x = SXVector.sym("x", 2)

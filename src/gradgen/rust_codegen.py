@@ -8,6 +8,7 @@ from importlib.metadata import PackageNotFoundError, version as package_version
 import os
 import json
 import logging
+import tomllib
 from pathlib import Path
 import re
 import shutil
@@ -136,11 +137,23 @@ class RustBackendConfig:
         return replace(self, enable_python_interface=enable_python_interface)
 
     def with_build_python_interface(self, build_python_interface: bool = True) -> RustBackendConfig:
-        """Return a copy with Python wrapper compilation enabled or disabled."""
+        """Return a copy with Python wrapper compilation enabled or disabled.
+
+        When enabled, Gradgen will build and install the generated Python
+        wrapper into the active interpreter environment after emitting the
+        wrapper crate.
+        """
         return replace(self, build_python_interface=build_python_interface)
 
     def with_build_crate(self, build_crate: bool = True) -> RustBackendConfig:
-        """Return a copy with low-level crate compilation enabled or disabled."""
+        """Return a copy with low-level crate compilation enabled or disabled.
+
+        When enabled, Gradgen will run ``cargo build`` for the generated Rust
+        crate after writing it to disk. If ``cargo`` is not available, project
+        generation raises a ``RuntimeError`` with an informative message. The
+        default is disabled so code generation remains a write-only step unless
+        users explicitly opt into compilation.
+        """
         return replace(self, build_crate=build_crate)
 
 
@@ -967,6 +980,46 @@ def _run_python_interface_build(project_dir: Path) -> None:
             "failed to install the generated Python interface"
             + (f": {details}" if details else "")
         ) from exc
+
+
+def _next_python_interface_version(wrapper_project_dir: Path) -> str:
+    """Return the next Python wrapper version for ``wrapper_project_dir``.
+
+    The first generation uses ``0.1.0``. Regenerating an existing wrapper
+    bumps the minor version while resetting the patch component to zero, so
+    repeated generations produce ``0.2.0``, ``0.3.0``, and so on.
+    """
+    pyproject = wrapper_project_dir / "pyproject.toml"
+    if not pyproject.exists():
+        return "0.1.0"
+
+    try:
+        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise RuntimeError(
+            f"failed to read the existing Python interface version from {pyproject}"
+        ) from exc
+
+    project_section = data.get("project")
+    if not isinstance(project_section, dict):
+        raise RuntimeError(
+            f"existing Python interface metadata at {pyproject} does not define [project]"
+        )
+
+    version = project_section.get("version")
+    if not isinstance(version, str):
+        raise RuntimeError(
+            f"existing Python interface metadata at {pyproject} does not define a string version"
+        )
+
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
+    if match is None:
+        raise RuntimeError(
+            f"existing Python interface version {version!r} in {pyproject} is not a semantic version"
+        )
+
+    major, minor, _patch = (int(group) for group in match.groups())
+    return f"{major}.{minor + 1}.0"
 
 
 def _run_cargo_build(project_dir: Path) -> None:
@@ -5220,6 +5273,7 @@ def _create_python_interface_project(
     pyproject = wrapper_project_dir / "pyproject.toml"
     readme = wrapper_project_dir / "README.md"
     lib_rs = src_dir / "lib.rs"
+    project_version = _next_python_interface_version(wrapper_project_dir)
 
     dependency_path = Path("..") / low_level_project_dir.name
     cargo_toml.write_text(
@@ -5236,6 +5290,7 @@ def _create_python_interface_project(
             crate_name=wrapper_crate_name,
             module_name=module_name,
             low_level_crate_name=low_level_crate_name,
+            project_version=project_version,
         ),
         encoding="utf-8",
     )
