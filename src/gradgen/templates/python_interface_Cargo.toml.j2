@@ -1,0 +1,16 @@
+[package]
+name = "{{ crate_name }}"
+version = "0.1.0"
+edition = "2021"
+description = "Generated gradgen Python wrapper for {{ low_level_crate_name }}"
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+{{ low_level_crate_name }} = { path = "{{ low_level_crate_path }}" }
+
+[dependencies.pyo3]
+version = "0.28.2"
+features = ["extension-module"]

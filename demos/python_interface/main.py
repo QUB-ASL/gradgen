@@ -1,4 +1,4 @@
-"""Demo showing how to generate a Rust crate that can be imported from Python."""
+"""Demo showing how to generate a Rust crate plus a separate Python wrapper."""
 
 from __future__ import annotations
 
@@ -15,9 +15,9 @@ from gradgen import Function, RustBackendConfig, SXVector, create_rust_project
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse the output directory used for the generated Python-enabled crate."""
+    """Parse the output directory used for the generated low-level crate."""
     parser = argparse.ArgumentParser(
-        description="Generate a Rust crate that also exposes a PyO3 Python module.",
+        description="Generate a Rust crate and a sibling PyO3 Python wrapper.",
     )
     parser.add_argument(
         "--output-dir",
@@ -58,5 +58,7 @@ project = create_rust_project(
 
 print("Generated Rust crate:", project.project_dir)
 print("Generated Rust function:", project.codegen.function_name)
-print("Generated Python module: foo")
-print("The crate can now be imported as `foo` after installing it with `pip install -e`.")
+if project.python_interface is not None:
+    print("Generated Python wrapper crate:", project.python_interface.project_dir)
+    print("Generated Python module: foo")
+    print("Install the wrapper crate with `pip install -e` to import `foo`.")

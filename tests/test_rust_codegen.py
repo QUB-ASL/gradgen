@@ -918,9 +918,15 @@ mod single_shooting_multi_u_tests {{
 
         self.assertTrue(config.enable_python_interface)
 
-    def test_backend_config_rejects_python_interface_for_no_std(self) -> None:
-        with self.assertRaises(ValueError):
-            RustBackendConfig().with_backend_mode("no_std").with_enable_python_interface(True)
+    def test_backend_config_allows_python_interface_with_no_std(self) -> None:
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_enable_python_interface(True)
+        )
+
+        self.assertEqual(config.backend_mode, "no_std")
+        self.assertTrue(config.enable_python_interface)
 
     def test_create_rust_project_with_python_interface_writes_python_scaffolding(self) -> None:
         x = SXVector.sym("x", 2)
@@ -939,19 +945,37 @@ mod single_shooting_multi_u_tests {{
             project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
             cargo_text = project.cargo_toml.read_text(encoding="utf-8")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
-            pyproject = project.project_dir / "pyproject.toml"
+            readme_text = project.readme.read_text(encoding="utf-8")
+            wrapper = project.python_interface
 
-            self.assertTrue(pyproject.is_file())
-            self.assertIn("[dependencies.pyo3]", cargo_text)
-            self.assertIn('version = "0.28.2"', cargo_text)
-            self.assertIn('crate-type = ["cdylib", "rlib"]', cargo_text)
-            self.assertIn("#[pymodule]", lib_text)
-            self.assertIn("workspace_for_function", lib_text)
-            self.assertIn("call(", lib_text)
-            self.assertIn("impl From<GradgenError> for PyErr", lib_text)
-            self.assertIn("PyValueError::new_err", lib_text)
+            self.assertIsNotNone(wrapper)
+            assert wrapper is not None
+
+            wrapper_cargo = wrapper.cargo_toml.read_text(encoding="utf-8")
+            wrapper_lib = wrapper.lib_rs.read_text(encoding="utf-8")
+            wrapper_pyproject = wrapper.pyproject.read_text(encoding="utf-8")
+            wrapper_readme = wrapper.readme.read_text(encoding="utf-8")
+
+            self.assertNotIn("[dependencies.pyo3]", cargo_text)
+            self.assertNotIn('crate-type = ["cdylib", "rlib"]', cargo_text)
+            self.assertFalse((project.project_dir / "pyproject.toml").exists())
+            self.assertIn("This crate stays pure Rust", readme_text)
+            self.assertIn("separate PyO3 wrapper crate", readme_text)
+            self.assertIn("cargo build", readme_text)
+            self.assertIn("[dependencies.pyo3]", wrapper_cargo)
+            self.assertIn('version = "0.28.2"', wrapper_cargo)
+            self.assertIn("energy = { path = \"../energy_kernel\" }", wrapper_cargo)
+            self.assertIn('crate-type = ["cdylib", "rlib"]', wrapper_cargo)
+            self.assertIn("#[pymodule]", wrapper_lib)
+            self.assertIn("workspace_for_function", wrapper_lib)
+            self.assertIn("call(", wrapper_lib)
+            self.assertIn("pyerr_from_gradgen_error", wrapper_lib)
+            self.assertIn("PyValueError::new_err", wrapper_lib)
             self.assertIn("cost", lib_text)
             self.assertIn("state", lib_text)
+            self.assertIn("maturin", wrapper_pyproject)
+            self.assertIn('module-name = "energy"', wrapper_pyproject)
+            self.assertIn("Python Interface Wrapper", wrapper_readme)
 
     def test_create_rust_project_with_python_interface_builds(self) -> None:
         x = SXVector.sym("x", 2)
@@ -970,6 +994,11 @@ mod single_shooting_multi_u_tests {{
             project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
             completed = self._run_cargo(project.project_dir, "check")
             self.assertEqual(completed.returncode, 0)
+            self.assertIsNotNone(project.python_interface)
+            wrapper = project.python_interface
+            assert wrapper is not None
+            completed_wrapper = self._run_cargo(wrapper.project_dir, "check")
+            self.assertEqual(completed_wrapper.returncode, 0)
 
     def test_function_bundle_supports_chainable_updates(self) -> None:
         bundle = (

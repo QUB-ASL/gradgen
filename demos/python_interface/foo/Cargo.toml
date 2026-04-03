@@ -6,8 +6,3 @@ description = "Generated gradgen crate using f64"
 
 [lib]
 path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]
-
-[dependencies.pyo3]
-version = "0.28.2"
-features = ["extension-module"]

@@ -27,5 +27,6 @@ The generated Rust file also includes helper functions that return the required
 workspace, input, and output dimensions.
 The crate root also contains a `metadata.json` file with the same function
 metadata in a machine-readable form.
-The crate also includes a PyO3 extension module and a `pyproject.toml` file so
-it can be built and imported from Python.
+This crate stays pure Rust. A separate PyO3 wrapper crate is generated at
+`../foo_python` so the kernels can be imported from
+Python without giving up `no_std` support here.

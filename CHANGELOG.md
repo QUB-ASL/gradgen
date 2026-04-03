@@ -10,7 +10,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 - Added an optional PyO3-based Python interface for generated Rust crates via
-  `RustBackendConfig().with_enable_python_interface(True)`, including generated
+  `RustBackendConfig().with_enable_python_interface(True)`, now emitted as a
+  separate sibling wrapper crate so the low-level generated crate can stay
+  pure Rust and `no_std`-friendly. The wrapper includes generated
   `workspace_for_function(...)` and `call(...)` helpers.
 - Added a new `demos/python_interface` demo and runner showing how to generate
   a Rust crate that can be installed and imported from Python.
@@ -50,6 +52,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   new scoped builder API.
 - Updated CI and demo tooling so the single-shooting demo is generated and run
   alongside the other demos.
+- Split the Python-interface demo output into a low-level crate and a separate
+  `foo_python` wrapper crate, and updated the demo runner to install the
+  wrapper rather than the kernel crate directly.
 - Expanded the single-shooting test coverage with additional scalar, horizon-1,
   multi-control, integration, and generated-Rust runtime checks.
 - Updated the single-shooting demo and runner to generate and execute the new

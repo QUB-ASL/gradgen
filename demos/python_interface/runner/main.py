@@ -11,15 +11,15 @@ import venv
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse the generated crate directory used by the runner."""
+    """Parse the generated Python wrapper crate directory used by the runner."""
     parser = argparse.ArgumentParser(
-        description="Install the generated Python module into an isolated venv and call it.",
+        description="Install the generated Python wrapper into an isolated venv and call it.",
     )
     parser.add_argument(
-        "--crate-dir",
+        "--wrapper-dir",
         type=Path,
-        default=Path(__file__).resolve().parents[1] / "foo",
-        help="Path to the generated Python-enabled Rust crate.",
+        default=Path(__file__).resolve().parents[1] / "foo_python",
+        help="Path to the generated Python wrapper crate.",
     )
     return parser.parse_args()
 
@@ -32,9 +32,9 @@ def _venv_python(venv_dir: Path) -> Path:
 
 def main() -> None:
     args = parse_args()
-    crate_dir = args.crate_dir.resolve()
-    if not crate_dir.is_dir():
-        raise FileNotFoundError(f"generated crate directory not found: {crate_dir}")
+    wrapper_dir = args.wrapper_dir.resolve()
+    if not wrapper_dir.is_dir():
+        raise FileNotFoundError(f"generated wrapper directory not found: {wrapper_dir}")
 
     with tempfile.TemporaryDirectory(prefix="gradgen-python-iface-runner-") as tmpdir:
         venv_dir = Path(tmpdir) / "venv"
@@ -42,7 +42,7 @@ def main() -> None:
         python_bin = _venv_python(venv_dir)
 
         subprocess.run(
-            [str(python_bin), "-m", "pip", "install", "-e", str(crate_dir)],
+            [str(python_bin), "-m", "pip", "install", "-e", str(wrapper_dir)],
             check=True,
             capture_output=True,
             text=True,

@@ -3,10 +3,10 @@ requires = ["maturin>=1.8,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "{{ crate_name }}"
+name = "foo_python"
 version = "0.1.0"
-description = "Generated gradgen crate with a PyO3 Python interface"
+description = "Generated gradgen Python wrapper for foo"
 requires-python = ">=3.11"
 
 [tool.maturin]
-module-name = "{{ crate_name }}"
+module-name = "foo"

@@ -26,8 +26,13 @@ class PythonInterfaceDemoTests(unittest.TestCase):
 
             self.assertIn("Generated Rust crate:", completed.stdout)
             self.assertTrue((output_dir / "Cargo.toml").is_file())
-            self.assertTrue((output_dir / "pyproject.toml").is_file())
             self.assertTrue((output_dir / "src" / "lib.rs").is_file())
+            self.assertFalse((output_dir / "pyproject.toml").exists())
+
+            wrapper_dir = Path(tmpdir) / "foo_python"
+            self.assertTrue((wrapper_dir / "Cargo.toml").is_file())
+            self.assertTrue((wrapper_dir / "pyproject.toml").is_file())
+            self.assertTrue((wrapper_dir / "src" / "lib.rs").is_file())
 
     def test_demo_runner_builds_and_calls_python_extension(self) -> None:
         with TemporaryDirectory() as tmpdir:
@@ -40,8 +45,8 @@ class PythonInterfaceDemoTests(unittest.TestCase):
 
             completed = self._run_python(
                 "demos/python_interface/runner/main.py",
-                "--crate-dir",
-                str(output_dir),
+                "--wrapper-dir",
+                str(Path(tmpdir) / "foo_python"),
             )
 
             self.assertIn("workspace_for_function(", completed.stdout)
