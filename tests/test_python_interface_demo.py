@@ -2,13 +2,14 @@ import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import sys
 
 
 class PythonInterfaceDemoTests(unittest.TestCase):
     @staticmethod
     def _run_python(*args: str) -> subprocess.CompletedProcess[str]:
         return subprocess.run(
-            ["./venv/bin/python", *args],
+            [sys.executable, *args],
             cwd=Path(__file__).resolve().parents[1],
             check=True,
             capture_output=True,
