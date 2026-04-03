@@ -1,7 +1,10 @@
 ## Virtual environment
 - Use the Python from the virtual environment in `venv` in the package root. It uses Python 3.13. 
 
-## Repository Structure
+
+
+
+## Repo Structure 
 - `demos`
     - `demos/Makefile`: Makefile to build all demos
     - `demos/README`: main README with links to all demos

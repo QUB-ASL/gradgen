@@ -19,7 +19,7 @@
 
 ## Code generation example
 
-[See demo](./demos/codegen/)
+[See documentation](https://qub-asl.github.io/gradgen/docs/basics/codegen)
 
 Here is an example where we will define the function 
 
@@ -82,11 +82,11 @@ project = (
 )
 ```
 
-See the [demos](./demos) and this more complete [tutorial](./docs/how_to/how_to.md).
+See the [demos](./demos) and this more complete [tutorial](https://qub-asl.github.io/gradgen/docs/basics/codegen).
 
 ## Special case: optimal control
 
-[See demo](./demos/single_shooting/)
+[See tutorial](https://qub-asl.github.io/gradgen/docs/basics/ocp)
 
 In applications such as optimal control, the generated code
 can become too large very easily. 
@@ -98,18 +98,18 @@ Instead of completely unrolled code, **Gradgen** exploits
 the problem structure to create high-performance, 
 human-readable embeddable Rust code.
 
-See the [demos](./demos) and this more complete [tutorial](./docs/how_to/how_to.md) for details.
+See this complete [tutorial](https://qub-asl.github.io/gradgen/docs/basics/ocp) for details.
 
 ## Unique features
 
 - Truly embdedable safe Rust code with optional [`#[no_std]`](https://docs.rust-embedded.org/book/intro/no-std.html), no dynamic memory allocation, no `panic!`s
-- Specialised code generation tools for optimal control problems ([demo](./demos/single_shooting/))
+- Specialised code generation tools for optimal control problems ([docs](https://qub-asl.github.io/gradgen/docs/basics/ocp))
 - Very efficient code generation thanks to modular code generation using [`map`](./demos/map_zip/), [`zip`](./demos/zip_3/), [`repeat`](./demos/composed_function/), and `chain` high-order functions.
 - Supports both single (`f32`) and double (`f64`) precision arithmetic. You can use [`libm`](https://crates.io/crates/libm) or your own library for numerical operations (e.g., [`micromath`](https://crates.io/crates/micromath))
 
 ## Where to go next?
 
-See the [demos](./demos) and this more complete [tutorial](./docs/how_to/how_to.md) for details.
+See the [demos](./demos) and this more complete [documentation](https://qub-asl.github.io/gradgen/docs) for details.
 
 ## Show us some love!
 
