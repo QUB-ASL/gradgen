@@ -122,7 +122,7 @@ class RustBackendConfig:
         """
         return replace(self, emit_metadata_helpers=emit_metadata_helpers)
 
-    def with_enable_python_interface(self, enable_python_interface: bool) -> RustBackendConfig:
+    def with_enable_python_interface(self, enable_python_interface: bool = True) -> RustBackendConfig:
         """Return a copy with optional PyO3-based Python bindings enabled.
 
         When enabled, generated Rust projects include a separate Python wrapper

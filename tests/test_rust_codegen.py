@@ -8,6 +8,8 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 import multiprocessing
 import traceback
+import sys
+import venv
 
 import gradgen.rust_codegen as rust_codegen_module
 import gradgen.single_shooting as single_shooting_module
@@ -53,6 +55,12 @@ class RustCodegenTests(unittest.TestCase):
     @classmethod
     def _run_cargo_clippy_clean(cls, project_dir: Path) -> subprocess.CompletedProcess[str]:
         return cls._run_cargo(project_dir, "clippy", "--quiet", "--", "-D", "warnings")
+
+    @staticmethod
+    def _venv_python(venv_dir: Path) -> Path:
+        if sys.platform == "win32":
+            return venv_dir / "Scripts" / "python.exe"
+        return venv_dir / "bin" / "python"
 
     @staticmethod
     def _append_rust_test(project_dir: Path, test_source: str) -> None:
@@ -1004,6 +1012,60 @@ mod single_shooting_multi_u_tests {{
             assert wrapper is not None
             completed_wrapper = self._run_cargo(wrapper.project_dir, "check")
             self.assertEqual(completed_wrapper.returncode, 0)
+
+    def test_single_output_python_interface_returns_dictionary(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "magic",
+            [x, w],
+            [x.sin().norm2sq() * w[0]],
+            input_names=["x", "w"],
+            output_names=["a"],
+        )
+
+        config = (
+            RustBackendConfig()
+            .with_crate_name("blah")
+            .with_enable_python_interface(True)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "magic_kernel", config=config)
+            self._run_cargo(project.project_dir, "check")
+
+            assert project.python_interface is not None
+            wrapper = project.python_interface
+            self._run_cargo(wrapper.project_dir, "check")
+
+            venv_dir = Path(tmpdir) / "venv"
+            venv.EnvBuilder(with_pip=True).create(venv_dir)
+            python_bin = self._venv_python(venv_dir)
+
+            subprocess.run(
+                [str(python_bin), "-m", "pip", "install", "-e", str(wrapper.project_dir)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            completed = subprocess.run(
+                [
+                    str(python_bin),
+                    "-c",
+                    (
+                        "import blah\n"
+                        "ws = blah.workspace_for_function('magic')\n"
+                        "result = blah.magic([1.0, 2.0], [5.0], ws)\n"
+                        "print(result)\n"
+                    ),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertIn("'a':", completed.stdout)
 
     def test_function_bundle_supports_chainable_updates(self) -> None:
         bundle = (

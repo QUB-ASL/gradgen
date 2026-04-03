@@ -3,6 +3,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyDict, PyFloat, PyList, PyTuple};
 use std::vec::Vec;
 
+use ::foo as gradgen_low_level;
+
 #[pyclass]
 struct Workspace {
     function_name: &'static str,
@@ -29,18 +31,20 @@ impl Workspace {
     }
 }
 
-fn pyerr_from_gradgen_error(error: foo::GradgenError) -> PyErr {
+fn pyerr_from_gradgen_error(error: gradgen_low_level::GradgenError) -> PyErr {
     match error {
-        foo::GradgenError::WorkspaceTooSmall(message)
-        | foo::GradgenError::InputTooSmall(message)
-        | foo::GradgenError::OutputTooSmall(message) => PyValueError::new_err(message),
+        gradgen_low_level::GradgenError::WorkspaceTooSmall(message)
+        | gradgen_low_level::GradgenError::InputTooSmall(message)
+        | gradgen_low_level::GradgenError::OutputTooSmall(message) => {
+            PyValueError::new_err(message)
+        }
     }
 }
 
 fn build_function_info(
     py: Python<'_>,
     python_name: &str,
-    metadata: foo::FunctionMetadata,
+    metadata: gradgen_low_level::FunctionMetadata,
 ) -> PyResult<Py<PyAny>> {
     let info = PyDict::new(py);
     info.set_item("name", python_name)?;
@@ -119,7 +123,7 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
 fn function_info_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
     match function_name {
         "energy" => {
-            let metadata = foo::energy_meta();
+            let metadata = gradgen_low_level::energy_meta();
             build_function_info(py, "energy", metadata)
         }
         _ => Err(PyValueError::new_err(format!(
@@ -147,7 +151,7 @@ fn call_energy_impl(
     input_1: Vec<f64>,
     mut workspace: PyRefMut<'_, Workspace>,
 ) -> PyResult<Py<PyAny>> {
-    let metadata = foo::energy_meta();
+    let metadata = gradgen_low_level::energy_meta();
     if workspace.function_name != "energy" && workspace.function_name != metadata.function_name {
         return Err(PyValueError::new_err(format!(
             "workspace_for_function({:?}) must be used with {}",
@@ -164,7 +168,7 @@ fn call_energy_impl(
     let mut output_0 = [0.0_f64; 1];
     let mut output_1 = [0.0_f64; 1];
 
-    foo::energy(
+    gradgen_low_level::energy(
         &input_0[..],
         &input_1[..],
         &mut output_0[..],
@@ -180,7 +184,7 @@ fn call_energy_impl(
 }
 
 fn call_energy_from_tuple_impl(py: Python<'_>, inputs: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny>> {
-    let metadata = foo::energy_meta();
+    let metadata = gradgen_low_level::energy_meta();
     let expected_arg_count = metadata.input_sizes.len() + 1;
     if inputs.len() != expected_arg_count {
         return Err(PyValueError::new_err(format!(
@@ -204,7 +208,7 @@ fn call_energy_from_tuple_impl(py: Python<'_>, inputs: &Bound<'_, PyTuple>) -> P
 }
 
 #[pyfunction(name = "energy")]
-fn energy(
+fn py_energy(
     py: Python<'_>,
     arg_0: &Bound<'_, PyAny>,
     arg_1: &Bound<'_, PyAny>,
@@ -243,6 +247,6 @@ fn gradgen_python_interface(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResul
     m.add_function(wrap_pyfunction!(function_info, m)?)?;
     m.add_function(wrap_pyfunction!(workspace_for_function, m)?)?;
     m.add_function(wrap_pyfunction!(call, m)?)?;
-    m.add_function(wrap_pyfunction!(energy, m)?)?;
+    m.add_function(wrap_pyfunction!(py_energy, m)?)?;
     Ok(())
 }

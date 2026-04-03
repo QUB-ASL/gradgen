@@ -233,10 +233,14 @@ fn call_{{ codegen.function_name }}_impl(
     )
     .map_err(pyerr_from_gradgen_error)?;
 
-{% if codegen.output_names|length == 1 %}
-    Ok(wrap_output(py, &output_0)?)
-{% else %}
     let result = PyDict::new(py);
+{% if codegen.output_names|length == 1 %}
+    result.set_item(
+        metadata.output_names[0],
+        wrap_output(py, &output_0)?,
+    )?;
+    Ok(result.into_any().unbind())
+{% else %}
 {% for output_index in range(codegen.output_names|length) %}
     result.set_item(
         metadata.output_names[{{ output_index }}],
