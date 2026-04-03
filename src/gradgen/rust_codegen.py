@@ -75,6 +75,7 @@ class RustBackendConfig:
     emit_metadata_helpers: bool = True
     enable_python_interface: bool = False
     build_python_interface: bool = True
+    build_crate: bool = False
 
     def with_backend_mode(self, backend_mode: RustBackendMode) -> RustBackendConfig:
         """Return a copy with a different Rust backend mode.
@@ -137,6 +138,10 @@ class RustBackendConfig:
     def with_build_python_interface(self, build_python_interface: bool = True) -> RustBackendConfig:
         """Return a copy with Python wrapper compilation enabled or disabled."""
         return replace(self, build_python_interface=build_python_interface)
+
+    def with_build_crate(self, build_crate: bool = True) -> RustBackendConfig:
+        """Return a copy with low-level crate compilation enabled or disabled."""
+        return replace(self, build_crate=build_crate)
 
 
 @dataclass(frozen=True, slots=True)
@@ -703,6 +708,8 @@ def create_rust_project(
     stale_pyproject = project_dir / "pyproject.toml"
     if stale_pyproject.exists():
         stale_pyproject.unlink()
+    if resolved_config.build_crate:
+        _run_cargo_build(project_dir)
     python_interface = None
     if resolved_config.enable_python_interface:
         python_interface = _create_python_interface_project(
@@ -881,6 +888,8 @@ def create_multi_function_rust_project(
     stale_pyproject = project_dir / "pyproject.toml"
     if stale_pyproject.exists():
         stale_pyproject.unlink()
+    if resolved_config.build_crate:
+        _run_cargo_build(project_dir)
     python_interface = None
     if resolved_config.enable_python_interface:
         python_interface = _create_python_interface_project(
@@ -956,6 +965,30 @@ def _run_python_interface_build(project_dir: Path) -> None:
         details = stderr or stdout
         raise RuntimeError(
             "failed to install the generated Python interface"
+            + (f": {details}" if details else "")
+        ) from exc
+
+
+def _run_cargo_build(project_dir: Path) -> None:
+    """Compile a generated Rust crate with Cargo."""
+    if shutil.which("cargo") is None:
+        raise RuntimeError("cargo is required to build the generated Rust crate")
+    try:
+        subprocess.run(
+            ["cargo", "build"],
+            cwd=project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("cargo is required to build the generated Rust crate") from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        details = stderr or stdout
+        raise RuntimeError(
+            "failed to build the generated Rust crate"
             + (f": {details}" if details else "")
         ) from exc
 

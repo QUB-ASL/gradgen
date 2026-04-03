@@ -53,6 +53,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `.build("./my_crates")` with `with_crate_name("abc")` now writes the crate
   to `./my_crates/abc` and the Python wrapper to `./my_crates/abc_python`,
   while `.build()` defaults to `./<crate_name>`.
+- Added `RustBackendConfig().with_build_crate()` to run `cargo build` on
+  the generated low-level Rust crate after it is written to disk. The default
+  remains off, and generation raises an informative error if `cargo` is not
+  available when this option is enabled.
 - Kept backward compatibility for the older callback-based
   `for_function(function, lambda b: ...)` form.
 - Updated the tests, demos, README examples, and demo documentation to use the

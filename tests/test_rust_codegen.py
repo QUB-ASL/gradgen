@@ -939,6 +939,16 @@ mod single_shooting_multi_u_tests {{
 
         self.assertFalse(config.build_python_interface)
 
+    def test_backend_config_defaults_to_not_building_crate(self) -> None:
+        config = RustBackendConfig()
+
+        self.assertFalse(config.build_crate)
+
+    def test_backend_config_can_enable_crate_build(self) -> None:
+        config = RustBackendConfig().with_build_crate(True)
+
+        self.assertTrue(config.build_crate)
+
     def test_backend_config_allows_python_interface_with_no_std(self) -> None:
         config = (
             RustBackendConfig()
@@ -1002,6 +1012,44 @@ mod single_shooting_multi_u_tests {{
             self.assertIn("maturin", wrapper_pyproject)
             self.assertIn('module-name = "energy"', wrapper_pyproject)
             self.assertIn("Python Interface Wrapper", wrapper_readme)
+
+    def test_create_rust_project_can_build_generated_crate(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = RustBackendConfig().with_build_crate(True)
+
+        with TemporaryDirectory() as tmpdir, patch.object(
+            rust_codegen_module,
+            "_run_cargo_build",
+        ) as run_cargo_build:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+
+            self.assertIsNotNone(project)
+            run_cargo_build.assert_called_once_with(Path(tmpdir).resolve() / "energy_kernel")
+
+    def test_create_rust_project_raises_when_cargo_missing_for_build(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        with TemporaryDirectory() as tmpdir, patch.object(
+            rust_codegen_module.shutil,
+            "which",
+            return_value=None,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "cargo is required to build"):
+                create_rust_project(
+                    f,
+                    Path(tmpdir) / "energy_kernel",
+                    config=RustBackendConfig().with_build_crate(True),
+                )
 
     def test_create_rust_project_with_python_interface_builds(self) -> None:
         x = SXVector.sym("x", 2)
@@ -1081,6 +1129,25 @@ mod single_shooting_multi_u_tests {{
         with TemporaryDirectory() as tmpdir, contextlib.chdir(tmpdir):
             project = builder.build()
             self.assertEqual(project.project_dir, Path(tmpdir).resolve() / "abc")
+
+    def test_builder_build_can_build_generated_crate(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("abc").with_build_crate(True))
+            .for_function(f)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir, patch.object(
+            rust_codegen_module,
+            "_run_cargo_build",
+        ) as run_cargo_build:
+            builder.build(Path(tmpdir) / "my_crates")
+            run_cargo_build.assert_called_once_with(Path(tmpdir).resolve() / "my_crates" / "abc")
 
     def test_create_rust_project_with_python_interface_is_immediately_importable(self) -> None:
         x = SXVector.sym("x", 2)
