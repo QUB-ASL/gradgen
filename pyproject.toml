@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gradgen"
-version = "0.4.0a4"
+version = "0.4.0a5"
 description = "Symbolic differentiation and Rust code generation library."
 readme = "README.md"
 requires-python = ">=3.11"

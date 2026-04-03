@@ -5,12 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as package_version
+import os
 import json
 import logging
 from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -72,6 +74,7 @@ class RustBackendConfig:
     function_name: str | None = None
     emit_metadata_helpers: bool = True
     enable_python_interface: bool = False
+    build_python_interface: bool = True
 
     def with_backend_mode(self, backend_mode: RustBackendMode) -> RustBackendConfig:
         """Return a copy with a different Rust backend mode.
@@ -130,6 +133,10 @@ class RustBackendConfig:
         crate usable on its own, including in ``no_std`` environments.
         """
         return replace(self, enable_python_interface=enable_python_interface)
+
+    def with_build_python_interface(self, build_python_interface: bool = True) -> RustBackendConfig:
+        """Return a copy with Python wrapper compilation enabled or disabled."""
+        return replace(self, build_python_interface=build_python_interface)
 
 
 @dataclass(frozen=True, slots=True)
@@ -702,6 +709,7 @@ def create_rust_project(
             low_level_project_dir=project_dir,
             low_level_crate_name=crate,
             codegens=(codegen,),
+            build_python_interface=resolved_config.build_python_interface,
         )
     _try_run_cargo_fmt(project_dir)
 
@@ -879,6 +887,7 @@ def create_multi_function_rust_project(
             low_level_project_dir=project_dir,
             low_level_crate_name=crate,
             codegens=codegens,
+            build_python_interface=resolved_config.build_python_interface,
         )
     _try_run_cargo_fmt(project_dir)
 
@@ -921,6 +930,34 @@ def _try_run_cargo_fmt(project_dir: Path) -> None:
             project_dir,
             f": {details}" if details else ".",
         )
+
+
+def _run_python_interface_build(project_dir: Path) -> None:
+    """Install a generated Python wrapper crate into the active Python environment."""
+    if shutil.which("cargo") is None:
+        raise RuntimeError("cargo is required to compile the generated Python interface")
+
+    env = os.environ.copy()
+    env["PYO3_PYTHON"] = sys.executable
+    try:
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "-e", str(project_dir)],
+            cwd=project_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+        )
+    except FileNotFoundError as exc:
+        raise RuntimeError("cargo is required to compile the generated Python interface") from exc
+    except subprocess.CalledProcessError as exc:
+        stderr = (exc.stderr or "").strip()
+        stdout = (exc.stdout or "").strip()
+        details = stderr or stdout
+        raise RuntimeError(
+            "failed to install the generated Python interface"
+            + (f": {details}" if details else "")
+        ) from exc
 
 
 def _generate_composed_primal_rust(
@@ -5131,6 +5168,7 @@ def _create_python_interface_project(
     low_level_project_dir: Path,
     low_level_crate_name: str,
     codegens: tuple[RustCodegenResult, ...],
+    build_python_interface: bool,
 ) -> RustPythonInterfaceProjectResult:
     """Create a sibling PyO3 wrapper crate for generated Rust kernels."""
     validate_unique_rust_names(
@@ -5188,6 +5226,8 @@ def _create_python_interface_project(
         encoding="utf-8",
     )
     _try_run_cargo_fmt(wrapper_project_dir)
+    if build_python_interface:
+        _run_python_interface_build(wrapper_project_dir)
 
     return RustPythonInterfaceProjectResult(
         project_dir=wrapper_project_dir,

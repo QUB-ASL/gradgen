@@ -911,6 +911,7 @@ mod single_shooting_multi_u_tests {{
             .with_function_name("eval_kernel")
             .with_emit_metadata_helpers(False)
             .with_enable_python_interface(False)
+            .with_build_python_interface(False)
         )
 
         self.assertEqual(config.backend_mode, "no_std")
@@ -920,11 +921,22 @@ mod single_shooting_multi_u_tests {{
         self.assertEqual(config.function_name, "eval_kernel")
         self.assertFalse(config.emit_metadata_helpers)
         self.assertFalse(config.enable_python_interface)
+        self.assertFalse(config.build_python_interface)
+
+    def test_backend_config_defaults_to_building_python_interface(self) -> None:
+        config = RustBackendConfig()
+
+        self.assertTrue(config.build_python_interface)
 
     def test_backend_config_can_enable_python_interface(self) -> None:
         config = RustBackendConfig().with_enable_python_interface(True)
 
         self.assertTrue(config.enable_python_interface)
+
+    def test_backend_config_can_disable_python_interface_build(self) -> None:
+        config = RustBackendConfig().with_build_python_interface(False)
+
+        self.assertFalse(config.build_python_interface)
 
     def test_backend_config_allows_python_interface_with_no_std(self) -> None:
         config = (
@@ -1012,6 +1024,70 @@ mod single_shooting_multi_u_tests {{
             assert wrapper is not None
             completed_wrapper = self._run_cargo(wrapper.project_dir, "check")
             self.assertEqual(completed_wrapper.returncode, 0)
+
+    def test_create_rust_project_can_skip_python_interface_build(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = (
+            RustBackendConfig()
+            .with_enable_python_interface(True)
+            .with_build_python_interface(False)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+            self.assertIsNotNone(project.python_interface)
+            assert project.python_interface is not None
+            self.assertTrue(project.python_interface.project_dir.is_dir())
+
+    def test_create_rust_project_with_python_interface_is_immediately_importable(self) -> None:
+        x = SXVector.sym("x", 2)
+        w = SXVector.sym("w", 1)
+        f = Function(
+            "energy",
+            [x, w],
+            [x.norm2sq() + w[0], x[0] + x[1]],
+            input_names=["x", "w"],
+            output_names=["cost", "state"],
+        )
+
+        config = (
+            RustBackendConfig()
+            .with_crate_name("immediate_import_demo")
+            .with_enable_python_interface(True)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
+            assert project.python_interface is not None
+
+            scratch_dir = Path(tmpdir) / "scratch"
+            scratch_dir.mkdir()
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import immediate_import_demo\n"
+                        "print(immediate_import_demo.all_functions())\n"
+                    ),
+                ],
+                cwd=scratch_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertIn("energy", completed.stdout)
 
     def test_single_output_python_interface_returns_dictionary(self) -> None:
         x = SXVector.sym("x", 2)

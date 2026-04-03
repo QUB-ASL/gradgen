@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `RustBackendConfig().with_enable_python_interface(True)`, now emitted as a
   separate sibling wrapper crate so the low-level generated crate can stay
   pure Rust and `no_std`-friendly. The wrapper includes generated
-  `workspace_for_function(...)` and `call(...)` helpers.
+  `workspace_for_function(...)` and `call(...)` helpers, and by default the
+  wrapper is compiled immediately with the same Python interpreter that ran
+  the generator.
 - Added a new `demos/python_interface` demo and runner showing how to generate
   a Rust crate that can be installed and imported from Python.
 - Added deterministic single-shooting optimal-control support through

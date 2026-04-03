@@ -61,4 +61,4 @@ print("Generated Rust function:", project.codegen.function_name)
 if project.python_interface is not None:
     print("Generated Python wrapper crate:", project.python_interface.project_dir)
     print("Generated Python module: foo")
-    print("Install the wrapper crate with `pip install -e` to import `foo`.")
+    print("The wrapper was installed into the active Python environment for `import foo`.")

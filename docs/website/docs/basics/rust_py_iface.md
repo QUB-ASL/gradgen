@@ -39,11 +39,42 @@ project = (
 This will generate a crate (in folder `./blah`) and a Python interface, 
 which will be stored in the folder `./blah_python`.
 
-You can now use this as a **python module**. To this end, 
-from within `./blah_python` run 
+You can now use this as a **python module**. You can then do
 
-```bash
-pip install -e .
+```python
+import blah
 ```
 
+If you want to get a list of all functions in `blah`, do
 
+```python
+print(blah.all_functions()) # prints ['energy']
+```
+
+## Calling functions
+
+To call any function from the generated package, `blah`, you first need 
+to create a workspace variable. This is the only time you will need to allocate 
+memory. To allocate memory for the function `energy` do
+
+```python
+# Do this once
+wspace = blah.workspace_for_function('energy')
+```
+
+and then
+
+```python
+x = [1., 2.]
+w = [3.]
+result = blah.energy(x, w, wspace)
+```
+
+This returns a dictionary with the output or outputs of the function - in this case 
+
+```json
+{
+    'cost': 8.0, 
+    'state': 3.0
+}
+```
