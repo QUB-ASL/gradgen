@@ -1,7 +1,413 @@
-{% if emit_crate_header and backend_mode == "no_std" -%}
+{% if function_index == 0 and emit_crate_header and backend_mode == "no_std" -%}
 #![no_std]
-
 {% endif -%}
+{% if function_index == 0 -%}
+#![forbid(unsafe_code)]
+{% endif %}
+
+{% if function_index == 0 and backend_mode == "no_std" and math_library == "micromath" -%}
+extern crate micromath as micromath_dep;
+
+#[allow(dead_code)]
+mod micromath {
+    use super::micromath_dep::F32Ext;
+
+{% if scalar_type == "f64" -%}
+    fn cast_input(x: f64) -> f32 {
+        x as f32
+    }
+
+    fn cast_output(x: f32) -> f64 {
+        x as f64
+    }
+
+    pub fn sin(x: f64) -> f64 {
+        cast_output(cast_input(x).sin())
+    }
+
+    pub fn cos(x: f64) -> f64 {
+        cast_output(cast_input(x).cos())
+    }
+
+    pub fn exp(x: f64) -> f64 {
+        cast_output(cast_input(x).exp())
+    }
+
+    pub fn log(x: f64) -> f64 {
+        cast_output(cast_input(x).ln())
+    }
+
+    pub fn sqrt(x: f64) -> f64 {
+        cast_output(cast_input(x).sqrt())
+    }
+
+    pub fn tan(x: f64) -> f64 {
+        cast_output(cast_input(x).tan())
+    }
+
+    pub fn asin(x: f64) -> f64 {
+        cast_output(cast_input(x).asin())
+    }
+
+    pub fn acos(x: f64) -> f64 {
+        cast_output(cast_input(x).acos())
+    }
+
+    pub fn atan(x: f64) -> f64 {
+        cast_output(cast_input(x).atan())
+    }
+
+    pub fn sinh(x: f64) -> f64 {
+        cast_output(cast_input(x).sinh())
+    }
+
+    pub fn cosh(x: f64) -> f64 {
+        cast_output(cast_input(x).cosh())
+    }
+
+    pub fn tanh(x: f64) -> f64 {
+        cast_output(cast_input(x).tanh())
+    }
+
+    pub fn floor(x: f64) -> f64 {
+        cast_output(cast_input(x).floor())
+    }
+
+    pub fn ceil(x: f64) -> f64 {
+        cast_output(cast_input(x).ceil())
+    }
+
+    pub fn round(x: f64) -> f64 {
+        cast_output(cast_input(x).round())
+    }
+
+    pub fn trunc(x: f64) -> f64 {
+        cast_output(cast_input(x).trunc())
+    }
+
+    pub fn fract(x: f64) -> f64 {
+        cast_output(cast_input(x).fract())
+    }
+
+    pub fn signum(x: f64) -> f64 {
+        cast_output(cast_input(x).signum())
+    }
+
+    pub fn abs(x: f64) -> f64 {
+        cast_output(cast_input(x).abs())
+    }
+
+    pub fn pow(x: f64, y: f64) -> f64 {
+        cast_output(cast_input(x).powf(cast_input(y)))
+    }
+
+    pub fn atan2(x: f64, y: f64) -> f64 {
+        cast_output(cast_input(x).atan2(cast_input(y)))
+    }
+
+    pub fn hypot(x: f64, y: f64) -> f64 {
+        cast_output(cast_input(x).hypot(cast_input(y)))
+    }
+
+    pub fn min(x: f64, y: f64) -> f64 {
+        cast_output(cast_input(x).min(cast_input(y)))
+    }
+
+    pub fn max(x: f64, y: f64) -> f64 {
+        cast_output(cast_input(x).max(cast_input(y)))
+    }
+
+    pub fn sinf(x: f64) -> f64 {
+        sin(x)
+    }
+
+    pub fn cosf(x: f64) -> f64 {
+        cos(x)
+    }
+
+    pub fn expf(x: f64) -> f64 {
+        exp(x)
+    }
+
+    pub fn logf(x: f64) -> f64 {
+        log(x)
+    }
+
+    pub fn sqrtf(x: f64) -> f64 {
+        sqrt(x)
+    }
+
+    pub fn tanf(x: f64) -> f64 {
+        tan(x)
+    }
+
+    pub fn asinf(x: f64) -> f64 {
+        asin(x)
+    }
+
+    pub fn acosf(x: f64) -> f64 {
+        acos(x)
+    }
+
+    pub fn atanf(x: f64) -> f64 {
+        atan(x)
+    }
+
+    pub fn sinhf(x: f64) -> f64 {
+        sinh(x)
+    }
+
+    pub fn coshf(x: f64) -> f64 {
+        cosh(x)
+    }
+
+    pub fn tanhf(x: f64) -> f64 {
+        tanh(x)
+    }
+
+    pub fn floorf(x: f64) -> f64 {
+        floor(x)
+    }
+
+    pub fn ceilf(x: f64) -> f64 {
+        ceil(x)
+    }
+
+    pub fn roundf(x: f64) -> f64 {
+        round(x)
+    }
+
+    pub fn truncf(x: f64) -> f64 {
+        trunc(x)
+    }
+
+    pub fn fractf(x: f64) -> f64 {
+        fract(x)
+    }
+
+    pub fn signumf(x: f64) -> f64 {
+        signum(x)
+    }
+
+    pub fn fabsf(x: f64) -> f64 {
+        abs(x)
+    }
+
+    pub fn powf(x: f64, y: f64) -> f64 {
+        pow(x, y)
+    }
+
+    pub fn atan2f(x: f64, y: f64) -> f64 {
+        atan2(x, y)
+    }
+
+    pub fn hypotf(x: f64, y: f64) -> f64 {
+        hypot(x, y)
+    }
+
+    pub fn fminf(x: f64, y: f64) -> f64 {
+        min(x, y)
+    }
+
+    pub fn fmaxf(x: f64, y: f64) -> f64 {
+        max(x, y)
+    }
+{% else -%}
+    pub fn sin(x: f32) -> f32 {
+        x.sin()
+    }
+
+    pub fn cos(x: f32) -> f32 {
+        x.cos()
+    }
+
+    pub fn exp(x: f32) -> f32 {
+        x.exp()
+    }
+
+    pub fn log(x: f32) -> f32 {
+        x.ln()
+    }
+
+    pub fn sqrt(x: f32) -> f32 {
+        x.sqrt()
+    }
+
+    pub fn tan(x: f32) -> f32 {
+        x.tan()
+    }
+
+    pub fn asin(x: f32) -> f32 {
+        x.asin()
+    }
+
+    pub fn acos(x: f32) -> f32 {
+        x.acos()
+    }
+
+    pub fn atan(x: f32) -> f32 {
+        x.atan()
+    }
+
+    pub fn sinh(x: f32) -> f32 {
+        x.sinh()
+    }
+
+    pub fn cosh(x: f32) -> f32 {
+        x.cosh()
+    }
+
+    pub fn tanh(x: f32) -> f32 {
+        x.tanh()
+    }
+
+    pub fn floor(x: f32) -> f32 {
+        x.floor()
+    }
+
+    pub fn ceil(x: f32) -> f32 {
+        x.ceil()
+    }
+
+    pub fn round(x: f32) -> f32 {
+        x.round()
+    }
+
+    pub fn trunc(x: f32) -> f32 {
+        x.trunc()
+    }
+
+    pub fn fract(x: f32) -> f32 {
+        x.fract()
+    }
+
+    pub fn signum(x: f32) -> f32 {
+        x.signum()
+    }
+
+    pub fn abs(x: f32) -> f32 {
+        x.abs()
+    }
+
+    pub fn pow(x: f32, y: f32) -> f32 {
+        x.powf(y)
+    }
+
+    pub fn atan2(x: f32, y: f32) -> f32 {
+        x.atan2(y)
+    }
+
+    pub fn hypot(x: f32, y: f32) -> f32 {
+        x.hypot(y)
+    }
+
+    pub fn min(x: f32, y: f32) -> f32 {
+        x.min(y)
+    }
+
+    pub fn max(x: f32, y: f32) -> f32 {
+        x.max(y)
+    }
+
+    pub fn sinf(x: f32) -> f32 {
+        sin(x)
+    }
+
+    pub fn cosf(x: f32) -> f32 {
+        cos(x)
+    }
+
+    pub fn expf(x: f32) -> f32 {
+        exp(x)
+    }
+
+    pub fn logf(x: f32) -> f32 {
+        log(x)
+    }
+
+    pub fn sqrtf(x: f32) -> f32 {
+        sqrt(x)
+    }
+
+    pub fn tanf(x: f32) -> f32 {
+        tan(x)
+    }
+
+    pub fn asinf(x: f32) -> f32 {
+        asin(x)
+    }
+
+    pub fn acosf(x: f32) -> f32 {
+        acos(x)
+    }
+
+    pub fn atanf(x: f32) -> f32 {
+        atan(x)
+    }
+
+    pub fn sinhf(x: f32) -> f32 {
+        sinh(x)
+    }
+
+    pub fn coshf(x: f32) -> f32 {
+        cosh(x)
+    }
+
+    pub fn tanhf(x: f32) -> f32 {
+        tanh(x)
+    }
+
+    pub fn floorf(x: f32) -> f32 {
+        floor(x)
+    }
+
+    pub fn ceilf(x: f32) -> f32 {
+        ceil(x)
+    }
+
+    pub fn roundf(x: f32) -> f32 {
+        round(x)
+    }
+
+    pub fn truncf(x: f32) -> f32 {
+        trunc(x)
+    }
+
+    pub fn fractf(x: f32) -> f32 {
+        fract(x)
+    }
+
+    pub fn signumf(x: f32) -> f32 {
+        signum(x)
+    }
+
+    pub fn fabsf(x: f32) -> f32 {
+        abs(x)
+    }
+
+    pub fn powf(x: f32, y: f32) -> f32 {
+        pow(x, y)
+    }
+
+    pub fn atan2f(x: f32, y: f32) -> f32 {
+        atan2(x, y)
+    }
+
+    pub fn hypotf(x: f32, y: f32) -> f32 {
+        hypot(x, y)
+    }
+
+    pub fn fminf(x: f32, y: f32) -> f32 {
+        min(x, y)
+    }
+
+    pub fn fmaxf(x: f32, y: f32) -> f32 {
+        max(x, y)
+    }
+{% endif %}
+}
+{% endif -%}
+
 {% if function_index == 0 -%}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GradgenError {

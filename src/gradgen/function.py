@@ -128,7 +128,6 @@ class Function:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Generate Rust source code for primal function evaluation."""
         from .rust_codegen import generate_rust
@@ -139,7 +138,6 @@ class Function:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_project(
@@ -151,7 +149,6 @@ class Function:
         function_name: str | None = None,
         backend_mode: str = "std",
         scalar_type: str = "f64",
-        math_library: str | None = None,
     ):
         """Create a Rust project containing the generated primal code."""
         from .rust_codegen import create_rust_project
@@ -164,7 +161,6 @@ class Function:
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
-            math_library=math_library,
         )
 
     def create_rust_derivative_bundle(

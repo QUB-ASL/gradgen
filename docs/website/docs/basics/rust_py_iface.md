@@ -72,6 +72,7 @@ You can now use this as a **python module**. You can then do
 
 ```python
 import blah
+
 print(blah.__version__)
 print(blah.__all__)
 ```
@@ -148,3 +149,87 @@ prints out the following information
 
 ## Example with multiple functions
 
+You can of course interface a crate that contains multiple functions.
+For example, suppose you have the functions:
+
+```python
+x = SXVector.sym("x", 2)
+w = SXVector.sym("w", 1)
+
+energy = Function(
+    "energy",
+    [x, w],
+    [x.norm2sq() + w[0].exp(), x[0] + x[1]],
+    input_names=["x", "w"],
+    output_names=["cost", "state"],
+)
+
+magic = Function(
+    "magic",
+    [x, w],
+    [x.sin().norm2sq() * w[0]],
+    input_names=["x", "w"],
+    output_names=["a"],
+)
+```
+
+and you generate a Rust crate along with a Python module as follows:
+
+```python
+project = (
+    CodeGenerationBuilder()
+    .with_backend_config(
+        RustBackendConfig()
+        .with_crate_name("xyz")
+        .with_backend_mode("no_std")
+        .with_enable_python_interface()
+    )
+    # Specify what needs to be generated
+    .for_function(energy)
+        .add_primal()
+        .done()
+    .for_function(magic)
+        .add_primal()
+        .add_gradient()
+        .add_hessian()
+        .add_joint(
+            FunctionBundle().add_f().add_jf(wrt=0).add_hvp(wrt=0)
+        )
+        .done()
+    .build('./my_crates')
+)
+```
+
+You can then import the auto-generated module `xyz`
+
+```python
+import xyz
+
+print(xyz.all_functions())
+# This prints:
+# [ 'energy', 'magic', 'magic_grad_x', 'magic_grad_w', 
+#   'magic_hessian_x', 'magic_hessian_w', 'magic_f_jf_hvp_x']
+```
+
+and you can call, say, the function bundle `magic_f_jf_hvp_x` as follows:
+
+```
+# Allocate memory by creating a workspace object
+wspace = xyz.workspace_for_function('magic_f_jf_hvp_x')
+
+# Call the function
+x = [1., 2.]
+w = [3.]
+v = [0.5, -0.1]
+result = xyz.magic_f_jf_hvp_x(x, w, v, wspace)
+```
+
+The `result` is a dictionary with the outputs of the function
+
+```json
+{
+    'a': 215.63522999585246, 
+    'jacobian_a': [2.727892280477045, -2.270407485923785], 
+    'hvp_a': [-1.2484405096414266, 0.3921861725181672]
+}
+```

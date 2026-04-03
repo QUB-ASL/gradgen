@@ -54,12 +54,13 @@ config = (
     RustBackendConfig()
     .with_backend_mode("no_std")
     .with_scalar_type("f32")
-    .with_math_lib("libm")
     .with_function_name("eval_kernel")
 )
 
 result = f.generate_rust(config=config)
 ```
+
+`no_std` crates use `libm` by default for their math dependency.
 
 Rust-facing names follow two different rules:
 
