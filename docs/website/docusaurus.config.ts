@@ -8,7 +8,7 @@ const baseUrl = '/gradgen/';
 
 const config: Config = {
   title: 'Gradgen',
-  tagline: 'Symbolic automatic differentiation and Rust code generation for computational kernels',
+  tagline: 'Symbolic automatic differentiation and Rust code generation',
   favicon: 'img/favicon.ico',
 
   future: {
