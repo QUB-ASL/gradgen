@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Important: implement and tested `map` and `zip`; introduced two new demos
   to demonstrate how to use them.
 - For instances of `SXVector`, the operation `x**a` applies the power element-wise.
-- Created project website using Docusaurus v3. Added user-friendly documentation.
+- Created project website using Docusaurus v3. Added user-friendly documentation and
+  links to Google Colab Python notebooks.
 - Added `AGENTS.md` with detailed instructions for agents.
 
 ### Changed
