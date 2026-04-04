@@ -16,6 +16,7 @@ import gradgen.rust_codegen as rust_codegen_module
 from gradgen._rust_codegen import generators as rust_codegen_generators
 from gradgen._rust_codegen.generators import composed as composed_generators
 from gradgen._rust_codegen.generators import map_zip as map_zip_generators
+from gradgen._rust_codegen.generators import rendering as rendering_generators
 from gradgen._rust_codegen.generators import single_shooting as single_shooting_generators
 import gradgen.single_shooting as single_shooting_module
 from gradgen.rust_codegen import _gradgen_version
@@ -53,6 +54,59 @@ class RustCodegenTests(unittest.TestCase):
         self.assertTrue(hasattr(composed_generators, "_generate_composed_primal_rust"))
         self.assertTrue(hasattr(map_zip_generators, "_generate_zipped_primal_rust"))
         self.assertTrue(hasattr(single_shooting_generators, "_generate_single_shooting_driver_rust"))
+        self.assertTrue(hasattr(rendering_generators, "KernelRenderContext"))
+        self.assertTrue(hasattr(rendering_generators, "render_kernel_source"))
+
+    def test_render_kernel_source_renders_a_kernel_header(self) -> None:
+        ctx = rendering_generators.KernelRenderContext(
+            backend_mode="no_std",
+            scalar_type="f64",
+            math_library="libm",
+            emit_metadata_helpers=True,
+        )
+        input_specs = (
+            rust_codegen_module._ArgSpec(
+                raw_name="x",
+                rust_name="x",
+                rust_label='"x"',
+                doc_description="input slice",
+                size=1,
+            ),
+        )
+        output_specs = (
+            rust_codegen_module._ArgSpec(
+                raw_name="y",
+                rust_name="y",
+                rust_label='"y"',
+                doc_description="output slice",
+                size=1,
+            ),
+        )
+        rendered = rendering_generators.render_kernel_source(
+            ctx,
+            function_name="demo",
+            function_label='"demo"',
+            function_index=0,
+            upper_name="DEMO",
+            emit_crate_header=True,
+            emit_docs=True,
+            function_keyword="pub fn",
+            workspace_size=0,
+            workspace_assert_line=None,
+            workspace_return_line=None,
+            input_specs=input_specs,
+            output_specs=output_specs,
+            function_parameter_count=2,
+            parameters="x: &[f64], y: &mut [f64], work: &mut [f64]",
+            input_assert_lines=(),
+            input_return_lines=(),
+            output_assert_lines=(),
+            output_return_lines=(),
+            computation_lines=("y[0] = x[0];",),
+            output_write_lines=("y[0] = x[0];",),
+            shared_helper_lines=(),
+        )
+        self.assertIn("pub fn demo", rendered)
 
     @staticmethod
     def _run_cargo(project_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:

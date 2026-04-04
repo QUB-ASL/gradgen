@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from . import shared as _shared
+from .rendering import KernelRenderContext, render_kernel_source
 from ..config import RustBackendConfig, RustBackendMode, RustScalarType
 from ..models import RustCodegenResult, _ArgSpec, _ComposedRepeatPlan, _ComposedSinglePlan, _SingleShootingHelperBundle
 from ..naming import sanitize_ident
@@ -39,7 +40,6 @@ _collect_reachable_nodes = _shared._collect_reachable_nodes
 _reemit_direct_output_helper_call = _shared._reemit_direct_output_helper_call
 _collect_suppressed_custom_wrappers = _shared._collect_suppressed_custom_wrappers
 _build_shared_helper_lines = _shared._build_shared_helper_lines
-_get_template = _shared._get_template
 _build_composed_input_specs = _shared._build_composed_input_specs
 _emit_composed_fixed_repeat_constants = _shared._emit_composed_fixed_repeat_constants
 _emit_composed_parameter_ref = _shared._emit_composed_parameter_ref
@@ -79,6 +79,12 @@ def _generate_zipped_primal_rust(
         math_library=math_library,
     )
     resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
+    render_context = KernelRenderContext(
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+        emit_metadata_helpers=resolved_config.emit_metadata_helpers,
+    )
     name = sanitize_ident(resolved_config.function_name or zipped.name)
     helper_name = sanitize_ident(f"{name}_helper")
 
@@ -193,7 +199,7 @@ def _generate_zipped_primal_rust(
         _ws_assert = None
         _ws_return = None
 
-    driver_source = _get_template("lib.rs.j2").render(
+    driver_source = render_kernel_source(render_context,
         function_name=name,
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
@@ -255,6 +261,12 @@ def _generate_zipped_jacobian_rust(
         math_library=math_library,
     )
     resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
+    render_context = KernelRenderContext(
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+        emit_metadata_helpers=resolved_config.emit_metadata_helpers,
+    )
     name = sanitize_ident(resolved_config.function_name or zipped_jacobian.name)
     helper_name = sanitize_ident(f"{name}_helper")
 
@@ -398,7 +410,7 @@ def _generate_zipped_jacobian_rust(
         _ws_assert = None
         _ws_return = None
 
-    driver_source = _get_template("lib.rs.j2").render(
+    driver_source = render_kernel_source(render_context,
         function_name=name,
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
@@ -459,6 +471,12 @@ def _generate_reduced_primal_rust(
         math_library=math_library,
     )
     resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
+    render_context = KernelRenderContext(
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+        emit_metadata_helpers=resolved_config.emit_metadata_helpers,
+    )
     name = sanitize_ident(resolved_config.function_name or reduced.name)
     helper_name = sanitize_ident(f"{name}_helper")
 
@@ -581,7 +599,7 @@ def _generate_reduced_primal_rust(
         _ws_assert = None
         _ws_return = None
 
-    driver_source = _get_template("lib.rs.j2").render(
+    driver_source = render_kernel_source(render_context,
         function_name=name,
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
@@ -622,4 +640,3 @@ def _generate_reduced_primal_rust(
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
     )
-
