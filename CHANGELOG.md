@@ -42,6 +42,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Refactored the Rust code generation implementation into smaller internal
+  modules for configuration, validation, template loading, and project
+  creation. The public Rust-generation API remains unchanged.
 - Removed all `assert!` and `assert_eq!` from the auto-generated Rust code
   so that the functions therein don't panic. Instead, we introduced the error
   `GradgenError` and all public functions return `Result<(), GradgenError>`.
