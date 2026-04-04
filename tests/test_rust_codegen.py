@@ -13,6 +13,7 @@ import sys
 import venv
 
 import gradgen.rust_codegen as rust_codegen_module
+from gradgen._rust_codegen import generators as rust_codegen_generators
 import gradgen.single_shooting as single_shooting_module
 from gradgen.rust_codegen import _gradgen_version
 from gradgen import (
@@ -42,6 +43,10 @@ from gradgen import (
 class RustCodegenTests(unittest.TestCase):
     def tearDown(self) -> None:
         clear_registered_elementary_functions()
+
+    def test_internal_generator_module_is_importable(self) -> None:
+        self.assertTrue(hasattr(rust_codegen_generators, "_generate_composed_primal_rust"))
+        self.assertTrue(hasattr(rust_codegen_generators, "_generate_single_shooting_driver_rust"))
 
     @staticmethod
     def _run_cargo(project_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
