@@ -48,6 +48,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Split the remaining Rust code-generation family logic into a dedicated
   internal generators module, keeping the top-level dispatcher in
   `rust_codegen.py` thinner and easier to navigate.
+- Further split the generators internals into a package with dedicated
+  `composed`, `map_zip`, and `single_shooting` modules plus shared helper
+  code, keeping the family-specific code paths easier to find and maintain.
 - Removed all `assert!` and `assert_eq!` from the auto-generated Rust code
   so that the functions therein don't panic. Instead, we introduced the error
   `GradgenError` and all public functions return `Result<(), GradgenError>`.
