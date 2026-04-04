@@ -14,6 +14,9 @@ import venv
 
 import gradgen.rust_codegen as rust_codegen_module
 from gradgen._rust_codegen import generators as rust_codegen_generators
+from gradgen._rust_codegen.generators import composed as composed_generators
+from gradgen._rust_codegen.generators import map_zip as map_zip_generators
+from gradgen._rust_codegen.generators import single_shooting as single_shooting_generators
 import gradgen.single_shooting as single_shooting_module
 from gradgen.rust_codegen import _gradgen_version
 from gradgen import (
@@ -47,6 +50,9 @@ class RustCodegenTests(unittest.TestCase):
     def test_internal_generator_module_is_importable(self) -> None:
         self.assertTrue(hasattr(rust_codegen_generators, "_generate_composed_primal_rust"))
         self.assertTrue(hasattr(rust_codegen_generators, "_generate_single_shooting_driver_rust"))
+        self.assertTrue(hasattr(composed_generators, "_generate_composed_primal_rust"))
+        self.assertTrue(hasattr(map_zip_generators, "_generate_zipped_primal_rust"))
+        self.assertTrue(hasattr(single_shooting_generators, "_generate_single_shooting_driver_rust"))
 
     @staticmethod
     def _run_cargo(project_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
