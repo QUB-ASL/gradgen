@@ -7,8 +7,14 @@ from gradgen._rust_codegen.project_support import (
     _gradgen_version,
     _metadata_created_at,
     _next_python_interface_version,
+    _maybe_simplify_derivative_function,
     _private_helper_section_key,
+    _render_multi_function_lib,
 )
+from gradgen._rust_codegen.config import RustBackendConfig
+from gradgen._rust_codegen.models import RustCodegenResult
+from gradgen.function import Function
+from gradgen.sx import SXVector
 
 
 class ProjectSupportTests(unittest.TestCase):
@@ -27,3 +33,46 @@ class ProjectSupportTests(unittest.TestCase):
 
     def test_gradgen_version_is_available(self) -> None:
         self.assertIsInstance(_gradgen_version(), str)
+
+    def test_maybe_simplify_derivative_function_returns_original_when_disabled(self) -> None:
+        x = SXVector.sym("x", 1)
+        function = Function(
+            "demo",
+            [x],
+            [x[0] + 1.0],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        self.assertIs(_maybe_simplify_derivative_function(function, None), function)
+
+    def test_render_multi_function_lib_deduplicates_private_helpers(self) -> None:
+        codegen_a = RustCodegenResult(
+            source="#![no_std]\n\nfn helper() {}\n\npub fn a() {}\n",
+            python_name="a",
+            function_name="a",
+            workspace_size=0,
+            input_names=(),
+            input_sizes=(),
+            output_names=(),
+            output_sizes=(),
+            backend_mode="no_std",
+            scalar_type="f64",
+            math_library="libm",
+        )
+        codegen_b = RustCodegenResult(
+            source="#![no_std]\n\nfn helper() {}\n\npub fn b() {}\n",
+            python_name="b",
+            function_name="b",
+            workspace_size=0,
+            input_names=(),
+            input_sizes=(),
+            output_names=(),
+            output_sizes=(),
+            backend_mode="no_std",
+            scalar_type="f64",
+            math_library="libm",
+        )
+
+        rendered = _render_multi_function_lib((codegen_a, codegen_b), RustBackendConfig(backend_mode="no_std"))
+        self.assertTrue(rendered.startswith("#![no_std]"))
+        self.assertEqual(rendered.count("fn helper() {}"), 1)

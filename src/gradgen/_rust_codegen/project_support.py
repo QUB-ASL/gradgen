@@ -16,6 +16,7 @@ import tomllib
 
 from ..function import Function
 from ..sx import SX
+from .config import RustBackendConfig
 from .models import (
     RustCodegenResult,
     RustPythonInterfaceProjectResult,
@@ -262,6 +263,34 @@ def _private_helper_section_key(section: str) -> str | None:
     if re.search(r"(?m)^pub\s+fn\s+", section) is not None:
         return None
     return section
+
+
+def _render_multi_function_lib(
+    codegens: tuple[RustCodegenResult, ...],
+    config: RustBackendConfig,
+) -> str:
+    """Render a crate source file containing many generated functions."""
+    sections: list[str] = []
+    seen_private_helpers: set[str] = set()
+    if config.backend_mode == "no_std":
+        sections.append("#![no_std]")
+
+    for codegen in codegens:
+        source = codegen.source
+        if source.startswith("#![no_std]\n\n"):
+            source = source[len("#![no_std]\n\n") :]
+        elif source.startswith("#![no_std]\n"):
+            source = source[len("#![no_std]\n") :]
+        for section in (part.rstrip() for part in source.split("\n\n") if part.strip()):
+            helper_key = _private_helper_section_key(section)
+            if helper_key is not None:
+                if helper_key in seen_private_helpers:
+                    continue
+                seen_private_helpers.add(helper_key)
+            sections.append(section)
+
+    rendered = "\n\n".join(section for section in sections if section)
+    return rendered if rendered.endswith("\n") else f"{rendered}\n"
 
 
 def _render_metadata_json(crate_name: str, codegens: tuple[RustCodegenResult, ...]) -> str:

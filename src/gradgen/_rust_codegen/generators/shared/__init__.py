@@ -1,14 +1,17 @@
 """Shared helpers for Rust code generation families."""
 
-from ....rust_codegen import generate_rust
-from ....rust_codegen import (
+from ...codegen import generate_rust
+from ...project_support import (
+    _derive_python_function_name,
+    _maybe_simplify_derivative_function,
+)
+from ...rendering import (
     _allocate_workspace_slots,
     _arg_size,
     _build_shared_helper_lines,
     _collect_reachable_nodes,
     _collect_required_workspace_nodes,
     _collect_suppressed_custom_wrappers,
-    _derive_python_function_name,
     _describe_input_arg,
     _describe_output_arg,
     _emit_exact_length_assert,
@@ -16,13 +19,14 @@ from ....rust_codegen import (
     _flatten_arg,
     _format_float,
     _format_rust_string_literal,
-    _maybe_simplify_derivative_function,
     _reemit_direct_output_helper_call,
-    _resolve_backend_config,
     _scaled_index_expr,
-    _validate_backend_mode,
-    _validate_generated_argument_names,
-    _validate_scalar_type,
+)
+from ...validation import (
+    resolve_backend_config as _resolve_backend_config,
+    validate_backend_mode as _validate_backend_mode,
+    validate_generated_argument_names as _validate_generated_argument_names,
+    validate_scalar_type as _validate_scalar_type,
 )
 from .common import _build_directional_derivative_function
 from .composed import (
