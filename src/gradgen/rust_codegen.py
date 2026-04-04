@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version as package_version
 import os
@@ -15,14 +15,45 @@ import shutil
 import subprocess
 import sys
 
-from jinja2 import Environment, FileSystemLoader
-
 from ._rust_codegen import (
     CodeGenerationBuilder,
     FunctionBundle,
     sanitize_ident,
     validate_rust_ident,
     validate_unique_rust_names,
+)
+from ._rust_codegen.config import RustBackendConfig, RustBackendMode, RustScalarType
+from ._rust_codegen.models import (
+    RustCodegenResult,
+    RustDerivativeBundleResult,
+    RustMultiFunctionProjectResult,
+    RustProjectResult,
+    RustPythonInterfaceProjectResult,
+    _ArgSpec,
+    _ComposedRepeatPlan,
+    _ComposedSinglePlan,
+    _SingleShootingHelperBundle,
+)
+from ._rust_codegen.project import (
+    create_rust_derivative_bundle,
+    create_rust_project,
+    _create_python_interface_project,
+    _gradgen_version,
+    _metadata_created_at,
+    _next_python_interface_version,
+    _render_metadata_json,
+    _render_python_interface_source,
+    _run_cargo_build,
+    _run_python_interface_build,
+    _try_run_cargo_fmt,
+)
+from ._rust_codegen.templates import _get_template
+from ._rust_codegen.validation import (
+    resolve_backend_config as _resolve_backend_config,
+    validate_backend_mode as _validate_backend_mode,
+    validate_crate_name as _validate_crate_name,
+    validate_generated_argument_names as _validate_generated_argument_names,
+    validate_scalar_type as _validate_scalar_type,
 )
 from .ad import jvp
 from .function import Function, _add_like, _make_symbolic_input_like, _zero_like
@@ -46,238 +77,7 @@ from .custom_elementary import (
     parse_custom_vector_jacobian_component_args,
     render_custom_rust_snippet,
 )
-
-
-RustBackendMode = str
-RustScalarType = str
-
-
 _LOGGER = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class RustBackendConfig:
-    """Configuration for generated Rust source and project layout.
-
-    The config object groups Rust backend options into a single immutable
-    value. Users can build it incrementally with ``with_...`` methods:
-
-    ``RustBackendConfig().with_backend_mode("no_std")``
-
-    The same config can be reused for both source generation and project
-    creation, which keeps backend behavior consistent as options grow.
-    """
-
-    backend_mode: RustBackendMode = "std"
-    scalar_type: RustScalarType = "f64"
-    crate_name: str | None = None
-    function_name: str | None = None
-    emit_metadata_helpers: bool = True
-    enable_python_interface: bool = False
-    build_python_interface: bool = True
-    build_crate: bool = False
-
-    def with_backend_mode(self, backend_mode: RustBackendMode) -> RustBackendConfig:
-        """Return a copy with a different Rust backend mode.
-
-        The backend mode must be one of the supported code-generation
-        targets, currently ``"std"`` or ``"no_std"``.
-        """
-        _validate_backend_mode(backend_mode)
-        return replace(self, backend_mode=backend_mode)
-
-    def with_scalar_type(self, scalar_type: RustScalarType) -> RustBackendConfig:
-        """Return a copy with a different generated Rust scalar type.
-
-        Supported scalar types are currently ``"f64"`` and ``"f32"``.
-        The selected type affects slice signatures, floating-point
-        literals, and the emitted math calls for ``no_std`` backends.
-        """
-        _validate_scalar_type(scalar_type)
-        return replace(self, scalar_type=scalar_type)
-
-    def with_crate_name(self, crate_name: str | None) -> RustBackendConfig:
-        """Return a copy with a different generated crate name.
-
-        Crate names must already be valid simple Rust/Cargo identifiers.
-        This method intentionally rejects names that would need implicit
-        sanitization so configuration errors are caught early.
-        """
-        _validate_crate_name(crate_name)
-        return replace(self, crate_name=crate_name)
-
-    def with_function_name(self, function_name: str | None) -> RustBackendConfig:
-        """Return a copy with a different generated Rust function name."""
-        validate_rust_ident(function_name, label="function_name")
-        return replace(self, function_name=function_name)
-
-    def with_emit_metadata_helpers(self, emit_metadata_helpers: bool) -> RustBackendConfig:
-        """Return a copy with metadata helper emission enabled or disabled.
-
-        Metadata helpers are the generated constants and convenience
-        functions that describe the kernel shape, such as workspace size,
-        input dimensions, and output dimensions. Turning them off keeps the
-        emitted Rust smaller, but users then need to rely on Python-side
-        metadata or their own bookkeeping when allocating buffers.
-        """
-        return replace(self, emit_metadata_helpers=emit_metadata_helpers)
-
-    def with_enable_python_interface(self, enable_python_interface: bool = True) -> RustBackendConfig:
-        """Return a copy with optional PyO3-based Python bindings enabled.
-
-        When enabled, generated Rust projects include a separate Python wrapper
-        crate that depends on the low-level Rust crate. This keeps the low-level
-        crate usable on its own, including in ``no_std`` environments.
-        """
-        return replace(self, enable_python_interface=enable_python_interface)
-
-    def with_build_python_interface(self, build_python_interface: bool = True) -> RustBackendConfig:
-        """Return a copy with Python wrapper compilation enabled or disabled.
-
-        When enabled, Gradgen will build and install the generated Python
-        wrapper into the active interpreter environment after emitting the
-        wrapper crate.
-        """
-        return replace(self, build_python_interface=build_python_interface)
-
-    def with_build_crate(self, build_crate: bool = True) -> RustBackendConfig:
-        """Return a copy with low-level crate compilation enabled or disabled.
-
-        When enabled, Gradgen will run ``cargo build`` for the generated Rust
-        crate after writing it to disk. If ``cargo`` is not available, project
-        generation raises a ``RuntimeError`` with an informative message. The
-        default is disabled so code generation remains a write-only step unless
-        users explicitly opt into compilation.
-        """
-        return replace(self, build_crate=build_crate)
-
-
-@dataclass(frozen=True, slots=True)
-class RustCodegenResult:
-    """Generated Rust source and metadata for a symbolic function."""
-
-    source: str
-    python_name: str
-    function_name: str
-    workspace_size: int
-    input_names: tuple[str, ...]
-    input_sizes: tuple[int, ...]
-    output_names: tuple[str, ...]
-    output_sizes: tuple[int, ...]
-    backend_mode: RustBackendMode
-    scalar_type: RustScalarType
-    math_library: str | None
-
-
-@dataclass(frozen=True, slots=True)
-class RustPythonInterfaceProjectResult:
-    """Information about a generated Python wrapper crate."""
-
-    project_dir: Path
-    cargo_toml: Path
-    pyproject: Path
-    readme: Path
-    lib_rs: Path
-    module_name: str
-    low_level_crate_name: str
-
-
-@dataclass(frozen=True, slots=True)
-class RustProjectResult:
-    """Information about a generated Rust project on disk."""
-
-    project_dir: Path
-    cargo_toml: Path
-    readme: Path
-    metadata_json: Path
-    lib_rs: Path
-    codegen: RustCodegenResult
-    python_interface: RustPythonInterfaceProjectResult | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class RustDerivativeBundleResult:
-    """Information about a generated directory of derivative Rust crates."""
-
-    bundle_dir: Path
-    primal: RustProjectResult | None
-    jacobians: tuple[RustProjectResult, ...]
-    hessians: tuple[RustProjectResult, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class RustMultiFunctionProjectResult:
-    """Information about a generated single-crate multi-function project."""
-
-    project_dir: Path
-    cargo_toml: Path
-    readme: Path
-    metadata_json: Path
-    lib_rs: Path
-    codegens: tuple[RustCodegenResult, ...]
-    python_interface: RustPythonInterfaceProjectResult | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class _ArgSpec:
-    """Rendered metadata for a generated Rust input or output."""
-
-    raw_name: str
-    rust_name: str
-    rust_label: str
-    doc_description: str
-    size: int
-
-
-@dataclass(frozen=True, slots=True)
-class _ComposedSinglePlan:
-    """Codegen metadata for one explicit composed stage."""
-
-    helper_name: str
-    vjp_helper_name: str
-    parameter_kind: str
-    parameter_size: int
-    parameter_offset: int
-    fixed_values: tuple[float, ...]
-    stage_index: int
-
-
-@dataclass(frozen=True, slots=True)
-class _ComposedRepeatPlan:
-    """Codegen metadata for one repeated composed stage block."""
-
-    helper_name: str
-    vjp_helper_name: str
-    parameter_kind: str
-    parameter_size: int
-    parameter_offset: int
-    fixed_values: tuple[tuple[float, ...], ...]
-    repeat_count: int
-    stage_start_index: int
-    const_name: str
-
-
-@dataclass(frozen=True, slots=True)
-class _SingleShootingHelperBundle:
-    """Generated helper kernels for a single-shooting problem."""
-
-    dynamics_name: str
-    dynamics_jvp_name: str | None
-    stage_cost_name: str
-    terminal_cost_name: str
-    dynamics_vjp_x_name: str | None
-    dynamics_vjp_u_name: str | None
-    dynamics_vjp_x_jvp_name: str | None
-    dynamics_vjp_u_jvp_name: str | None
-    stage_cost_grad_x_name: str | None
-    stage_cost_grad_u_name: str | None
-    stage_cost_grad_x_jvp_name: str | None
-    stage_cost_grad_u_jvp_name: str | None
-    terminal_cost_grad_x_name: str | None
-    terminal_cost_grad_x_jvp_name: str | None
-    sources: tuple[str, ...]
-    helper_nodes: tuple[SXNode, ...]
-    max_workspace_size: int
 
 
 
@@ -650,154 +450,6 @@ def generate_rust(
     return codegen
 
 
-def create_rust_project(
-    function: Function,
-    path: str | Path,
-    *,
-    config: RustBackendConfig | None = None,
-    crate_name: str | None = None,
-    function_name: str | None = None,
-    backend_mode: RustBackendMode = "std",
-    scalar_type: RustScalarType = "f64",
-    math_library: str | None = None,
-) -> RustProjectResult:
-    """Create a minimal Rust library project containing generated code."""
-    resolved_config = _resolve_backend_config(
-        config,
-        crate_name=crate_name,
-        function_name=function_name,
-        backend_mode=backend_mode,
-        scalar_type=scalar_type,
-        math_library=math_library,
-    )
-    _validate_backend_mode(resolved_config.backend_mode)
-    _validate_scalar_type(resolved_config.scalar_type)
-
-    project_dir = Path(path).expanduser().resolve()
-    crate = sanitize_ident(resolved_config.crate_name or function.name)
-    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
-    resolved_math_library_version = "0.2" if resolved_math_library == "libm" else None
-    codegen = generate_rust(
-        function,
-        config=resolved_config,
-    )
-
-    src_dir = project_dir / "src"
-    cargo_toml = project_dir / "Cargo.toml"
-    readme = project_dir / "README.md"
-    metadata_json = project_dir / "metadata.json"
-    lib_rs = src_dir / "lib.rs"
-
-    src_dir.mkdir(parents=True, exist_ok=True)
-    cargo_toml.write_text(
-        _get_template("Cargo.toml.j2").render(
-            crate_name=crate,
-            backend_mode=resolved_config.backend_mode,
-            scalar_type=resolved_config.scalar_type,
-            math_library=resolved_math_library,
-            math_library_version=resolved_math_library_version,
-        ),
-        encoding="utf-8",
-    )
-    readme.write_text(
-        _get_template("rust_project_README.md.j2").render(
-            crate_name=crate,
-            codegen=codegen,
-            backend_mode=resolved_config.backend_mode,
-            scalar_type=resolved_config.scalar_type,
-            math_library=resolved_math_library,
-            enable_python_interface=resolved_config.enable_python_interface,
-            python_interface_project_name=(
-                f"{crate}_python" if resolved_config.enable_python_interface else None
-            ),
-        ),
-        encoding="utf-8",
-    )
-    metadata_json.write_text(
-        _render_metadata_json(crate, (codegen,)),
-        encoding="utf-8",
-    )
-    lib_rs.write_text(codegen.source, encoding="utf-8")
-    stale_pyproject = project_dir / "pyproject.toml"
-    if stale_pyproject.exists():
-        stale_pyproject.unlink()
-    if resolved_config.build_crate:
-        _run_cargo_build(project_dir)
-    python_interface = None
-    if resolved_config.enable_python_interface:
-        python_interface = _create_python_interface_project(
-            low_level_project_dir=project_dir,
-            low_level_crate_name=crate,
-            codegens=(codegen,),
-            build_python_interface=resolved_config.build_python_interface,
-        )
-    _try_run_cargo_fmt(project_dir)
-
-    return RustProjectResult(
-        project_dir=project_dir,
-        cargo_toml=cargo_toml,
-        readme=readme,
-        metadata_json=metadata_json,
-        lib_rs=lib_rs,
-        codegen=codegen,
-        python_interface=python_interface,
-    )
-
-
-def create_rust_derivative_bundle(
-    function: Function,
-    path: str | Path,
-    *,
-    config: RustBackendConfig | None = None,
-    include_primal: bool = True,
-    include_jacobians: bool = True,
-    include_hessians: bool = True,
-    simplify_derivatives: int | str | None = None,
-) -> RustDerivativeBundleResult:
-    """Create a directory containing Rust crates for primal and derivatives."""
-    bundle_dir = Path(path).expanduser().resolve()
-    bundle_dir.mkdir(parents=True, exist_ok=True)
-
-    primal_project: RustProjectResult | None = None
-    if include_primal:
-        primal_project = create_rust_project(
-            function,
-            bundle_dir / "primal",
-            config=config,
-        )
-
-    jacobian_projects: list[RustProjectResult] = []
-    if include_jacobians:
-        for block in function.jacobian_blocks():
-            derivative_function = _maybe_simplify_derivative_function(block, simplify_derivatives)
-            jacobian_projects.append(
-                create_rust_project(
-                    derivative_function,
-                    bundle_dir / derivative_function.name,
-                    config=config,
-                )
-            )
-
-    hessian_projects: list[RustProjectResult] = []
-    if include_hessians and len(function.outputs) == 1 and isinstance(function.outputs[0], SX):
-        for block in function.hessian_blocks():
-            derivative_function = _maybe_simplify_derivative_function(block, simplify_derivatives)
-            hessian_projects.append(
-                create_rust_project(
-                    derivative_function,
-                    bundle_dir / derivative_function.name,
-                    config=config,
-                )
-            )
-
-    return RustDerivativeBundleResult(
-        bundle_dir=bundle_dir,
-        primal=primal_project,
-        jacobians=tuple(jacobian_projects),
-        hessians=tuple(hessian_projects),
-    )
-
-
 def create_multi_function_rust_project(
     functions: tuple[object, ...],
     path: str | Path,
@@ -916,128 +568,6 @@ def create_multi_function_rust_project(
         codegens=codegens,
         python_interface=python_interface,
     )
-
-
-def _try_run_cargo_fmt(project_dir: Path) -> None:
-    """Run ``cargo fmt`` for a generated crate when available.
-
-    Formatting is best-effort only. Missing tools or formatter failures should
-    not make Python-side crate generation fail.
-    """
-    if shutil.which("cargo") is None:
-        _LOGGER.info("Skipping cargo fmt for %s because cargo is not installed.", project_dir)
-        return
-    try:
-        subprocess.run(
-            ["cargo", "fmt"],
-            cwd=project_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError:
-        _LOGGER.info("Skipping cargo fmt for %s because cargo is not installed.", project_dir)
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or "").strip()
-        stdout = (exc.stdout or "").strip()
-        details = stderr or stdout
-        _LOGGER.warning(
-            "Skipping cargo fmt for %s because it could not be run successfully%s",
-            project_dir,
-            f": {details}" if details else ".",
-        )
-
-
-def _run_python_interface_build(project_dir: Path) -> None:
-    """Install a generated Python wrapper crate into the active Python environment."""
-    if shutil.which("cargo") is None:
-        raise RuntimeError("cargo is required to compile the generated Python interface")
-
-    env = os.environ.copy()
-    env["PYO3_PYTHON"] = sys.executable
-    try:
-        subprocess.run(
-            [sys.executable, "-m", "pip", "install", "-e", str(project_dir)],
-            cwd=project_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-            env=env,
-        )
-    except FileNotFoundError as exc:
-        raise RuntimeError("cargo is required to compile the generated Python interface") from exc
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or "").strip()
-        stdout = (exc.stdout or "").strip()
-        details = stderr or stdout
-        raise RuntimeError(
-            "failed to install the generated Python interface"
-            + (f": {details}" if details else "")
-        ) from exc
-
-
-def _next_python_interface_version(wrapper_project_dir: Path) -> str:
-    """Return the next Python wrapper version for ``wrapper_project_dir``.
-
-    The first generation uses ``0.1.0``. Regenerating an existing wrapper
-    bumps the minor version while resetting the patch component to zero, so
-    repeated generations produce ``0.2.0``, ``0.3.0``, and so on.
-    """
-    pyproject = wrapper_project_dir / "pyproject.toml"
-    if not pyproject.exists():
-        return "0.1.0"
-
-    try:
-        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError) as exc:
-        raise RuntimeError(
-            f"failed to read the existing Python interface version from {pyproject}"
-        ) from exc
-
-    project_section = data.get("project")
-    if not isinstance(project_section, dict):
-        raise RuntimeError(
-            f"existing Python interface metadata at {pyproject} does not define [project]"
-        )
-
-    version = project_section.get("version")
-    if not isinstance(version, str):
-        raise RuntimeError(
-            f"existing Python interface metadata at {pyproject} does not define a string version"
-        )
-
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
-    if match is None:
-        raise RuntimeError(
-            f"existing Python interface version {version!r} in {pyproject} is not a semantic version"
-        )
-
-    major, minor, _patch = (int(group) for group in match.groups())
-    return f"{major}.{minor + 1}.0"
-
-
-def _run_cargo_build(project_dir: Path) -> None:
-    """Compile a generated Rust crate with Cargo."""
-    if shutil.which("cargo") is None:
-        raise RuntimeError("cargo is required to build the generated Rust crate")
-    try:
-        subprocess.run(
-            ["cargo", "build"],
-            cwd=project_dir,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError as exc:
-        raise RuntimeError("cargo is required to build the generated Rust crate") from exc
-    except subprocess.CalledProcessError as exc:
-        stderr = (exc.stderr or "").strip()
-        stdout = (exc.stdout or "").strip()
-        details = stderr or stdout
-        raise RuntimeError(
-            "failed to build the generated Rust crate"
-            + (f": {details}" if details else "")
-        ) from exc
 
 
 def _generate_composed_primal_rust(
@@ -5196,22 +4726,6 @@ def _render_multi_function_lib(
     return rendered if rendered.endswith("\n") else f"{rendered}\n"
 
 
-def _render_python_interface_source(
-    codegens: tuple[RustCodegenResult, ...],
-    low_level_crate_name: str,
-    module_name: str,
-    project_version: str,
-) -> str:
-    """Render the PyO3 Python interface for one or more generated functions."""
-    return _get_template("python_interface.rs.j2").render(
-        codegens=codegens,
-        module_name=module_name,
-        low_level_crate_name=low_level_crate_name,
-        project_version=project_version,
-        scalar_type=codegens[0].scalar_type,
-    ).rstrip()
-
-
 def _derive_python_function_name(function_name: str, crate_name: str | None) -> str:
     """Derive the public Python name from a generated Rust symbol name."""
     candidate = function_name
@@ -5223,86 +4737,6 @@ def _derive_python_function_name(function_name: str, crate_name: str | None) -> 
     if candidate.endswith("_f"):
         candidate = candidate[:-2]
     return candidate or function_name
-
-
-def _create_python_interface_project(
-    *,
-    low_level_project_dir: Path,
-    low_level_crate_name: str,
-    codegens: tuple[RustCodegenResult, ...],
-    build_python_interface: bool,
-) -> RustPythonInterfaceProjectResult:
-    """Create a sibling PyO3 wrapper crate for generated Rust kernels."""
-    validate_unique_rust_names(
-        [(codegen.function_name, codegen.python_name) for codegen in codegens],
-        label="generated Python function",
-    )
-    wrapper_project_dir = low_level_project_dir.parent / f"{low_level_crate_name}_python"
-    wrapper_crate_name = wrapper_project_dir.name
-    module_name = low_level_crate_name
-
-    wrapper_project_dir.mkdir(parents=True, exist_ok=True)
-    src_dir = wrapper_project_dir / "src"
-    src_dir.mkdir(parents=True, exist_ok=True)
-
-    cargo_toml = wrapper_project_dir / "Cargo.toml"
-    pyproject = wrapper_project_dir / "pyproject.toml"
-    readme = wrapper_project_dir / "README.md"
-    lib_rs = src_dir / "lib.rs"
-    project_version = _next_python_interface_version(wrapper_project_dir)
-
-    dependency_path = Path("..") / low_level_project_dir.name
-    cargo_toml.write_text(
-        _get_template("python_interface_Cargo.toml.j2").render(
-            crate_name=wrapper_crate_name,
-            module_name=module_name,
-            low_level_crate_name=low_level_crate_name,
-            low_level_crate_path=dependency_path.as_posix(),
-        ),
-        encoding="utf-8",
-    )
-    pyproject.write_text(
-        _get_template("python_interface_pyproject.toml.j2").render(
-            crate_name=wrapper_crate_name,
-            module_name=module_name,
-            low_level_crate_name=low_level_crate_name,
-            project_version=project_version,
-        ),
-        encoding="utf-8",
-    )
-    readme.write_text(
-        _get_template("python_interface_README.md.j2").render(
-            crate_name=wrapper_crate_name,
-            module_name=module_name,
-            low_level_crate_name=low_level_crate_name,
-            low_level_project_dir=low_level_project_dir.name,
-            codegens=codegens,
-        ),
-        encoding="utf-8",
-    )
-    lib_rs.write_text(
-        _render_python_interface_source(
-            codegens,
-            low_level_crate_name=low_level_crate_name,
-            module_name=module_name,
-            project_version=project_version,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-    _try_run_cargo_fmt(wrapper_project_dir)
-    if build_python_interface:
-        _run_python_interface_build(wrapper_project_dir)
-
-    return RustPythonInterfaceProjectResult(
-        project_dir=wrapper_project_dir,
-        cargo_toml=cargo_toml,
-        pyproject=pyproject,
-        readme=readme,
-        lib_rs=lib_rs,
-        module_name=module_name,
-        low_level_crate_name=low_level_crate_name,
-    )
 
 
 def _private_helper_section_key(section: str) -> str | None:
@@ -5318,44 +4752,6 @@ def _private_helper_section_key(section: str) -> str | None:
     return section
 
 
-def _render_metadata_json(crate_name: str, codegens: tuple[RustCodegenResult, ...]) -> str:
-    """Render the crate metadata JSON file."""
-    payload = {
-        "crate_name": crate_name,
-        "created_at": _metadata_created_at(),
-        "gradgen_version": _gradgen_version(),
-        "functions": [
-            {
-                "function_name": codegen.function_name,
-                "workspace_size": codegen.workspace_size,
-                "input_names": list(codegen.input_names),
-                "input_sizes": list(codegen.input_sizes),
-                "output_names": list(codegen.output_names),
-                "output_sizes": list(codegen.output_sizes),
-            }
-            for codegen in codegens
-        ],
-    }
-    return json.dumps(payload, indent=2) + "\n"
-
-
-def _metadata_created_at() -> str:
-    """Return the UTC timestamp used in generated metadata files."""
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def _gradgen_version() -> str:
-    """Return the installed gradgen package version when available."""
-    try:
-        return package_version("gradgen")
-    except PackageNotFoundError:
-        pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
-        match = re.search(r'^version = "([^"]+)"$', pyproject.read_text(encoding="utf-8"), re.MULTILINE)
-        if match is None:
-            raise RuntimeError("could not determine gradgen version for metadata.json")
-        return match.group(1)
-
-
 def _math_function_name(op: str, scalar_type: RustScalarType) -> str:
     """Return the backend math function name for a scalar type."""
     _validate_scalar_type(scalar_type)
@@ -5363,22 +4759,6 @@ def _math_function_name(op: str, scalar_type: RustScalarType) -> str:
     if scalar_type == "f32":
         return f"{base_name}f"
     return base_name
-
-
-def _get_template(name: str):
-    """Return a Jinja2 template from the package template directory."""
-    return _template_environment().get_template(name)
-
-
-def _template_environment() -> Environment:
-    """Build the Jinja2 environment used for Rust project rendering."""
-    templates_dir = Path(__file__).with_name("templates")
-    return Environment(
-        loader=FileSystemLoader(str(templates_dir)),
-        autoescape=False,
-        trim_blocks=True,
-        lstrip_blocks=True,
-    )
 
 
 _LIBM_FUNCTIONS = {
