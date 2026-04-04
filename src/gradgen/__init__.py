@@ -17,6 +17,16 @@ from .map_zip import (
     zip_function,
     reduce_function,
 )
+from ._rust_codegen.builder import CodeGenerationBuilder, FunctionBundle
+from ._rust_codegen.config import RustBackendMode, RustBackendConfig, RustScalarType
+from ._rust_codegen.models import (
+    RustCodegenResult,
+    RustDerivativeBundleResult,
+    RustMultiFunctionProjectResult,
+    RustProjectResult,
+    RustPythonInterfaceProjectResult,
+)
+from ._rust_codegen.project import create_rust_derivative_bundle, create_rust_project
 from .single_shooting import (
     SingleShootingBundle,
     SingleShootingGradientFunction,
@@ -26,19 +36,7 @@ from .single_shooting import (
     SingleShootingProblem,
 )
 from .rust_codegen import (
-    CodeGenerationBuilder,
-    FunctionBundle,
-    RustBackendMode,
-    RustBackendConfig,
-    RustCodegenResult,
-    RustDerivativeBundleResult,
-    RustMultiFunctionProjectResult,
-    RustProjectResult,
-    RustPythonInterfaceProjectResult,
-    RustScalarType,
-    create_rust_derivative_bundle,
     create_multi_function_rust_project,
-    create_rust_project,
     generate_rust,
 )
 from .simplify import simplify
