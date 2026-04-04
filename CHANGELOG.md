@@ -45,6 +45,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Refactored the Rust code generation implementation into smaller internal
   modules for configuration, validation, template loading, and project
   creation. The public Rust-generation API remains unchanged.
+- Split the generated-project helper logic into a dedicated
+  `project_support` module, keeping filesystem/build orchestration separate
+  from the higher-level project entrypoints.
 - Split the remaining Rust code-generation family logic into a dedicated
   internal generators module, keeping the top-level dispatcher in
   `rust_codegen.py` thinner and easier to navigate.
