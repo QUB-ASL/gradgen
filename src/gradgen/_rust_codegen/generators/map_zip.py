@@ -1,31 +1,16 @@
 """Family-specific Rust generation helpers."""
 
-from __future__ import annotations
-
 from . import shared as _shared
 from .rendering import KernelRenderContext, render_kernel_source
 from ..config import RustBackendConfig, RustBackendMode, RustScalarType
-from ..models import RustCodegenResult, _ArgSpec, _ComposedRepeatPlan, _ComposedSinglePlan, _SingleShootingHelperBundle
+from ..models import RustCodegenResult, _ArgSpec
 from ..naming import sanitize_ident
-from ...function import Function
 from ...map_zip import ReducedFunction, ZippedFunction, ZippedJacobianFunction
-from ...single_shooting import (
-    SingleShootingGradientFunction,
-    SingleShootingHvpFunction,
-    SingleShootingJointFunction,
-    SingleShootingPrimalFunction,
-    SingleShootingProblem,
-)
-from ...sx import SX, SXNode, SXVector
 
 generate_rust = _shared.generate_rust
 _resolve_backend_config = _shared._resolve_backend_config
-_validate_backend_mode = _shared._validate_backend_mode
-_validate_scalar_type = _shared._validate_scalar_type
 _validate_generated_argument_names = _shared._validate_generated_argument_names
-_maybe_simplify_derivative_function = _shared._maybe_simplify_derivative_function
 _derive_python_function_name = _shared._derive_python_function_name
-_flatten_arg = _shared._flatten_arg
 _arg_size = _shared._arg_size
 _scaled_index_expr = _shared._scaled_index_expr
 _format_float = _shared._format_float
@@ -34,31 +19,47 @@ _describe_input_arg = _shared._describe_input_arg
 _describe_output_arg = _shared._describe_output_arg
 _emit_exact_length_assert = _shared._emit_exact_length_assert
 _emit_min_length_assert = _shared._emit_min_length_assert
-_allocate_workspace_slots = _shared._allocate_workspace_slots
-_collect_required_workspace_nodes = _shared._collect_required_workspace_nodes
-_collect_reachable_nodes = _shared._collect_reachable_nodes
-_reemit_direct_output_helper_call = _shared._reemit_direct_output_helper_call
-_collect_suppressed_custom_wrappers = _shared._collect_suppressed_custom_wrappers
-_build_shared_helper_lines = _shared._build_shared_helper_lines
-_build_composed_input_specs = _shared._build_composed_input_specs
-_emit_composed_fixed_repeat_constants = _shared._emit_composed_fixed_repeat_constants
-_emit_composed_parameter_ref = _shared._emit_composed_parameter_ref
-_compose_offset_expr = _shared._compose_offset_expr
-_compose_composed_helper_base_name = _shared._compose_composed_helper_base_name
-_emit_composed_primal_single_block = _shared._emit_composed_primal_single_block
-_emit_composed_primal_repeat_block = _shared._emit_composed_primal_repeat_block
-_emit_composed_gradient_forward_single_block = _shared._emit_composed_gradient_forward_single_block
-_emit_composed_gradient_forward_repeat_block = _shared._emit_composed_gradient_forward_repeat_block
-_emit_composed_gradient_reverse_single_block = _shared._emit_composed_gradient_reverse_single_block
-_emit_composed_gradient_reverse_repeat_block = _shared._emit_composed_gradient_reverse_repeat_block
-_build_directional_derivative_function = _shared._build_directional_derivative_function
-_build_single_shooting_helpers = _shared._build_single_shooting_helpers
-_build_single_shooting_input_specs = _shared._build_single_shooting_input_specs
-_build_single_shooting_output_specs = _shared._build_single_shooting_output_specs
-_compose_single_shooting_helper_base_name = _shared._compose_single_shooting_helper_base_name
-_emit_single_shooting_control_slice = _shared._emit_single_shooting_control_slice
-_emit_single_shooting_stage_range = _shared._emit_single_shooting_stage_range
-_emit_small_accumulate = _shared._emit_small_accumulate
+
+
+def _build_exact_length_checks(
+    specs: tuple[_ArgSpec, ...],
+    *,
+    use_input_return: bool,
+) -> tuple[list[str], list[str]]:
+    """Build runtime length checks for a sequence of argument specs."""
+    assert_lines: list[str] = []
+    return_lines: list[str] = []
+    for spec in specs:
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            spec.rust_name,
+            spec.raw_name,
+            spec.size,
+        )
+        assert_lines.append(_assert)
+        return_lines.append(_in_return if use_input_return else _out_return)
+    return assert_lines, return_lines
+
+
+def _build_parameter_signature(
+    input_specs: tuple[_ArgSpec, ...],
+    output_specs: tuple[_ArgSpec, ...],
+    scalar_type: str,
+) -> str:
+    """Build the Rust function parameter signature for a generator."""
+    return ", ".join(
+        [
+            *[
+                f"{spec.rust_name}: &[{scalar_type}]"
+                for spec in input_specs
+            ],
+            *[
+                f"{spec.rust_name}: &mut [{scalar_type}]"
+                for spec in output_specs
+            ],
+            f"work: &mut [{scalar_type}]",
+        ]
+    )
+
 
 def _generate_zipped_primal_rust(
     zipped: ZippedFunction,
@@ -70,7 +71,20 @@ def _generate_zipped_primal_rust(
     math_library: str | None = None,
     function_index: int = 0,
 ) -> RustCodegenResult:
-    """Generate loop-based Rust for a staged map/zip primal kernel."""
+    """Generate Rust for a staged map/zip primal kernel.
+
+    Args:
+        zipped: The staged symbolic map/zip function to render.
+        config: Optional backend configuration override.
+        function_name: Optional exported Rust function name.
+        backend_mode: Requested Rust backend mode.
+        scalar_type: Requested Rust scalar type.
+        math_library: Optional math library override.
+        function_index: Ordinal used for metadata and generated naming.
+
+    Returns:
+        A :class:`RustCodegenResult` describing the generated Rust source.
+    """
     resolved_config = _resolve_backend_config(
         config,
         function_name=function_name,
@@ -78,7 +92,10 @@ def _generate_zipped_primal_rust(
         scalar_type=scalar_type,
         math_library=math_library,
     )
-    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
+    if resolved_config.backend_mode == "no_std":
+        resolved_math_library = "libm"
+    else:
+        resolved_math_library = None
     render_context = KernelRenderContext(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
@@ -107,8 +124,12 @@ def _generate_zipped_primal_rust(
         function_keyword="fn",
     )
 
-    packed_input_sizes = tuple(zipped.count * _arg_size(arg) for arg in zipped.function.inputs)
-    packed_output_sizes = tuple(zipped.count * _arg_size(arg) for arg in zipped.function.outputs)
+    packed_input_sizes = tuple(
+        zipped.count * _arg_size(arg) for arg in zipped.function.inputs
+    )
+    packed_output_sizes = tuple(
+        zipped.count * _arg_size(arg) for arg in zipped.function.outputs
+    )
     input_specs = tuple(
         _ArgSpec(
             raw_name=raw_name,
@@ -131,32 +152,21 @@ def _generate_zipped_primal_rust(
     )
     _validate_generated_argument_names(input_specs, output_specs)
 
-    input_assert_lines: list[str] = []
-    input_return_lines: list[str] = []
-    output_assert_lines: list[str] = []
-    output_return_lines: list[str] = []
-
-    for spec in input_specs:
-        _assert, _in_return, _out_return = _emit_exact_length_assert(
-            spec.rust_name,
-            spec.raw_name,
-            spec.size,
-        )
-        input_assert_lines.append(_assert)
-        input_return_lines.append(_in_return)
-    for spec in output_specs:
-        _assert, _in_return, _out_return = _emit_exact_length_assert(
-            spec.rust_name,
-            spec.raw_name,
-            spec.size,
-        )
-        output_assert_lines.append(_assert)
-        output_return_lines.append(_out_return)
+    input_assert_lines, input_return_lines = _build_exact_length_checks(
+        input_specs,
+        use_input_return=True,
+    )
+    output_assert_lines, output_return_lines = _build_exact_length_checks(
+        output_specs,
+        use_input_return=False,
+    )
 
     helper_workspace_size = helper_codegen.workspace_size
     computation_lines: list[str] = []
     if helper_workspace_size > 0:
-        computation_lines.append(f"let helper_work = &mut work[..{helper_workspace_size}];")
+        computation_lines.append(
+            f"let helper_work = &mut work[..{helper_workspace_size}];"
+        )
     else:
         computation_lines.append("let helper_work = &mut work[..0];")
     computation_lines.append(f"for stage_index in 0..{zipped.count} {{")
@@ -186,20 +196,23 @@ def _generate_zipped_primal_rust(
     computation_lines.append(f"    {helper_name}({helper_args});")
     computation_lines.append("}")
 
-    parameters = ", ".join(
-        [
-            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
-            *[f"{spec.rust_name}: &mut [{resolved_config.scalar_type}]" for spec in output_specs],
-            f"work: &mut [{resolved_config.scalar_type}]",
-        ]
+    parameters = _build_parameter_signature(
+        input_specs,
+        output_specs,
+        resolved_config.scalar_type,
     )
     if helper_workspace_size > 0:
-        _ws_assert, _ws_return = _emit_min_length_assert("work", "work", helper_workspace_size)
+        _ws_assert, _ws_return = _emit_min_length_assert(
+            "work",
+            "work",
+            helper_workspace_size,
+        )
     else:
         _ws_assert = None
         _ws_return = None
 
-    driver_source = render_kernel_source(render_context,
+    driver_source = render_kernel_source(
+        render_context,
         function_name=name,
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
@@ -229,7 +242,10 @@ def _generate_zipped_primal_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
-        python_name=_derive_python_function_name(name, resolved_config.crate_name),
+        python_name=_derive_python_function_name(
+            name,
+            resolved_config.crate_name,
+        ),
         function_name=name,
         workspace_size=helper_workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -252,7 +268,20 @@ def _generate_zipped_jacobian_rust(
     math_library: str | None = None,
     function_index: int = 0,
 ) -> RustCodegenResult:
-    """Generate loop-based Rust for a staged map/zip Jacobian kernel."""
+    """Generate Rust for a staged map/zip Jacobian kernel.
+
+    Args:
+        zipped_jacobian: The staged symbolic Jacobian wrapper to render.
+        config: Optional backend configuration override.
+        function_name: Optional exported Rust function name.
+        backend_mode: Requested Rust backend mode.
+        scalar_type: Requested Rust scalar type.
+        math_library: Optional math library override.
+        function_index: Ordinal used for metadata and generated naming.
+
+    Returns:
+        A :class:`RustCodegenResult` describing the generated Rust source.
+    """
     resolved_config = _resolve_backend_config(
         config,
         function_name=function_name,
@@ -260,14 +289,19 @@ def _generate_zipped_jacobian_rust(
         scalar_type=scalar_type,
         math_library=math_library,
     )
-    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
+    if resolved_config.backend_mode == "no_std":
+        resolved_math_library = "libm"
+    else:
+        resolved_math_library = None
     render_context = KernelRenderContext(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
     )
-    name = sanitize_ident(resolved_config.function_name or zipped_jacobian.name)
+    name = sanitize_ident(
+        resolved_config.function_name or zipped_jacobian.name
+    )
     helper_name = sanitize_ident(f"{name}_helper")
 
     zipped = zipped_jacobian.zipped
@@ -293,7 +327,9 @@ def _generate_zipped_jacobian_rust(
         function_keyword="fn",
     )
 
-    packed_input_sizes = tuple(zipped.count * _arg_size(arg) for arg in zipped.function.inputs)
+    packed_input_sizes = tuple(
+        zipped.count * _arg_size(arg) for arg in zipped.function.inputs
+    )
     input_specs = tuple(
         _ArgSpec(
             raw_name=raw_name,
@@ -309,7 +345,10 @@ def _generate_zipped_jacobian_rust(
     output_specs: list[_ArgSpec] = []
     local_output_sizes: list[int] = []
     row_sizes: list[int] = []
-    for raw_name, output in zip(zipped.function.output_names, zipped.function.outputs):
+    for raw_name, output in zip(
+        zipped.function.output_names,
+        zipped.function.outputs,
+    ):
         row_size = _arg_size(output)
         row_sizes.append(row_size)
         local_block_size = row_size * wrt_size
@@ -329,34 +368,32 @@ def _generate_zipped_jacobian_rust(
     temp_workspace_size = sum(local_output_sizes)
     total_workspace_size = temp_workspace_size + helper_codegen.workspace_size
 
-    input_assert_lines: list[str] = []
-    input_return_lines: list[str] = []
-    output_assert_lines: list[str] = []
-    output_return_lines: list[str] = []
-    for spec in input_specs:
-        _assert, _in_return, _out_return = _emit_exact_length_assert(
-            spec.rust_name,
-            spec.raw_name,
-            spec.size,
-        )
-        input_assert_lines.append(_assert)
-        input_return_lines.append(_in_return)
-    for spec in output_specs_tuple:
-        _assert, _in_return, _out_return = _emit_exact_length_assert(
-            spec.rust_name,
-            spec.raw_name,
-            spec.size,
-        )
-        output_assert_lines.append(_assert)
-        output_return_lines.append(_out_return)
+    input_assert_lines, input_return_lines = _build_exact_length_checks(
+        input_specs,
+        use_input_return=True,
+    )
+    output_assert_lines, output_return_lines = _build_exact_length_checks(
+        output_specs_tuple,
+        use_input_return=False,
+    )
 
     zero_literal = _format_float(0.0, resolved_config.scalar_type)
-    computation_lines: list[str] = [f"{spec.rust_name}.fill({zero_literal});" for spec in output_specs_tuple]
+    computation_lines: list[str] = [
+        f"{spec.rust_name}.fill({zero_literal});"
+        for spec in output_specs_tuple
+    ]
     remaining_work_name = "work"
-    for index, (spec, local_size) in enumerate(zip(output_specs_tuple, local_output_sizes)):
-        next_remaining = "helper_work" if index == len(output_specs_tuple) - 1 else f"rest_work_{index}"
+    for index, (spec, local_size) in enumerate(
+        zip(output_specs_tuple, local_output_sizes)
+    ):
+        next_remaining = (
+            "helper_work"
+            if index == len(output_specs_tuple) - 1
+            else f"rest_work_{index}"
+        )
         computation_lines.append(
-            f"let (temp_{spec.rust_name}, {next_remaining}) = {remaining_work_name}.split_at_mut({local_size});"
+            f"let (temp_{spec.rust_name}, {next_remaining}) = "
+            f"{remaining_work_name}.split_at_mut({local_size});"
         )
         remaining_work_name = next_remaining
     computation_lines.append(f"for stage_index in 0..{zipped.count} {{")
@@ -376,7 +413,7 @@ def _generate_zipped_jacobian_rust(
         ]
     )
     computation_lines.append(f"    {helper_name}({helper_args});")
-    for spec, row_size, local_size in zip(output_specs_tuple, row_sizes, local_output_sizes):
+    for spec, row_size in zip(output_specs_tuple, row_sizes):
         computation_lines.append(f"    for local_row in 0..{row_size} {{")
         dest_row_base = _scaled_index_expr("stage_index", row_size)
         dest_stage_offset = _scaled_index_expr("stage_index", wrt_size)
@@ -387,30 +424,35 @@ def _generate_zipped_jacobian_rust(
             f"        let dest_row = {dest_row_base} + local_row;"
         )
         computation_lines.append(
-            f"        let dest_start = (dest_row * {packed_wrt_size}) + {dest_stage_offset};"
+            f"        let dest_start = "
+            f"(dest_row * {packed_wrt_size}) + {dest_stage_offset};"
         )
         computation_lines.append(f"        let src_start = {src_row_base};")
         computation_lines.append(
             f"        {spec.rust_name}[dest_start..(dest_start + {wrt_size})]"
-            f".copy_from_slice(&temp_{spec.rust_name}[src_start..(src_start + {wrt_size})]);"
+            f".copy_from_slice("
+            f"&temp_{spec.rust_name}[src_start..(src_start + {wrt_size})]);"
         )
         computation_lines.append("    }")
     computation_lines.append("}")
 
-    parameters = ", ".join(
-        [
-            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
-            *[f"{spec.rust_name}: &mut [{resolved_config.scalar_type}]" for spec in output_specs_tuple],
-            f"work: &mut [{resolved_config.scalar_type}]",
-        ]
+    parameters = _build_parameter_signature(
+        input_specs,
+        output_specs_tuple,
+        resolved_config.scalar_type,
     )
     if total_workspace_size > 0:
-        _ws_assert, _ws_return = _emit_min_length_assert("work", "work", total_workspace_size)
+        _ws_assert, _ws_return = _emit_min_length_assert(
+            "work",
+            "work",
+            total_workspace_size,
+        )
     else:
         _ws_assert = None
         _ws_return = None
 
-    driver_source = render_kernel_source(render_context,
+    driver_source = render_kernel_source(
+        render_context,
         function_name=name,
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
@@ -426,7 +468,9 @@ def _generate_zipped_jacobian_rust(
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs_tuple,
-        function_parameter_count=len(input_specs) + len(output_specs_tuple) + 1,
+        function_parameter_count=(
+            len(input_specs) + len(output_specs_tuple) + 1
+        ),
         parameters=parameters,
         input_assert_lines=input_assert_lines,
         input_return_lines=input_return_lines,
@@ -440,7 +484,10 @@ def _generate_zipped_jacobian_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
-        python_name=_derive_python_function_name(name, resolved_config.crate_name),
+        python_name=_derive_python_function_name(
+            name,
+            resolved_config.crate_name,
+        ),
         function_name=name,
         workspace_size=total_workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),
@@ -452,6 +499,7 @@ def _generate_zipped_jacobian_rust(
         math_library=resolved_math_library,
     )
 
+
 def _generate_reduced_primal_rust(
     reduced: ReducedFunction,
     *,
@@ -462,7 +510,20 @@ def _generate_reduced_primal_rust(
     math_library: str | None = None,
     function_index: int = 0,
 ) -> RustCodegenResult:
-    """Generate loop-based Rust for a staged reduce primal kernel."""
+    """Generate Rust for a staged reduce primal kernel.
+
+    Args:
+        reduced: The staged symbolic reduction wrapper to render.
+        config: Optional backend configuration override.
+        function_name: Optional exported Rust function name.
+        backend_mode: Requested Rust backend mode.
+        scalar_type: Requested Rust scalar type.
+        math_library: Optional math library override.
+        function_index: Ordinal used for metadata and generated naming.
+
+    Returns:
+        A :class:`RustCodegenResult` describing the generated Rust source.
+    """
     resolved_config = _resolve_backend_config(
         config,
         function_name=function_name,
@@ -470,7 +531,10 @@ def _generate_reduced_primal_rust(
         scalar_type=scalar_type,
         math_library=math_library,
     )
-    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
+    if resolved_config.backend_mode == "no_std":
+        resolved_math_library = "libm"
+    else:
+        resolved_math_library = None
     render_context = KernelRenderContext(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
@@ -510,8 +574,12 @@ def _generate_reduced_primal_rust(
         _ArgSpec(
             raw_name=reduced.accumulator_input_name,
             rust_name=sanitize_ident(reduced.accumulator_input_name),
-            rust_label=_format_rust_string_literal(reduced.accumulator_input_name),
-            doc_description=_describe_input_arg(reduced.accumulator_input_name),
+            rust_label=_format_rust_string_literal(
+                reduced.accumulator_input_name
+            ),
+            doc_description=_describe_input_arg(
+                reduced.accumulator_input_name
+            ),
             size=accumulator_size,
         ),
         _ArgSpec(
@@ -533,27 +601,14 @@ def _generate_reduced_primal_rust(
     )
     _validate_generated_argument_names(input_specs, output_specs)
 
-    input_assert_lines: list[str] = []
-    input_return_lines: list[str] = []
-    output_assert_lines: list[str] = []
-    output_return_lines: list[str] = []
-
-    for spec in input_specs:
-        _assert, _in_return, _out_return = _emit_exact_length_assert(
-            spec.rust_name,
-            spec.raw_name,
-            spec.size,
-        )
-        input_assert_lines.append(_assert)
-        input_return_lines.append(_in_return)
-    for spec in output_specs:
-        _assert, _in_return, _out_return = _emit_exact_length_assert(
-            spec.rust_name,
-            spec.raw_name,
-            spec.size,
-        )
-        output_assert_lines.append(_assert)
-        output_return_lines.append(_out_return)
+    input_assert_lines, input_return_lines = _build_exact_length_checks(
+        input_specs,
+        use_input_return=True,
+    )
+    output_assert_lines, output_return_lines = _build_exact_length_checks(
+        output_specs,
+        use_input_return=False,
+    )
 
     helper_workspace_size = helper_codegen.workspace_size
     temp_acc_size = 2 * accumulator_size
@@ -567,39 +622,50 @@ def _generate_reduced_primal_rust(
     computation_lines: list[str] = []
     if helper_workspace_size > 0:
         computation_lines.append(
-            f"let (acc_work, helper_work) = work.split_at_mut({temp_acc_size});"
+            f"let (acc_work, helper_work) = "
+            f"work.split_at_mut({temp_acc_size});"
         )
     else:
         computation_lines.append("let acc_work = work;")
         computation_lines.append("let helper_work = &mut work[..0];")
-    computation_lines.append(f"let (acc_curr_buf, acc_next_buf) = acc_work.split_at_mut({accumulator_size});")
+    computation_lines.append(
+        f"let (acc_curr_buf, acc_next_buf) = "
+        f"acc_work.split_at_mut({accumulator_size});"
+    )
     computation_lines.append(f"acc_curr_buf.copy_from_slice({acc0_name});")
     computation_lines.append(f"for stage_index in 0..{reduced.count} {{")
     block_size = _arg_size(sequence_formal)
     start_expr = _scaled_index_expr("stage_index", block_size)
     end_expr = _scaled_index_expr("stage_index + 1", block_size)
-    computation_lines.append(f"    let x_stage = &{seq_name}[{start_expr}..{end_expr}];")
+    computation_lines.append(
+        f"    let x_stage = &{seq_name}[{start_expr}..{end_expr}];"
+    )
     computation_lines.append("    acc_next_buf.fill(" + zero_literal + ");")
-    computation_lines.append(f"    {helper_name}(acc_curr_buf, x_stage, acc_next_buf, helper_work);")
+    computation_lines.append(
+        f"    {helper_name}(acc_curr_buf, x_stage, "
+        f"acc_next_buf, helper_work);"
+    )
     computation_lines.append("    acc_curr_buf.copy_from_slice(acc_next_buf);")
     computation_lines.append("}")
     computation_lines.append(f"{out_name}.copy_from_slice(acc_curr_buf);")
 
-    parameters = ", ".join(
-        [
-            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
-            *[f"{spec.rust_name}: &mut [{resolved_config.scalar_type}]" for spec in output_specs],
-            f"work: &mut [{resolved_config.scalar_type}]",
-        ]
-    )
+    parameters = _build_parameter_signature(
+        input_specs,
+        output_specs,
+        resolved_config.scalar_type)
 
     if total_workspace_size > 0:
-        _ws_assert, _ws_return = _emit_min_length_assert("work", "work", total_workspace_size)
+        _ws_assert, _ws_return = _emit_min_length_assert(
+            "work",
+            "work",
+            total_workspace_size,
+        )
     else:
         _ws_assert = None
         _ws_return = None
 
-    driver_source = render_kernel_source(render_context,
+    driver_source = render_kernel_source(
+        render_context,
         function_name=name,
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
@@ -615,7 +681,9 @@ def _generate_reduced_primal_rust(
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
         input_specs=input_specs,
         output_specs=output_specs,
-        function_parameter_count=len(input_specs) + len(output_specs) + 1,
+        function_parameter_count=(
+            len(input_specs) + len(output_specs) + 1
+        ),
         parameters=parameters,
         input_assert_lines=input_assert_lines,
         input_return_lines=input_return_lines,
@@ -629,7 +697,10 @@ def _generate_reduced_primal_rust(
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
-        python_name=_derive_python_function_name(name, resolved_config.crate_name),
+        python_name=_derive_python_function_name(
+            name,
+            resolved_config.crate_name,
+        ),
         function_name=name,
         workspace_size=total_workspace_size,
         input_names=tuple(spec.raw_name for spec in input_specs),

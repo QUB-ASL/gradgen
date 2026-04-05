@@ -14,7 +14,19 @@ FunctionArg = SX | SXVector
 @dataclass(frozen=True,
            slots=True)
 class ZippedJacobianFunction:
-    """Jacobian kernel for a staged zipped function."""
+    """Staged Jacobian wrapper for a zipped function.
+
+    This object represents the Jacobian of a staged batched function without
+    immediately expanding it back into an ordinary :class:`Function`.
+
+    Attributes:
+        zipped: The underlying staged batched function.
+        wrt_index: The input index with respect to which the Jacobian is
+            taken.
+        name: The symbolic name of the staged Jacobian wrapper.
+        simplification: Optional simplification effort forwarded to the
+            expanded symbolic function.
+    """
 
     zipped: ZippedFunction
     wrt_index: int
@@ -23,7 +35,16 @@ class ZippedJacobianFunction:
 
     def to_function(self,
                     name: str | None = None) -> Function:
-        """Expand this staged Jacobian into a regular symbolic ``Function``."""
+        """Expand this staged Jacobian into a regular symbolic function.
+
+        Args:
+            name: Optional name for the expanded symbolic function. When not
+                provided, the wrapper name is reused.
+
+        Returns:
+            A symbolic :class:`~gradgen.function.Function` representing the
+            expanded Jacobian.
+        """
         function = self.zipped\
             .to_function()\
             .jacobian(
@@ -37,12 +58,12 @@ class ZippedJacobianFunction:
 
     @property
     def input_names(self) -> tuple[str, ...]:
-        """Return the packed input names."""
+        """Return the packed input names used by the staged Jacobian."""
         return self.zipped.input_names
 
     @property
     def output_names(self) -> tuple[str, ...]:
-        """Return the Jacobian output names."""
+        """Return the generated Jacobian output names."""
         return tuple(f"jacobian_{name}"
                      for name in self.zipped.function.output_names)
 
@@ -54,7 +75,17 @@ class ZippedJacobianFunction:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Generate compact Rust for the staged Jacobian kernel."""
+        """Generate compact Rust for the staged Jacobian kernel.
+
+        Args:
+            config: Optional backend configuration object.
+            function_name: Optional exported Rust function name.
+            backend_mode: Rust backend mode to target.
+            scalar_type: Rust scalar type to emit.
+
+        Returns:
+            The generated Rust code bundle for this staged Jacobian.
+        """
         from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
@@ -75,7 +106,19 @@ class ZippedJacobianFunction:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Create a Rust crate containing the staged Jacobian kernel."""
+        """Create a Rust crate containing the staged Jacobian kernel.
+
+        Args:
+            path: Directory where the Rust crate should be created.
+            config: Optional backend configuration object.
+            crate_name: Optional crate name override.
+            function_name: Optional exported Rust function name.
+            backend_mode: Rust backend mode to target.
+            scalar_type: Rust scalar type to emit.
+
+        Returns:
+            A Rust project bundle rooted at ``path``.
+        """
         from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
@@ -91,7 +134,20 @@ class ZippedJacobianFunction:
 
 @dataclass(frozen=True, slots=True)
 class ZippedFunction:
-    """Loop-structured batching of a function over packed inputs."""
+    """Staged wrapper that batches a function over packed inputs.
+
+    The wrapper represents a symbolic function evaluated repeatedly over
+    packed input sequences, producing packed outputs suitable for Rust code
+    generation or symbolic expansion.
+
+    Attributes:
+        function: The symbolic function to stage.
+        count: Number of repeated stages in the packed sequence.
+        name: Symbolic name of the staged wrapper.
+        input_sequence_names: Packed input sequence names.
+        simplification: Optional simplification effort forwarded to the
+            expanded symbolic function.
+    """
 
     function: Function
     count: int
@@ -100,7 +156,7 @@ class ZippedFunction:
     simplification: int | str | None = None
 
     def __post_init__(self) -> None:
-        """Validate batching metadata."""
+        """Validate batching metadata and staged input arity."""
         if self.count <= 0:
             raise ValueError("count must be a positive integer")
         if len(self.input_sequence_names) != len(self.function.inputs):
@@ -110,7 +166,7 @@ class ZippedFunction:
 
     @property
     def input_names(self) -> tuple[str, ...]:
-        """Return the packed input names."""
+        """Return the packed input sequence names."""
         return self.input_sequence_names
 
     @property
@@ -127,7 +183,15 @@ class ZippedFunction:
                  wrt_index: int = 0,
                  *,
                  name: str | None = None) -> ZippedJacobianFunction:
-        """Return a staged Jacobian kernel source."""
+        """Return a staged Jacobian wrapper for one packed input.
+
+        Args:
+            wrt_index: Input index to differentiate with respect to.
+            name: Optional symbolic name for the staged Jacobian wrapper.
+
+        Returns:
+            A :class:`ZippedJacobianFunction` describing the staged Jacobian.
+        """
         if wrt_index < 0 or wrt_index >= len(self.function.inputs):
             raise IndexError("wrt_index out of range")
         return ZippedJacobianFunction(
@@ -138,7 +202,16 @@ class ZippedFunction:
         )
 
     def to_function(self, name: str | None = None) -> Function:
-        """Expand this staged batching into a regular symbolic ``Function``."""
+        """Expand this staged batching into a regular symbolic function.
+
+        Args:
+            name: Optional name for the expanded symbolic function. When not
+                provided, the wrapper name is reused.
+
+        Returns:
+            A symbolic :class:`~gradgen.function.Function` representing the
+            expanded staged batch.
+        """
         packed_inputs = tuple(
             SXVector.sym(input_name, self.count * _arg_size(formal))
             for formal, input_name in zip(
@@ -179,7 +252,17 @@ class ZippedFunction:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Generate compact Rust for the staged batched kernel."""
+        """Generate compact Rust for the staged batched kernel.
+
+        Args:
+            config: Optional backend configuration object.
+            function_name: Optional exported Rust function name.
+            backend_mode: Rust backend mode to target.
+            scalar_type: Rust scalar type to emit.
+
+        Returns:
+            The generated Rust code bundle for this staged batch.
+        """
         from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
@@ -200,7 +283,19 @@ class ZippedFunction:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Create a Rust crate containing the staged batched kernel."""
+        """Create a Rust crate containing the staged batched kernel.
+
+        Args:
+            path: Directory where the Rust crate should be created.
+            config: Optional backend configuration object.
+            crate_name: Optional crate name override.
+            function_name: Optional exported Rust function name.
+            backend_mode: Rust backend mode to target.
+            scalar_type: Rust scalar type to emit.
+
+        Returns:
+            A Rust project bundle rooted at ``path``.
+        """
         from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
@@ -216,7 +311,21 @@ class ZippedFunction:
 
 @dataclass(frozen=True, slots=True)
 class ReducedFunction:
-    """Loop-structured left-fold reduction over a packed input sequence."""
+    """Staged wrapper that reduces a packed input sequence.
+
+    The wrapper represents a repeated left-fold reduction over a packed input
+    sequence and is designed for symbolic expansion or Rust generation.
+
+    Attributes:
+        function: The binary stage function being reduced.
+        count: Number of reduction stages.
+        name: Symbolic name of the staged reducer.
+        accumulator_input_name: Name of the accumulator input sequence.
+        input_name: Name of the packed sequence input.
+        output_name: Name of the final reduced output.
+        simplification: Optional simplification effort forwarded to the
+            expanded symbolic function.
+    """
 
     function: Function
     count: int
@@ -227,7 +336,7 @@ class ReducedFunction:
     simplification: int | str | None = None
 
     def __post_init__(self) -> None:
-        """Validate reduce metadata and stage-function contract."""
+        """Validate reduction metadata and stage-function contract."""
         if self.count <= 0:
             raise ValueError("count must be a positive integer")
         if len(self.function.inputs) != 2:
@@ -250,7 +359,7 @@ class ReducedFunction:
 
     @property
     def output_names(self) -> tuple[str, ...]:
-        """Return reduce output names."""
+        """Return the reduction output names."""
         return (self.output_name,)
 
     @property
@@ -259,7 +368,16 @@ class ReducedFunction:
         return self.to_function().nodes
 
     def to_function(self, name: str | None = None) -> Function:
-        """Expand this staged reduce into a regular symbolic ``Function``."""
+        """Expand this staged reduce into a regular symbolic function.
+
+        Args:
+            name: Optional name for the expanded symbolic function. 
+                When not provided, the wrapper name is reused.
+
+        Returns:
+            A symbolic :class:`~gradgen.function.Function` representing the
+            expanded reduction.
+        """
         accumulator_formal = self.function.inputs[0]
         sequence_formal = self.function.inputs[1]
 
@@ -304,7 +422,17 @@ class ReducedFunction:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Generate compact Rust for the staged reduce kernel."""
+        """Generate compact Rust for the staged reduce kernel.
+
+        Args:
+            config: Optional backend configuration object.
+            function_name: Optional exported Rust function name.
+            backend_mode: Rust backend mode to target.
+            scalar_type: Rust scalar type to emit.
+
+        Returns:
+            The generated Rust code bundle for this staged reduction.
+        """
         from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
@@ -325,7 +453,19 @@ class ReducedFunction:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Create a Rust crate containing the staged reduce kernel."""
+        """Create a Rust crate containing the staged reduce kernel.
+
+        Args:
+            path: Directory where the Rust crate should be created.
+            config: Optional backend configuration object.
+            crate_name: Optional crate name override.
+            function_name: Optional exported Rust function name.
+            backend_mode: Rust backend mode to target.
+            scalar_type: Rust scalar type to emit.
+
+        Returns:
+            A Rust project bundle rooted at ``path``.
+        """
         from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
@@ -347,7 +487,22 @@ def map_function(
     name: str | None = None,
     simplification: int | str | None = None,
 ) -> ZippedFunction:
-    """Return a staged mapped function for a unary ``function``."""
+    """Return a staged mapped function for a unary function.
+
+    Args:
+        function: The symbolic function to stage. It must accept exactly one
+            input argument.
+        count: Number of repeated applications in the packed sequence.
+        input_name: Optional name for the packed input sequence. When not
+            provided, the name defaults to ``"<input_name>_seq"``.
+        name: Optional name for the staged mapped function. When not
+            provided, the generated name defaults to ``"<function.name>_map"``.
+        simplification: Optional simplification effort passed through to the
+            expanded symbolic function.
+
+    Returns:
+        A :class:`ZippedFunction` representing the staged batched function.
+    """
     if len(function.inputs) != 1:
         raise ValueError("map_function requires a function "
                          "with exactly one input")
@@ -427,7 +582,26 @@ def reduce_function(
     name: str | None = None,
     simplification: int | str | None = None,
 ) -> ReducedFunction:
-    """Return a staged left-fold reduction for a binary stage ``function``."""
+    """Return a staged left-fold reduction for a binary stage function.
+
+    Args:
+        function: The symbolic function to stage. It must accept exactly two
+            inputs and produce exactly one output.
+        count: Number of repeated reduction stages.
+        accumulator_input_name: Optional name for the accumulator input.
+            When not provided, the name defaults to ``"<input0>0"``.
+        input_name: Optional name for the packed sequence input. When not
+            provided, the name defaults to ``"<input1>_seq"``.
+        output_name: Optional name for the final reduced output. When not
+            provided, the name defaults to the stage function's output name.
+        name: Optional name for the staged reduction. When not provided, the
+            generated name defaults to ``"<function.name>_reduce"``.
+        simplification: Optional simplification effort passed through to the
+            expanded symbolic function.
+
+    Returns:
+        A :class:`ReducedFunction` describing the staged reduction.
+    """
     if len(function.inputs) != 2:
         raise ValueError(
             "reduce_function requires a function with exactly two inputs")
