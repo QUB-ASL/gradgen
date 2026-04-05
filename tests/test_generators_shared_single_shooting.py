@@ -40,5 +40,8 @@ class SharedSingleShootingTests(unittest.TestCase):
         self.assertEqual([spec.raw_name for spec in specs], ["cost", "gradient_U", "x_traj"])
 
     def test_slice_helpers_format_ranges(self) -> None:
+        self.assertEqual(_emit_single_shooting_control_slice("U", "0", 1), "&U[0..1]")
         self.assertEqual(_emit_single_shooting_control_slice("U", "i", 1), "&U[i..(i + 1)]")
+        self.assertEqual(_emit_single_shooting_stage_range("0", 1), "0..1")
+        self.assertEqual(_emit_single_shooting_stage_range("0", 2), "0..2")
         self.assertEqual(_emit_single_shooting_stage_range("i", 2), "(i * 2)..((i + 1) * 2)")

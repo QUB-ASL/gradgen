@@ -571,6 +571,9 @@ mod tests {{
             self.assertIn("for stage_index in (1..3).rev() {", lib_text)
             self.assertIn("packed control-sequence slice laid out stage-major over the horizon", lib_text)
             self.assertIn("shared parameter slice used at every stage and terminal evaluation", lib_text)
+            self.assertNotIn("(stage_index * 1)..((stage_index + 1) * 1)", lib_text)
+            self.assertNotIn("0..(0 + 1)", lib_text)
+            self.assertNotIn("(0 * 1)..((0 + 1) * 1)", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -759,6 +762,9 @@ mod single_shooting_runtime_tests {{
 
             self.assertIn("for stage_index in 0..1 {", lib_text)
             self.assertIn("for stage_index in (1..1).rev() {", lib_text)
+            self.assertNotIn("(stage_index * 1)..((stage_index + 1) * 1)", lib_text)
+            self.assertNotIn("0..(0 + 1)", lib_text)
+            self.assertNotIn("(0 * 1)..((0 + 1) * 1)", lib_text)
 
             self._append_rust_test(
                 project.project_dir,

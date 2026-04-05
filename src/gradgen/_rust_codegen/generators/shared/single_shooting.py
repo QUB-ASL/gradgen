@@ -385,18 +385,24 @@ def _compose_single_shooting_helper_base_name(crate_name: str | None, problem_na
     return sanitize_ident(f"{crate_label}_{base_label}")
 
 
-def _emit_single_shooting_control_slice(sequence_name: str, index_expr: str, control_size: int) -> str:
-    if control_size == 1:
-        return f"&{sequence_name}[{index_expr}..({index_expr} + 1)]"
-    start = f"({index_expr} * {control_size})"
-    end = f"(({index_expr} + 1) * {control_size})"
-    return f"&{sequence_name}[{start}..{end}]"
-
-
-def _emit_single_shooting_stage_range(index_expr: str, block_size: int) -> str:
+def _emit_half_open_range(index_expr: str, block_size: int) -> str:
+    if block_size == 1:
+        if index_expr == "0":
+            return "0..1"
+        return f"{index_expr}..({index_expr} + 1)"
+    if index_expr == "0":
+        return f"0..{block_size}"
     start = f"({index_expr} * {block_size})"
     end = f"(({index_expr} + 1) * {block_size})"
     return f"{start}..{end}"
+
+
+def _emit_single_shooting_control_slice(sequence_name: str, index_expr: str, control_size: int) -> str:
+    return f"&{sequence_name}[{_emit_half_open_range(index_expr, control_size)}]"
+
+
+def _emit_single_shooting_stage_range(index_expr: str, block_size: int) -> str:
+    return _emit_half_open_range(index_expr, block_size)
 
 
 def _emit_small_accumulate(target_name: str, source_name: str, size: int, *, indent: str = "") -> list[str]:
