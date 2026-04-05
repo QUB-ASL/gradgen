@@ -15,12 +15,10 @@ from .sx import (
     parse_quadform_args,
     vector,
 )
-from .custom_elementary import (
-    _invoke_custom_callback,
+from ._custom_elementary import (
     evaluate_custom_hessian,
     evaluate_custom_hvp,
     evaluate_custom_jacobian,
-    get_registered_elementary_function,
     parse_custom_scalar_args,
     parse_custom_scalar_hvp_args,
     parse_custom_vector_args,
@@ -28,6 +26,7 @@ from .custom_elementary import (
     parse_custom_vector_hvp_component_args,
     parse_custom_vector_jacobian_component_args,
 )
+from ._custom_elementary.callbacks import invoke_custom_callback
 
 
 FunctionArg = SX | SXVector
@@ -1017,7 +1016,7 @@ def _evaluate_scalar(expr: SX) -> float:
         spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
         if spec.eval_python is None:
             raise ValueError(f"custom function {spec.name!r} does not support numeric evaluation")
-        return _invoke_custom_callback(
+        return invoke_custom_callback(
             spec.eval_python,
             _evaluate_scalar(x_value),
             tuple(_evaluate_scalar(param) for param in params),
@@ -1027,7 +1026,7 @@ def _evaluate_scalar(expr: SX) -> float:
         spec, x_value, params = parse_custom_vector_args(expr.name, expr.args)
         if spec.eval_python is None:
             raise ValueError(f"custom function {spec.name!r} does not support numeric evaluation")
-        return _invoke_custom_callback(
+        return invoke_custom_callback(
             spec.eval_python,
             tuple(_evaluate_scalar(value) for value in x_value),
             tuple(_evaluate_scalar(param) for param in params),

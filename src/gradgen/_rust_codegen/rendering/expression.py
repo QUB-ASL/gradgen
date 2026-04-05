@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from ...custom_elementary import (
+from ..._custom_elementary import (
     parse_custom_scalar_args,
     parse_custom_scalar_hvp_args,
     parse_custom_vector_args,

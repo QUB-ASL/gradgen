@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ...custom_elementary import (
+from ..._custom_elementary import (
     get_registered_elementary_function,
     parse_custom_vector_hessian_entry_args,
     parse_custom_vector_hvp_component_args,

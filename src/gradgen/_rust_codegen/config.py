@@ -5,7 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .naming import validate_rust_ident
-from .validation import validate_backend_mode, validate_crate_name, validate_scalar_type
+from .validation import (
+    validate_backend_mode, 
+    validate_crate_name, 
+    validate_scalar_type
+)
 
 
 RustBackendMode = str

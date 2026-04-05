@@ -9,8 +9,7 @@ from .sx import (
     SX, SXNode, SXVector, parse_bilinear_form_args,
     parse_matvec_component_args, parse_quadform_args
     )
-from .custom_elementary import (
-    _invoke_custom_callback,
+from ._custom_elementary import (
     evaluate_custom_hessian,
     evaluate_custom_hvp,
     evaluate_custom_jacobian,
@@ -21,6 +20,7 @@ from .custom_elementary import (
     parse_custom_vector_hvp_component_args,
     parse_custom_vector_jacobian_component_args,
 )
+from ._custom_elementary.callbacks import invoke_custom_callback
 
 if TYPE_CHECKING:
     from .function import Function
@@ -117,7 +117,7 @@ def _apply_rules(op: str, args: tuple[SX, ...], name: str | None = None) -> SX:
         spec, value, params = parse_custom_scalar_args(name, args)
         if spec.eval_python is not None and value.op == "const" and all(param.op == "const" for param in params):
             return SX.const(
-                _invoke_custom_callback(
+                invoke_custom_callback(
                     spec.eval_python,
                     value.value,
                     tuple(param.value for param in params),
@@ -131,7 +131,7 @@ def _apply_rules(op: str, args: tuple[SX, ...], name: str | None = None) -> SX:
             param.op == "const" for param in params
         ):
             return SX.const(
-                _invoke_custom_callback(
+                invoke_custom_callback(
                     spec.eval_python,
                     tuple(element.value for element in value),
                     tuple(param.value for param in params),

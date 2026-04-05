@@ -15,7 +15,7 @@ from .sx import (
     parse_quadform_args,
     vector,
 )
-from .custom_elementary import (
+from ._custom_elementary import (
     custom_scalar_hessian,
     custom_scalar_hvp,
     custom_scalar_jacobian,
@@ -23,10 +23,7 @@ from .custom_elementary import (
     custom_vector_hvp_component,
     custom_vector_jacobian_component,
     parse_custom_scalar_args,
-    parse_custom_scalar_hvp_args,
     parse_custom_vector_args,
-    parse_custom_vector_hessian_entry_args,
-    parse_custom_vector_hvp_component_args,
     parse_custom_vector_jacobian_component_args,
 )
 

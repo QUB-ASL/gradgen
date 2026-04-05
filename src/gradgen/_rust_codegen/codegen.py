@@ -6,121 +6,62 @@ from dataclasses import replace
 import logging
 from pathlib import Path
 
-from . import (
-    CodeGenerationBuilder,
-    FunctionBundle,
-    sanitize_ident,
-    validate_rust_ident,
-    validate_unique_rust_names,
-)
+from . import sanitize_ident
 from .config import RustBackendConfig, RustBackendMode, RustScalarType
 from .models import (
     RustCodegenResult,
-    RustDerivativeBundleResult,
     RustMultiFunctionProjectResult,
-    RustProjectResult,
-    RustPythonInterfaceProjectResult,
-    _ArgSpec,
-    _ComposedRepeatPlan,
-    _ComposedSinglePlan,
-    _SingleShootingHelperBundle,
-)
-from .project import (
-    create_rust_derivative_bundle,
-    create_rust_project,
-    _create_python_interface_project,
-    _gradgen_version,
-    _metadata_created_at,
-    _next_python_interface_version,
-    _render_metadata_json,
-    _render_python_interface_source,
-    _run_cargo_build,
-    _run_python_interface_build,
-    _try_run_cargo_fmt,
+    _ArgSpec
 )
 from .project_support import (
     _derive_python_function_name,
+    _render_metadata_json,
+    _run_cargo_build,
+    _try_run_cargo_fmt,
     _render_multi_function_lib,
 )
+from .project import _create_python_interface_project
 from .rendering import (
     _allocate_workspace_slots,
     _arg_size,
-    _build_custom_helper_lines,
-    _build_custom_vector_hessian_wrapper_lines,
-    _build_custom_vector_hvp_wrapper_lines,
-    _build_custom_vector_jacobian_wrapper_lines,
     _build_shared_helper_lines,
     _collect_reachable_nodes,
-    _collect_required_workspace_nodes,
     _collect_suppressed_custom_wrappers,
     _describe_input_arg,
     _describe_output_arg,
-    _emit_custom_scalar_call,
-    _emit_custom_scalar_derivative_call,
-    _emit_custom_scalar_hvp_call,
-    _emit_custom_vector_call,
-    _emit_custom_vector_component_call,
-    _emit_custom_vector_hessian_entry_call,
-    _emit_custom_vector_hessian_output_helper_call,
     _emit_custom_vector_output_helper_call,
     _emit_exact_length_assert,
     _emit_expr_ref,
-    _emit_math_call,
     _emit_matvec_output_helper_call,
-    _emit_matrix_literal,
-    _emit_matrix_vector_argument,
     _emit_min_length_assert,
     _emit_node_expr,
-    _emit_norm_abs_expr,
-    _emit_norm_slice_and_p_arguments,
-    _emit_norm_slice_argument,
     _emit_workspace_assignment,
     _flatten_arg,
-    _format_float,
     _format_rust_string_literal,
     _identify_direct_custom_output_marker,
-    _is_passthrough_one,
-    _is_passthrough_zero,
-    _match_contiguous_slice,
-    _match_custom_vector_derivative_output,
-    _match_custom_vector_hessian_output,
-    _match_passthrough_custom_vector_hessian_entry,
-    _match_passthrough_matvec_component,
-    _math_function_name,
     _reemit_direct_output_helper_call,
-    _scaled_index_expr,
-    _workspace_ref_for_node,
 )
 from .templates import _get_template
 from .validation import (
     resolve_backend_config as _resolve_backend_config,
     validate_backend_mode as _validate_backend_mode,
-    validate_crate_name as _validate_crate_name,
     validate_generated_argument_names as _validate_generated_argument_names,
     validate_scalar_type as _validate_scalar_type,
 )
-from ..ad import jvp
-from ..custom_elementary import (
-    get_registered_elementary_function,
-    parse_custom_scalar_args,
-    parse_custom_scalar_hvp_args,
-    parse_custom_vector_args,
-    parse_custom_vector_hessian_entry_args,
-    parse_custom_vector_hvp_component_args,
-    parse_custom_vector_jacobian_component_args,
-    render_custom_rust_snippet,
+from ..function import Function
+from ..map_zip import (
+    ReducedFunction,
+    ZippedFunction,
+    ZippedJacobianFunction
 )
-from ..function import Function, _add_like, _make_symbolic_input_like, _zero_like
-from ..map_zip import ReducedFunction, ZippedFunction, ZippedJacobianFunction
 from ..single_shooting import (
     SingleShootingGradientFunction,
     SingleShootingHvpFunction,
     SingleShootingJointFunction,
     SingleShootingPrimalFunction,
     SingleShootingProblem,
-    _single_shooting_bundle_output_names,
 )
-from ..sx import SX, SXNode, SXVector, parse_bilinear_form_args, parse_matvec_component_args, parse_quadform_args
+from ..sx import SX, SXNode
 
 _LOGGER = logging.getLogger(__name__)
 

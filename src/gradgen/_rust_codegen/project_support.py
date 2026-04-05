@@ -15,7 +15,6 @@ import sys
 import tomllib
 
 from ..function import Function
-from ..sx import SX
 from .config import RustBackendConfig
 from .models import (
     RustCodegenResult,

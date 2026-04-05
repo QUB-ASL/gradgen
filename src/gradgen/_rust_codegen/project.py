@@ -4,41 +4,26 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-import shutil
-import subprocess
 
 from ..function import Function
 from ..sx import SX
 from .config import RustBackendConfig
 from .models import (
-    RustCodegenResult,
     RustDerivativeBundleResult,
-    RustMultiFunctionProjectResult,
     RustProjectResult,
-    RustPythonInterfaceProjectResult,
 )
 from .naming import sanitize_ident
 from .templates import _get_template
 from .validation import (
     resolve_backend_config,
     validate_backend_mode,
-    validate_crate_name,
-    validate_generated_argument_names,
     validate_scalar_type,
-    validate_unique_rust_names,
 )
 from .project_support import (
     _create_python_interface_project,
-    _derive_python_function_name,
-    _gradgen_version,
     _maybe_simplify_derivative_function,
-    _metadata_created_at,
-    _next_python_interface_version,
-    _private_helper_section_key,
     _render_metadata_json,
-    _render_python_interface_source,
     _run_cargo_build,
-    _run_python_interface_build,
     _try_run_cargo_fmt,
 )
 

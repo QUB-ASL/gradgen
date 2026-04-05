@@ -2,7 +2,7 @@
 
 from .ad import derivative, gradient, hessian, jacobian, jvp, vjp
 from .cse import CSEAssignment, CSEPlan, cse
-from .custom_elementary import (
+from ._custom_elementary import (
     clear_registered_elementary_functions,
     get_registered_elementary_function,
     register_elementary_function,

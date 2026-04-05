@@ -1,7 +1,8 @@
 import unittest
 
 from gradgen._rust_codegen.config import RustBackendMode, RustScalarType
-from gradgen._rust_codegen.render import _emit_math_call, _format_float, _match_contiguous_slice
+from gradgen._rust_codegen.rendering.expression import _emit_math_call, _match_contiguous_slice
+from gradgen._rust_codegen.rendering.util import _format_float
 
 
 class RenderTests(unittest.TestCase):

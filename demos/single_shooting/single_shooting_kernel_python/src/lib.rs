@@ -134,7 +134,7 @@ fn module_all_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
 #[pyfunction(name = "__getattr__")]
 fn module_getattr(name: &str) -> PyResult<String> {
     match name {
-        "__version__" => Ok("0.2.0".to_string()),
+        "__version__" => Ok("0.3.0".to_string()),
         _ => Err(PyAttributeError::new_err(format!(
             "module has no attribute {name:?}"
         ))),
