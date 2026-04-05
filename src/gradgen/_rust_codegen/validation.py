@@ -28,11 +28,13 @@ def validate_generated_argument_names(
 ) -> None:
     """Validate Rust-facing argument names after sanitization."""
     validate_unique_rust_names(
-        [(spec.raw_name, spec.rust_name) for spec in (*input_specs, *output_specs)],
+        [(spec.raw_name, spec.rust_name)
+         for spec in (*input_specs, *output_specs)],
         label="generated argument",
     )
     validate_unique_rust_names(
-        [("work", "work"), *[(spec.raw_name, spec.rust_name) for spec in (*input_specs, *output_specs)]],
+        [("work", "work"), *[(spec.raw_name, spec.rust_name)
+                             for spec in (*input_specs, *output_specs)]],
         label="generated argument",
     )
 

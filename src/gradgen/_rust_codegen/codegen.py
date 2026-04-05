@@ -63,6 +63,8 @@ from ..single_shooting import (
 )
 from ..sx import SX, SXNode
 
+SET_TUPLE_STR = set[tuple[str, str]]
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -76,7 +78,7 @@ def generate_rust(
     math_library: str | None = None,
     function_index: int = 0,
     shared_helper_nodes: tuple[SXNode, ...] | None = None,
-    shared_helper_suppressed_custom_wrappers: set[tuple[str, str]] | None = None,
+    shared_helper_suppressed_custom_wrappers: SET_TUPLE_STR | None = None,
     emit_crate_header: bool = True,
     emit_docs: bool = True,
     function_keyword: str = "pub fn",
@@ -209,7 +211,8 @@ def generate_rust(
     _validate_scalar_type(resolved_config.scalar_type)
     if resolved_config.backend_mode == "std":
         if math_library is not None:
-            raise ValueError("math_library is only supported for no_std backend mode")
+            raise ValueError(
+                "math_library is only supported for no_std backend mode")
         resolved_math_library = None
     else:
         resolved_math_library = math_library or "libm"
@@ -218,11 +221,16 @@ def generate_rust(
     input_sizes = tuple(_arg_size(arg) for arg in function.inputs)
     output_sizes = tuple(_arg_size(arg) for arg in function.outputs)
     input_specs: list[_ArgSpec] = []
-    reachable_nodes = _collect_reachable_nodes(tuple(scalar for arg in function.outputs for scalar in _flatten_arg(arg)))
+    reachable_nodes = _collect_reachable_nodes(
+        tuple(scalar for arg in function.outputs
+              for scalar in _flatten_arg(arg)))
     public_function = function_keyword.startswith("pub")
-    for raw_name, size, input_arg in zip(function.input_names, input_sizes, function.inputs):
+    for raw_name, size, input_arg in zip(
+            function.input_names, input_sizes, function.inputs):
         rust_name = sanitize_ident(raw_name)
-        if not public_function and all(scalar.node not in reachable_nodes for scalar in _flatten_arg(input_arg)):
+        if not public_function and all(
+                scalar.node not in reachable_nodes
+                for scalar in _flatten_arg(input_arg)):
             rust_name = sanitize_ident(f"_{raw_name}")
         input_specs.append(
             _ArgSpec(
@@ -264,7 +272,8 @@ def generate_rust(
         input_assert_lines.append(_assert)
         input_return_lines.append(_in_return)
         for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
-            scalar_bindings[scalar.node] = f"{input_spec.rust_name}[{scalar_index}]"
+            scalar_bindings[scalar.node] = \
+                f"{input_spec.rust_name}[{scalar_index}]"
 
     direct_output_helpers: list[str | None] = []
     materialized_output_refs: list[SX] = []
@@ -335,7 +344,8 @@ def generate_rust(
             )
         )
 
-    for output_spec, output_arg, direct_helper_call in zip(output_specs, function.outputs, direct_output_helpers):
+    for output_spec, output_arg, direct_helper_call in zip(
+            output_specs, function.outputs, direct_output_helpers):
         _assert, _in_return, _out_return = _emit_exact_length_assert(
             output_spec.rust_name,
             output_spec.raw_name,
@@ -374,15 +384,18 @@ def generate_rust(
 
     parameters = ", ".join(
         [
-            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]" for spec in input_specs],
-            *[f"{spec.rust_name}: &mut [{resolved_config.scalar_type}]" for spec in output_specs],
+            *[f"{spec.rust_name}: &[{resolved_config.scalar_type}]"
+              for spec in input_specs],
+            *[f"{spec.rust_name}: &mut [{resolved_config.scalar_type}]"
+              for spec in output_specs],
             f"{workspace_name}: &mut [{resolved_config.scalar_type}]",
         ]
     )
 
     # workspace assertion emits both legacy assert and Result-returning form
     if workspace_size > 0:
-        _ws_assert, _ws_return = _emit_min_length_assert("work", "work", workspace_size)
+        _ws_assert, _ws_return = _emit_min_length_assert(
+            "work", "work", workspace_size)
     else:
         _ws_assert = None
         _ws_return = None
@@ -413,7 +426,8 @@ def generate_rust(
         computation_lines=computation_lines,
         output_write_lines=output_write_lines,
         shared_helper_lines=_build_shared_helper_lines(
-            function.nodes if shared_helper_nodes is None else shared_helper_nodes,
+            function.nodes
+            if shared_helper_nodes is None else shared_helper_nodes,
             resolved_config.backend_mode,
             resolved_config.scalar_type,
             resolved_math_library,
@@ -443,6 +457,7 @@ def generate_rust(
     )
     return codegen
 
+
 def create_multi_function_rust_project(
     functions: tuple[object, ...],
     path: str | Path,
@@ -456,8 +471,10 @@ def create_multi_function_rust_project(
     resolved_config = config or RustBackendConfig()
     _validate_backend_mode(resolved_config.backend_mode)
     _validate_scalar_type(resolved_config.scalar_type)
-    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
-    resolved_math_library_version = "0.2" if resolved_math_library == "libm" else None
+    resolved_math_library = "libm" \
+        if resolved_config.backend_mode == "no_std" else None
+    resolved_math_library_version = "0.2" \
+        if resolved_math_library == "libm" else None
 
     project_dir = Path(path).expanduser().resolve()
     crate = sanitize_ident(resolved_config.crate_name or functions[0].name)
@@ -497,7 +514,8 @@ def create_multi_function_rust_project(
                         generated_function,
                         resolved_config.backend_mode,
                         resolved_config.scalar_type,
-                        "libm" if resolved_config.backend_mode == "no_std" else None,
+                        "libm"
+                        if resolved_config.backend_mode == "no_std" else None,
                     )
                 }
                 if index == 0
@@ -526,7 +544,8 @@ def create_multi_function_rust_project(
             codegens=codegens,
             enable_python_interface=resolved_config.enable_python_interface,
             python_interface_project_name=(
-                f"{crate}_python" if resolved_config.enable_python_interface else None
+                f"{crate}_python"
+                if resolved_config.enable_python_interface else None
             ),
         ),
         encoding="utf-8",

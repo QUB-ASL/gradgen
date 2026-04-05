@@ -64,7 +64,9 @@ class _BundleItem:
 
 @dataclass(frozen=True, slots=True)
 class FunctionBundle:
-    """Fluent description of artifacts to compute together in one joint kernel."""
+    """
+    Fluent description of artifacts to compute together in one joint kernel.
+    """
 
     items: tuple[_BundleItem, ...] = ()
 
@@ -72,19 +74,27 @@ class FunctionBundle:
         """Include the primal outputs."""
         return self._add_item("f")
 
-    def add_gradient(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
+    def add_gradient(self,
+                     *,
+                     wrt: int | list[int] | tuple[int, ...]) \
+            -> FunctionBundle:
         """Include gradient blocks for one or more input indices."""
         return self._add_item("grad", wrt)
 
-    def add_jf(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
+    def add_jf(self,
+               *,
+               wrt: int | list[int] | tuple[int, ...]) \
+            -> FunctionBundle:
         """Include Jacobian blocks for one or more input indices."""
         return self._add_item("jf", wrt)
 
-    def add_hessian(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
+    def add_hessian(self, *, wrt: int | list[int] | tuple[int, ...]) \
+            -> FunctionBundle:
         """Include Hessian blocks for one or more input indices."""
         return self._add_item("hessian", wrt)
 
-    def add_hvp(self, *, wrt: int | list[int] | tuple[int, ...]) -> FunctionBundle:
+    def add_hvp(self, *, wrt: int | list[int] | tuple[int, ...]) \
+            -> FunctionBundle:
         """Include Hessian-vector-product blocks for one or more input indices."""
         return self._add_item("hvp", wrt)
 
@@ -100,7 +110,8 @@ class FunctionBundle:
         return replace(self, items=(*self.items, candidate))
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True,
+           slots=True)
 class _BuilderFunctionSpec:
     """One source function plus the kernels requested for it."""
 
@@ -109,7 +120,8 @@ class _BuilderFunctionSpec:
     simplification: int | str | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True,
+           slots=True)
 class CodeGenerationBuilder:
     """Fluent builder for a generated Rust crate with one or more functions."""
 
@@ -119,15 +131,22 @@ class CodeGenerationBuilder:
     simplification: int | str | None = None
     functions: tuple[_BuilderFunctionSpec, ...] = ()
 
-    def with_backend_config(self, config: RustBuilderConfigLike) -> CodeGenerationBuilder:
+    def with_backend_config(self,
+                            config: RustBuilderConfigLike) \
+            -> CodeGenerationBuilder:
         """Return a copy using ``config`` for generated Rust code."""
         return replace(self, config=config)
 
-    def with_simplification(self, max_effort: int | str | None) -> CodeGenerationBuilder:
+    def with_simplification(self,
+                            max_effort: int | str | None) \
+            -> CodeGenerationBuilder:
         """Return a copy applying ``max_effort`` simplification to generated kernels."""
         return replace(self, simplification=max_effort)
 
-    def add_primal(self, *, include_states: bool = False) -> CodeGenerationBuilder:
+    def add_primal(self,
+                   *,
+                   include_states: bool = False) \
+            -> CodeGenerationBuilder:
         """Include the primal function in the generated crate."""
         components = ("states",) if include_states else ()
         return self._add_request("primal", components=components)

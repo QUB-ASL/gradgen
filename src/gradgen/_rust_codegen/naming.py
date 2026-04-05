@@ -64,7 +64,8 @@ RUST_KEYWORDS = frozenset(
 
 def is_rust_ident(name: str) -> bool:
     """Return whether ``name`` is a plain Rust identifier."""
-    return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)) and name not in RUST_KEYWORDS
+    return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)) \
+        and name not in RUST_KEYWORDS
 
 
 def validate_rust_ident(name: str | None, *, label: str) -> None:
@@ -72,7 +73,8 @@ def validate_rust_ident(name: str | None, *, label: str) -> None:
     if name is None:
         return
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
-        raise ValueError(f"{label} must match the pattern [A-Za-z_][A-Za-z0-9_]*")
+        raise ValueError(
+            f"{label} must match the pattern [A-Za-z_][A-Za-z0-9_]*")
     if name in RUST_KEYWORDS:
         raise ValueError(f"{label} must not be a Rust keyword")
 

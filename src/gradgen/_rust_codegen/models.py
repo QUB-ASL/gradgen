@@ -75,7 +75,8 @@ class RustMultiFunctionProjectResult:
     python_interface: RustPythonInterfaceProjectResult | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True,
+           slots=True)
 class _ArgSpec:
     """Rendered metadata for a generated Rust input or output."""
 

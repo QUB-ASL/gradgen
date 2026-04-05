@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from . import shared as _shared
+from ...sx import SXNode
 from .rendering import KernelRenderContext, render_kernel_source
 from ..config import RustBackendConfig, RustBackendMode, RustScalarType
 from ..models import (
@@ -48,7 +49,7 @@ def _generate_composed_primal_rust(
     function_index: int = 0,
 ) -> RustCodegenResult:
     """Generate compact Rust for a staged composed primal kernel."""
-    from ...composed_function import _RepeatStage, _SingleStage
+    from ...composed_function import _SingleStage
 
     terminal = composed._require_terminal()
     resolved_config = _resolve_backend_config(
@@ -62,7 +63,8 @@ def _generate_composed_primal_rust(
     _validate_scalar_type(resolved_config.scalar_type)
     if resolved_config.backend_mode == "std":
         if math_library is not None:
-            raise ValueError("math_library is only supported for no_std backend mode")
+            raise ValueError(
+                "math_library is only supported for no_std backend mode")
         resolved_math_library = None
     else:
         resolved_math_library = math_library or "libm"
@@ -90,8 +92,10 @@ def _generate_composed_primal_rust(
     max_helper_workspace = 0
     for block_index, step in enumerate(composed.steps):
         if isinstance(step, _SingleStage):
-            helper_name = sanitize_ident(f"{helper_base_name}_stage_{block_index}_{step.function.name}")
-            helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
+            helper_name = sanitize_ident(
+                f"{helper_base_name}_stage_{block_index}_{step.function.name}")
+            helper_function = _maybe_simplify_derivative_function(
+                step.function, helper_simplification)
             helper_codegen = generate_rust(
                 helper_function,
                 config=helper_config,
@@ -104,7 +108,9 @@ def _generate_composed_primal_rust(
             )
             helper_sources.append(helper_codegen.source.rstrip())
             helper_nodes.extend(helper_function.nodes)
-            max_helper_workspace = max(max_helper_workspace, helper_codegen.workspace_size)
+            max_helper_workspace = max(
+                max_helper_workspace,
+                helper_codegen.workspace_size)
             plans.append(
                 _ComposedSinglePlan(
                     helper_name=helper_name,
@@ -120,8 +126,10 @@ def _generate_composed_primal_rust(
             stage_index += 1
             continue
 
-        helper_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_{step.function.name}")
-        helper_function = _maybe_simplify_derivative_function(step.function, helper_simplification)
+        helper_name = sanitize_ident(
+            f"{helper_base_name}_repeat_{block_index}_{step.function.name}")
+        helper_function = _maybe_simplify_derivative_function(
+            step.function, helper_simplification)
         helper_codegen = generate_rust(
             helper_function,
             config=helper_config,
@@ -134,9 +142,11 @@ def _generate_composed_primal_rust(
         )
         helper_sources.append(helper_codegen.source.rstrip())
         helper_nodes.extend(helper_function.nodes)
-        max_helper_workspace = max(max_helper_workspace, helper_codegen.workspace_size)
+        max_helper_workspace = max(
+            max_helper_workspace, helper_codegen.workspace_size)
 
-        const_name = sanitize_ident(f"{helper_base_name}_repeat_{block_index}_params").upper()
+        const_name = sanitize_ident(
+            f"{helper_base_name}_repeat_{block_index}_params").upper()
         parameter_kind = step.parameters[0].kind
         if parameter_kind == "fixed" and step.parameters[0].size > 0:
             constant_lines.extend(
@@ -154,17 +164,21 @@ def _generate_composed_primal_rust(
                 parameter_kind=parameter_kind,
                 parameter_size=step.parameters[0].size,
                 parameter_offset=parameter_offset,
-                fixed_values=tuple(parameter.values for parameter in step.parameters),
+                fixed_values=tuple(parameter.values
+                                   for parameter in step.parameters),
                 repeat_count=len(step.parameters),
                 stage_start_index=stage_index,
                 const_name=const_name,
             )
         )
-        parameter_offset += sum(parameter.symbolic_size for parameter in step.parameters)
+        parameter_offset += sum(parameter.symbolic_size
+                                for parameter in step.parameters)
         stage_index += len(step.parameters)
 
-    terminal_helper_name = sanitize_ident(f"{helper_base_name}_terminal_{terminal.function.name}")
-    terminal_function = _maybe_simplify_derivative_function(terminal.function, helper_simplification)
+    terminal_helper_name = sanitize_ident(
+        f"{helper_base_name}_terminal_{terminal.function.name}")
+    terminal_function = _maybe_simplify_derivative_function(
+        terminal.function, helper_simplification)
     terminal_codegen = generate_rust(
         terminal_function,
         config=helper_config,
@@ -177,7 +191,8 @@ def _generate_composed_primal_rust(
     )
     helper_sources.append(terminal_codegen.source.rstrip())
     helper_nodes.extend(terminal_function.nodes)
-    max_helper_workspace = max(max_helper_workspace, terminal_codegen.workspace_size)
+    max_helper_workspace = max(max_helper_workspace,
+                               terminal_codegen.workspace_size)
     terminal_parameter_offset = parameter_offset
 
     state_size = _arg_size(composed.state_input)

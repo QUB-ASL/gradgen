@@ -18,12 +18,12 @@ from .map_zip import (
     reduce_function,
 )
 from ._rust_codegen.builder import (
-    CodeGenerationBuilder, 
+    CodeGenerationBuilder,
     FunctionBundle
 )
 from ._rust_codegen.config import (
-    RustBackendMode, 
-    RustBackendConfig, 
+    RustBackendMode,
+    RustBackendConfig,
     RustScalarType
 )
 from ._rust_codegen.models import (

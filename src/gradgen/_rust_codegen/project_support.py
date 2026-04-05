@@ -31,7 +31,9 @@ _LOGGER = logging.getLogger(__name__)
 def _try_run_cargo_fmt(project_dir: Path) -> None:
     """Run ``cargo fmt`` for a generated crate when available."""
     if shutil.which("cargo") is None:
-        _LOGGER.info("Skipping cargo fmt for %s because cargo is not installed.", project_dir)
+        _LOGGER.info(
+            "Skipping cargo fmt for %s because cargo is not installed.",
+            project_dir)
         return
     try:
         subprocess.run(
@@ -42,22 +44,28 @@ def _try_run_cargo_fmt(project_dir: Path) -> None:
             text=True,
         )
     except FileNotFoundError:
-        _LOGGER.info("Skipping cargo fmt for %s because cargo is not installed.", project_dir)
+        _LOGGER.info(
+            "Skipping cargo fmt for %s as cargo is not installed.",
+            project_dir)
     except subprocess.CalledProcessError as exc:
         stderr = (exc.stderr or "").strip()
         stdout = (exc.stdout or "").strip()
         details = stderr or stdout
         _LOGGER.warning(
-            "Skipping cargo fmt for %s because it could not be run successfully%s",
+            "Skipping cargo fmt for %s as it could not be run successfully%s",
             project_dir,
             f": {details}" if details else ".",
         )
 
 
 def _run_python_interface_build(project_dir: Path) -> None:
-    """Install a generated Python wrapper crate into the active Python environment."""
+    """
+    Install a generated Python wrapper crate into the 
+    active Python environment.
+    """
     if shutil.which("cargo") is None:
-        raise RuntimeError("cargo is required to compile the generated Python interface")
+        raise RuntimeError(
+            "cargo is required to compile the generated Python interface")
 
     env = os.environ.copy()
     env["PYO3_PYTHON"] = sys.executable
@@ -71,7 +79,9 @@ def _run_python_interface_build(project_dir: Path) -> None:
             env=env,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError("cargo is required to compile the generated Python interface") from exc
+        raise RuntimeError(
+            "cargo is required to compile the generated Python interface") \
+                from exc
     except subprocess.CalledProcessError as exc:
         stderr = (exc.stderr or "").strip()
         stdout = (exc.stdout or "").strip()
@@ -92,25 +102,28 @@ def _next_python_interface_version(wrapper_project_dir: Path) -> str:
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
     except (OSError, tomllib.TOMLDecodeError) as exc:
         raise RuntimeError(
-            f"failed to read the existing Python interface version from {pyproject}"
+            f"failed to read Python interface version from {pyproject}"
         ) from exc
 
     project_section = data.get("project")
     if not isinstance(project_section, dict):
         raise RuntimeError(
-            f"existing Python interface metadata at {pyproject} does not define [project]"
+            f"existing Python interface metadata at {pyproject} doesn't "
+            "define [project]"
         )
 
     version = project_section.get("version")
     if not isinstance(version, str):
         raise RuntimeError(
-            f"existing Python interface metadata at {pyproject} does not define a string version"
+            f"existing Python interface metadata at {pyproject} "
+            "does not define a string version"
         )
 
     match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)", version)
     if match is None:
         raise RuntimeError(
-            f"existing Python interface version {version!r} in {pyproject} is not a semantic version"
+            f"existing Python interface version {version!r} in {pyproject} "
+            "is not a semantic version"
         )
 
     major, minor, _patch = (int(group) for group in match.groups())
@@ -120,7 +133,8 @@ def _next_python_interface_version(wrapper_project_dir: Path) -> str:
 def _run_cargo_build(project_dir: Path) -> None:
     """Compile a generated Rust crate with Cargo."""
     if shutil.which("cargo") is None:
-        raise RuntimeError("cargo is required to build the generated Rust crate")
+        raise RuntimeError(
+            "cargo is required to build the generated Rust crate")
     try:
         subprocess.run(
             ["cargo", "build"],
@@ -130,7 +144,8 @@ def _run_cargo_build(project_dir: Path) -> None:
             text=True,
         )
     except FileNotFoundError as exc:
-        raise RuntimeError("cargo is required to build the generated Rust crate") from exc
+        raise RuntimeError(
+            "cargo is required to build the generated Rust crate") from exc
     except subprocess.CalledProcessError as exc:
         stderr = (exc.stderr or "").strip()
         stdout = (exc.stdout or "").strip()
@@ -141,14 +156,15 @@ def _run_cargo_build(project_dir: Path) -> None:
         ) from exc
 
 
-def _derive_python_function_name(function_name: str, crate_name: str | None) -> str:
+def _derive_python_function_name(function_name: str,
+                                 crate_name: str | None) -> str:
     """Derive the public Python name from a generated Rust symbol name."""
     candidate = function_name
     if crate_name:
         crate_prefix = sanitize_ident(crate_name)
         prefix = f"{crate_prefix}_"
         if candidate.startswith(prefix):
-            candidate = candidate[len(prefix) :]
+            candidate = candidate[len(prefix):]
     if candidate.endswith("_f"):
         candidate = candidate[:-2]
     return candidate or function_name
@@ -166,7 +182,8 @@ def _create_python_interface_project(
         [(codegen.function_name, codegen.python_name) for codegen in codegens],
         label="generated Python function",
     )
-    wrapper_project_dir = low_level_project_dir.parent / f"{low_level_crate_name}_python"
+    wrapper_project_dir = low_level_project_dir.parent \
+        / f"{low_level_crate_name}_python"
     wrapper_crate_name = wrapper_project_dir.name
     module_name = low_level_crate_name
 
@@ -277,10 +294,11 @@ def _render_multi_function_lib(
     for codegen in codegens:
         source = codegen.source
         if source.startswith("#![no_std]\n\n"):
-            source = source[len("#![no_std]\n\n") :]
+            source = source[len("#![no_std]\n\n"):]
         elif source.startswith("#![no_std]\n"):
-            source = source[len("#![no_std]\n") :]
-        for section in (part.rstrip() for part in source.split("\n\n") if part.strip()):
+            source = source[len("#![no_std]\n"):]
+        for section in (part.rstrip()
+                        for part in source.split("\n\n") if part.strip()):
             helper_key = _private_helper_section_key(section)
             if helper_key is not None:
                 if helper_key in seen_private_helpers:
@@ -292,7 +310,8 @@ def _render_multi_function_lib(
     return rendered if rendered.endswith("\n") else f"{rendered}\n"
 
 
-def _render_metadata_json(crate_name: str, codegens: tuple[RustCodegenResult, ...]) -> str:
+def _render_metadata_json(crate_name: str,
+                          codegens: tuple[RustCodegenResult, ...]) -> str:
     """Render the crate metadata JSON file."""
     payload = {
         "crate_name": crate_name,
@@ -313,11 +332,17 @@ def _render_metadata_json(crate_name: str, codegens: tuple[RustCodegenResult, ..
     return json.dumps(payload, indent=2) + "\n"
 
 
-def _maybe_simplify_derivative_function(function: Function, simplify_derivatives: int | str | None):
-    """Return ``function`` simplified when a simplification level is requested."""
+def _maybe_simplify_derivative_function(
+        function: Function,
+        simplify_derivatives: int | str | None):
+    """
+    Return ``function`` simplified when a simplification level is requested.
+    """
     if simplify_derivatives is None:
         return function
-    return function.simplify(max_effort=simplify_derivatives, name=function.name)
+    return function.simplify(
+        max_effort=simplify_derivatives,
+        name=function.name)
 
 
 def _metadata_created_at() -> str:
@@ -331,7 +356,10 @@ def _gradgen_version() -> str:
         return package_version("gradgen")
     except PackageNotFoundError:
         pyproject = Path(__file__).resolve().parents[2] / "pyproject.toml"
-        match = re.search(r'^version = "([^"]+)"$', pyproject.read_text(encoding="utf-8"), re.MULTILINE)
+        match = re.search(r'^version = "([^"]+)"$',
+                          pyproject.read_text(encoding="utf-8"),
+                          re.MULTILINE)
         if match is None:
-            raise RuntimeError("could not determine gradgen version for metadata.json")
+            raise RuntimeError(
+                "could not determine gradgen version for metadata.json")
         return match.group(1)

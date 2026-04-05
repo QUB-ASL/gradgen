@@ -1156,16 +1156,17 @@ mod single_shooting_multi_u_tests {{
         )
 
         with self.assertRaises(ValueError):
-            (
-                CodeGenerationBuilder()
-                .with_backend_config(
-                    RustBackendConfig().with_crate_name("bad_states")
+            with TemporaryDirectory() as tmpdir:
+                (
+                    CodeGenerationBuilder()
+                    .with_backend_config(
+                        RustBackendConfig().with_crate_name("bad_states")
+                    )
+                    .for_function(f)
+                    .add_primal(include_states=True)
+                    .done()
+                    .build(Path(tmpdir) / "unused")
                 )
-                .for_function(f)
-                .add_primal(include_states=True)
-                .done()
-                .build("/tmp/unused")
-            )
 
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
@@ -1191,16 +1192,19 @@ mod single_shooting_multi_u_tests {{
         )
 
         with self.assertRaises(ValueError):
-            (
-                CodeGenerationBuilder()
-                .with_backend_config(
-                    RustBackendConfig().with_crate_name("bad_composed_states")
+            with TemporaryDirectory() as tmpdir:
+                (
+                    CodeGenerationBuilder()
+                    .with_backend_config(
+                        RustBackendConfig().with_crate_name(
+                            "bad_composed_states"
+                        )
+                    )
+                    .for_function(composed)
+                    .add_gradient(include_states=True)
+                    .done()
+                    .build(Path(tmpdir) / "unused")
                 )
-                .for_function(composed)
-                .add_gradient(include_states=True)
-                .done()
-                .build("/tmp/unused")
-            )
 
     def test_create_rust_project_writes_metadata_json(self) -> None:
         x = SXVector.sym("x", 2)
@@ -2163,7 +2167,8 @@ mod tests {{
         )
 
         with self.assertRaises(ValueError):
-            builder.build("/tmp/unused")
+            with TemporaryDirectory() as tmpdir:
+                builder.build(Path(tmpdir) / "unused")
 
     def test_code_generation_builder_rejects_invalid_function_bundle(
         self,
@@ -2172,14 +2177,16 @@ mod tests {{
         f = Function("f", [x], [x * x], input_names=["x"], output_names=["y"])
 
         with self.assertRaises(ValueError):
-            CodeGenerationBuilder(f).add_joint(FunctionBundle().add_f()).build(
-                "/tmp/unused"
-            )
+            with TemporaryDirectory() as tmpdir:
+                CodeGenerationBuilder(f).add_joint(
+                    FunctionBundle().add_f()
+                ).build(Path(tmpdir) / "unused")
 
         with self.assertRaises(IndexError):
-            CodeGenerationBuilder(f).add_joint(
-                FunctionBundle().add_f().add_jf(wrt=3)
-            ).build("/tmp/unused")
+            with TemporaryDirectory() as tmpdir:
+                CodeGenerationBuilder(f).add_joint(
+                    FunctionBundle().add_f().add_jf(wrt=3)
+                ).build(Path(tmpdir) / "unused")
 
     def test_scoped_function_builder_requires_done_before_building_parent(
         self,
@@ -2189,7 +2196,10 @@ mod tests {{
         scoped = CodeGenerationBuilder().for_function(f).add_primal()
 
         with self.assertRaises(AttributeError):
-            scoped.build("/tmp/unused")  # type: ignore[attr-defined]
+            with TemporaryDirectory() as tmpdir:
+                scoped.build(
+                    Path(tmpdir) / "unused"
+                )  # type: ignore[attr-defined]
 
     def test_scoped_function_builder_rejects_done_without_requests(
         self,

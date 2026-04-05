@@ -58,8 +58,12 @@ def create_rust_project(
 
     project_dir = Path(path).expanduser().resolve()
     crate = sanitize_ident(resolved_config.crate_name or function.name)
-    resolved_math_library = "libm" if resolved_config.backend_mode == "no_std" else None
-    resolved_math_library_version = "0.2" if resolved_math_library == "libm" else None
+    resolved_math_library = "libm" \
+        if resolved_config.backend_mode == "no_std" \
+        else None
+    resolved_math_library_version = "0.2" \
+        if resolved_math_library == "libm" \
+        else None
     codegen = generate_rust(
         function,
         config=resolved_config,
@@ -91,7 +95,9 @@ def create_rust_project(
             math_library=resolved_math_library,
             enable_python_interface=resolved_config.enable_python_interface,
             python_interface_project_name=(
-                f"{crate}_python" if resolved_config.enable_python_interface else None
+                f"{crate}_python"
+                if resolved_config.enable_python_interface
+                else None
             ),
         ),
         encoding="utf-8",
@@ -152,7 +158,8 @@ def create_rust_derivative_bundle(
     jacobian_projects: list[RustProjectResult] = []
     if include_jacobians:
         for block in function.jacobian_blocks():
-            derivative_function = _maybe_simplify_derivative_function(block, simplify_derivatives)
+            derivative_function = _maybe_simplify_derivative_function(
+                block, simplify_derivatives)
             jacobian_projects.append(
                 create_rust_project(
                     derivative_function,
@@ -162,9 +169,12 @@ def create_rust_derivative_bundle(
             )
 
     hessian_projects: list[RustProjectResult] = []
-    if include_hessians and len(function.outputs) == 1 and isinstance(function.outputs[0], SX):
+    if include_hessians \
+            and len(function.outputs) == 1 \
+            and isinstance(function.outputs[0], SX):
         for block in function.hessian_blocks():
-            derivative_function = _maybe_simplify_derivative_function(block, simplify_derivatives)
+            derivative_function = _maybe_simplify_derivative_function(
+                block, simplify_derivatives)
             hessian_projects.append(
                 create_rust_project(
                     derivative_function,
