@@ -85,8 +85,10 @@ class Function:
             TypeError: If any input or output declaration is not an ``SX`` or
                 ``SXVector`` value.
         """
-        normalized_inputs = tuple(_coerce_function_arg(item, label="input") for item in inputs)
-        normalized_outputs = tuple(_coerce_function_arg(item, label="output") for item in outputs)
+        normalized_inputs = tuple(
+            _coerce_function_arg(item, label="input") for item in inputs)
+        normalized_outputs = tuple(
+            _coerce_function_arg(item, label="output") for item in outputs)
 
         if not normalized_inputs:
             raise ValueError("Function must have at least one input")
