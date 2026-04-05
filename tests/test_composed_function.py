@@ -4,7 +4,7 @@ from gradgen import ComposedFunction, Function, SXVector
 
 
 class ComposedFunctionTests(unittest.TestCase):
-    def test_composed_function_packs_symbolic_parameters_and_evaluates(self) -> None:
+    def test_composed_packs_sym_params_evaluates(self) -> None:
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
@@ -42,7 +42,9 @@ class ComposedFunctionTests(unittest.TestCase):
             409.0,
         )
         self.assertEqual(
-            composed.gradient().to_function()([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+            composed.gradient().to_function()(
+                    [1.0, 2.0],
+                    [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
             (1.0, 192.0),
         )
 
@@ -139,7 +141,9 @@ class ComposedFunctionTests(unittest.TestCase):
             output_names=["y"],
         )
 
-        composed = ComposedFunction("demo", x).then(g, p=[1.0, 2.0]).finish(h, p=[3.0])
+        composed = ComposedFunction("demo", x) \
+            .then(g, p=[1.0, 2.0]) \
+            .finish(h, p=[3.0])
 
         with self.assertRaises(ValueError):
             composed.then(g, p=[1.0, 2.0])
@@ -148,7 +152,7 @@ class ComposedFunctionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             composed.finish(h, p=[3.0])
 
-    def test_stage_and_terminal_shape_validation_catches_dimension_mismatches(self) -> None:
+    def test_stage_shape_validation_dim_mismatches(self) -> None:
         x = SXVector.sym("x", 2)
         state2 = SXVector.sym("state2", 2)
         state3 = SXVector.sym("state3", 3)
@@ -181,7 +185,9 @@ class ComposedFunctionTests(unittest.TestCase):
             output_names=["next_state"],
         )
         with self.assertRaises(ValueError):
-            ComposedFunction("demo", x).then(good_stage, p=[1.0, 2.0]).finish(bad_terminal, p=[3.0])
+            ComposedFunction("demo", x) \
+                .then(good_stage, p=[1.0, 2.0]) \
+                .finish(bad_terminal, p=[3.0])
 
     def test_state_input_must_be_symbolic(self) -> None:
         with self.assertRaises(ValueError):

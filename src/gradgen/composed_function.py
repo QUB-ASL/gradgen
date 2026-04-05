@@ -11,7 +11,13 @@ from .sx import SX, SXVector
 
 
 FunctionArg = SX | SXVector
-StageValue = SX | SXVector | float | int | list[object] | tuple[object, ...] | None
+StageValue = SX \
+    | SXVector \
+    | float \
+    | int \
+    | list[object] \
+    | tuple[object, ...] \
+    | None
 ChainItem = Function | tuple[Function, StageValue]
 
 

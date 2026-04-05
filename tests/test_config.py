@@ -20,6 +20,8 @@ class RustBackendConfigTests(unittest.TestCase):
         self.assertTrue(config.enable_python_interface)
 
     def test_build_flags_can_be_toggled(self) -> None:
-        config = RustBackendConfig().with_build_python_interface(False).with_build_crate(True)
+        config = RustBackendConfig() \
+            .with_build_python_interface(False) \
+            .with_build_crate(True)
         self.assertFalse(config.build_python_interface)
         self.assertTrue(config.build_crate)

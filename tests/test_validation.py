@@ -23,7 +23,7 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             validate_crate_name("not-a-valid-name")
 
-    def test_validate_generated_argument_names_rejects_duplicates(self) -> None:
+    def test_validate_gen_rejects_duplicates(self) -> None:
         input_specs = (SimpleNamespace(raw_name="x", rust_name="x"),)
         output_specs = (SimpleNamespace(raw_name="y", rust_name="x"),)
         with self.assertRaises(ValueError):

@@ -18,9 +18,7 @@ from gradgen.single_shooting import (
     _validate_single_shooting_bundle,
     _single_shooting_primal_name,
     _single_shooting_joint_name,
-    _single_shooting_bundle_output_names,
-    SingleShootingBundle,
-    SingleShootingProblem,
+    _single_shooting_bundle_output_names
 )
 
 def _build_minimal_scalar_problem():

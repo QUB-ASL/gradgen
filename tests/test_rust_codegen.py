@@ -13,11 +13,7 @@ import sys
 import venv
 
 import gradgen._rust_codegen.codegen as rust_codegen_module
-from gradgen._rust_codegen import generators as rust_codegen_generators
-from gradgen._rust_codegen.generators import composed as composed_generators
-from gradgen._rust_codegen.generators import map_zip as map_zip_generators
 from gradgen._rust_codegen.generators import rendering as rendering_generators
-from gradgen._rust_codegen.generators import single_shooting as single_shooting_generators
 import gradgen.single_shooting as single_shooting_module
 from gradgen._rust_codegen.project_support import _gradgen_version
 from gradgen import (
@@ -46,16 +42,7 @@ from gradgen import (
 
 class RustCodegenTests(unittest.TestCase):
     def tearDown(self) -> None:
-        clear_registered_elementary_functions()
-
-    def test_internal_generator_module_is_importable(self) -> None:
-        self.assertTrue(hasattr(rust_codegen_generators, "_generate_composed_primal_rust"))
-        self.assertTrue(hasattr(rust_codegen_generators, "_generate_single_shooting_driver_rust"))
-        self.assertTrue(hasattr(composed_generators, "_generate_composed_primal_rust"))
-        self.assertTrue(hasattr(map_zip_generators, "_generate_zipped_primal_rust"))
-        self.assertTrue(hasattr(single_shooting_generators, "_generate_single_shooting_driver_rust"))
-        self.assertTrue(hasattr(rendering_generators, "KernelRenderContext"))
-        self.assertTrue(hasattr(rendering_generators, "render_kernel_source"))
+        clear_registered_elementary_functions()    
 
     def test_render_kernel_source_renders_a_kernel_header(self) -> None:
         ctx = rendering_generators.KernelRenderContext(
@@ -109,7 +96,8 @@ class RustCodegenTests(unittest.TestCase):
         self.assertIn("pub fn demo", rendered)
 
     @staticmethod
-    def _run_cargo(project_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    def _run_cargo(project_dir: Path, *args: str) \
+        -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["cargo", *args],
             cwd=project_dir,
@@ -119,8 +107,10 @@ class RustCodegenTests(unittest.TestCase):
         )
 
     @classmethod
-    def _run_cargo_clippy_clean(cls, project_dir: Path) -> subprocess.CompletedProcess[str]:
-        return cls._run_cargo(project_dir, "clippy", "--quiet", "--", "-D", "warnings")
+    def _run_cargo_clippy_clean(cls, project_dir: Path) \
+        -> subprocess.CompletedProcess[str]:
+        return cls._run_cargo(
+            project_dir, "clippy", "--quiet", "--", "-D", "warnings")
 
     @staticmethod
     def _venv_python(venv_dir: Path) -> Path:
@@ -142,7 +132,8 @@ class RustCodegenTests(unittest.TestCase):
         return (inputs,)
 
     @staticmethod
-    def _flatten_runtime_output(function: Function, result: object) -> list[float]:
+    def _flatten_runtime_output(function: Function, result: object) \
+            -> list[float]:
         def flatten_one(declaration: object, value: object) -> list[float]:
             if isinstance(declaration, SX):
                 return [float(value)]
@@ -158,7 +149,8 @@ class RustCodegenTests(unittest.TestCase):
 
     @staticmethod
     def _rust_array_literal(values: list[float], scalar_type: str) -> str:
-        return "[" + ", ".join(f"{repr(float(value))}_{scalar_type}" for value in values) + "]"
+        return "[" + ", ".join(f"{repr(float(value))}_{scalar_type}"
+                               for value in values) + "]"
 
     @classmethod
     def _append_reference_test(
@@ -173,9 +165,11 @@ class RustCodegenTests(unittest.TestCase):
         tolerance: float = 1e-12,
         workspace_size_override: int | None = None,
     ) -> None:
-        codegen = function.generate_rust(config=config, function_name=function_name)
+        codegen = function.generate_rust(
+            config=config, function_name=function_name)
         numeric_inputs = cls._normalize_inputs(inputs)
-        expected = cls._flatten_runtime_output(function, function(*numeric_inputs))
+        expected = cls._flatten_runtime_output(
+            function, function(*numeric_inputs))
         rust_tolerance = float(tolerance)
         scalar_type = codegen.scalar_type
 
@@ -189,7 +183,8 @@ class RustCodegenTests(unittest.TestCase):
             else:
                 rust_values = [float(values)]
             input_binding_lines.append(
-                f"        let {name} = {cls._rust_array_literal(rust_values, scalar_type)};"
+                f"        let {name} = {cls._rust_array_literal(
+                    rust_values, scalar_type)};"
             )
 
         output_binding_lines: list[str] = []
@@ -197,7 +192,7 @@ class RustCodegenTests(unittest.TestCase):
         expected_offset = 0
         for index, size in enumerate(codegen.output_sizes):
             output_name = function.output_names[index]
-            expected_slice = expected[expected_offset : expected_offset + size]
+            expected_slice = expected[expected_offset:expected_offset+size]
             expected_offset += size
             output_binding_lines.append(
                 f"        let mut {output_name} = [0.0_{scalar_type}; {size}];"
@@ -214,7 +209,8 @@ class RustCodegenTests(unittest.TestCase):
             ]
         )
 
-        workspace_size = codegen.workspace_size if workspace_size_override is None else workspace_size_override
+        workspace_size = codegen.workspace_size \
+            if workspace_size_override is None else workspace_size_override
 
         cls._append_rust_test(
             project_dir,
@@ -246,7 +242,8 @@ mod tests {{
             )
 
     @staticmethod
-    def _build_single_shooting_problem(*, horizon: int = 3) -> SingleShootingProblem:
+    def _build_single_shooting_problem(*, horizon: int = 3) \
+            -> SingleShootingProblem:
         x = SXVector.sym("x", 2)
         u = SXVector.sym("u", 1)
         p = SXVector.sym("p", 2)

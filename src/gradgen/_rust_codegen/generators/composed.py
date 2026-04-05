@@ -5,7 +5,12 @@ from __future__ import annotations
 from . import shared as _shared
 from .rendering import KernelRenderContext, render_kernel_source
 from ..config import RustBackendConfig, RustBackendMode, RustScalarType
-from ..models import RustCodegenResult, _ArgSpec, _ComposedRepeatPlan, _ComposedSinglePlan
+from ..models import (
+    RustCodegenResult,
+    _ArgSpec,
+    _ComposedRepeatPlan,
+    _ComposedSinglePlan
+)
 from ..naming import sanitize_ident
 
 generate_rust = _shared.generate_rust
@@ -16,15 +21,10 @@ _validate_generated_argument_names = _shared._validate_generated_argument_names
 _maybe_simplify_derivative_function = _shared._maybe_simplify_derivative_function
 _derive_python_function_name = _shared._derive_python_function_name
 _arg_size = _shared._arg_size
-_format_float = _shared._format_float
 _format_rust_string_literal = _shared._format_rust_string_literal
-_describe_input_arg = _shared._describe_input_arg
 _describe_output_arg = _shared._describe_output_arg
 _emit_exact_length_assert = _shared._emit_exact_length_assert
 _emit_min_length_assert = _shared._emit_min_length_assert
-_collect_reachable_nodes = _shared._collect_reachable_nodes
-_reemit_direct_output_helper_call = _shared._reemit_direct_output_helper_call
-_collect_suppressed_custom_wrappers = _shared._collect_suppressed_custom_wrappers
 _build_shared_helper_lines = _shared._build_shared_helper_lines
 _build_composed_input_specs = _shared._build_composed_input_specs
 _emit_composed_fixed_repeat_constants = _shared._emit_composed_fixed_repeat_constants
