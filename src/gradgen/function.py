@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Callable, Iterable
 
 from .sx import (
     SX,
@@ -1061,6 +1061,301 @@ def _is_numeric_expr(expr: SX) -> bool:
     return all(_is_numeric_expr(SX(arg)) for arg in expr.node.args)
 
 
+def _evaluate_numeric_args(expr: SX) -> tuple[float, ...]:
+    """Evaluate all child nodes of ``expr`` as numeric scalar arguments."""
+    return tuple(_evaluate_scalar(SX(arg)) for arg in expr.node.args)
+
+
+def _evaluate_custom_scalar(expr: SX) -> object:
+    """Evaluate a custom scalar primitive numerically."""
+    spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
+    if spec.eval_python is None:
+        raise ValueError(
+            f"custom function {spec.name!r} does not"
+            "support numeric evaluation"
+        )
+    return invoke_custom_callback(
+        spec.eval_python,
+        _evaluate_scalar(x_value),
+        tuple(_evaluate_scalar(param) for param in params),
+        spec.parameter_dimension,
+    )
+
+
+def _evaluate_custom_vector(expr: SX) -> object:
+    """Evaluate a custom vector primitive numerically."""
+    spec, x_value, params = parse_custom_vector_args(expr.name, expr.args)
+    if spec.eval_python is None:
+        raise ValueError(
+            f"custom function {spec.name!r} does not "
+            "support numeric evaluation"
+        )
+    return invoke_custom_callback(
+        spec.eval_python,
+        tuple(_evaluate_scalar(value) for value in x_value),
+        tuple(_evaluate_scalar(param) for param in params),
+        spec.parameter_dimension,
+    )
+
+
+def _evaluate_custom_scalar_jacobian(expr: SX) -> float:
+    """Evaluate a custom scalar Jacobian numerically."""
+    spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
+    return float(
+        evaluate_custom_jacobian(
+            spec,
+            _evaluate_scalar(x_value),
+            tuple(_evaluate_scalar(param) for param in params),
+        )
+    )
+
+
+def _evaluate_custom_scalar_hessian(expr: SX) -> float:
+    """Evaluate a custom scalar Hessian numerically."""
+    spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
+    return float(
+        evaluate_custom_hessian(
+            spec,
+            _evaluate_scalar(x_value),
+            tuple(_evaluate_scalar(param) for param in params),
+        )
+    )
+
+
+def _evaluate_custom_scalar_hvp(expr: SX) -> float:
+    """Evaluate a custom scalar HVP numerically."""
+    spec, x_value, tangent, params = parse_custom_scalar_hvp_args(
+        expr.name,
+        expr.args,
+    )
+    return float(
+        evaluate_custom_hvp(
+            spec,
+            _evaluate_scalar(x_value),
+            _evaluate_scalar(tangent),
+            tuple(_evaluate_scalar(param) for param in params),
+        )
+    )
+
+
+def _evaluate_custom_vector_jacobian_component(expr: SX) -> float:
+    """Evaluate a custom vector Jacobian component numerically."""
+    spec, index, x_value, params = \
+        parse_custom_vector_jacobian_component_args(expr.name, expr.args)
+    gradient = evaluate_custom_jacobian(
+        spec,
+        tuple(_evaluate_scalar(value) for value in x_value),
+        tuple(_evaluate_scalar(param) for param in params),
+    )
+    if not isinstance(gradient, tuple):
+        raise TypeError("vector custom Jacobians must evaluate to numeric "
+                        "vectors")
+    return float(gradient[index])
+
+
+def _evaluate_custom_vector_hessian_entry(expr: SX) -> float:
+    """Evaluate a custom vector Hessian entry numerically."""
+    spec, row, col, x_value, params = \
+        parse_custom_vector_hessian_entry_args(expr.name, expr.args)
+    hessian = evaluate_custom_hessian(
+        spec,
+        tuple(_evaluate_scalar(value) for value in x_value),
+        tuple(_evaluate_scalar(param) for param in params),
+    )
+    if not isinstance(hessian, tuple):
+        raise TypeError("vector custom Hessians must evaluate to numeric "
+                        "matrices")
+    return float(hessian[row][col])
+
+
+def _evaluate_custom_vector_hvp_component(expr: SX) -> float:
+    """Evaluate a custom vector HVP component numerically."""
+    spec, index, x_value, tangent, params = \
+        parse_custom_vector_hvp_component_args(expr.name, expr.args)
+    hvp = evaluate_custom_hvp(
+        spec,
+        tuple(_evaluate_scalar(value) for value in x_value),
+        tuple(_evaluate_scalar(value) for value in tangent),
+        tuple(_evaluate_scalar(param) for param in params),
+    )
+    if not isinstance(hvp, tuple):
+        raise TypeError("vector custom HVPs must evaluate to numeric vectors")
+    return float(hvp[index])
+
+
+def _evaluate_matvec_component(expr: SX) -> float:
+    """Evaluate a matrix-vector product component numerically."""
+    rows, cols, row, matrix_values, x_values = \
+        parse_matvec_component_args(expr.args)
+    _ = rows
+    start = row * cols
+    return sum(
+        matrix_values[start + index] * _evaluate_scalar(x_values[index])
+        for index in range(cols)
+    )
+
+
+def _evaluate_quadform(expr: SX) -> float:
+    """Evaluate a quadratic form numerically."""
+    size, matrix_values, x_values = parse_quadform_args(expr.args)
+    x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
+    total = 0.0
+    for row in range(size):
+        for col in range(size):
+            total += (
+                matrix_values[row * size + col]
+                * x_numeric[row]
+                * x_numeric[col]
+            )
+    return total
+
+
+def _evaluate_bilinear_form(expr: SX) -> float:
+    """Evaluate a bilinear form numerically."""
+    rows, cols, matrix_values, x_values, y_values = \
+        parse_bilinear_form_args(expr.args)
+    x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
+    y_numeric = tuple(_evaluate_scalar(value) for value in y_values)
+    total = 0.0
+    for row in range(rows):
+        for col in range(cols):
+            total += (
+                matrix_values[row * cols + col]
+                * x_numeric[row]
+                * y_numeric[col]
+            )
+    return total
+
+
+def _evaluate_round(args: tuple[float, ...]) -> float:
+    """Round a numeric scalar with halfway-away-from-zero semantics."""
+    if args[0] >= 0.0:
+        return math.floor(args[0] + 0.5)
+    return math.ceil(args[0] - 0.5)
+
+
+def _evaluate_signum(args: tuple[float, ...]) -> float:
+    """Evaluate the sign of a numeric scalar."""
+    if args[0] > 0.0:
+        return 1.0
+    if args[0] < 0.0:
+        return -1.0
+    return 0.0
+
+
+def _evaluate_prod(args: tuple[float, ...]) -> float:
+    """Multiply all numeric arguments together."""
+    total = 1.0
+    for arg in args:
+        total *= arg
+    return total
+
+
+def _evaluate_norm2(args: tuple[float, ...]) -> float:
+    """Evaluate the Euclidean norm of a numeric vector."""
+    return math.sqrt(sum(arg * arg for arg in args))
+
+
+def _evaluate_norm2sq(args: tuple[float, ...]) -> float:
+    """Evaluate the squared Euclidean norm of a numeric vector."""
+    return sum(arg * arg for arg in args)
+
+
+def _evaluate_norm1(args: tuple[float, ...]) -> float:
+    """Evaluate the Manhattan norm of a numeric vector."""
+    return sum(math.fabs(arg) for arg in args)
+
+
+def _evaluate_norm_inf(args: tuple[float, ...]) -> float:
+    """Evaluate the infinity norm of a numeric vector."""
+    return max(math.fabs(arg) for arg in args)
+
+
+def _evaluate_norm_p_to_p(args: tuple[float, ...]) -> float:
+    """Evaluate the p-th power of the p-norm accumulator."""
+    p = args[-1]
+    return sum(math.fabs(arg) ** p for arg in args[:-1])
+
+
+def _evaluate_norm_p(args: tuple[float, ...]) -> float:
+    """Evaluate the p-norm of a numeric vector."""
+    p = args[-1]
+    return sum(math.fabs(arg) ** p for arg in args[:-1]) ** (1.0 / p)
+
+
+_SCALAR_BINARY_DISPATCH: dict[str, Callable[[tuple[float, ...]], float]] = {
+    "add": lambda args: args[0] + args[1],
+    "sub": lambda args: args[0] - args[1],
+    "mul": lambda args: args[0] * args[1],
+    "div": lambda args: args[0] / args[1],
+    "pow": lambda args: args[0] ** args[1],
+    "min": lambda args: min(args[0], args[1]),
+    "max": lambda args: max(args[0], args[1]),
+    "atan2": lambda args: math.atan2(args[0], args[1]),
+    "hypot": lambda args: math.hypot(args[0], args[1]),
+}
+
+_SCALAR_UNARY_DISPATCH: dict[str, Callable[[tuple[float, ...]], float]] = {
+    "neg": lambda args: -args[0],
+    "sin": lambda args: math.sin(args[0]),
+    "cos": lambda args: math.cos(args[0]),
+    "tan": lambda args: math.tan(args[0]),
+    "asin": lambda args: math.asin(args[0]),
+    "acos": lambda args: math.acos(args[0]),
+    "atan": lambda args: math.atan(args[0]),
+    "asinh": lambda args: math.asinh(args[0]),
+    "acosh": lambda args: math.acosh(args[0]),
+    "atanh": lambda args: math.atanh(args[0]),
+    "sinh": lambda args: math.sinh(args[0]),
+    "cosh": lambda args: math.cosh(args[0]),
+    "tanh": lambda args: math.tanh(args[0]),
+    "exp": lambda args: math.exp(args[0]),
+    "expm1": lambda args: math.expm1(args[0]),
+    "log": lambda args: math.log(args[0]),
+    "log1p": lambda args: math.log1p(args[0]),
+    "sqrt": lambda args: math.sqrt(args[0]),
+    "cbrt": lambda args: math.copysign(abs(args[0]) ** (1.0 / 3.0), args[0]),
+    "erf": lambda args: math.erf(args[0]),
+    "erfc": lambda args: math.erfc(args[0]),
+    "floor": lambda args: math.floor(args[0]),
+    "ceil": lambda args: math.ceil(args[0]),
+    "round": _evaluate_round,
+    "trunc": lambda args: math.trunc(args[0]),
+    "fract": lambda args: args[0] - math.trunc(args[0]),
+    "signum": _evaluate_signum,
+    "abs": lambda args: math.fabs(args[0]),
+}
+
+_SCALAR_NARY_DISPATCH: dict[str, Callable[[tuple[float, ...]], float]] = {
+    "sum": lambda args: sum(args),
+    "prod": _evaluate_prod,
+    "reduce_max": lambda args: max(args),
+    "reduce_min": lambda args: min(args),
+    "mean": lambda args: sum(args) / len(args),
+    "norm2": _evaluate_norm2,
+    "norm2sq": _evaluate_norm2sq,
+    "norm1": _evaluate_norm1,
+    "norm_inf": _evaluate_norm_inf,
+    "norm_p_to_p": _evaluate_norm_p_to_p,
+    "norm_p": _evaluate_norm_p,
+}
+
+_SCALAR_SPECIAL_DISPATCH: dict[str, Callable[[SX], object]] = {
+    "custom_scalar": _evaluate_custom_scalar,
+    "custom_vector": _evaluate_custom_vector,
+    "custom_scalar_jacobian": _evaluate_custom_scalar_jacobian,
+    "custom_scalar_hessian": _evaluate_custom_scalar_hessian,
+    "custom_scalar_hvp": _evaluate_custom_scalar_hvp,
+    "custom_vector_jacobian_component":
+        _evaluate_custom_vector_jacobian_component,
+    "custom_vector_hessian_entry": _evaluate_custom_vector_hessian_entry,
+    "custom_vector_hvp_component": _evaluate_custom_vector_hvp_component,
+    "matvec_component": _evaluate_matvec_component,
+    "quadform": _evaluate_quadform,
+    "bilinear_form": _evaluate_bilinear_form,
+}
+
+
 def _evaluate_scalar(expr: SX) -> float:
     """Evaluate a scalar expression made only of constants."""
     if expr.op == "const":
@@ -1068,236 +1363,22 @@ def _evaluate_scalar(expr: SX) -> float:
             raise ValueError("constant expression is missing a value")
         return expr.value
 
-    args = tuple(_evaluate_scalar(SX(arg)) for arg in expr.node.args)
+    args = _evaluate_numeric_args(expr)
 
-    if expr.op == "add":
-        return args[0] + args[1]
-    if expr.op == "sub":
-        return args[0] - args[1]
-    if expr.op == "mul":
-        return args[0] * args[1]
-    if expr.op == "div":
-        return args[0] / args[1]
-    if expr.op == "pow":
-        return args[0] ** args[1]
-    if expr.op == "custom_scalar":
-        spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
-        if spec.eval_python is None:
-            raise ValueError(
-                f"custom function {spec.name!r} does not"
-                "support numeric evaluation")
-        return invoke_custom_callback(
-            spec.eval_python,
-            _evaluate_scalar(x_value),
-            tuple(_evaluate_scalar(param) for param in params),
-            spec.parameter_dimension,
-        )
-    if expr.op == "custom_vector":
-        spec, x_value, params = parse_custom_vector_args(expr.name, expr.args)
-        if spec.eval_python is None:
-            raise ValueError(
-                f"custom function {spec.name!r} does not "
-                "support numeric evaluation")
-        return invoke_custom_callback(
-            spec.eval_python,
-            tuple(_evaluate_scalar(value) for value in x_value),
-            tuple(_evaluate_scalar(param) for param in params),
-            spec.parameter_dimension,
-        )
-    if expr.op == "custom_scalar_jacobian":
-        spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
-        return float(
-            evaluate_custom_jacobian(
-                spec,
-                _evaluate_scalar(x_value),
-                tuple(_evaluate_scalar(param) for param in params),
-            )
-        )
-    if expr.op == "custom_scalar_hessian":
-        spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
-        return float(
-            evaluate_custom_hessian(
-                spec,
-                _evaluate_scalar(x_value),
-                tuple(_evaluate_scalar(param) for param in params),
-            )
-        )
-    if expr.op == "custom_scalar_hvp":
-        spec, x_value, tangent, params = parse_custom_scalar_hvp_args(
-            expr.name, expr.args)
-        return float(
-            evaluate_custom_hvp(
-                spec,
-                _evaluate_scalar(x_value),
-                _evaluate_scalar(tangent),
-                tuple(_evaluate_scalar(param) for param in params),
-            )
-        )
-    if expr.op == "custom_vector_jacobian_component":
-        spec, index, x_value, params = \
-            parse_custom_vector_jacobian_component_args(expr.name, expr.args)
-        gradient = evaluate_custom_jacobian(
-            spec,
-            tuple(_evaluate_scalar(value) for value in x_value),
-            tuple(_evaluate_scalar(param) for param in params),
-        )
-        if not isinstance(gradient, tuple):
-            raise TypeError(
-                "vector custom Jacobians must evaluate to numeric vectors")
-        return float(gradient[index])
-    if expr.op == "custom_vector_hessian_entry":
-        spec, row, col, x_value, params = \
-            parse_custom_vector_hessian_entry_args(expr.name, expr.args)
-        hessian = evaluate_custom_hessian(
-            spec,
-            tuple(_evaluate_scalar(value) for value in x_value),
-            tuple(_evaluate_scalar(param) for param in params),
-        )
-        if not isinstance(hessian, tuple):
-            raise TypeError(
-                "vector custom Hessians must evaluate to numeric matrices")
-        return float(hessian[row][col])
-    if expr.op == "custom_vector_hvp_component":
-        spec, index, x_value, tangent, params = \
-            parse_custom_vector_hvp_component_args(expr.name, expr.args)
-        hvp = evaluate_custom_hvp(
-            spec,
-            tuple(_evaluate_scalar(value) for value in x_value),
-            tuple(_evaluate_scalar(value) for value in tangent),
-            tuple(_evaluate_scalar(param) for param in params),
-        )
-        if not isinstance(hvp, tuple):
-            raise TypeError(
-                "vector custom HVPs must evaluate to numeric vectors")
-        return float(hvp[index])
-    if expr.op == "atan2":
-        return math.atan2(args[0], args[1])
-    if expr.op == "hypot":
-        return math.hypot(args[0], args[1])
-    if expr.op == "matvec_component":
-        rows, cols, row, matrix_values, x_values = \
-            parse_matvec_component_args(expr.args)
-        _ = rows
-        start = row * cols
-        return_val = sum(matrix_values[start + index] 
-                         * _evaluate_scalar(x_values[index])
-                         for index in range(cols))
-        return return_val
-    if expr.op == "quadform":
-        size, matrix_values, x_values = parse_quadform_args(expr.args)
-        x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
-        total = 0.0
-        for row in range(size):
-            for col in range(size):
-                total += matrix_values[row * size + col] \
-                    * x_numeric[row] \
-                    * x_numeric[col]
-        return total
-    if expr.op == "bilinear_form":
-        rows, cols, matrix_values, x_values, y_values \
-            = parse_bilinear_form_args(expr.args)
-        x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
-        y_numeric = tuple(_evaluate_scalar(value) for value in y_values)
-        total = 0.0
-        for row in range(rows):
-            for col in range(cols):
-                total += \
-                    matrix_values[row * cols + col] \
-                    * x_numeric[row] \
-                    * y_numeric[col]
-        return total
-    if expr.op == "sum":
-        return sum(args)
-    if expr.op == "prod":
-        total = 1.0
-        for arg in args:
-            total *= arg
-        return total
-    if expr.op == "reduce_max":
-        return max(args)
-    if expr.op == "reduce_min":
-        return min(args)
-    if expr.op == "mean":
-        return sum(args) / len(args)
-    if expr.op == "min":
-        return min(args[0], args[1])
-    if expr.op == "neg":
-        return -args[0]
-    if expr.op == "sin":
-        return math.sin(args[0])
-    if expr.op == "cos":
-        return math.cos(args[0])
-    if expr.op == "tan":
-        return math.tan(args[0])
-    if expr.op == "asin":
-        return math.asin(args[0])
-    if expr.op == "acos":
-        return math.acos(args[0])
-    if expr.op == "atan":
-        return math.atan(args[0])
-    if expr.op == "asinh":
-        return math.asinh(args[0])
-    if expr.op == "acosh":
-        return math.acosh(args[0])
-    if expr.op == "atanh":
-        return math.atanh(args[0])
-    if expr.op == "sinh":
-        return math.sinh(args[0])
-    if expr.op == "cosh":
-        return math.cosh(args[0])
-    if expr.op == "tanh":
-        return math.tanh(args[0])
-    if expr.op == "exp":
-        return math.exp(args[0])
-    if expr.op == "expm1":
-        return math.expm1(args[0])
-    if expr.op == "log":
-        return math.log(args[0])
-    if expr.op == "log1p":
-        return math.log1p(args[0])
-    if expr.op == "sqrt":
-        return math.sqrt(args[0])
-    if expr.op == "cbrt":
-        return math.copysign(abs(args[0]) ** (1.0 / 3.0), args[0])
-    if expr.op == "erf":
-        return math.erf(args[0])
-    if expr.op == "erfc":
-        return math.erfc(args[0])
-    if expr.op == "floor":
-        return math.floor(args[0])
-    if expr.op == "ceil":
-        return math.ceil(args[0])
-    if expr.op == "round":
-        if args[0] >= 0.0:
-            return math.floor(args[0] + 0.5)
-        return math.ceil(args[0] - 0.5)
-    if expr.op == "trunc":
-        return math.trunc(args[0])
-    if expr.op == "fract":
-        return args[0] - math.trunc(args[0])
-    if expr.op == "signum":
-        if args[0] > 0.0:
-            return 1.0
-        if args[0] < 0.0:
-            return -1.0
-        return 0.0
-    if expr.op == "norm2":
-        return math.sqrt(sum(arg * arg for arg in args))
-    if expr.op == "norm2sq":
-        return sum(arg * arg for arg in args)
-    if expr.op == "norm1":
-        return sum(math.fabs(arg) for arg in args)
-    if expr.op == "norm_inf":
-        return max(math.fabs(arg) for arg in args)
-    if expr.op == "norm_p_to_p":
-        p = args[-1]
-        return sum(math.fabs(arg) ** p for arg in args[:-1])
-    if expr.op == "norm_p":
-        p = args[-1]
-        return sum(math.fabs(arg) ** p for arg in args[:-1]) ** (1.0 / p)
-    if expr.op == "abs":
-        return math.fabs(args[0])
-    if expr.op == "max":
-        return max(args[0], args[1])
+    binary_handler = _SCALAR_BINARY_DISPATCH.get(expr.op)
+    if binary_handler is not None:
+        return binary_handler(args)
+
+    unary_handler = _SCALAR_UNARY_DISPATCH.get(expr.op)
+    if unary_handler is not None:
+        return unary_handler(args)
+
+    nary_handler = _SCALAR_NARY_DISPATCH.get(expr.op)
+    if nary_handler is not None:
+        return nary_handler(args)
+
+    special_handler = _SCALAR_SPECIAL_DISPATCH.get(expr.op)
+    if special_handler is not None:
+        return special_handler(expr)
 
     raise ValueError(f"cannot evaluate operation {expr.op!r}")

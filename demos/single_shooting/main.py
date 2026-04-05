@@ -23,7 +23,8 @@ sys.path.insert(0, str(REPO_ROOT / "src"))
 def parse_args() -> argparse.Namespace:
     """Parse the user-configurable horizon length."""
     parser = argparse.ArgumentParser(
-        description="Generate a loop-based deterministic single-shooting demo.",
+        description="Generate a loop-based deterministic "
+        "single-shooting demo.",
     )
     parser.add_argument(
         "--horizon",
