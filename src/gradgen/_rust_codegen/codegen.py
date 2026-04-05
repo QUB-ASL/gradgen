@@ -253,7 +253,6 @@ def generate_rust(
     output_return_lines: list[str] = []
     output_write_lines: list[str] = []
     computation_lines: list[str] = []
-    workspace_return_line: str | None = None
     suppressed_custom_wrappers: set[tuple[str, str]] = set()
 
     for input_spec, input_arg in zip(input_specs, function.inputs):

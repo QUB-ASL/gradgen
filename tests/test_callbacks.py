@@ -11,7 +11,7 @@ class TestCallbacksAdditional(unittest.TestCase):
         def cb_expected(x, w):
             return ("fallback", x, w)
 
-        def _raise_value(*a, **k):
+        def _raise_value(*_a, **_k):
             raise ValueError
 
         with unittest.mock.patch.object(
@@ -27,7 +27,7 @@ class TestCallbacksAdditional(unittest.TestCase):
         def cb_fallback(value, tangent, w):
             return ("fb", value, tangent, w)
 
-        def _raise_type(*a, **k):
+        def _raise_type(*_a, **_k):
             raise TypeError
 
         with unittest.mock.patch.object(
@@ -108,7 +108,7 @@ class TestCallbacksAdditional(unittest.TestCase):
             parameter_defaults=(),
             eval_python=None,
             jacobian=lambda x, w: SXVector((SX.const(1.0), SX.const(1.0))),
-            hessian=lambda x, w: (SXVector((SX.const(1.0), SX.const(0.0))), 
+            hessian=lambda x, w: (SXVector((SX.const(1.0), SX.const(0.0))),
                                   SXVector((SX.const(0.0), SX.const(2.0)))),
             hvp=None,
             rust_primal=None,

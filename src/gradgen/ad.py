@@ -83,7 +83,6 @@ def vjp(expr: ADExpr,
         reverse-mode derivative in the supplied cotangent direction.
     """
     outputs = _flatten_expr(expr)
-    output_nodes = tuple(output.node for output in outputs)
     seed_map = _build_cotangent_map(expr, cotangent)
     nodes = _topological_nodes(outputs)
     expr_by_node = {node: SX(node) for node in nodes}

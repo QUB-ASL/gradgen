@@ -11,7 +11,8 @@ from .sx import SX, SXVector
 FunctionArg = SX | SXVector
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True,
+           slots=True)
 class ZippedJacobianFunction:
     """Jacobian kernel for a staged zipped function."""
 
@@ -20,12 +21,19 @@ class ZippedJacobianFunction:
     name: str
     simplification: int | str | None = None
 
-    def to_function(self, name: str | None = None) -> Function:
+    def to_function(self,
+                    name: str | None = None) -> Function:
         """Expand this staged Jacobian into a regular symbolic ``Function``."""
-        function = self.zipped.to_function().jacobian(self.wrt_index, name=name or self.name)
+        function = self.zipped\
+            .to_function()\
+            .jacobian(
+                self.wrt_index,
+                name=name or self.name)
         if self.simplification is None:
             return function
-        return function.simplify(max_effort=self.simplification, name=function.name)
+        return function.simplify(
+            max_effort=self.simplification,
+            name=function.name)
 
     @property
     def input_names(self) -> tuple[str, ...]:
@@ -35,7 +43,8 @@ class ZippedJacobianFunction:
     @property
     def output_names(self) -> tuple[str, ...]:
         """Return the Jacobian output names."""
-        return tuple(f"jacobian_{name}" for name in self.zipped.function.output_names)
+        return tuple(f"jacobian_{name}"
+                     for name in self.zipped.function.output_names)
 
     def generate_rust(
         self,
@@ -95,7 +104,9 @@ class ZippedFunction:
         if self.count <= 0:
             raise ValueError("count must be a positive integer")
         if len(self.input_sequence_names) != len(self.function.inputs):
-            raise ValueError("input_sequence_names must match the number of function inputs")
+            raise ValueError(
+                "input_sequence_names must match the number "
+                "of function inputs")
 
     @property
     def input_names(self) -> tuple[str, ...]:
@@ -112,7 +123,10 @@ class ZippedFunction:
         """Return dependency nodes for symbolic fallback usage."""
         return self.to_function().nodes
 
-    def jacobian(self, wrt_index: int = 0, *, name: str | None = None) -> ZippedJacobianFunction:
+    def jacobian(self,
+                 wrt_index: int = 0,
+                 *,
+                 name: str | None = None) -> ZippedJacobianFunction:
         """Return a staged Jacobian kernel source."""
         if wrt_index < 0 or wrt_index >= len(self.function.inputs):
             raise IndexError("wrt_index out of range")
@@ -127,18 +141,21 @@ class ZippedFunction:
         """Expand this staged batching into a regular symbolic ``Function``."""
         packed_inputs = tuple(
             SXVector.sym(input_name, self.count * _arg_size(formal))
-            for formal, input_name in zip(self.function.inputs, self.input_sequence_names)
+            for formal, input_name in zip(
+                self.function.inputs, self.input_sequence_names)
         )
         packed_outputs: list[SXVector] = []
-        for output_index, formal_output in enumerate(self.function.outputs):
+        for output_index, _ in enumerate(self.function.outputs):
             scalars: list[SX] = []
             for stage_index in range(self.count):
                 stage_inputs = tuple(
                     _slice_packed_input(sequence, stage_index, formal)
-                    for sequence, formal in zip(packed_inputs, self.function.inputs)
+                    for sequence, formal in zip(
+                        packed_inputs, self.function.inputs)
                 )
                 stage_result = self.function(*stage_inputs)
-                stage_output = _normalize_function_result(stage_result, self.function.outputs)[output_index]
+                stage_output = _normalize_function_result(
+                    stage_result, self.function.outputs)[output_index]
                 scalars.extend(_flatten_arg(stage_output))
             packed_outputs.append(SXVector(tuple(scalars)))
 
@@ -151,7 +168,8 @@ class ZippedFunction:
         )
         if self.simplification is None:
             return function
-        return function.simplify(max_effort=self.simplification, name=function.name)
+        return function.simplify(max_effort=self.simplification,
+                                 name=function.name)
 
     def generate_rust(
         self,
@@ -213,13 +231,17 @@ class ReducedFunction:
         if self.count <= 0:
             raise ValueError("count must be a positive integer")
         if len(self.function.inputs) != 2:
-            raise ValueError("reduce_function requires a function with exactly two inputs")
+            raise ValueError(
+                "reduce_function requires a function with exactly two inputs")
         if len(self.function.outputs) != 1:
-            raise ValueError("reduce_function requires a function with exactly one output")
+            raise ValueError(
+                "reduce_function requires a function with exactly one output")
         accumulator_formal = self.function.inputs[0]
         accumulator_output = self.function.outputs[0]
         if not _same_arg_shape(accumulator_formal, accumulator_output):
-            raise ValueError("reduce_function output shape must match accumulator input shape")
+            raise ValueError(
+                "reduce_function output shape must match "
+                "accumulator input shape")
 
     @property
     def input_names(self) -> tuple[str, ...]:
@@ -245,15 +267,21 @@ class ReducedFunction:
         if isinstance(accumulator_formal, SX):
             accumulator_initial = SX.sym(self.accumulator_input_name)
         else:
-            accumulator_initial = SXVector.sym(self.accumulator_input_name, len(accumulator_formal))
+            accumulator_initial = SXVector.sym(
+                self.accumulator_input_name,
+                len(accumulator_formal))
 
-        sequence_input = SXVector.sym(self.input_name, self.count * _arg_size(sequence_formal))
+        sequence_input = SXVector.sym(
+            self.input_name,
+            self.count * _arg_size(sequence_formal))
 
         accumulator_state = accumulator_initial
         for stage_index in range(self.count):
-            sequence_stage = _slice_packed_input(sequence_input, stage_index, sequence_formal)
+            sequence_stage = _slice_packed_input(
+                sequence_input, stage_index, sequence_formal)
             stage_result = self.function(accumulator_state, sequence_stage)
-            accumulator_state = _normalize_function_result(stage_result, self.function.outputs)[0]
+            accumulator_state = _normalize_function_result(
+                stage_result, self.function.outputs)[0]
 
         function = Function(
             name or self.name,
@@ -264,7 +292,9 @@ class ReducedFunction:
         )
         if self.simplification is None:
             return function
-        return function.simplify(max_effort=self.simplification, name=function.name)
+        return function.simplify(
+            max_effort=self.simplification,
+            name=function.name)
 
     def generate_rust(
         self,
@@ -319,7 +349,8 @@ def map_function(
 ) -> ZippedFunction:
     """Return a staged mapped function for a unary ``function``."""
     if len(function.inputs) != 1:
-        raise ValueError("map_function requires a function with exactly one input")
+        raise ValueError("map_function requires a function "
+                         "with exactly one input")
     sequence_name = input_name or f"{function.input_names[0]}_seq"
     return ZippedFunction(
         function=function,
@@ -398,14 +429,17 @@ def reduce_function(
 ) -> ReducedFunction:
     """Return a staged left-fold reduction for a binary stage ``function``."""
     if len(function.inputs) != 2:
-        raise ValueError("reduce_function requires a function with exactly two inputs")
+        raise ValueError(
+            "reduce_function requires a function with exactly two inputs")
     if len(function.outputs) != 1:
-        raise ValueError("reduce_function requires a function with exactly one output")
+        raise ValueError(
+            "reduce_function requires a function with exactly one output")
+    accum_inp_name = accumulator_input_name or f"{function.input_names[0]}0"
     return ReducedFunction(
         function=function,
         count=count,
         name=name or f"{function.name}_reduce",
-        accumulator_input_name=accumulator_input_name or f"{function.input_names[0]}0",
+        accumulator_input_name=accum_inp_name,
         input_name=input_name or f"{function.input_names[1]}_seq",
         output_name=output_name or function.output_names[0],
         simplification=simplification,
@@ -413,7 +447,10 @@ def reduce_function(
 
 
 def _same_arg_shape(left: FunctionArg, right: FunctionArg) -> bool:
-    """Return whether two function arguments share the same scalar/vector shape."""
+    """
+    Return whether two function arguments share the same
+    scalar/vector shape.
+    """
     if isinstance(left, SX) and isinstance(right, SX):
         return True
     if isinstance(left, SXVector) and isinstance(right, SXVector):
@@ -428,13 +465,15 @@ def _arg_size(value: FunctionArg) -> int:
     return len(value)
 
 
-def _slice_packed_input(sequence: SXVector, stage_index: int, formal: FunctionArg) -> FunctionArg:
+def _slice_packed_input(sequence: SXVector,
+                        stage_index: int,
+                        formal: FunctionArg) -> FunctionArg:
     """Return one stage input block from a packed batched input."""
     block_size = _arg_size(formal)
     start = stage_index * block_size
     if isinstance(formal, SX):
         return sequence[start]
-    return SXVector(sequence.elements[start : start + block_size])
+    return SXVector(sequence.elements[start: start + block_size])
 
 
 def _flatten_arg(value: FunctionArg) -> tuple[SX, ...]:
@@ -464,7 +503,8 @@ def _normalize_function_result(
     raise ValueError("expected multiple outputs from the staged function")
 
 
-def _coerce_function_arg_like(value: object, formal: FunctionArg) -> FunctionArg:
+def _coerce_function_arg_like(value: object,
+                              formal: FunctionArg) -> FunctionArg:
     """Coerce a staged output value to the symbolic shape of ``formal``."""
     if isinstance(formal, SX):
         return _coerce_scalar_output(value)
