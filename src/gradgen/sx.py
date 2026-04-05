@@ -116,7 +116,8 @@ class SXNode:
     def __repr__(self) -> str:
         """Return a debugging representation of the canonical node.
         
-        Symbols include their metadata, constants show their numeric literal, and operator nodes show their opcode plus arguments.
+        Symbols include their metadata, constants show their numeric literal, 
+        and operator nodes show their opcode plus arguments.
         
         Returns:
             A string that is useful for debugging and cache inspection.
@@ -175,7 +176,8 @@ class SX:
     def op(self) -> str:
         """Return the operation code of the underlying node.
         
-        These accessors expose the interned node metadata without letting callers mutate the symbolic graph.
+        These accessors expose the interned node metadata without letting 
+        callers mutate the symbolic graph.
         
         Returns:
             The underlying operation code as a string.
@@ -186,7 +188,8 @@ class SX:
     def args(self) -> tuple[SX, ...]:
         """Return child expressions as ``SX`` wrappers.
         
-        The returned tuple is reconstructed from the interned node state, so callers receive fresh wrappers but the underlying node graph remains shared.
+        The returned tuple is reconstructed from the interned node state, 
+        so callers receive fresh wrappers but the underlying node graph remains shared.
         
         Returns:
             A tuple of child ``SX`` expressions in structural order.
@@ -197,7 +200,8 @@ class SX:
     def name(self) -> str | None:
         """Return the symbol name when this expression is a symbol.
         
-        These accessors expose the interned node metadata without letting callers mutate the symbolic graph.
+        These accessors expose the interned node metadata without 
+        letting callers mutate the symbolic graph.
         
         Returns:
             The symbol name, or ``None`` when the expression is not a symbol.
@@ -208,10 +212,12 @@ class SX:
     def value(self) -> float | None:
         """Return the numeric literal when this expression is a constant.
         
-        These accessors expose the interned node metadata without letting callers mutate the symbolic graph.
+        These accessors expose the interned node metadata without 
+        letting callers mutate the symbolic graph.
         
         Returns:
-            The constant value as ``float``, or ``None`` when the expression is not a constant.
+            The constant value as ``float``, or ``None`` when the expression 
+            is not a constant.
         """
         return self.node.value
 
@@ -227,7 +233,8 @@ class SX:
     def __add__(self, other: object) -> SX:
         """Return the symbolic sum of ``self`` and ``other``.
         
-        Operands are coerced into symbolic expressions before the node is built.
+        Operands are coerced into symbolic expressions before 
+        the node is built.
         
         Args:
             other: Scalar-like operand to combine with ``self``.
@@ -241,7 +248,8 @@ class SX:
     def __radd__(self, other: object) -> SX:
         """Return the symbolic sum of ``self`` and ``other``.
         
-        Operands are coerced into symbolic expressions before the node is built.
+        Operands are coerced into symbolic expressions before 
+        the node is built.
         
         Args:
             other: Scalar-like operand to combine with ``self``.
@@ -255,7 +263,8 @@ class SX:
     def __sub__(self, other: object) -> SX:
         """Return the symbolic difference of ``self`` and ``other``.
         
-        Operands are coerced into symbolic expressions before the node is built.
+        Operands are coerced into symbolic expressions 
+        before the node is built.
         
         Args:
             other: Scalar-like operand to combine with ``self``.
@@ -269,7 +278,8 @@ class SX:
     def __rsub__(self, other: object) -> SX:
         """Return the symbolic reversed difference of ``self`` and ``other``.
         
-        Operands are coerced into symbolic expressions before the node is built.
+        Operands are coerced into symbolic expressions 
+        before the node is built.
         
         Args:
             other: Scalar-like operand to combine with ``self``.
@@ -283,14 +293,17 @@ class SX:
     def __mul__(self, other: object) -> SX | SXVector:
         """Return the symbolic product of ``self`` and ``other``.
         
-        When ``other`` is an ``SXVector``, the operation behaves like scalar-vector multiplication.
-        Singleton vectors are treated as scalars; longer vectors are multiplied elementwise by ``self``.
+        When ``other`` is an ``SXVector``, the operation behaves 
+        like scalar-vector multiplication.
+        Singleton vectors are treated as scalars; longer vectors 
+        are multiplied elementwise by ``self``.
         
         Args:
             other: Scalar-like value or vector-like operand.
         
         Returns:
-            A new ``SX`` expression, or an ``SXVector`` for vector-valued multiplication.
+            A new ``SX`` expression, or an ``SXVector`` 
+            for vector-valued multiplication.
         """
 
         if isinstance(other, SXVector):
@@ -302,14 +315,17 @@ class SX:
     def __rmul__(self, other: object) -> SX | SXVector:
         """Return the symbolic product of ``other`` and ``self``.
         
-        When ``other`` is an ``SXVector``, the operation behaves like scalar-vector multiplication.
-        Singleton vectors are treated as scalars; longer vectors are multiplied elementwise by ``self``.
+        When ``other`` is an ``SXVector``, the operation behaves 
+        like scalar-vector multiplication.
+        Singleton vectors are treated as scalars; longer vectors 
+        are multiplied elementwise by ``self``.
         
         Args:
             other: Scalar-like value or vector-like operand.
         
         Returns:
-            A new ``SX`` expression, or an ``SXVector`` for vector-valued multiplication.
+            A new ``SX`` expression, or an ``SXVector`` 
+            for vector-valued multiplication.
         """
 
         if isinstance(other, SXVector):
@@ -321,7 +337,8 @@ class SX:
     def __truediv__(self, other: object) -> SX:
         """Return the symbolic quotient of ``self`` and ``other``.
         
-        Operands are coerced into symbolic expressions before the node is built.
+        Operands are coerced into symbolic expressions 
+        before the node is built.
         
         Args:
             other: Scalar-like operand to combine with ``self``.
@@ -335,7 +352,8 @@ class SX:
     def __rtruediv__(self, other: object) -> SX:
         """Return the symbolic reversed quotient of ``self`` and ``other``.
         
-        Operands are coerced into symbolic expressions before the node is built.
+        Operands are coerced into symbolic expressions 
+        before the node is built.
         
         Args:
             other: Scalar-like operand to combine with ``self``.
@@ -349,7 +367,8 @@ class SX:
     def __pow__(self, other: object) -> SX:
         """Return the symbolic power of ``self`` and ``other``.
         
-        Operands are coerced into symbolic expressions before the node is built.
+        Operands are coerced into symbolic expressions 
+        before the node is built.
         
         Args:
             other: Scalar-like operand to combine with ``self``.
@@ -363,7 +382,8 @@ class SX:
     def __rpow__(self, other: object) -> SX:
         """Return the symbolic reversed power of ``self`` and ``other``.
         
-        Operands are coerced into symbolic expressions before the node is built.
+        Operands are coerced into symbolic expressions 
+        before the node is built.
         
         Args:
             other: Scalar-like operand to combine with ``self``.
@@ -388,7 +408,8 @@ class SX:
     def sin(self) -> SX:
         """Return the symbolic sine of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``sin(self)``.
@@ -399,7 +420,8 @@ class SX:
     def cos(self) -> SX:
         """Return the symbolic cosine of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``cos(self)``.
@@ -410,7 +432,8 @@ class SX:
     def tan(self) -> SX:
         """Return the symbolic tangent of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``tan(self)``.
@@ -421,7 +444,8 @@ class SX:
     def asin(self) -> SX:
         """Return the symbolic arcsine of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``asin(self)``.
@@ -432,7 +456,8 @@ class SX:
     def acos(self) -> SX:
         """Return the symbolic arccosine of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``acos(self)``.
@@ -443,7 +468,8 @@ class SX:
     def atan(self) -> SX:
         """Return the symbolic arctangent of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``atan(self)``.
@@ -469,7 +495,8 @@ class SX:
     def sinh(self) -> SX:
         """Return the symbolic hyperbolic sine of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``sinh(self)``.
@@ -491,7 +518,8 @@ class SX:
     def tanh(self) -> SX:
         """Return the symbolic hyperbolic tangent of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``tanh(self)``.
@@ -502,7 +530,8 @@ class SX:
     def asinh(self) -> SX:
         """Return the symbolic inverse hyperbolic sine of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``asinh(self)``.
@@ -524,7 +553,8 @@ class SX:
     def atanh(self) -> SX:
         """Return the symbolic inverse hyperbolic tangent of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``atanh(self)``.
@@ -535,7 +565,8 @@ class SX:
     def exp(self) -> SX:
         """Return the symbolic exponential of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``exp(self)``.
@@ -546,7 +577,8 @@ class SX:
     def expm1(self) -> SX:
         """Return the symbolic ``exp(x) - 1`` of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``expm1(self)``.
@@ -557,7 +589,8 @@ class SX:
     def log(self) -> SX:
         """Return the symbolic natural logarithm of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``log(self)``.
@@ -568,7 +601,8 @@ class SX:
     def log1p(self) -> SX:
         """Return the symbolic ``log(1 + x)`` of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``log1p(self)``.
@@ -579,7 +613,8 @@ class SX:
     def sqrt(self) -> SX:
         """Return the symbolic square root of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``sqrt(self)``.
@@ -590,7 +625,8 @@ class SX:
     def cbrt(self) -> SX:
         """Return the symbolic cube root of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``cbrt(self)``.
@@ -601,7 +637,8 @@ class SX:
     def erf(self) -> SX:
         """Return the symbolic error function of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``erf(self)``.
@@ -612,7 +649,8 @@ class SX:
     def erfc(self) -> SX:
         """Return the symbolic complementary error function of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``erfc(self)``.
@@ -623,7 +661,8 @@ class SX:
     def floor(self) -> SX:
         """Return the symbolic floor of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``floor(self)``.
@@ -634,7 +673,8 @@ class SX:
     def ceil(self) -> SX:
         """Return the symbolic ceiling of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``ceil(self)``.
@@ -645,7 +685,8 @@ class SX:
     def round(self) -> SX:
         """Return the symbolic nearest integer of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``round(self)``.
@@ -656,7 +697,8 @@ class SX:
     def trunc(self) -> SX:
         """Return the symbolic truncation of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``trunc(self)``.
@@ -667,7 +709,8 @@ class SX:
     def fract(self) -> SX:
         """Return the symbolic fractional part of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``fract(self)``.
@@ -678,7 +721,8 @@ class SX:
     def signum(self) -> SX:
         """Return the symbolic sign of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``signum(self)``.
@@ -704,7 +748,8 @@ class SX:
     def abs(self) -> SX:
         """Return the symbolic absolute value of ``self``.
         
-        The result is a new ``SX`` expression that shares the same interned graph style as all other nodes.
+        The result is a new ``SX`` expression that shares the 
+        same interned graph style as all other nodes.
         
         Returns:
             A new ``SX`` expression representing ``abs(self)``.
@@ -745,7 +790,8 @@ class SX:
     def __repr__(self) -> str:
         """Return a readable symbolic representation of the expression.
         
-        The representation prefers stable, human-friendly diagnostics over executable Python syntax.
+        The representation prefers stable, human-friendly 
+        diagnostics over executable Python syntax.
         
         Returns:
             A string suitable for debugging.

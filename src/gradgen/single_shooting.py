@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .function import Function
-from .sx import SX, SXVector, vector
+from .sx import SX, SXVector
 
 
 FunctionArg = SX | SXVector
@@ -83,7 +83,7 @@ class SingleShootingPrimalFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged primal kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -104,7 +104,7 @@ class SingleShootingPrimalFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged primal kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,
@@ -166,7 +166,7 @@ class SingleShootingGradientFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged gradient kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -187,7 +187,7 @@ class SingleShootingGradientFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged gradient kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,
@@ -249,7 +249,7 @@ class SingleShootingHvpFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged HVP kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -270,7 +270,7 @@ class SingleShootingHvpFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged HVP kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,
@@ -326,7 +326,7 @@ class SingleShootingJointFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged joint kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -347,7 +347,7 @@ class SingleShootingJointFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged joint kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,
@@ -624,7 +624,7 @@ class SingleShootingProblem:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the primal total-cost kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -645,7 +645,7 @@ class SingleShootingProblem:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the total-cost kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,

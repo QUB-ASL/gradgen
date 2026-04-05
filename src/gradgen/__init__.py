@@ -35,10 +35,7 @@ from .single_shooting import (
     SingleShootingPrimalFunction,
     SingleShootingProblem,
 )
-from .rust_codegen import (
-    create_multi_function_rust_project,
-    generate_rust,
-)
+from ._rust_codegen.codegen import create_multi_function_rust_project, generate_rust
 from .simplify import simplify
 from .sx import (
     SX,

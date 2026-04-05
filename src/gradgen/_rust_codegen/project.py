@@ -58,8 +58,7 @@ def create_rust_project(
     math_library: str | None = None,
 ) -> RustProjectResult:
     """Create a minimal Rust library project containing generated code."""
-    from ..rust_codegen import generate_rust
-    from .. import rust_codegen as _rust_codegen_module
+    from .codegen import generate_rust
 
     resolved_config = resolve_backend_config(
         config,
@@ -121,7 +120,7 @@ def create_rust_project(
     if stale_pyproject.exists():
         stale_pyproject.unlink()
     if resolved_config.build_crate:
-        _rust_codegen_module._run_cargo_build(project_dir)
+        _run_cargo_build(project_dir)
     python_interface = None
     if resolved_config.enable_python_interface:
         python_interface = _create_python_interface_project(
@@ -130,7 +129,7 @@ def create_rust_project(
             codegens=(codegen,),
             build_python_interface=resolved_config.build_python_interface,
         )
-    _rust_codegen_module._try_run_cargo_fmt(project_dir)
+    _try_run_cargo_fmt(project_dir)
 
     return RustProjectResult(
         project_dir=project_dir,
@@ -154,8 +153,6 @@ def create_rust_derivative_bundle(
     simplify_derivatives: int | str | None = None,
 ) -> RustDerivativeBundleResult:
     """Create a directory containing Rust crates for primal and derivatives."""
-    from .. import rust_codegen as _rust_codegen_module
-
     bundle_dir = Path(path).expanduser().resolve()
     bundle_dir.mkdir(parents=True, exist_ok=True)
 

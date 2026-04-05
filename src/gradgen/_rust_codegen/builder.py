@@ -187,7 +187,8 @@ class CodeGenerationBuilder:
         ``with_crate_name(...)`` when provided, or otherwise from the first
         generated source function.
         """
-        from ..rust_codegen import RustBackendConfig, create_multi_function_rust_project
+        from .codegen import create_multi_function_rust_project
+        from .config import RustBackendConfig
 
         resolved_config = self.config or RustBackendConfig()
         raw_path = Path(path).expanduser()

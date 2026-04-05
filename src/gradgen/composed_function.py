@@ -113,7 +113,7 @@ class ComposedGradientFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged gradient kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -134,7 +134,7 @@ class ComposedGradientFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged gradient kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,
@@ -291,7 +291,7 @@ class ComposedFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged primal kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -312,7 +312,7 @@ class ComposedFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged primal kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,

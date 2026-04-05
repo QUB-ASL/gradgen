@@ -108,6 +108,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Removed
 
+- Removed the `gradgen.rust_codegen` compatibility shim entirely and moved
+  the public code-generation entrypoints to the internal
+  `gradgen._rust_codegen.codegen` module.
 - `no_std` crates now default to `libm` as their math dependency. The
   config-level `with_math_lib(...)` option has been removed, so the generated
   crates consistently use `libm` when targeting `no_std`.

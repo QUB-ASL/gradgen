@@ -5,7 +5,10 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING, Any
 
-from .sx import SX, SXNode, SXVector, parse_bilinear_form_args, parse_matvec_component_args, parse_quadform_args
+from .sx import (
+    SX, SXNode, SXVector, parse_bilinear_form_args,
+    parse_matvec_component_args, parse_quadform_args
+    )
 from .custom_elementary import (
     _invoke_custom_callback,
     evaluate_custom_hessian,

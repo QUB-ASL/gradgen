@@ -12,14 +12,14 @@ import traceback
 import sys
 import venv
 
-import gradgen.rust_codegen as rust_codegen_module
+import gradgen._rust_codegen.codegen as rust_codegen_module
 from gradgen._rust_codegen import generators as rust_codegen_generators
 from gradgen._rust_codegen.generators import composed as composed_generators
 from gradgen._rust_codegen.generators import map_zip as map_zip_generators
 from gradgen._rust_codegen.generators import rendering as rendering_generators
 from gradgen._rust_codegen.generators import single_shooting as single_shooting_generators
 import gradgen.single_shooting as single_shooting_module
-from gradgen.rust_codegen import _gradgen_version
+from gradgen._rust_codegen.project_support import _gradgen_version
 from gradgen import (
     CodeGenerationBuilder,
     ComposedFunction,
@@ -957,10 +957,9 @@ mod single_shooting_multi_u_tests {{
         f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
 
         with TemporaryDirectory() as tmpdir:
-            with patch.object(rust_codegen_module.shutil, "which", return_value="/usr/bin/cargo"):
-                with patch.object(
-                    rust_codegen_module.subprocess,
-                    "run",
+            with patch("gradgen._rust_codegen.project_support.shutil.which", return_value="/usr/bin/cargo"):
+                with patch(
+                    "gradgen._rust_codegen.project_support.subprocess.run",
                     side_effect=subprocess.CalledProcessError(1, ["cargo", "fmt"], stderr="rustfmt missing"),
                 ) as mocked_run:
                     project = create_rust_project(f, Path(tmpdir) / "energy_kernel")
@@ -1140,9 +1139,8 @@ mod single_shooting_multi_u_tests {{
 
         config = RustBackendConfig().with_build_crate(True)
 
-        with TemporaryDirectory() as tmpdir, patch.object(
-            rust_codegen_module,
-            "_run_cargo_build",
+        with TemporaryDirectory() as tmpdir, patch(
+            "gradgen._rust_codegen.project._run_cargo_build",
         ) as run_cargo_build:
             project = create_rust_project(f, Path(tmpdir) / "energy_kernel", config=config)
 
@@ -1153,9 +1151,8 @@ mod single_shooting_multi_u_tests {{
         x = SXVector.sym("x", 2)
         f = Function("energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"])
 
-        with TemporaryDirectory() as tmpdir, patch.object(
-            rust_codegen_module.shutil,
-            "which",
+        with TemporaryDirectory() as tmpdir, patch(
+            "gradgen._rust_codegen.project_support.shutil.which",
             return_value=None,
         ):
             with self.assertRaisesRegex(RuntimeError, "cargo is required to build"):

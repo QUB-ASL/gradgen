@@ -600,10 +600,8 @@ def create_multi_function_rust_project(
     stale_pyproject = project_dir / "pyproject.toml"
     if stale_pyproject.exists():
         stale_pyproject.unlink()
-    from .. import rust_codegen as _rust_codegen_module
-
     if resolved_config.build_crate:
-        _rust_codegen_module._run_cargo_build(project_dir)
+        _run_cargo_build(project_dir)
     python_interface = None
     if resolved_config.enable_python_interface:
         python_interface = _create_python_interface_project(
@@ -612,7 +610,7 @@ def create_multi_function_rust_project(
             codegens=codegens,
             build_python_interface=resolved_config.build_python_interface,
         )
-    _rust_codegen_module._try_run_cargo_fmt(project_dir)
+    _try_run_cargo_fmt(project_dir)
 
     return RustMultiFunctionProjectResult(
         project_dir=project_dir,

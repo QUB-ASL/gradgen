@@ -65,6 +65,27 @@ class Function:
         input_names: Iterable[str] | None = None,
         output_names: Iterable[str] | None = None,
     ) -> None:
+        """Construct a symbolic function from declared inputs and outputs.
+
+        Args:
+            name: Public name of the function.
+            inputs: Declared input blocks, each of which must be an ``SX``
+                scalar or ``SXVector``.
+            outputs: Declared output blocks, each of which must be an ``SX``
+                scalar or ``SXVector`` built from the declared inputs.
+            input_names: Optional names for the input blocks. When omitted,
+                names are generated automatically as ``i0``, ``i1``, and so
+                on.
+            output_names: Optional names for the output blocks. When omitted,
+                names are generated automatically as ``o0``, ``o1``, and so
+                on.
+
+        Raises:
+            ValueError: If no inputs or no outputs are provided, or if the
+                declared names are inconsistent.
+            TypeError: If any input or output declaration is not an ``SX`` or
+                ``SXVector`` value.
+        """
         normalized_inputs = tuple(_coerce_function_arg(item, label="input") for item in inputs)
         normalized_outputs = tuple(_coerce_function_arg(item, label="output") for item in outputs)
 
@@ -96,17 +117,29 @@ class Function:
 
     @property
     def flat_inputs(self) -> tuple[SX, ...]:
-        """Return all scalar inputs flattened into a single tuple."""
+        """Return all scalar input leaves in declaration order.
+
+        Vector inputs are flattened into their constituent scalar symbols so
+        downstream algorithms can operate on a uniform scalar sequence.
+        """
         return tuple(_flatten_args(self.inputs))
 
     @property
     def flat_outputs(self) -> tuple[SX, ...]:
-        """Return all scalar outputs flattened into a single tuple."""
+        """Return all scalar output leaves in declaration order.
+
+        Vector outputs are flattened into their constituent scalar symbols so
+        downstream algorithms can operate on a uniform scalar sequence.
+        """
         return tuple(_flatten_args(self.outputs))
 
     @property
     def nodes(self) -> tuple[SXNode, ...]:
-        """Return output dependency nodes in topological order."""
+        """Return the expression nodes needed to compute the outputs.
+
+        Nodes are returned in topological order so that every dependency
+        appears before the node that uses it.
+        """
         ordered: list[SXNode] = []
         seen: set[SXNode] = set()
 
@@ -116,7 +149,18 @@ class Function:
         return tuple(ordered)
 
     def cse(self, *, prefix: str = "w", min_uses: int = 2):
-        """Build a common-subexpression elimination plan for the outputs."""
+        """Build a common-subexpression elimination plan for the outputs.
+
+        Args:
+            prefix: Prefix used when naming temporary variables in the CSE
+                plan.
+            min_uses: Minimum number of times a subexpression must appear
+                before it is extracted into a temporary.
+
+        Returns:
+            A CSE plan object describing the shared subexpressions in the
+            outputs.
+        """
         from .cse import cse
 
         return cse(self.outputs, prefix=prefix, min_uses=min_uses)
@@ -129,8 +173,23 @@ class Function:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Generate Rust source code for primal function evaluation."""
-        from .rust_codegen import generate_rust
+        """Generate Rust source code for primal function evaluation.
+
+        Args:
+            config: Optional backend configuration object. When omitted, a
+                default Rust backend configuration is used.
+            function_name: Optional Rust function name for the generated
+                kernel. When omitted, the symbolic function name is used.
+            backend_mode: Backend mode used when no explicit config is
+                supplied.
+            scalar_type: Scalar type used when no explicit config is
+                supplied.
+
+        Returns:
+            A code-generation result containing the rendered Rust source and
+            associated metadata.
+        """
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -150,8 +209,24 @@ class Function:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Create a Rust project containing the generated primal code."""
-        from .rust_codegen import create_rust_project
+        """Create a Rust project containing the generated primal code.
+
+        Args:
+            path: Directory in which the generated crate should be written.
+            config: Optional backend configuration object.
+            crate_name: Optional crate name override.
+            function_name: Optional Rust function name for the generated
+                kernel.
+            backend_mode: Backend mode used when no explicit config is
+                supplied.
+            scalar_type: Scalar type used when no explicit config is
+                supplied.
+
+        Returns:
+            A project result describing the generated crate and its
+            supporting files.
+        """
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,
@@ -173,8 +248,21 @@ class Function:
         include_hessians: bool = True,
         simplify_derivatives: int | str | None = None,
     ):
-        """Create a directory containing Rust projects for derivative kernels."""
-        from .rust_codegen import create_rust_derivative_bundle
+        """Create a directory containing Rust projects for derivative kernels.
+
+        Args:
+            path: Output directory for the derivative bundle.
+            config: Optional backend configuration object.
+            include_primal: When ``True``, include the primal function crate.
+            include_jacobians: When ``True``, include Jacobian crates.
+            include_hessians: When ``True``, include Hessian crates.
+            simplify_derivatives: Optional simplification effort applied to
+                derivative expressions before code generation.
+
+        Returns:
+            A bundle result describing the generated derivative projects.
+        """
+        from ._rust_codegen.project import create_rust_derivative_bundle
 
         return create_rust_derivative_bundle(
             self,
@@ -256,7 +344,17 @@ class Function:
         )
 
     def gradient(self, wrt_index: int = 0, name: str | None = None) -> Function:
-        """Build a gradient function for a scalar-output function."""
+        """Build a gradient function for a scalar-output function.
+
+        Args:
+            wrt_index: Index of the declared input block with respect to
+                which the gradient is computed.
+            name: Optional name for the differentiated function.
+
+        Returns:
+            A new ``Function`` whose single output is the gradient with
+            respect to the selected input block.
+        """
         if not 0 <= wrt_index < len(self.inputs):
             raise IndexError("wrt_index is out of range")
         if len(self.outputs) != 1 or not isinstance(self.outputs[0], SX):
@@ -535,7 +633,15 @@ class Function:
         self,
         wrt_indices: Iterable[int] | None = None,
     ) -> tuple[Function, ...]:
-        """Build Jacobian functions for one or more input blocks."""
+        """Build Jacobian functions for one or more input blocks.
+
+        Args:
+            wrt_indices: Optional iterable of input block indices. When
+                omitted, Jacobians are built for every declared input block.
+
+        Returns:
+            A tuple of Jacobian functions, one per selected input block.
+        """
         indices = _resolve_block_indices(wrt_indices, len(self.inputs))
         return tuple(self.jacobian(index) for index in indices)
 
@@ -543,7 +649,17 @@ class Function:
         self,
         wrt_indices: Iterable[int] | None = None,
     ) -> tuple[Function, ...]:
-        """Build runtime-seeded vector-Jacobian-product functions for input blocks."""
+        """Build runtime-seeded vector-Jacobian-product functions.
+
+        Args:
+            wrt_indices: Optional iterable of input block indices. When
+                omitted, VJP functions are built for every declared input
+                block.
+
+        Returns:
+            A tuple of runtime-seeded VJP functions, one per selected input
+            block.
+        """
         indices = _resolve_block_indices(wrt_indices, len(self.inputs))
         return tuple(self.vjp(wrt_index=index) for index in indices)
 
@@ -596,7 +712,15 @@ class Function:
         self,
         wrt_indices: Iterable[int] | None = None,
     ) -> tuple[Function, ...]:
-        """Build Hessian functions for one or more input blocks."""
+        """Build Hessian functions for one or more input blocks.
+
+        Args:
+            wrt_indices: Optional iterable of input block indices. When
+                omitted, Hessians are built for every declared input block.
+
+        Returns:
+            A tuple of Hessian functions, one per selected input block.
+        """
         indices = _resolve_block_indices(wrt_indices, len(self.inputs))
         return tuple(self.hessian(index) for index in indices)
 
@@ -604,7 +728,17 @@ class Function:
         self,
         wrt_indices: Iterable[int] | None = None,
     ) -> tuple[Function, ...]:
-        """Build Hessian-vector product functions for one or more input blocks."""
+        """Build Hessian-vector product functions for one or more input blocks.
+
+        Args:
+            wrt_indices: Optional iterable of input block indices. When
+                omitted, HVP functions are built for every declared input
+                block.
+
+        Returns:
+            A tuple of Hessian-vector product functions, one per selected
+            input block.
+        """
         indices = _resolve_block_indices(wrt_indices, len(self.inputs))
         return tuple(self.hvp(index) for index in indices)
 
@@ -636,6 +770,11 @@ class Function:
         )
 
     def __repr__(self) -> str:
+        """Return a concise debugging representation of the function.
+
+        The representation is intentionally short and stable so it is easy to
+        inspect in tests, logs, and interactive sessions.
+        """
         return (
             f"Function(name={self.name!r}, input_names={self.input_names!r}, "
             f"output_names={self.output_names!r})"

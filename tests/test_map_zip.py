@@ -107,8 +107,8 @@ class MapZipExtraTests(unittest.TestCase):
             calls.setdefault("create", []).append((func, path, kwargs))
             return {"project": path}
 
-        with mock.patch("gradgen.rust_codegen.generate_rust", fake_generate_rust), mock.patch(
-            "gradgen.rust_codegen.create_rust_project", fake_create_rust_project
+        with mock.patch("gradgen._rust_codegen.codegen.generate_rust", fake_generate_rust), mock.patch(
+            "gradgen._rust_codegen.project.create_rust_project", fake_create_rust_project
         ):
             # Call the ZippedFunction proxies
             gen_res = zipped.generate_rust(function_name="fn")

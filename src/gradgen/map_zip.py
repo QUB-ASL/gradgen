@@ -46,7 +46,7 @@ class ZippedJacobianFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged Jacobian kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -67,7 +67,7 @@ class ZippedJacobianFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged Jacobian kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,
@@ -162,7 +162,7 @@ class ZippedFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged batched kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -183,7 +183,7 @@ class ZippedFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged batched kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,
@@ -275,7 +275,7 @@ class ReducedFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged reduce kernel."""
-        from .rust_codegen import generate_rust
+        from ._rust_codegen.codegen import generate_rust
 
         return generate_rust(
             self,
@@ -296,7 +296,7 @@ class ReducedFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged reduce kernel."""
-        from .rust_codegen import create_rust_project
+        from ._rust_codegen.project import create_rust_project
 
         return create_rust_project(
             self,
