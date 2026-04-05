@@ -273,7 +273,11 @@ class Function:
             simplify_derivatives=simplify_derivatives,
         )
 
-    def __call__(self, *args: BoundValue) -> FunctionArg | tuple[FunctionArg, ...] | float | tuple[float, ...]:
+    def __call__(self, *args: BoundValue) \
+            -> FunctionArg \
+            | tuple[FunctionArg, ...] \
+            | float \
+            | tuple[float, ...]:
         """Call the function with symbolic or numeric arguments.
 
         Args:
@@ -295,11 +299,13 @@ class Function:
         mapping: dict[SXNode, SX] = {}
         for formal, actual in zip(self.inputs, args):
             bound = _coerce_bound_arg(actual, formal)
-            for formal_scalar, actual_scalar in zip(_flatten_single(formal), _flatten_single(bound)):
+            for formal_scalar, actual_scalar in \
+                    zip(_flatten_single(formal), _flatten_single(bound)):
                 mapping[formal_scalar.node] = actual_scalar
 
         evaluated = tuple(
-            _finalize_output(_substitute_output(output, mapping)) for output in self.outputs
+            _finalize_output(_substitute_output(output, mapping))
+            for output in self.outputs
         )
         return _collapse_outputs(evaluated)
 
@@ -308,11 +314,12 @@ class Function:
         *tangent_inputs: BoundValue,
         name: str | None = None,
     ) -> Function:
-        """Build a new function representing a forward-mode directional derivative.
+        """Build a new function representing a forward-mode directional
+        derivative.
 
         Args:
-            *tangent_inputs: One tangent seed for each declared input. Seeds
-                must match the shape of the corresponding inputs.
+            *tangent_inputs: One tangent seed for each declared input. 
+                Seeds must match the shape of the corresponding inputs.
             name: Optional name for the differentiated function.
 
         Returns:
@@ -324,7 +331,8 @@ class Function:
 
         if len(tangent_inputs) != len(self.inputs):
             raise ValueError(
-                f"expected {len(self.inputs)} tangent arguments, received {len(tangent_inputs)}"
+                f"expected {len(self.inputs)} "
+                f"tangent arguments, received {len(tangent_inputs)}"
             )
 
         differentiated_outputs: list[FunctionArg] = []
@@ -342,7 +350,8 @@ class Function:
             output_names=self.output_names,
         )
 
-    def gradient(self, wrt_index: int = 0, name: str | None = None) -> Function:
+    def gradient(self, wrt_index: int = 0, name: str | None = None) \
+            -> Function:
         """Build a gradient function for a scalar-output function.
 
         Args:
@@ -357,7 +366,8 @@ class Function:
         if not 0 <= wrt_index < len(self.inputs):
             raise IndexError("wrt_index is out of range")
         if len(self.outputs) != 1 or not isinstance(self.outputs[0], SX):
-            raise ValueError("Function.gradient requires exactly one scalar output")
+            raise ValueError(
+                "Function.gradient requires exactly one scalar output")
 
         from .ad import gradient
 
@@ -395,11 +405,11 @@ class Function:
         - ``"grad"`` for the gradient block with respect to ``wrt_index``
         - ``"jf"`` for the Jacobian block with respect to ``wrt_index``
         - ``"hessian"`` for the Hessian block with respect to ``wrt_index``
-        - ``"hvp"`` for the Hessian-vector product with respect to ``wrt_index``
+        - ``"hvp"`` for the Hessian-vector product wrt ``wrt_index``
 
         The output order follows ``components`` exactly. If ``"hvp"`` is
-        requested, the returned function appends one tangent input matching the
-        selected differentiation block.
+        requested, the returned function appends one tangent input matching 
+        the selected differentiation block.
         """
         if not 0 <= wrt_index < len(self.inputs):
             raise IndexError("wrt_index is out of range")
@@ -430,25 +440,34 @@ class Function:
                 gradient_function = self.gradient(wrt_index)
                 outputs.extend(gradient_function.outputs)
                 output_names.extend(
-                    f"gradient_{output_name}" for output_name in gradient_function.output_names
+                    f"gradient_{output_name}"
+                    for output_name in gradient_function.output_names
                 )
                 continue
             if component == "hessian":
                 hessian_function = self.hessian(wrt_index)
                 outputs.extend(hessian_function.outputs)
                 output_names.extend(
-                    f"hessian_{output_name}" for output_name in hessian_function.output_names
+                    f"hessian_{output_name}"
+                    for output_name in hessian_function.output_names
                 )
                 continue
             if component == "hvp":
                 if tangent_input is None:
-                    raise AssertionError("tangent input should have been created for hvp")
-                if len(self.outputs) != 1 or not isinstance(self.outputs[0], SX):
-                    raise ValueError("Function.joint requires exactly one scalar output when 'hvp' is requested")
+                    raise AssertionError(
+                        "tangent input should have been created for hvp")
+                if len(self.outputs) != 1 \
+                        or not isinstance(self.outputs[0], SX):
+                    raise ValueError(
+                        "Function.joint requires exactly one scalar output"
+                        "when 'hvp' is requested")
                 from .ad import jvp
 
                 gradient_output = self.gradient(wrt_index).outputs[0]
-                hvp_output = jvp(gradient_output, self.inputs[wrt_index], tangent_input)
+                hvp_output = jvp(
+                    gradient_output, 
+                    self.inputs[wrt_index], 
+                    tangent_input)
                 outputs.append(hvp_output)
                 output_names.append(f"hvp_{self.output_names[0]}")
                 continue
@@ -459,8 +478,12 @@ class Function:
             self.input_names[wrt_index],
             resolved_components,
         )
-        inputs = self.inputs if tangent_input is None else (*self.inputs, tangent_input)
-        input_names = self.input_names if tangent_input_name is None else (*self.input_names, tangent_input_name)
+        inputs = self.inputs \
+            if tangent_input is None \
+            else (*self.inputs, tangent_input)
+        input_names = self.input_names \
+            if tangent_input_name is None \
+            else (*self.input_names, tangent_input_name)
         joint_function = Function(
             joint_name,
             inputs,
@@ -470,7 +493,9 @@ class Function:
         )
         if simplify_joint is None:
             return joint_function
-        return joint_function.simplify(max_effort=simplify_joint, name=joint_name)
+        return joint_function.simplify(
+            max_effort=simplify_joint, 
+            name=joint_name)
 
     def hvp(
         self,
@@ -478,7 +503,8 @@ class Function:
         name: str | None = None,
         tangent_name: str | None = None,
     ) -> Function:
-        """Build a Hessian-vector product function for a scalar-output function.
+        """Build a Hessian-vector product function for a scalar-output 
+        function.
 
         The returned function keeps the original primal inputs and appends
         one additional tangent input matching the selected differentiation
@@ -539,7 +565,9 @@ class Function:
 
         if wrt_index is not None:
             if cotangent_outputs:
-                raise ValueError("runtime-seeded Function.vjp does not accept explicit cotangent outputs")
+                raise ValueError(
+                    "runtime-seeded Function.vjp does not "
+                    "accept explicit cotangent outputs")
             if not 0 <= wrt_index < len(self.inputs):
                 raise IndexError("wrt_index is out of range")
 
@@ -549,7 +577,8 @@ class Function:
             )
             cotangent_inputs = tuple(
                 _make_symbolic_input_like(output, cotangent_name)
-                for output, cotangent_name in zip(self.outputs, resolved_cotangent_names)
+                for output, cotangent_name
+                in zip(self.outputs, resolved_cotangent_names)
             )
 
             wrt = self.inputs[wrt_index]
@@ -566,11 +595,14 @@ class Function:
             )
 
         if cotangent_names is not None:
-            raise ValueError("cotangent_names requires wrt_index for runtime-seeded Function.vjp")
+            raise ValueError(
+                "cotangent_names requires wrt_index for "
+                "runtime-seeded Function.vjp")
 
         if len(cotangent_outputs) != len(self.outputs):
             raise ValueError(
-                f"expected {len(self.outputs)} cotangent arguments, received {len(cotangent_outputs)}"
+                f"expected {len(self.outputs)} cotangent arguments," 
+                f"received {len(cotangent_outputs)}"
             )
 
         differentiated_inputs: list[FunctionArg] = []
@@ -585,10 +617,14 @@ class Function:
             self.inputs,
             differentiated_inputs,
             input_names=self.input_names,
-            output_names=tuple(f"vjp_{input_name}" for input_name in self.input_names),
+            output_names=tuple(
+                f"vjp_{input_name}"
+                for input_name in self.input_names
+            ),
         )
 
-    def jacobian(self, wrt_index: int = 0, name: str | None = None) -> Function:
+    def jacobian(self, wrt_index: int = 0, name: str | None = None) \
+            -> Function:
         """Build a new function representing a Jacobian block.
 
         Args:
@@ -685,7 +721,8 @@ class Function:
         if not 0 <= wrt_index < len(self.inputs):
             raise IndexError("wrt_index is out of range")
         if len(self.outputs) != 1 or not isinstance(self.outputs[0], SX):
-            raise ValueError("Function.hessian requires exactly one scalar output")
+            raise ValueError(
+                "Function.hessian requires exactly one scalar output")
 
         wrt = self.inputs[wrt_index]
         block = hessian(self.outputs[0], wrt)
@@ -741,7 +778,9 @@ class Function:
         indices = _resolve_block_indices(wrt_indices, len(self.inputs))
         return tuple(self.hvp(index) for index in indices)
 
-    def simplify(self, max_effort: int | str = "basic", name: str | None = None) -> Function:
+    def simplify(self,
+                 max_effort: int | str = "basic",
+                 name: str | None = None) -> Function:
         """Build a new function with simplified outputs.
 
         Args:
@@ -800,7 +839,8 @@ def _resolve_names(
 
     resolved = tuple(names)
     if len(resolved) != count:
-        raise ValueError(f"expected {count} {label} names, received {len(resolved)}")
+        raise ValueError(f"expected {count} {label} names,"
+                         f" received {len(resolved)}")
     if len(set(resolved)) != len(resolved):
         raise ValueError(f"{label} names must be unique")
     return resolved
@@ -850,7 +890,8 @@ def _resolve_cotangent_names(
 ) -> tuple[str, ...]:
     """Resolve cotangent-input names associated with function outputs."""
     if names is None:
-        return tuple(f"cotangent_{output_name}" for output_name in output_names)
+        return tuple(
+            f"cotangent_{output_name}" for output_name in output_names)
     return _resolve_names(
         names=names,
         count=len(output_names),
@@ -859,7 +900,8 @@ def _resolve_cotangent_names(
     )
 
 
-def _make_symbolic_input_like(value: FunctionArg, base_name: str) -> FunctionArg:
+def _make_symbolic_input_like(value: FunctionArg, base_name: str) \
+        -> FunctionArg:
     """Create a fresh symbolic input with the same shape as ``value``."""
     if isinstance(value, SX):
         return SX.sym(base_name)
@@ -892,7 +934,9 @@ def _flatten_single(item: FunctionArg) -> tuple[SX, ...]:
     return item.elements
 
 
-def _visit_node(node: SXNode, seen: set[SXNode], ordered: list[SXNode]) -> None:
+def _visit_node(node: SXNode, 
+                seen: set[SXNode], 
+                ordered: list[SXNode]) -> None:
     """Depth-first topological traversal of expression nodes."""
     if node in seen:
         return
@@ -904,20 +948,25 @@ def _visit_node(node: SXNode, seen: set[SXNode], ordered: list[SXNode]) -> None:
     ordered.append(node)
 
 
-def _coerce_bound_arg(value: BoundValue, formal: FunctionArg) -> FunctionArg:
+def _coerce_bound_arg(value: BoundValue, 
+                      formal: FunctionArg) -> FunctionArg:
     """Coerce a call-time argument to match a declared input shape."""
     if isinstance(formal, SX):
         return _coerce_scalar_value(value)
     if isinstance(value, SXVector):
         if len(value) != len(formal):
-            raise ValueError("vector argument length must match the formal input")
+            raise ValueError(
+                "vector argument length must match the formal input")
         return value
     if isinstance(value, (list, tuple)):
         coerced = vector(value)
         if len(coerced) != len(formal):
-            raise ValueError("vector argument length must match the formal input")
+            raise ValueError(
+                "vector argument length must match the formal input")
         return coerced
-    raise TypeError("vector inputs require an SXVector or a sequence of scalar-like values")
+    raise TypeError(
+        "vector inputs require an SXVector or a sequence"
+        " of scalar-like values")
 
 
 def _coerce_scalar_value(value: BoundValue) -> SX:
@@ -929,22 +978,33 @@ def _coerce_scalar_value(value: BoundValue) -> SX:
     raise TypeError("scalar inputs require an SX, int, or float")
 
 
-def _substitute_output(output: FunctionArg, mapping: dict[SXNode, SX]) -> FunctionArg:
+def _substitute_output(output: FunctionArg, 
+                       mapping: dict[SXNode, SX]) -> FunctionArg:
     """Apply input substitution to a function output."""
     if isinstance(output, SX):
         return _substitute_scalar(output, mapping)
-    return SXVector(tuple(_substitute_scalar(element, mapping) for element in output))
+    return SXVector(
+        tuple(_substitute_scalar(element, mapping) for element in output))
 
 
-def _substitute_scalar(expr: SX, mapping: dict[SXNode, SX]) -> SX:
+def _substitute_scalar(expr: SX, 
+                       mapping: dict[SXNode, SX]) -> SX:
     """Recursively substitute formal input symbols with bound values."""
     if expr.node in mapping:
         return mapping[expr.node]
     if expr.op in {"symbol", "const"}:
         return expr
 
-    substituted_args = tuple(_substitute_scalar(SX(arg), mapping).node for arg in expr.node.args)
-    return SX(SXNode.make(expr.op, substituted_args, name=expr.name, value=expr.value))
+    substituted_args = tuple(
+        _substitute_scalar(SX(arg), mapping).node 
+        for arg in expr.node.args)
+    return SX(
+        SXNode.make(
+            expr.op,
+            substituted_args,
+            name=expr.name,
+            value=expr.value)
+        )
 
 
 def _finalize_output(output: FunctionArg) -> FunctionArg | float:
@@ -961,8 +1021,12 @@ def _finalize_output(output: FunctionArg) -> FunctionArg | float:
 
 def _collapse_outputs(
     outputs: tuple[FunctionArg | float | tuple[float, ...], ...]
-) -> FunctionArg | tuple[FunctionArg | float | tuple[float, ...], ...] | float | tuple[float, ...]:
-    """Return a single output directly and preserve tuples for multi-output calls."""
+) -> FunctionArg \
+        | tuple[FunctionArg | float | tuple[float, ...], ...] \
+        | float \
+        | tuple[float, ...]:
+    """Return a single output directly and preserve tuples 
+    for multi-output calls."""
     if len(outputs) == 1:
         return outputs[0]
     return outputs
@@ -1015,7 +1079,9 @@ def _evaluate_scalar(expr: SX) -> float:
     if expr.op == "custom_scalar":
         spec, x_value, params = parse_custom_scalar_args(expr.name, expr.args)
         if spec.eval_python is None:
-            raise ValueError(f"custom function {spec.name!r} does not support numeric evaluation")
+            raise ValueError(
+                f"custom function {spec.name!r} does not"
+                "support numeric evaluation")
         return invoke_custom_callback(
             spec.eval_python,
             _evaluate_scalar(x_value),
@@ -1025,7 +1091,9 @@ def _evaluate_scalar(expr: SX) -> float:
     if expr.op == "custom_vector":
         spec, x_value, params = parse_custom_vector_args(expr.name, expr.args)
         if spec.eval_python is None:
-            raise ValueError(f"custom function {spec.name!r} does not support numeric evaluation")
+            raise ValueError(
+                f"custom function {spec.name!r} does not "
+                "support numeric evaluation")
         return invoke_custom_callback(
             spec.eval_python,
             tuple(_evaluate_scalar(value) for value in x_value),
@@ -1051,7 +1119,8 @@ def _evaluate_scalar(expr: SX) -> float:
             )
         )
     if expr.op == "custom_scalar_hvp":
-        spec, x_value, tangent, params = parse_custom_scalar_hvp_args(expr.name, expr.args)
+        spec, x_value, tangent, params = parse_custom_scalar_hvp_args(
+            expr.name, expr.args)
         return float(
             evaluate_custom_hvp(
                 spec,
@@ -1061,27 +1130,32 @@ def _evaluate_scalar(expr: SX) -> float:
             )
         )
     if expr.op == "custom_vector_jacobian_component":
-        spec, index, x_value, params = parse_custom_vector_jacobian_component_args(expr.name, expr.args)
+        spec, index, x_value, params = \
+            parse_custom_vector_jacobian_component_args(expr.name, expr.args)
         gradient = evaluate_custom_jacobian(
             spec,
             tuple(_evaluate_scalar(value) for value in x_value),
             tuple(_evaluate_scalar(param) for param in params),
         )
         if not isinstance(gradient, tuple):
-            raise TypeError("vector custom Jacobians must evaluate to numeric vectors")
+            raise TypeError(
+                "vector custom Jacobians must evaluate to numeric vectors")
         return float(gradient[index])
     if expr.op == "custom_vector_hessian_entry":
-        spec, row, col, x_value, params = parse_custom_vector_hessian_entry_args(expr.name, expr.args)
+        spec, row, col, x_value, params = \
+            parse_custom_vector_hessian_entry_args(expr.name, expr.args)
         hessian = evaluate_custom_hessian(
             spec,
             tuple(_evaluate_scalar(value) for value in x_value),
             tuple(_evaluate_scalar(param) for param in params),
         )
         if not isinstance(hessian, tuple):
-            raise TypeError("vector custom Hessians must evaluate to numeric matrices")
+            raise TypeError(
+                "vector custom Hessians must evaluate to numeric matrices")
         return float(hessian[row][col])
     if expr.op == "custom_vector_hvp_component":
-        spec, index, x_value, tangent, params = parse_custom_vector_hvp_component_args(expr.name, expr.args)
+        spec, index, x_value, tangent, params = \
+            parse_custom_vector_hvp_component_args(expr.name, expr.args)
         hvp = evaluate_custom_hvp(
             spec,
             tuple(_evaluate_scalar(value) for value in x_value),
@@ -1089,33 +1163,44 @@ def _evaluate_scalar(expr: SX) -> float:
             tuple(_evaluate_scalar(param) for param in params),
         )
         if not isinstance(hvp, tuple):
-            raise TypeError("vector custom HVPs must evaluate to numeric vectors")
+            raise TypeError(
+                "vector custom HVPs must evaluate to numeric vectors")
         return float(hvp[index])
     if expr.op == "atan2":
         return math.atan2(args[0], args[1])
     if expr.op == "hypot":
         return math.hypot(args[0], args[1])
     if expr.op == "matvec_component":
-        rows, cols, row, matrix_values, x_values = parse_matvec_component_args(expr.args)
+        rows, cols, row, matrix_values, x_values = \
+            parse_matvec_component_args(expr.args)
         _ = rows
         start = row * cols
-        return sum(matrix_values[start + index] * _evaluate_scalar(x_values[index]) for index in range(cols))
+        return_val = sum(matrix_values[start + index] 
+                         * _evaluate_scalar(x_values[index])
+                         for index in range(cols))
+        return return_val
     if expr.op == "quadform":
         size, matrix_values, x_values = parse_quadform_args(expr.args)
         x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
         total = 0.0
         for row in range(size):
             for col in range(size):
-                total += matrix_values[row * size + col] * x_numeric[row] * x_numeric[col]
+                total += matrix_values[row * size + col] \
+                    * x_numeric[row] \
+                    * x_numeric[col]
         return total
     if expr.op == "bilinear_form":
-        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(expr.args)
+        rows, cols, matrix_values, x_values, y_values \
+            = parse_bilinear_form_args(expr.args)
         x_numeric = tuple(_evaluate_scalar(value) for value in x_values)
         y_numeric = tuple(_evaluate_scalar(value) for value in y_values)
         total = 0.0
         for row in range(rows):
             for col in range(cols):
-                total += matrix_values[row * cols + col] * x_numeric[row] * y_numeric[col]
+                total += \
+                    matrix_values[row * cols + col] \
+                    * x_numeric[row] \
+                    * y_numeric[col]
         return total
     if expr.op == "sum":
         return sum(args)
