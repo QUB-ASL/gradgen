@@ -28,6 +28,11 @@ python -m pip install -e .
 
 ## Python API
 
+The generated module exposes:
+
+- `__version__`: the wrapper version from `pyproject.toml`
+- `__all__`: the public Python API exported by the module
+
 - `workspace_for_function("energy")`
 - `call("energy", ...)`
 

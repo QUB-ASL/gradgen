@@ -1,7 +1,7 @@
 {
   "crate_name": "foo",
-  "created_at": "2026-04-03T13:18:18.702797Z",
-  "gradgen_version": "0.4.0a5",
+  "created_at": "2026-04-05T00:06:14.153506Z",
+  "gradgen_version": "0.4.0a6",
   "functions": [
     {
       "function_name": "energy",

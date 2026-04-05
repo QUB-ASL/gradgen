@@ -1,4 +1,5 @@
 #![no_std]
+#![forbid(unsafe_code)]
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GradgenError {
@@ -42,7 +43,7 @@ pub fn single_shooting_kernel_mpc_cost_f_states_meta() -> FunctionMetadata {
 ///
 /// Arguments:
 /// - `x0`:
-///   initial state slice
+///   initial state vector for the single-shooting rollout
 ///   Expected length: 2.
 /// - `u_seq`:
 ///   packed control-sequence slice laid out stage-major over the horizon
@@ -51,10 +52,10 @@ pub fn single_shooting_kernel_mpc_cost_f_states_meta() -> FunctionMetadata {
 ///   shared parameter slice used at every stage and terminal evaluation
 ///   Expected length: 2.
 /// - `cost`:
-///   total cost output
+///   scalar rollout cost
 ///   Expected length: 1.
 /// - `x_traj`:
-///   packed rollout state trajectory including x0 through xN
+///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 8.
@@ -185,7 +186,7 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq_meta() -> FunctionMetad
 ///
 /// Arguments:
 /// - `x0`:
-///   initial state slice
+///   initial state vector for the single-shooting rollout
 ///   Expected length: 2.
 /// - `u_seq`:
 ///   packed control-sequence slice laid out stage-major over the horizon
@@ -194,10 +195,10 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq_meta() -> FunctionMetad
 ///   shared parameter slice used at every stage and terminal evaluation
 ///   Expected length: 2.
 /// - `gradient_u_seq`:
-///   gradient with respect to the packed control sequence
+///   packed gradient with respect to the control sequence
 ///   Expected length: 5.
 /// - `x_traj`:
-///   packed rollout state trajectory including x0 through xN
+///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 14.
@@ -380,7 +381,7 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq_meta() -> FunctionMetada
 ///
 /// Arguments:
 /// - `x0`:
-///   initial state slice
+///   initial state vector for the single-shooting rollout
 ///   Expected length: 2.
 /// - `u_seq`:
 ///   packed control-sequence slice laid out stage-major over the horizon
@@ -389,14 +390,13 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq_meta() -> FunctionMetada
 ///   shared parameter slice used at every stage and terminal evaluation
 ///   Expected length: 2.
 /// - `v_u_seq`:
-///   packed control-sequence direction slice laid out stage-major over
-///   the horizon
+///   packed control-direction vector for the single-shooting HVP
 ///   Expected length: 5.
 /// - `hvp_u_seq`:
-///   Hessian-vector product with respect to the packed control sequence
+///   packed Hessian-vector product with respect to the control sequence
 ///   Expected length: 5.
 /// - `x_traj`:
-///   packed rollout state trajectory including x0 through xN
+///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 32.
@@ -687,7 +687,7 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq_meta() -> FunctionMet
 ///
 /// Arguments:
 /// - `x0`:
-///   initial state slice
+///   initial state vector for the single-shooting rollout
 ///   Expected length: 2.
 /// - `u_seq`:
 ///   packed control-sequence slice laid out stage-major over the horizon
@@ -696,13 +696,13 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq_meta() -> FunctionMet
 ///   shared parameter slice used at every stage and terminal evaluation
 ///   Expected length: 2.
 /// - `cost`:
-///   total cost output
+///   scalar rollout cost
 ///   Expected length: 1.
 /// - `gradient_u_seq`:
-///   gradient with respect to the packed control sequence
+///   packed gradient with respect to the control sequence
 ///   Expected length: 5.
 /// - `x_traj`:
-///   packed rollout state trajectory including x0 through xN
+///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 15.
