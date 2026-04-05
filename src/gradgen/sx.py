@@ -188,8 +188,9 @@ class SX:
     def args(self) -> tuple[SX, ...]:
         """Return child expressions as ``SX`` wrappers.
         
-        The returned tuple is reconstructed from the interned node state, 
-        so callers receive fresh wrappers but the underlying node graph remains shared.
+        The returned tuple is reconstructed from the interned node state,
+        so callers receive fresh wrappers but the underlying node graph
+        remains shared.
         
         Returns:
             A tuple of child ``SX`` expressions in structural order.

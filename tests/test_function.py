@@ -8,14 +8,16 @@ from gradgen.sx import SX, SXVector, bilinear_form, matvec, quadform
 
 
 class FunctionTests(unittest.TestCase):
-    
-    def test_map_function_to_function_supports_constant_symbolic_output(self) -> None:
+
+    def test_map_function_constant_symbolic_output(self) -> None:
         x = SX.sym("x")
         constant_output = Function("constant", [x], [SX.const(3.0)])
         mapped = map_function(
-            constant_output, 2,
-            input_name="x_seq", 
-            name="constant_map")
+            constant_output,
+            2,
+            input_name="x_seq",
+            name="constant_map",
+        )
 
         expanded = mapped.to_function()
 
@@ -28,17 +30,24 @@ class FunctionTests(unittest.TestCase):
         mapped = map_function(
             constant_output,
             3, input_name="x_seq", 
-            name="constant_vec_map")
+            name="constant_vec_map",
+        )
 
         expanded = mapped.to_function()
 
         self.assertEqual(
-            expanded(
-                [0.0, 1.0, 2.0]), (1.0, -2.0, 1.0, -2.0, 1.0, -2.0) )
+            expanded([0.0, 1.0, 2.0]),
+            (1.0, -2.0, 1.0, -2.0, 1.0, -2.0),
+        )
 
-    def test_map_function_supports_mixed_constant_and_symbolic_multi_output(self) -> None:
+    def test_map_function_mixed_outputs(self) -> None:
         x = SX.sym("x")
-        mixed = Function("mixed", [x], [SX.const(3.0), x + 1.0], output_names=["c", "shifted"])
+        mixed = Function(
+            "mixed",
+            [x],
+            [SX.const(3.0), x + 1.0],
+            output_names=["c", "shifted"],
+        )
         mapped = map_function(mixed, 2, input_name="x_seq", name="mixed_map")
 
         expanded = mapped.to_function()
@@ -49,7 +58,12 @@ class FunctionTests(unittest.TestCase):
         x = SX.sym("x")
         y = SX.sym("y")
         constant_output = Function("constant_zip", [x, y], [SX.const(7.0)])
-        zipped = zip_function(constant_output, 3, input_names=["x_seq", "y_seq"], name="constant_zip_batch")
+        zipped = zip_function(
+            constant_output,
+            3,
+            input_names=["x_seq", "y_seq"],
+            name="constant_zip_batch",
+        )
 
         expanded = zipped.to_function()
 
@@ -62,13 +76,17 @@ class FunctionTests(unittest.TestCase):
         y = SX.sym("y")
         constant_vec = SXVector((SX.const(1.0), SX.const(2.0)))
         mixed = Function(
-            "mixed_zip", 
-            [x, y], [x + y, constant_vec], 
-            output_names=["sum", "const_vec"])
+            "mixed_zip",
+            [x, y],
+            [x + y, constant_vec],
+            output_names=["sum", "const_vec"],
+        )
         zipped = zip_function(
-            mixed, 2, 
-            input_names=["x_seq", "y_seq"], 
-            name="mixed_zip_batch")
+            mixed,
+            2,
+            input_names=["x_seq", "y_seq"],
+            name="mixed_zip_batch",
+        )
 
         expanded = zipped.to_function()
 
@@ -137,8 +155,14 @@ class FunctionTests(unittest.TestCase):
         y = SXVector.sym("y", 2)
         f = Function("f", [x, y], [y, x])
 
-        self.assertEqual([item.name for item in f.flat_inputs], ["x", "y_0", "y_1"])
-        self.assertEqual([item.name for item in f.flat_outputs], ["y_0", "y_1", "x"])
+        self.assertEqual(
+            [item.name for item in f.flat_inputs],
+            ["x", "y_0", "y_1"],
+        )
+        self.assertEqual(
+            [item.name for item in f.flat_outputs],
+            ["y_0", "y_1", "x"],
+        )
 
     def test_function_nodes_are_topologically_sorted(self) -> None:
         x = SX.sym("x")
@@ -146,21 +170,30 @@ class FunctionTests(unittest.TestCase):
         expr = (x + y).sin()
         f = Function("f", [x, y], [expr])
 
-        self.assertEqual([node.op for node in f.nodes], ["symbol", "symbol", "add", "sin"])
+        self.assertEqual(
+            [node.op for node in f.nodes],
+            ["symbol", "symbol", "add", "sin"],
+        )
 
     def test_function_repr_is_informative(self) -> None:
         x = SX.sym("x")
         f = Function(
-            "f", [x], [x], 
-            input_names=["x_in"], 
-            output_names=["x_out"])
+            "f",
+            [x],
+            [x],
+            input_names=["x_in"],
+            output_names=["x_out"],
+        )
 
         self.assertEqual(
             repr(f),
-            "Function(name='f', input_names=('x_in',), output_names=('x_out',))",
+            (
+                "Function(name='f', input_names=('x_in',), "
+                "output_names=('x_out',))"
+            ),
         )
 
-    def test_function_symbolic_call_returns_substituted_expression(self) -> None:
+    def test_function_symbolic_call_substitutes_expression(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")
         f = Function("f", [x], [x + y])
@@ -181,11 +214,13 @@ class FunctionTests(unittest.TestCase):
         result = f(z)
 
         self.assertIsInstance(result, SX)
-        result_args = {arg.name: arg for arg in result.args if arg.name is not None}
+        result_args = {
+            arg.name: arg for arg in result.args if arg.name is not None
+        }
         self.assertEqual(result_args["z"].metadata, {"domain": "real"})
         self.assertEqual(result_args["y"].metadata, {"domain": "complex"})
 
-    def test_function_can_use_sliced_vector_views_from_packed_input(self) -> None:
+    def test_function_uses_sliced_vector_views(self) -> None:
         z = SXVector.sym("z", 4)
         x_view = z[0:3]
         u_view = z[3:4]
@@ -237,7 +272,7 @@ class FunctionTests(unittest.TestCase):
         )
         self.assertAlmostEqual(result, expected)
 
-    def test_function_numeric_call_supports_additional_elementary_math(self) -> None:
+    def test_function_numeric_additional_math(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")
         expr = (
@@ -278,9 +313,20 @@ class FunctionTests(unittest.TestCase):
         )
         self.assertAlmostEqual(result, expected)
 
-    def test_function_numeric_vector_call_supports_norms(self) -> None:
+    def test_function_numeric_vector_norms(self) -> None:
         x = SXVector.sym("x", 3)
-        f = Function("f", [x], [x.norm1(), x.norm2(), x.norm2sq(), x.norm_inf(), x.norm_p(3), x.norm_p_to_p(3)])
+        f = Function(
+            "f",
+            [x],
+            [
+                x.norm1(),
+                x.norm2(),
+                x.norm2sq(),
+                x.norm_inf(),
+                x.norm_p(3),
+                x.norm_p_to_p(3),
+            ],
+        )
 
         result = f([3.0, -4.0, 1.0])
 
@@ -303,14 +349,18 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(result[3], -4.0)
         self.assertEqual(result[4], 0.0)
 
-    def test_function_numeric_call_supports_constant_matrix_helpers(self) -> None:
+    def test_function_numeric_matrix_helpers(self) -> None:
         x = SXVector.sym("x", 2)
         y = SXVector.sym("y", 2)
         matrix = [[2.0, 1.0], [1.0, 3.0]]
         f = Function(
             "f",
             [x, y],
-            [matvec(matrix, x), quadform(matrix, x), bilinear_form(x, matrix, y)],
+            [
+                matvec(matrix, x),
+                quadform(matrix, x),
+                bilinear_form(x, matrix, y),
+            ],
         )
 
         result = f([1.0, 2.0], [3.0, 4.0])
@@ -319,11 +369,14 @@ class FunctionTests(unittest.TestCase):
         self.assertEqual(result[1], 18.0)
         self.assertEqual(result[2], 40.0)
 
-    def test_function_numeric_call_supports_randomized_small_constant_matrix_helpers(self) -> None:
+    def test_function_numeric_random_matrix_helpers(self) -> None:
         rng = random.Random(1234)
 
         for size in (1, 2, 3):
-            matrix = [[rng.uniform(-2.0, 2.0) for _ in range(size)] for _ in range(size)]
+            matrix = [
+                [rng.uniform(-2.0, 2.0) for _ in range(size)]
+                for _ in range(size)
+            ]
             x_value = [rng.uniform(-2.0, 2.0) for _ in range(size)]
             y_value = [rng.uniform(-2.0, 2.0) for _ in range(size)]
 
@@ -332,13 +385,18 @@ class FunctionTests(unittest.TestCase):
             f = Function(
                 f"f_{size}",
                 [x, y],
-                [matvec(matrix, x), quadform(matrix, x, is_symmetric=False), bilinear_form(x, matrix, y)],
+                [
+                    matvec(matrix, x),
+                    quadform(matrix, x, is_symmetric=False),
+                    bilinear_form(x, matrix, y),
+                ],
             )
 
             result = f(x_value, y_value)
 
             expected_matvec = tuple(
-                sum(matrix[row][col] * x_value[col] for col in range(size)) for row in range(size)
+                sum(matrix[row][col] * x_value[col] for col in range(size))
+                for row in range(size)
             )
             expected_quadform = sum(
                 matrix[row][col] * x_value[row] * x_value[col]
@@ -357,7 +415,7 @@ class FunctionTests(unittest.TestCase):
             self.assertAlmostEqual(result[1], expected_quadform)
             self.assertAlmostEqual(result[2], expected_bilinear)
 
-    def test_function_joint_returns_combined_primal_and_jacobian_outputs(self) -> None:
+    def test_function_joint_returns_primal_and_jacobian(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function(
             "f",
@@ -403,7 +461,7 @@ class FunctionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             f.joint(("f", "banana"))
 
-    def test_function_numeric_multi_input_multi_output_call_returns_tuple(self) -> None:
+    def test_function_multi_input_multi_output_returns_tuple(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")
         f = Function("f", [x, y], [x + y, x * y])
@@ -464,7 +522,10 @@ class FunctionTests(unittest.TestCase):
 
         result = f(0.5)
 
-        self.assertAlmostEqual(result, math.sin(0.5) + math.cos(0.5) + math.exp(0.5))
+        self.assertAlmostEqual(
+            result,
+            math.sin(0.5) + math.cos(0.5) + math.exp(0.5),
+        )
 
 
 if __name__ == "__main__":
