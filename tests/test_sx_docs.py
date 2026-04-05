@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 class SXDocstringTests(unittest.TestCase):
-    def test_all_non_overload_functions_have_multiline_docstrings(self) -> None:
+    def test_all_public_functions_have_multiline_docstrings(self) -> None:
         source = Path("src/gradgen/sx.py").read_text()
         module = ast.parse(source)
 
@@ -18,7 +18,7 @@ class SXDocstringTests(unittest.TestCase):
             for child in body:
                 if isinstance(child, ast.FunctionDef):
                     if any(
-                        isinstance(decorator, ast.Name) 
+                        isinstance(decorator, ast.Name)
                             and decorator.id == "overload"
                             for decorator in child.decorator_list
                     ):

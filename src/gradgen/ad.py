@@ -34,7 +34,9 @@ HessianExpr = SX | tuple[SXVector, ...]
 ADSeed = SX | SXVector | float | int | list[object] | tuple[object, ...]
 
 
-def jvp(expr: ADExpr, wrt: ADExpr, tangent: ADSeed | None = None) -> ADExpr:
+def jvp(expr: ADExpr,
+        wrt: ADExpr,
+        tangent: ADSeed | None = None) -> ADExpr:
     """Compute a symbolic Jacobian-vector product in forward mode.
 
     Args:
@@ -52,16 +54,21 @@ def jvp(expr: ADExpr, wrt: ADExpr, tangent: ADSeed | None = None) -> ADExpr:
 
     if isinstance(expr, SX):
         return _forward_scalar(expr, tangent_map, {})
-    return SXVector(tuple(_forward_scalar(element, tangent_map, {}) for element in expr))
+    return SXVector(tuple(_forward_scalar(element, tangent_map, {})
+                          for element in expr))
 
 
-def derivative(expr: SX, wrt: SX, seed: SX | float | int = 1.0) -> SX:
+def derivative(expr: SX,
+               wrt: SX,
+               seed: SX | float | int = 1.0) -> SX:
     """Compute the forward derivative of a scalar expression."""
     tangent = seed if isinstance(seed, SX) else SX.const(seed)
     return _forward_scalar(expr, {wrt.node: tangent}, {})
 
 
-def vjp(expr: ADExpr, wrt: ADExpr, cotangent: ADSeed | None = None) -> ADExpr:
+def vjp(expr: ADExpr,
+        wrt: ADExpr,
+        cotangent: ADSeed | None = None) -> ADExpr:
     """Compute a symbolic vector-Jacobian product in reverse mode.
 
     Args:
@@ -93,16 +100,20 @@ def vjp(expr: ADExpr, wrt: ADExpr, cotangent: ADSeed | None = None) -> ADExpr:
 
     if isinstance(wrt, SX):
         return adjoints.get(wrt.node, SX.const(0.0))
-    return SXVector(tuple(adjoints.get(variable.node, SX.const(0.0)) for variable in wrt))
+    return SXVector(
+        tuple(adjoints.get(variable.node, SX.const(0.0)) for variable in wrt))
 
 
-def gradient(expr: SX, wrt: ADExpr, seed: SX | float | int = 1.0) -> ADExpr:
+def gradient(expr: SX,
+             wrt: ADExpr,
+             seed: SX | float | int = 1.0) -> ADExpr:
     """Compute a reverse-mode gradient of a scalar expression."""
     cotangent = seed if isinstance(seed, SX) else SX.const(seed)
     return vjp(expr, wrt, cotangent)
 
 
-def jacobian(expr: ADExpr, wrt: ADExpr) -> JacobianExpr:
+def jacobian(expr: ADExpr,
+             wrt: ADExpr) -> JacobianExpr:
     """Compute a symbolic Jacobian.
 
     The return shape follows the current no-matrix design:
@@ -124,7 +135,8 @@ def jacobian(expr: ADExpr, wrt: ADExpr) -> JacobianExpr:
     return SXVector(tuple(entry for row in rows for entry in row))
 
 
-def hessian(expr: SX, wrt: ADExpr) -> HessianExpr:
+def hessian(expr: SX,
+            wrt: ADExpr) -> HessianExpr:
     """Compute a symbolic Hessian for a scalar expression.
 
     The current return shape follows the vector-first representation:
@@ -138,7 +150,8 @@ def hessian(expr: SX, wrt: ADExpr) -> HessianExpr:
     return tuple(gradient(component, wrt) for component in gradient(expr, wrt))
 
 
-def _build_tangent_map(wrt: ADExpr, tangent: ADSeed | None) -> dict[SXNode, SX]:
+def _build_tangent_map(wrt: ADExpr,
+                       tangent: ADSeed | None) -> dict[SXNode, SX]:
     """Map formal differentiation variables to tangent expressions."""
     if isinstance(wrt, SX):
         if tangent is None:
@@ -152,7 +165,8 @@ def _build_tangent_map(wrt: ADExpr, tangent: ADSeed | None) -> dict[SXNode, SX]:
 
     tangent_vector = _coerce_vector_seed(tangent)
     if len(wrt) != len(tangent_vector):
-        raise ValueError("tangent seed length must match the differentiation variable")
+        raise ValueError(
+            "tangent seed length must match the differentiation variable")
 
     return {
         variable.node: tangent_value

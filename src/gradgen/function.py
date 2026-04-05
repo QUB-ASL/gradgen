@@ -352,7 +352,9 @@ class Function:
             output_names=self.output_names,
         )
 
-    def gradient(self, wrt_index: int = 0, name: str | None = None) \
+    def gradient(self,
+                 wrt_index: int = 0,
+                 name: str | None = None) \
             -> Function:
         """Build a gradient function for a scalar-output function.
 

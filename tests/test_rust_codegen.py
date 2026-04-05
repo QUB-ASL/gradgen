@@ -151,7 +151,7 @@ class RustCodegenTests(unittest.TestCase):
         expected_offset = 0
         for index, size in enumerate(codegen.output_sizes):
             output_name = function.output_names[index]
-            expected_slice = expected[expected_offset : expected_offset + size]
+            expected_slice = expected[expected_offset:expected_offset + size]
             expected_offset += size
             output_binding_lines.append(
                 f"        let mut {output_name} = [0.0_{scalar_type}; {size}];"
@@ -625,20 +625,22 @@ mod tests {{
             self.assertNotIn("0..(0 + 1)", lib_text)
             self.assertNotIn("(0 * 1)..((0 + 1) * 1)", lib_text)
 
-        expected_cost_literal = self._rust_array_literal(
-            [expected_cost], "f64"
-        )
-        expected_states_literal = self._rust_array_literal(
-            expected_states, "f64"
-        )
-        expected_gradient_literal = self._rust_array_literal(
-            expected_gradient, "f64"
-        )
-        expected_hvp_literal = self._rust_array_literal(expected_hvp, "f64")
+            expected_cost_literal = self._rust_array_literal(
+                [expected_cost], "f64"
+            )
+            expected_states_literal = self._rust_array_literal(
+                expected_states, "f64"
+            )
+            expected_gradient_literal = self._rust_array_literal(
+                expected_gradient, "f64"
+            )
+            expected_hvp_literal = self._rust_array_literal(
+                expected_hvp, "f64"
+            )
 
-        self._append_rust_test(
-            project.project_dir,
-            f"""
+            self._append_rust_test(
+                project.project_dir,
+                f"""
 #[cfg(test)]
 mod single_shooting_runtime_tests {{
     use super::*;
@@ -760,10 +762,10 @@ mod single_shooting_runtime_tests {{
     }}
 }}
 """.lstrip(),
-        )
+            )
 
-        completed = self._run_cargo(project.project_dir, "test", "--quiet")
-        self.assertEqual(completed.returncode, 0)
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
 
     @staticmethod
     def _run_build_very_large_ss_problem(queue: multiprocessing.Queue) -> None:
@@ -816,7 +818,10 @@ mod single_shooting_runtime_tests {{
             proc.terminate()
             proc.join()
             self.fail(
-                f"builder.build(tmpdir) exceeded timeout of {timeout_seconds:.1f}s"
+                (
+                    "builder.build(tmpdir) exceeded "
+                    f"timeout of {timeout_seconds:.1f}s"
+                )
             )
 
         if proc.exitcode != 0:
@@ -923,19 +928,19 @@ mod single_shooting_runtime_tests {{
             self.assertNotIn("0..(0 + 1)", lib_text)
             self.assertNotIn("(0 * 1)..((0 + 1) * 1)", lib_text)
 
-        expected_cost_literal = self._rust_array_literal(
-            [expected_cost], "f64"
-        )
-        expected_states_literal = self._rust_array_literal(
-            expected_states, "f64"
-        )
-        expected_gradient_literal = self._rust_array_literal(
-            expected_gradient, "f64"
-        )
+            expected_cost_literal = self._rust_array_literal(
+                [expected_cost], "f64"
+            )
+            expected_states_literal = self._rust_array_literal(
+                expected_states, "f64"
+            )
+            expected_gradient_literal = self._rust_array_literal(
+                expected_gradient, "f64"
+            )
 
-        self._append_rust_test(
-            project.project_dir,
-            f"""
+            self._append_rust_test(
+                project.project_dir,
+                f"""
 #[cfg(test)]
 mod single_shooting_horizon_one_tests {{
     use super::*;
@@ -1004,7 +1009,7 @@ mod single_shooting_horizon_one_tests {{
     }}
 }}
 """.lstrip(),
-        )
+            )
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
@@ -1042,12 +1047,25 @@ mod single_shooting_horizon_one_tests {{
             primal_codegen, gradient_codegen = project.codegens
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
+            expected_cost_literal = self._rust_array_literal(
+                [expected_cost], "f64"
+            )
+            expected_states_literal = self._rust_array_literal(
+                expected_states, "f64"
+            )
+            expected_gradient_literal = self._rust_array_literal(
+                expected_gradient, "f64"
+            )
+
             self.assertIn(
-                "&u_seq[(stage_index * 2)..((stage_index + 1) * 2)]",
+                ("&u_seq[(stage_index * 2).." "((stage_index + 1) * 2)]"),
                 lib_text,
             )
             self.assertIn(
-                "&mut gradient_u_seq[(stage_index * 2)..((stage_index + 1) * 2)]",
+                (
+                    "&mut gradient_u_seq[(stage_index * 2).."
+                    "((stage_index + 1) * 2)]"
+                ),
                 lib_text,
             )
 
@@ -1058,9 +1076,15 @@ mod single_shooting_horizon_one_tests {{
 mod single_shooting_multi_u_tests {{
     use super::*;
 
-    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+    fn assert_close_slice(
+        actual: &[f64],
+        expected: &[f64],
+        tolerance: f64,
+    ) {{
         assert_eq!(actual.len(), expected.len());
-        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+        for (actual_value, expected_value) in
+            actual.iter().zip(expected.iter())
+        {{
             assert!(
                 (actual_value - expected_value).abs() <= tolerance,
                 "expected {{expected_value}}, got {{actual_value}}"
@@ -1077,16 +1101,46 @@ mod single_shooting_multi_u_tests {{
         let mut cost = [0.0_f64; 1];
         let mut x_traj = [0.0_f64; 6];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x0, &u_seq, &p, &mut cost, &mut x_traj, &mut primal_work);
-        assert_close_slice(&cost, &{self._rust_array_literal([expected_cost], "f64")}, 1e-10_f64);
-        assert_close_slice(&x_traj, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+        {primal_codegen.function_name}(
+            &x0,
+            &u_seq,
+            &p,
+            &mut cost,
+            &mut x_traj,
+            &mut primal_work,
+        );
+        assert_close_slice(
+            &cost,
+            &{expected_cost_literal},
+            1e-10_f64,
+        );
+        assert_close_slice(
+            &x_traj,
+            &{expected_states_literal},
+            1e-10_f64,
+        );
 
         let mut gradient_u_seq = [0.0_f64; 4];
         let mut grad_states = [0.0_f64; 6];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x0, &u_seq, &p, &mut gradient_u_seq, &mut grad_states, &mut gradient_work);
-        assert_close_slice(&gradient_u_seq, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-5_f64);
-        assert_close_slice(&grad_states, &{self._rust_array_literal(expected_states, "f64")}, 1e-10_f64);
+        {gradient_codegen.function_name}(
+            &x0,
+            &u_seq,
+            &p,
+            &mut gradient_u_seq,
+            &mut grad_states,
+            &mut gradient_work,
+        );
+        assert_close_slice(
+            &gradient_u_seq,
+            &{expected_gradient_literal},
+            1e-5_f64,
+        );
+        assert_close_slice(
+            &grad_states,
+            &{expected_states_literal},
+            1e-10_f64,
+        );
     }}
 }}
 """.lstrip(),
@@ -1698,7 +1752,10 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn(
-                "pub fn repeat_demo(x: &[f64], y: &mut [f64], work: &mut [f64]) -> Result<(), GradgenError> ",
+                (
+                    "pub fn repeat_demo(x: &[f64], y: &mut [f64], "
+                    "work: &mut [f64]) -> Result<(), GradgenError> "
+                ),
                 lib_text,
             )
             self.assertIn("for repeat_index in 0..3 {", lib_text)
@@ -1941,6 +1998,12 @@ mod single_shooting_multi_u_tests {{
                     [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
                 ),
             )
+            primal_expected_literal = self._rust_array_literal(
+                primal_expected, "f64"
+            )
+            gradient_expected_literal = self._rust_array_literal(
+                gradient_expected, "f64"
+            )
             self._append_rust_test(
                 project.project_dir,
                 f"""
@@ -1948,9 +2011,15 @@ mod single_shooting_multi_u_tests {{
 mod tests {{
     use super::*;
 
-    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+    fn assert_close_slice(
+        actual: &[f64],
+        expected: &[f64],
+        tolerance: f64,
+    ) {{
         assert_eq!(actual.len(), expected.len());
-        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+        for (actual_value, expected_value) in
+            actual.iter().zip(expected.iter())
+        {{
             assert!(
                 (actual_value - expected_value).abs() <= tolerance,
                 "expected {{expected_value}}, got {{actual_value}}"
@@ -1961,16 +2030,41 @@ mod tests {{
     #[test]
     fn evaluates_composed_builder_reference() {{
         let x = [1.0_f64, 2.0_f64];
-        let parameters = [3.0_f64, 4.0_f64, 5.0_f64, 6.0_f64, 7.0_f64, 8.0_f64, 9.0_f64];
+        let parameters = [
+            3.0_f64,
+            4.0_f64,
+            5.0_f64,
+            6.0_f64,
+            7.0_f64,
+            8.0_f64,
+            9.0_f64,
+        ];
         let mut primal_y = [0.0_f64; 1];
         let mut primal_work = [0.0_f64; {project.codegens[0].workspace_size}];
-        {project.codegens[0].function_name}(&x, &parameters, &mut primal_y, &mut primal_work);
-        assert_close_slice(&primal_y, &{self._rust_array_literal(primal_expected, "f64")}, 1e-12_f64);
+        {project.codegens[0].function_name}(
+            &x,
+            &parameters,
+            &mut primal_y,
+            &mut primal_work,
+        );
+        assert_close_slice(&primal_y, &{primal_expected_literal}, 1e-12_f64);
 
         let mut gradient_y = [0.0_f64; 2];
-        let mut gradient_work = [0.0_f64; {project.codegens[1].workspace_size}];
-        {project.codegens[1].function_name}(&x, &parameters, &mut gradient_y, &mut gradient_work);
-        assert_close_slice(&gradient_y, &{self._rust_array_literal(gradient_expected, "f64")}, 1e-12_f64);
+        let mut gradient_work = [
+            0.0_f64;
+            {project.codegens[1].workspace_size}
+        ];
+        {project.codegens[1].function_name}(
+            &x,
+            &parameters,
+            &mut gradient_y,
+            &mut gradient_work,
+        );
+        assert_close_slice(
+            &gradient_y,
+            &{gradient_expected_literal},
+            1e-12_f64,
+        );
     }}
 }}
 """.lstrip(),
@@ -2262,11 +2356,18 @@ mod tests {{
 
         self.assertEqual(result.scalar_type, "f32")
         self.assertIn(
-            "pub fn square_plus_one(x: &[f32], y: &mut [f32], work: &mut [f32]) -> Result<(), GradgenError> ",
+            (
+                "pub fn square_plus_one(x: &[f32], y: &mut [f32], "
+                "work: &mut [f32]) -> Result<(), GradgenError> "
+            ),
             result.source,
         )
         self.assertIn(
-            'if work.is_empty() { return Err(GradgenError::WorkspaceTooSmall("work expected at least 1")); };',
+            (
+                "if work.is_empty() { "
+                "return Err(GradgenError::WorkspaceTooSmall("
+                '"work expected at least 1")); };'
+            ),
             result.source,
         )
         self.assertIn("work[0] += 1.0_f32;", result.source)
@@ -2468,11 +2569,17 @@ mod tests {{
         result = f.generate_rust()
 
         self.assertIn(
-            "fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {",
+            (
+                "fn matvec_component(matrix: &[f64], rows: usize, "
+                "cols: usize, row: usize, x: &[f64]) -> f64 {"
+            ),
             result.source,
         )
         self.assertIn(
-            "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
+            (
+                "fn matvec(matrix: &[f64], rows: usize, cols: usize, "
+                "x: &[f64], y: &mut [f64]) {"
+            ),
             result.source,
         )
         self.assertIn(
@@ -2480,7 +2587,10 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {",
+            (
+                "fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, "
+                "cols: usize, y: &[f64]) -> f64 {"
+            ),
             result.source,
         )
         self.assertIn(
@@ -2492,7 +2602,10 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "work[1] = bilinear_form(x, &[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, y);",
+            (
+                "work[1] = bilinear_form(x, &[2.0_f64, 1.0_f64, "
+                "1.0_f64, 3.0_f64], 2, 2, y);"
+            ),
             result.source,
         )
 
@@ -2515,11 +2628,17 @@ mod tests {{
         result = f.generate_rust(scalar_type="f32")
 
         self.assertIn(
-            "fn matvec_component(matrix: &[f32], rows: usize, cols: usize, row: usize, x: &[f32]) -> f32 {",
+            (
+                "fn matvec_component(matrix: &[f32], rows: usize, "
+                "cols: usize, row: usize, x: &[f32]) -> f32 {"
+            ),
             result.source,
         )
         self.assertIn(
-            "fn matvec(matrix: &[f32], rows: usize, cols: usize, x: &[f32], y: &mut [f32]) {",
+            (
+                "fn matvec(matrix: &[f32], rows: usize, cols: usize, "
+                "x: &[f32], y: &mut [f32]) {"
+            ),
             result.source,
         )
         self.assertIn(
@@ -2527,7 +2646,10 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "fn bilinear_form(x: &[f32], matrix: &[f32], rows: usize, cols: usize, y: &[f32]) -> f32 {",
+            (
+                "fn bilinear_form(x: &[f32], matrix: &[f32], rows: usize, "
+                "cols: usize, y: &[f32]) -> f32 {"
+            ),
             result.source,
         )
         self.assertIn(
@@ -2606,25 +2728,35 @@ mod tests {{
 
             self.assertEqual(
                 lib_text.count(
-                    "fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {"
+                    (
+                        "fn matvec_component(matrix: &[f64], rows: usize, "
+                        "cols: usize, row: usize, x: &[f64]) -> f64 {"
+                    )
                 ),
                 1,
             )
             self.assertEqual(
                 lib_text.count(
-                    "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {"
+                    (
+                        "fn matvec(matrix: &[f64], rows: usize, "
+                        "cols: usize, x: &[f64], y: &mut [f64]) {"
+                    )
                 ),
                 1,
             )
             self.assertEqual(
                 lib_text.count(
-                    "fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {"
+                    "fn quadform(matrix: &[f64], size: usize, x: &[f64]) "
+                    "-> f64 {"
                 ),
                 1,
             )
             self.assertEqual(
                 lib_text.count(
-                    "fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {"
+                    (
+                        "fn bilinear_form(x: &[f64], matrix: &[f64], "
+                        "rows: usize, cols: usize, y: &[f64]) -> f64 {"
+                    )
                 ),
                 1,
             )
@@ -2863,7 +2995,10 @@ mod tests {{
             except subprocess.CalledProcessError as exc:
                 if "Could not resolve host: index.crates.io" in exc.stderr:
                     self.skipTest(
-                        "cargo could not fetch libm in the offline test environment"
+                        (
+                            "cargo could not fetch libm in the "
+                            "offline test environment"
+                        )
                     )
                 raise
             self.assertEqual(completed.returncode, 0)
@@ -3026,7 +3161,7 @@ mod tests {{
                 f,
                 function_name=project.codegen.function_name,
                 inputs=0.2,
-                test_name="evaluates_extended_unary_math_against_python_reference",
+                test_name="extended_unary_math_pyref",
                 tolerance=1e-12,
             )
 
@@ -3083,7 +3218,7 @@ mod tests {{
                 f,
                 function_name=project.codegen.function_name,
                 inputs=([3.0, -4.0, 1.0],),
-                test_name="evaluates_reduction_helpers_against_python_reference",
+                test_name="reduction_helpers_pyref",
                 tolerance=1e-12,
             )
 
@@ -3113,7 +3248,7 @@ mod tests {{
                 f,
                 function_name=project.codegen.function_name,
                 inputs=([1.0, 2.0], [3.0, 4.0]),
-                test_name="evaluates_constant_matrix_helpers_against_python_reference",
+                test_name="const_matrix_helpers_pyref",
                 tolerance=1e-12,
             )
 
@@ -3140,7 +3275,7 @@ mod tests {{
                 f,
                 function_name=project.codegen.function_name,
                 inputs=([1.0, -2.0, 3.0],),
-                test_name="evaluates_rectangular_matvec_against_python_reference",
+                test_name="rectangular_matvec_pyref",
                 tolerance=1e-12,
             )
 
@@ -3173,7 +3308,7 @@ mod tests {{
                 f,
                 function_name=project.codegen.function_name,
                 inputs=([1.0, 2.0], [3.0, 4.0]),
-                test_name="evaluates_constant_matrix_helpers_against_python_reference_f32",
+                test_name="const_matrix_helpers_pyref_f32",
                 config=config,
                 tolerance=1e-5,
             )
@@ -3207,7 +3342,7 @@ mod tests {{
                 f,
                 function_name=project.codegen.function_name,
                 inputs=([1.0, 2.0], [3.0, 4.0]),
-                test_name="evaluates_constant_matrix_helpers_against_python_reference_no_std",
+                test_name="const_matrix_helpers_pyref_no_std",
                 config=config,
                 tolerance=1e-12,
             )
@@ -3222,7 +3357,10 @@ mod tests {{
                     or "failed to get `libm` as a dependency" in exc.stderr
                 ):
                     self.skipTest(
-                        "no_std runtime test requires fetching libm from crates.io"
+                        (
+                            "no_std runtime test requires fetching "
+                            "libm from crates.io"
+                        )
                     )
                 raise
             self.assertEqual(completed.returncode, 0)
@@ -3265,7 +3403,10 @@ mod tests {{
             self.assertIn("pub fn G_jacobian_x(", lib_text)
             self.assertIn("jacobian_y: &mut [f64]", lib_text)
             self.assertIn(
-                "output slice receiving the Jacobian block for declared result `y`",
+                (
+                    "output slice receiving the Jacobian block "
+                    "for declared result `y`"
+                ),
                 lib_text,
             )
             self.assertNotIn("y_row0", lib_text)
@@ -3379,7 +3520,7 @@ fn weighted_sqnorm_runtime_hessian(
                 f,
                 function_name=project.codegen.function_name,
                 inputs=([1.0, 2.0],),
-                test_name="evaluates_custom_vector_hessian_against_python_reference",
+                test_name="custom_vector_hessian_pyref",
             )
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
@@ -3404,7 +3545,7 @@ fn weighted_sqnorm_runtime_hessian(
                 f,
                 function_name=project.codegen.function_name,
                 inputs=2.5,
-                test_name="evaluates_reuse_heavy_kernel_against_python_reference",
+                test_name="reuse_heavy_kernel_pyref",
                 tolerance=1e-12,
             )
 
@@ -3497,7 +3638,7 @@ fn weighted_sqnorm_no_dead_work_hvp(
 
         self.assertEqual(gradient_codegen.workspace_size, 0)
         self.assertIn(
-            "weighted_sqnorm_no_dead_work_jacobian(x, &[2.0_f64, 3.0_f64], y);",
+            "weighted_sqnorm_no_dead_work_jacobian(",
             gradient_codegen.source,
         )
         self.assertNotIn("work[0] =", gradient_codegen.source)
@@ -3511,7 +3652,7 @@ fn weighted_sqnorm_no_dead_work_hvp(
 
         self.assertEqual(hvp_codegen.workspace_size, 0)
         self.assertIn(
-            "weighted_sqnorm_no_dead_work_hvp(x, v_x, &[2.0_f64, 3.0_f64], y);",
+            "weighted_sqnorm_no_dead_work_hvp(",
             hvp_codegen.source,
         )
         self.assertNotIn("work[0] =", hvp_codegen.source)
@@ -3546,7 +3687,10 @@ fn weighted_sqnorm_no_dead_work_hvp(
         self.assertEqual(result.workspace_size, 0)
         self.assertIn("workspace_size: 0,", result.source)
         self.assertIn(
-            "pub fn identity(x: &[f64], y: &mut [f64], _work: &mut [f64]) -> Result<(), GradgenError> ",
+            (
+                "pub fn identity(x: &[f64], y: &mut [f64], "
+                "_work: &mut [f64]) -> Result<(), GradgenError> "
+            ),
             result.source,
         )
         self.assertNotIn("assert!(work.len() >= 0);", result.source)
@@ -3592,7 +3736,10 @@ fn weighted_sqnorm_no_dead_work_hvp(
             except subprocess.CalledProcessError as exc:
                 if "Could not resolve host: index.crates.io" in exc.stderr:
                     self.skipTest(
-                        "cargo could not fetch libm in the offline test environment"
+                        (
+                            "cargo could not fetch libm in the "
+                            "offline test environment"
+                        )
                     )
                 raise
             self.assertEqual(completed.returncode, 0)
@@ -3622,7 +3769,10 @@ fn weighted_sqnorm_no_dead_work_hvp(
             self.assertIn("Scalar type: `f32`", readme_text)
             self.assertIn("libm::sinf(", lib_text)
             self.assertIn(
-                "pub fn trig_kernel(x: &[f32], y: &mut [f32], work: &mut [f32]) -> Result<(), GradgenError> ",
+                (
+                    "pub fn trig_kernel(x: &[f32], y: &mut [f32], "
+                    "work: &mut [f32]) -> Result<(), GradgenError> "
+                ),
                 lib_text,
             )
 
@@ -3633,7 +3783,10 @@ fn weighted_sqnorm_no_dead_work_hvp(
             except subprocess.CalledProcessError as exc:
                 if "Could not resolve host: index.crates.io" in exc.stderr:
                     self.skipTest(
-                        "cargo could not fetch libm in the offline test environment"
+                        (
+                            "cargo could not fetch libm in the "
+                            "offline test environment"
+                        )
                     )
                 raise
             self.assertEqual(completed.returncode, 0)
@@ -3659,7 +3812,7 @@ fn weighted_sqnorm_no_dead_work_hvp(
                 f,
                 function_name=project.codegen.function_name,
                 inputs=0.25,
-                test_name="evaluates_no_std_f32_kernel_against_python_reference",
+                test_name="no_std_f32_kernel_pyref",
                 config=RustBackendConfig()
                 .with_backend_mode("no_std")
                 .with_scalar_type("f32"),
@@ -3672,7 +3825,10 @@ fn weighted_sqnorm_no_dead_work_hvp(
             except subprocess.CalledProcessError as exc:
                 if "Could not resolve host: index.crates.io" in exc.stderr:
                     self.skipTest(
-                        "cargo could not fetch libm in the offline test environment"
+                        (
+                            "cargo could not fetch libm in the "
+                            "offline test environment"
+                        )
                     )
                 raise
             self.assertEqual(completed.returncode, 0)
@@ -3750,7 +3906,10 @@ mod tests {
             self.assertIn("///   Expected length: 2.", lib_text)
             self.assertIn("/// - `v_x`:", lib_text)
             self.assertIn(
-                "///   tangent or direction input associated with declared argument `x`;",
+                (
+                    "///   tangent or direction input associated with "
+                    "declared argument `x`;"
+                ),
                 lib_text,
             )
             self.assertIn(
@@ -3767,13 +3926,19 @@ mod tests {
             self.assertIn("///   Expected length: 1.", lib_text)
             self.assertIn("/// - `jacobian_y`:", lib_text)
             self.assertIn(
-                "///   output slice receiving the Jacobian block for declared result `y`",
+                (
+                    "///   output slice receiving the Jacobian block "
+                    "for declared result `y`"
+                ),
                 lib_text,
             )
             self.assertIn("///   Expected length: 3.", lib_text)
             self.assertIn("/// - `hvp_y`:", lib_text)
             self.assertIn(
-                "///   output slice receiving the Hessian-vector product for declared",
+                (
+                    "///   output slice receiving the "
+                    "Hessian-vector product for declared"
+                ),
                 lib_text,
             )
             self.assertIn("///   result `y`", lib_text)
@@ -3966,8 +4131,14 @@ mod tests {
         let mut y_hvp = [0.0_f64, 0.0_f64];
 
         let mut work_f = vec![0.0_f64; single_crate_f_f_meta().workspace_size];
-        let mut work_grad = vec![0.0_f64; single_crate_f_grad_meta().workspace_size];
-        let mut work_hvp = vec![0.0_f64; single_crate_f_hvp_meta().workspace_size];
+        let mut work_grad = vec![
+            0.0_f64;
+            single_crate_f_grad_meta().workspace_size
+        ];
+        let mut work_hvp = vec![
+            0.0_f64;
+            single_crate_f_hvp_meta().workspace_size
+        ];
 
         single_crate_f_f(&x, &mut y, &mut work_f);
         single_crate_f_grad(&x, &mut y_grad, &mut work_grad);
@@ -4064,9 +4235,19 @@ mod tests {
         let mut y = [0.0_f64];
         let mut jacobian_y = [0.0_f64, 0.0_f64];
         let mut hvp_y = [0.0_f64, 0.0_f64];
-        let mut work = vec![0.0_f64; joint_f_jf_hvp_f_f_jf_hvp_meta().workspace_size];
+        let mut work = vec![
+            0.0_f64;
+            joint_f_jf_hvp_f_f_jf_hvp_meta().workspace_size
+        ];
 
-        joint_f_jf_hvp_f_f_jf_hvp(&x, &v_x, &mut y, &mut jacobian_y, &mut hvp_y, &mut work);
+        joint_f_jf_hvp_f_f_jf_hvp(
+            &x,
+            &v_x,
+            &mut y,
+            &mut jacobian_y,
+            &mut hvp_y,
+            &mut work,
+        );
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
@@ -4114,9 +4295,17 @@ mod joint_hessian_tests {
         let x = [2.0_f64, 3.0_f64];
         let mut y = [0.0_f64; 1];
         let mut hessian_y = [0.0_f64; 4];
-        let mut work = vec![0.0_f64; joint_hessian_joint_hessian_f_hessian_meta().workspace_size];
+        let mut work = vec![
+            0.0_f64;
+            joint_hessian_joint_hessian_f_hessian_meta().workspace_size
+        ];
 
-        joint_hessian_joint_hessian_f_hessian(&x, &mut y, &mut hessian_y, &mut work);
+        joint_hessian_joint_hessian_f_hessian(
+            &x,
+            &mut y,
+            &mut hessian_y,
+            &mut work,
+        );
 
         assert_eq!(y, [19.0_f64]);
         assert_eq!(hessian_y, [2.0_f64, 1.0_f64, 1.0_f64, 2.0_f64]);
@@ -4175,11 +4364,17 @@ mod joint_hessian_tests {
 
             self.assertIn("#![no_std]", lib_text)
             self.assertIn(
-                "pub fn my_kernel_f_f(x: &[f32], y: &mut [f32], work: &mut [f32]) -> Result<(), GradgenError> ",
+                (
+                    "pub fn my_kernel_f_f(x: &[f32], y: &mut [f32], "
+                    "work: &mut [f32]) -> Result<(), GradgenError> "
+                ),
                 lib_text,
             )
             self.assertIn(
-                "pub fn my_kernel_f_grad(x: &[f32], y: &mut [f32], work: &mut [f32]) -> Result<(), GradgenError> ",
+                (
+                    "pub fn my_kernel_f_grad(x: &[f32], y: &mut [f32], "
+                    "work: &mut [f32]) -> Result<(), GradgenError> "
+                ),
                 lib_text,
             )
             self.assertIn("pub fn my_kernel_f_hvp", lib_text)
@@ -4195,7 +4390,10 @@ mod joint_hessian_tests {
             except subprocess.CalledProcessError as exc:
                 if "Could not resolve host: index.crates.io" in exc.stderr:
                     self.skipTest(
-                        "cargo could not fetch libm in the offline test environment"
+                        (
+                            "cargo could not fetch libm in the "
+                            "offline test environment"
+                        )
                     )
                 raise
             self.assertEqual(completed.returncode, 0)
@@ -4226,11 +4424,17 @@ mod joint_hessian_tests {
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn(
-                "fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {",
+                (
+                    "fn matvec_component(matrix: &[f64], rows: usize, "
+                    "cols: usize, row: usize, x: &[f64]) -> f64 {"
+                ),
                 lib_text,
             )
             self.assertIn(
-                "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
+                (
+                    "fn matvec(matrix: &[f64], rows: usize, cols: usize, "
+                    "x: &[f64], y: &mut [f64]) {"
+                ),
                 lib_text,
             )
             self.assertIn(

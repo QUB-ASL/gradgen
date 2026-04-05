@@ -14,4 +14,5 @@ class RenderTests(unittest.TestCase):
         self.assertEqual(_match_contiguous_slice(("a[0]", "a[1]")), "a")
 
     def test_emit_math_call_uses_std_backend_methods(self) -> None:
-        self.assertEqual(_emit_math_call("sin", ("x",), "std", "f64", None), "x.sin()")
+        self.assertEqual(
+            _emit_math_call("sin", ("x",), "std", "f64", None), "x.sin()")
