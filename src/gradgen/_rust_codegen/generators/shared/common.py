@@ -5,6 +5,8 @@ from __future__ import annotations
 from ....ad import jvp
 from ....function import Function, _add_like, _make_symbolic_input_like, _zero_like
 from ....sx import SX, SXVector
+from ...codegen import generate_rust
+from ....sx import SXNode
 
 
 def _build_directional_derivative_function(
@@ -38,3 +40,28 @@ def _build_directional_derivative_function(
         input_names=(*function.input_names, *tangent_names),
         output_names=function.output_names,
     )
+
+
+def _append_generated_helper_source(
+    helper_function: Function,
+    helper_name: str,
+    *,
+    config,
+    helper_sources: list[str],
+    helper_nodes: list[SXNode],
+    max_workspace: int,
+) -> int:
+    """Generate a helper kernel and append its artifacts to accumulators."""
+    helper_codegen = generate_rust(
+        helper_function,
+        config=config,
+        function_name=helper_name,
+        function_index=1,
+        shared_helper_nodes=(),
+        emit_crate_header=False,
+        emit_docs=False,
+        function_keyword="fn",
+    )
+    helper_sources.append(helper_codegen.source.rstrip())
+    helper_nodes.extend(helper_function.nodes)
+    return max(max_workspace, helper_codegen.workspace_size)

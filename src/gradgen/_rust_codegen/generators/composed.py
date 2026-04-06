@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from . import shared as _shared
+from .shared.common import _append_generated_helper_source
 from ...sx import SXNode
 from .rendering import KernelRenderContext, render_kernel_source
 from ..config import RustBackendConfig, RustBackendMode, RustScalarType
@@ -112,20 +113,13 @@ def _generate_composed_primal_rust(
             helper_function = _maybe_simplify_derivative_function(
                 step.function, helper_simplification
             )
-            helper_codegen = generate_rust(
+            max_helper_workspace = _append_generated_helper_source(
                 helper_function,
+                helper_name,
                 config=helper_config,
-                function_name=helper_name,
-                function_index=1,
-                shared_helper_nodes=(),
-                emit_crate_header=False,
-                emit_docs=False,
-                function_keyword="fn",
-            )
-            helper_sources.append(helper_codegen.source.rstrip())
-            helper_nodes.extend(helper_function.nodes)
-            max_helper_workspace = max(
-                max_helper_workspace, helper_codegen.workspace_size
+                helper_sources=helper_sources,
+                helper_nodes=helper_nodes,
+                max_workspace=max_helper_workspace,
             )
             plans.append(
                 _ComposedSinglePlan(
@@ -148,20 +142,13 @@ def _generate_composed_primal_rust(
         helper_function = _maybe_simplify_derivative_function(
             step.function, helper_simplification
         )
-        helper_codegen = generate_rust(
+        max_helper_workspace = _append_generated_helper_source(
             helper_function,
+            helper_name,
             config=helper_config,
-            function_name=helper_name,
-            function_index=1,
-            shared_helper_nodes=(),
-            emit_crate_header=False,
-            emit_docs=False,
-            function_keyword="fn",
-        )
-        helper_sources.append(helper_codegen.source.rstrip())
-        helper_nodes.extend(helper_function.nodes)
-        max_helper_workspace = max(
-            max_helper_workspace, helper_codegen.workspace_size
+            helper_sources=helper_sources,
+            helper_nodes=helper_nodes,
+            max_workspace=max_helper_workspace,
         )
 
         const_name = sanitize_ident(
@@ -203,20 +190,13 @@ def _generate_composed_primal_rust(
     terminal_function = _maybe_simplify_derivative_function(
         terminal.function, helper_simplification
     )
-    terminal_codegen = generate_rust(
+    max_helper_workspace = _append_generated_helper_source(
         terminal_function,
+        terminal_helper_name,
         config=helper_config,
-        function_name=terminal_helper_name,
-        function_index=1,
-        shared_helper_nodes=(),
-        emit_crate_header=False,
-        emit_docs=False,
-        function_keyword="fn",
-    )
-    helper_sources.append(terminal_codegen.source.rstrip())
-    helper_nodes.extend(terminal_function.nodes)
-    max_helper_workspace = max(
-        max_helper_workspace, terminal_codegen.workspace_size
+        helper_sources=helper_sources,
+        helper_nodes=helper_nodes,
+        max_workspace=max_helper_workspace,
     )
     terminal_parameter_offset = parameter_offset
 
@@ -512,34 +492,21 @@ def _generate_composed_gradient_rust(
                 step.function.vjp(wrt_index=0, name=vjp_helper_name),
                 helper_simplification,
             )
-            helper_codegen = generate_rust(
+            max_helper_workspace = _append_generated_helper_source(
                 helper_function,
+                helper_name,
                 config=helper_config,
-                function_name=helper_name,
-                function_index=1,
-                shared_helper_nodes=(),
-                emit_crate_header=False,
-                emit_docs=False,
-                function_keyword="fn",
+                helper_sources=helper_sources,
+                helper_nodes=helper_nodes,
+                max_workspace=max_helper_workspace,
             )
-            vjp_codegen = generate_rust(
+            max_helper_workspace = _append_generated_helper_source(
                 vjp_function,
+                vjp_helper_name,
                 config=helper_config,
-                function_name=vjp_helper_name,
-                function_index=1,
-                shared_helper_nodes=(),
-                emit_crate_header=False,
-                emit_docs=False,
-                function_keyword="fn",
-            )
-            helper_sources.extend(
-                (helper_codegen.source.rstrip(), vjp_codegen.source.rstrip())
-            )
-            helper_nodes.extend((*helper_function.nodes, *vjp_function.nodes))
-            max_helper_workspace = max(
-                max_helper_workspace,
-                helper_codegen.workspace_size,
-                vjp_codegen.workspace_size,
+                helper_sources=helper_sources,
+                helper_nodes=helper_nodes,
+                max_workspace=max_helper_workspace,
             )
             plans.append(
                 _ComposedSinglePlan(
@@ -569,34 +536,21 @@ def _generate_composed_gradient_rust(
             step.function.vjp(wrt_index=0, name=vjp_helper_name),
             helper_simplification,
         )
-        helper_codegen = generate_rust(
+        max_helper_workspace = _append_generated_helper_source(
             helper_function,
+            helper_name,
             config=helper_config,
-            function_name=helper_name,
-            function_index=1,
-            shared_helper_nodes=(),
-            emit_crate_header=False,
-            emit_docs=False,
-            function_keyword="fn",
+            helper_sources=helper_sources,
+            helper_nodes=helper_nodes,
+            max_workspace=max_helper_workspace,
         )
-        vjp_codegen = generate_rust(
+        max_helper_workspace = _append_generated_helper_source(
             vjp_function,
+            vjp_helper_name,
             config=helper_config,
-            function_name=vjp_helper_name,
-            function_index=1,
-            shared_helper_nodes=(),
-            emit_crate_header=False,
-            emit_docs=False,
-            function_keyword="fn",
-        )
-        helper_sources.extend(
-            (helper_codegen.source.rstrip(), vjp_codegen.source.rstrip())
-        )
-        helper_nodes.extend((*helper_function.nodes, *vjp_function.nodes))
-        max_helper_workspace = max(
-            max_helper_workspace,
-            helper_codegen.workspace_size,
-            vjp_codegen.workspace_size,
+            helper_sources=helper_sources,
+            helper_nodes=helper_nodes,
+            max_workspace=max_helper_workspace,
         )
 
         const_name = sanitize_ident(
@@ -639,20 +593,13 @@ def _generate_composed_gradient_rust(
         terminal.function.gradient(0, name=terminal_gradient_name),
         helper_simplification,
     )
-    terminal_gradient_codegen = generate_rust(
+    max_helper_workspace = _append_generated_helper_source(
         terminal_gradient_function,
+        terminal_gradient_name,
         config=helper_config,
-        function_name=terminal_gradient_name,
-        function_index=1,
-        shared_helper_nodes=(),
-        emit_crate_header=False,
-        emit_docs=False,
-        function_keyword="fn",
-    )
-    helper_sources.append(terminal_gradient_codegen.source.rstrip())
-    helper_nodes.extend(terminal_gradient_function.nodes)
-    max_helper_workspace = max(
-        max_helper_workspace, terminal_gradient_codegen.workspace_size
+        helper_sources=helper_sources,
+        helper_nodes=helper_nodes,
+        max_workspace=max_helper_workspace,
     )
     terminal_parameter_offset = parameter_offset
 

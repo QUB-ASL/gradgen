@@ -407,7 +407,10 @@ def _resolve_builder_functions(
 ) -> tuple[BuilderSource, ...]:
     """Expand builder requests into concrete symbolic functions."""
     if not requests:
-        raise ValueError("no kernels were requested; call add_primal() or another add_* method first")
+        raise ValueError(
+            "no kernels were requested; call add_primal() or another "
+            "add_* method first"
+        )
 
     if isinstance(function, (ComposedFunction, ComposedGradientFunction)):
         return _resolve_builder_composed_sources(
@@ -448,135 +451,163 @@ def _resolve_builder_functions(
 
     base_function = _apply_builder_base_name(function, function_name)
     crate_prefix = sanitize_ident(config.crate_name or base_function.name)
-    resolved: list[Function] = []
+    resolved: list[BuilderSource] = []
 
     for request in requests:
-        if request.kind == "primal":
-            if request.components:
-                raise ValueError("include_states is only supported for SingleShootingProblem sources")
-            resolved.append(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(base_function, simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "f",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                    ),
-                )
+        resolved.extend(
+            _resolve_builder_base_function_request(
+                base_function,
+                request,
+                crate_prefix=crate_prefix,
+                simplification=simplification,
+                include_base_name=include_base_name,
             )
-            continue
-        if request.kind == "gradient":
-            if request.components:
-                raise ValueError("include_states is only supported for SingleShootingProblem sources")
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(base_function.gradient(index), simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "grad",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index in range(len(base_function.inputs))
-            )
-            continue
-        if request.kind == "jacobian":
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(block, simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "jf",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index, block in enumerate(base_function.jacobian_blocks())
-            )
-            continue
-        if request.kind == "vjp":
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(block, simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "vjp",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index, block in enumerate(base_function.vjp_blocks())
-            )
-            continue
-        if request.kind == "joint":
-            if request.bundle is None:
-                raise ValueError("joint builder requests require a FunctionBundle")
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(
-                        base_function.joint(components, index),
-                        simplification,
-                    ),
-                    _builder_function_name(
-                        crate_prefix,
-                        *_builder_joint_labels(components),
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index, components in _resolve_function_bundle(
-                    request.bundle,
-                    len(base_function.inputs),
-                )
-            )
-            continue
-        if request.kind == "hessian":
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(block, simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "hessian",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index, block in enumerate(base_function.hessian_blocks())
-            )
-            continue
-        if request.kind == "hvp":
-            if request.components:
-                raise ValueError("include_states is only supported for SingleShootingProblem sources")
-            resolved.extend(
-                _rename_generated_function(
-                    _maybe_simplify_generated_function(block, simplification),
-                    _builder_function_name(
-                        crate_prefix,
-                        "hvp",
-                        base_name=base_function.name,
-                        include_base_name=include_base_name,
-                        input_name=base_function.input_names[index],
-                        include_input_name=len(base_function.inputs) > 1,
-                    ),
-                )
-                for index, block in enumerate(base_function.hvp_blocks())
-            )
-            continue
-        raise ValueError(f"unsupported builder request kind {request.kind!r}")
+        )
 
     return tuple(resolved)
+
+
+def _resolve_builder_base_function_request(
+    base_function: Function,
+    request: _BuilderRequest,
+    *,
+    crate_prefix: str,
+    simplification: int | str | None,
+    include_base_name: bool,
+) -> tuple[BuilderSource, ...]:
+    """Expand one builder request for a plain symbolic function."""
+    if request.kind == "primal":
+        if request.components:
+            raise ValueError(
+                "include_states is only supported for "
+                "SingleShootingProblem sources"
+            )
+        return (
+            _rename_generated_function(
+                _maybe_simplify_generated_function(
+                    base_function,
+                    simplification,
+                ),
+                _builder_function_name(
+                    crate_prefix,
+                    "f",
+                    base_name=base_function.name,
+                    include_base_name=include_base_name,
+                ),
+            ),
+        )
+    if request.kind == "gradient":
+        if request.components:
+            raise ValueError(
+                "include_states is only supported for "
+                "SingleShootingProblem sources"
+            )
+        return tuple(
+            _rename_generated_function(
+                _maybe_simplify_generated_function(
+                    base_function.gradient(index),
+                    simplification,
+                ),
+                _builder_function_name(
+                    crate_prefix,
+                    "grad",
+                    base_name=base_function.name,
+                    include_base_name=include_base_name,
+                    input_name=base_function.input_names[index],
+                    include_input_name=len(base_function.inputs) > 1,
+                ),
+            )
+            for index in range(len(base_function.inputs))
+        )
+    if request.kind == "jacobian":
+        return tuple(
+            _rename_generated_function(
+                _maybe_simplify_generated_function(block, simplification),
+                _builder_function_name(
+                    crate_prefix,
+                    "jf",
+                    base_name=base_function.name,
+                    include_base_name=include_base_name,
+                    input_name=base_function.input_names[index],
+                    include_input_name=len(base_function.inputs) > 1,
+                ),
+            )
+            for index, block in enumerate(base_function.jacobian_blocks())
+        )
+    if request.kind == "vjp":
+        return tuple(
+            _rename_generated_function(
+                _maybe_simplify_generated_function(block, simplification),
+                _builder_function_name(
+                    crate_prefix,
+                    "vjp",
+                    base_name=base_function.name,
+                    include_base_name=include_base_name,
+                    input_name=base_function.input_names[index],
+                    include_input_name=len(base_function.inputs) > 1,
+                ),
+            )
+            for index, block in enumerate(base_function.vjp_blocks())
+        )
+    if request.kind == "joint":
+        if request.bundle is None:
+            raise ValueError("joint builder requests require a FunctionBundle")
+        return tuple(
+            _rename_generated_function(
+                _maybe_simplify_generated_function(
+                    base_function.joint(components, index),
+                    simplification,
+                ),
+                _builder_function_name(
+                    crate_prefix,
+                    *_builder_joint_labels(components),
+                    base_name=base_function.name,
+                    include_base_name=include_base_name,
+                    input_name=base_function.input_names[index],
+                    include_input_name=len(base_function.inputs) > 1,
+                ),
+            )
+            for index, components in _resolve_function_bundle(
+                request.bundle,
+                len(base_function.inputs),
+            )
+        )
+    if request.kind == "hessian":
+        return tuple(
+            _rename_generated_function(
+                _maybe_simplify_generated_function(block, simplification),
+                _builder_function_name(
+                    crate_prefix,
+                    "hessian",
+                    base_name=base_function.name,
+                    include_base_name=include_base_name,
+                    input_name=base_function.input_names[index],
+                    include_input_name=len(base_function.inputs) > 1,
+                ),
+            )
+            for index, block in enumerate(base_function.hessian_blocks())
+        )
+    if request.kind == "hvp":
+        if request.components:
+            raise ValueError(
+                "include_states is only supported for "
+                "SingleShootingProblem sources"
+            )
+        return tuple(
+            _rename_generated_function(
+                _maybe_simplify_generated_function(block, simplification),
+                _builder_function_name(
+                    crate_prefix,
+                    "hvp",
+                    base_name=base_function.name,
+                    include_base_name=include_base_name,
+                    input_name=base_function.input_names[index],
+                    include_input_name=len(base_function.inputs) > 1,
+                ),
+            )
+            for index, block in enumerate(base_function.hvp_blocks())
+        )
+    raise ValueError(f"unsupported builder request kind {request.kind!r}")
 
 
 def _resolve_builder_composed_sources(
