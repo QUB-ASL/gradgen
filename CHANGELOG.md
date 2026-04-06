@@ -10,6 +10,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 - `Functions` accept named arguments
+- Added `FunctionComposer` for chaining function-like stages into a single
+  composed pipeline, while keeping staged wrappers such as
+  `ReducedFunction` and `ZippedFunction` intact in generated Rust code.
 - Added an optional PyO3-based Python interface for generated Rust crates via
   `RustBackendConfig().with_enable_python_interface(True)`, now emitted as a
   separate sibling wrapper crate so the low-level generated crate can stay

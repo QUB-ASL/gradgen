@@ -7,6 +7,7 @@ from ._custom_elementary import (
     get_registered_elementary_function,
     register_elementary_function,
 )
+from .composer import FunctionComposer, FunctionComposition
 from .composed_function import ComposedFunction, ComposedGradientFunction
 from .function import Function
 from .map_zip import (
@@ -99,6 +100,8 @@ __all__ = [
     "ComposedGradientFunction",
     "Function",
     "FunctionBundle",
+    "FunctionComposer",
+    "FunctionComposition",
     "RustBackendMode",
     "RustBackendConfig",
     "RustCodegenResult",
