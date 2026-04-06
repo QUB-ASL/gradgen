@@ -6,9 +6,13 @@ import math
 from typing import TYPE_CHECKING, Any
 
 from .sx import (
-    SX, SXNode, SXVector, parse_bilinear_form_args,
-    parse_matvec_component_args, parse_quadform_args
-    )
+    SX,
+    SXNode,
+    SXVector,
+    parse_bilinear_form_args,
+    parse_matvec_component_args,
+    parse_quadform_args,
+)
 from ._custom_elementary import (
     evaluate_custom_hessian,
     evaluate_custom_hvp,
@@ -38,7 +42,9 @@ _EFFORT_PRESETS = {
 }
 
 
-def simplify(value: SimplifyValue, max_effort: Effort = "basic") -> SimplifyValue:
+def simplify(
+    value: SimplifyValue, max_effort: Effort = "basic"
+) -> SimplifyValue:
     """Simplify a symbolic expression or function.
 
     Args:
@@ -67,7 +73,9 @@ def _resolve_effort(max_effort: Effort) -> int:
     try:
         return _EFFORT_PRESETS[max_effort]
     except KeyError as exc:
-        raise ValueError(f"unknown simplification effort {max_effort!r}") from exc
+        raise ValueError(
+            f"unknown simplification effort {max_effort!r}"
+        ) from exc
 
 
 def _simplify_value(value: SX | SXVector | tuple[SXVector, ...], effort: int):
@@ -77,7 +85,9 @@ def _simplify_value(value: SX | SXVector | tuple[SXVector, ...], effort: int):
     if isinstance(value, SX):
         return _simplify_scalar(value, effort)
     if isinstance(value, SXVector):
-        return SXVector(tuple(_simplify_scalar(element, effort) for element in value))
+        return SXVector(
+            tuple(_simplify_scalar(element, effort) for element in value)
+        )
     return tuple(
         SXVector(tuple(_simplify_scalar(element, effort) for element in row))
         for row in value
@@ -105,7 +115,9 @@ def _simplify_scalar_once(expr: SX, cache: dict[SXNode, SX]) -> SX:
         cache[expr.node] = expr
         return expr
 
-    args = tuple(_simplify_scalar_once(SX(arg), cache) for arg in expr.node.args)
+    args = tuple(
+        _simplify_scalar_once(SX(arg), cache) for arg in expr.node.args
+    )
     simplified = _apply_rules(expr.op, args, expr.name)
     cache[expr.node] = simplified
     return simplified
@@ -113,274 +125,389 @@ def _simplify_scalar_once(expr: SX, cache: dict[SXNode, SX]) -> SX:
 
 def _apply_rules(op: str, args: tuple[SX, ...], name: str | None = None) -> SX:
     """Apply local algebraic simplification rules."""
-    if op == "custom_scalar":
-        spec, value, params = parse_custom_scalar_args(name, args)
-        if spec.eval_python is not None and value.op == "const" and all(param.op == "const" for param in params):
-            return SX.const(
-                invoke_custom_callback(
-                    spec.eval_python,
-                    value.value,
-                    tuple(param.value for param in params),
-                    spec.parameter_dimension,
-                )
-            )
-        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
-    if op == "custom_vector":
-        spec, value, params = parse_custom_vector_args(name, args)
-        if spec.eval_python is not None and all(element.op == "const" for element in value) and all(
-            param.op == "const" for param in params
-        ):
-            return SX.const(
-                invoke_custom_callback(
-                    spec.eval_python,
-                    tuple(element.value for element in value),
-                    tuple(param.value for param in params),
-                    spec.parameter_dimension,
-                )
-            )
-        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
-    if op == "custom_scalar_jacobian":
-        spec, value, params = parse_custom_scalar_args(name, args)
-        if value.op == "const" and all(param.op == "const" for param in params):
-            return SX.const(
-                evaluate_custom_jacobian(
-                    spec,
-                    value.value,
-                    tuple(param.value for param in params),
-                )
-            )
-        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
-    if op == "custom_scalar_hessian":
-        spec, value, params = parse_custom_scalar_args(name, args)
-        if value.op == "const" and all(param.op == "const" for param in params):
-            return SX.const(
-                evaluate_custom_hessian(
-                    spec,
-                    value.value,
-                    tuple(param.value for param in params),
-                )
-            )
-        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
-    if op == "custom_scalar_hvp":
-        spec, value, tangent, params = parse_custom_scalar_hvp_args(name, args)
-        if value.op == "const" and tangent.op == "const" and all(param.op == "const" for param in params):
-            return SX.const(
-                evaluate_custom_hvp(
-                    spec,
-                    value.value,
-                    tangent.value,
-                    tuple(param.value for param in params),
-                )
-            )
-        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
-    if op == "custom_vector_jacobian_component":
-        spec, index, value, params = parse_custom_vector_jacobian_component_args(name, args)
-        if all(element.op == "const" for element in value) and all(param.op == "const" for param in params):
-            gradient = evaluate_custom_jacobian(
-                spec,
-                tuple(element.value for element in value),
-                tuple(param.value for param in params),
-            )
-            if not isinstance(gradient, tuple):
-                raise TypeError("vector custom Jacobians must return numeric vectors")
-            return SX.const(gradient[index])
-        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
-    if op == "custom_vector_hessian_entry":
-        spec, row, col, value, params = parse_custom_vector_hessian_entry_args(name, args)
-        if all(element.op == "const" for element in value) and all(param.op == "const" for param in params):
-            hessian = evaluate_custom_hessian(
-                spec,
-                tuple(element.value for element in value),
-                tuple(param.value for param in params),
-            )
-            if not isinstance(hessian, tuple):
-                raise TypeError("vector custom Hessians must return numeric matrices")
-            return SX.const(hessian[row][col])
-        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
-    if op == "custom_vector_hvp_component":
-        spec, index, value, tangent, params = parse_custom_vector_hvp_component_args(name, args)
-        if (
-            all(element.op == "const" for element in value)
-            and all(element.op == "const" for element in tangent)
-            and all(param.op == "const" for param in params)
-        ):
-            hvp = evaluate_custom_hvp(
-                spec,
-                tuple(element.value for element in value),
-                tuple(element.value for element in tangent),
-                tuple(param.value for param in params),
-            )
-            if not isinstance(hvp, tuple):
-                raise TypeError("vector custom HVP builders must return numeric vectors")
-            return SX.const(hvp[index])
-        return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
-    if op == "matvec_component":
-        rows, cols, row, matrix_values, x_values = parse_matvec_component_args(args)
-        _ = rows
-        if all(_is_const(arg) for arg in x_values):
-            start = row * cols
-            total = sum(matrix_values[start + index] * _const_value(x_values[index]) for index in range(cols))
-            return SX.const(total)
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "quadform":
-        size, matrix_values, x_values = parse_quadform_args(args)
-        if all(_is_const(arg) for arg in x_values):
-            total = 0.0
-            for row in range(size):
-                for col in range(size):
-                    total += matrix_values[row * size + col] * _const_value(x_values[row]) * _const_value(x_values[col])
-            return SX.const(total)
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "bilinear_form":
-        rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(args)
-        if all(_is_const(arg) for arg in (*x_values, *y_values)):
-            total = 0.0
-            for row in range(rows):
-                for col in range(cols):
-                    total += matrix_values[row * cols + col] * _const_value(x_values[row]) * _const_value(y_values[col])
-            return SX.const(total)
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "sum":
-        if not args:
-            return SX.const(0.0)
-        if all(_is_const(arg) for arg in args):
-            return SX.const(sum(_const_value(arg) for arg in args))
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "prod":
-        if not args:
-            return SX.const(1.0)
-        if all(_is_const(arg) for arg in args):
-            total = 1.0
-            for arg in args:
-                total *= _const_value(arg)
-            return SX.const(total)
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "reduce_max":
-        if not args:
-            raise ValueError("vector max is undefined for empty vectors")
-        if all(_is_const(arg) for arg in args):
-            return SX.const(max(_const_value(arg) for arg in args))
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "reduce_min":
-        if not args:
-            raise ValueError("vector min is undefined for empty vectors")
-        if all(_is_const(arg) for arg in args):
-            return SX.const(min(_const_value(arg) for arg in args))
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "mean":
-        if not args:
-            raise ValueError("vector mean is undefined for empty vectors")
-        if all(_is_const(arg) for arg in args):
-            return SX.const(sum(_const_value(arg) for arg in args) / len(args))
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "norm2":
-        if not args:
-            return SX.const(0.0)
-        if all(_is_const(arg) for arg in args):
-            total = sum(_const_value(arg) * _const_value(arg) for arg in args)
-            return SX.const(math.sqrt(total))
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "norm2sq":
-        if not args:
-            return SX.const(0.0)
-        if all(_is_const(arg) for arg in args):
-            total = sum(_const_value(arg) * _const_value(arg) for arg in args)
-            return SX.const(total)
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "norm1":
-        if not args:
-            return SX.const(0.0)
-        if all(_is_const(arg) for arg in args):
-            return SX.const(sum(math.fabs(_const_value(arg)) for arg in args))
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "norm_inf":
-        if not args:
-            return SX.const(0.0)
-        if all(_is_const(arg) for arg in args):
-            return SX.const(max(math.fabs(_const_value(arg)) for arg in args))
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "norm_p_to_p":
-        if len(args) < 2:
-            return SX.const(0.0)
-        if all(_is_const(arg) for arg in args):
-            p = _const_value(args[-1])
-            total = sum(math.fabs(_const_value(arg)) ** p for arg in args[:-1])
-            return SX.const(total)
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
-
-    if op == "norm_p":
-        if len(args) < 2:
-            return SX.const(0.0)
-        if all(_is_const(arg) for arg in args):
-            p = _const_value(args[-1])
-            total = sum(math.fabs(_const_value(arg)) ** p for arg in args[:-1])
-            return SX.const(total ** (1.0 / p))
-        return SX(SXNode.make(op, tuple(arg.node for arg in args)))
+    handler = _SPECIAL_RULES.get(op)
+    if handler is not None:
+        return handler(args, name)
 
     if op == "neg":
-        arg = args[0]
-        if _is_const(arg):
-            return SX.const(-_const_value(arg))
-        if arg.op == "neg":
-            return arg.args[0]
-        return SX(SXNode.make(op, (arg.node,)))
+        return _simplify_neg(args)
 
     if len(args) == 2:
-        left, right = args
+        return _simplify_binary(op, args)
 
-        if _is_const(left) and _is_const(right):
-            return SX.const(_evaluate_const_op(op, _const_value(left), _const_value(right)))
+    if len(args) == 1:
+        return _simplify_unary(op, args)
 
-        if op == "add":
-            return _simplify_add(left, right)
+    return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
 
-        if op == "sub":
-            if left.node is right.node:
-                return SX.const(0.0)
-            return _simplify_add(left, -right)
 
-        if op == "mul":
-            return _simplify_mul(left, right)
+def _same_shape_node(
+    op: str, args: tuple[SX, ...], name: str | None = None
+) -> SX:
+    """Rebuild an expression node with the same children."""
+    return SX(SXNode.make(op, tuple(arg.node for arg in args), name=name))
 
-        if op == "div":
-            if _is_zero(left):
-                return SX.const(0.0)
-            if _is_one(right):
-                return left
-            if left.node is right.node:
-                return SX.const(1.0)
-            left_sign, left_base = _strip_negation(left)
-            right_sign, right_base = _strip_negation(right)
-            sign = left_sign * right_sign
-            quotient = SX(SXNode.make("div", (left_base.node, right_base.node)))
-            if sign == -1.0:
-                return -quotient
-            return quotient
 
-        if op == "pow":
-            if _is_zero(right):
-                return SX.const(1.0)
-            if _is_one(right):
-                return left
-            if _is_zero(left):
-                return SX.const(0.0)
-            if _is_one(left):
-                return SX.const(1.0)
+def _special_custom_scalar(args: tuple[SX, ...], name: str | None) -> SX:
+    spec, value, params = parse_custom_scalar_args(name, args)
+    if (
+        spec.eval_python is not None
+        and value.op == "const"
+        and all(param.op == "const" for param in params)
+    ):
+        return SX.const(
+            invoke_custom_callback(
+                spec.eval_python,
+                value.value,
+                tuple(param.value for param in params),
+                spec.parameter_dimension,
+            )
+        )
+    return _same_shape_node("custom_scalar", args, name)
 
-        return SX(SXNode.make(op, (left.node, right.node)))
 
+def _special_custom_vector(args: tuple[SX, ...], name: str | None) -> SX:
+    spec, value, params = parse_custom_vector_args(name, args)
+    if (
+        spec.eval_python is not None
+        and all(element.op == "const" for element in value)
+        and all(param.op == "const" for param in params)
+    ):
+        return SX.const(
+            invoke_custom_callback(
+                spec.eval_python,
+                tuple(element.value for element in value),
+                tuple(param.value for param in params),
+                spec.parameter_dimension,
+            )
+        )
+    return _same_shape_node("custom_vector", args, name)
+
+
+def _special_custom_scalar_jacobian(
+    args: tuple[SX, ...], name: str | None
+) -> SX:
+    spec, value, params = parse_custom_scalar_args(name, args)
+    if value.op == "const" and all(param.op == "const" for param in params):
+        return SX.const(
+            evaluate_custom_jacobian(
+                spec,
+                value.value,
+                tuple(param.value for param in params),
+            )
+        )
+    return _same_shape_node("custom_scalar_jacobian", args, name)
+
+
+def _special_custom_scalar_hessian(
+    args: tuple[SX, ...], name: str | None
+) -> SX:
+    spec, value, params = parse_custom_scalar_args(name, args)
+    if value.op == "const" and all(param.op == "const" for param in params):
+        return SX.const(
+            evaluate_custom_hessian(
+                spec,
+                value.value,
+                tuple(param.value for param in params),
+            )
+        )
+    return _same_shape_node("custom_scalar_hessian", args, name)
+
+
+def _special_custom_scalar_hvp(args: tuple[SX, ...], name: str | None) -> SX:
+    spec, value, tangent, params = parse_custom_scalar_hvp_args(name, args)
+    if (
+        value.op == "const"
+        and tangent.op == "const"
+        and all(param.op == "const" for param in params)
+    ):
+        return SX.const(
+            evaluate_custom_hvp(
+                spec,
+                value.value,
+                tangent.value,
+                tuple(param.value for param in params),
+            )
+        )
+    return _same_shape_node("custom_scalar_hvp", args, name)
+
+
+def _special_custom_vector_jacobian_component(
+    args: tuple[SX, ...], name: str | None
+) -> SX:
+    spec, index, value, params = parse_custom_vector_jacobian_component_args(
+        name,
+        args,
+    )
+    if all(element.op == "const" for element in value) and all(
+        param.op == "const" for param in params
+    ):
+        gradient = evaluate_custom_jacobian(
+            spec,
+            tuple(element.value for element in value),
+            tuple(param.value for param in params),
+        )
+        if not isinstance(gradient, tuple):
+            raise TypeError(
+                "vector custom Jacobians must return numeric vectors"
+            )
+        return SX.const(gradient[index])
+    return _same_shape_node("custom_vector_jacobian_component", args, name)
+
+
+def _special_custom_vector_hessian_entry(
+    args: tuple[SX, ...], name: str | None
+) -> SX:
+    spec, row, col, value, params = parse_custom_vector_hessian_entry_args(
+        name,
+        args,
+    )
+    if all(element.op == "const" for element in value) and all(
+        param.op == "const" for param in params
+    ):
+        hessian = evaluate_custom_hessian(
+            spec,
+            tuple(element.value for element in value),
+            tuple(param.value for param in params),
+        )
+        if not isinstance(hessian, tuple):
+            raise TypeError(
+                "vector custom Hessians must return numeric matrices"
+            )
+        return SX.const(hessian[row][col])
+    return _same_shape_node("custom_vector_hessian_entry", args, name)
+
+
+def _special_custom_vector_hvp_component(
+    args: tuple[SX, ...], name: str | None
+) -> SX:
+    spec, index, value, tangent, params = (
+        parse_custom_vector_hvp_component_args(
+            name,
+            args,
+        )
+    )
+    if (
+        all(element.op == "const" for element in value)
+        and all(element.op == "const" for element in tangent)
+        and all(param.op == "const" for param in params)
+    ):
+        hvp = evaluate_custom_hvp(
+            spec,
+            tuple(element.value for element in value),
+            tuple(element.value for element in tangent),
+            tuple(param.value for param in params),
+        )
+        if not isinstance(hvp, tuple):
+            raise TypeError(
+                "vector custom HVP builders must return numeric vectors"
+            )
+        return SX.const(hvp[index])
+    return _same_shape_node("custom_vector_hvp_component", args, name)
+
+
+def _special_matvec_component(args: tuple[SX, ...], name: str | None) -> SX:
+    rows, cols, row, matrix_values, x_values = parse_matvec_component_args(
+        args
+    )
+    _ = rows
+    if all(_is_const(arg) for arg in x_values):
+        start = row * cols
+        total = sum(
+            matrix_values[start + index] * _const_value(x_values[index])
+            for index in range(cols)
+        )
+        return SX.const(total)
+    return _same_shape_node("matvec_component", args, name)
+
+
+def _special_quadform(args: tuple[SX, ...], name: str | None) -> SX:
+    size, matrix_values, x_values = parse_quadform_args(args)
+    if all(_is_const(arg) for arg in x_values):
+        total = 0.0
+        for row in range(size):
+            for col in range(size):
+                total += (
+                    matrix_values[row * size + col]
+                    * _const_value(x_values[row])
+                    * _const_value(x_values[col])
+                )
+        return SX.const(total)
+    return _same_shape_node("quadform", args, name)
+
+
+def _special_bilinear_form(args: tuple[SX, ...], name: str | None) -> SX:
+    rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(
+        args
+    )
+    if all(_is_const(arg) for arg in (*x_values, *y_values)):
+        total = 0.0
+        for row in range(rows):
+            for col in range(cols):
+                total += (
+                    matrix_values[row * cols + col]
+                    * _const_value(x_values[row])
+                    * _const_value(y_values[col])
+                )
+        return SX.const(total)
+    return _same_shape_node("bilinear_form", args, name)
+
+
+def _special_sum(args: tuple[SX, ...], name: str | None) -> SX:
+    if not args:
+        return SX.const(0.0)
+    if all(_is_const(arg) for arg in args):
+        return SX.const(sum(_const_value(arg) for arg in args))
+    return _same_shape_node("sum", args, name)
+
+
+def _special_prod(args: tuple[SX, ...], name: str | None) -> SX:
+    if not args:
+        return SX.const(1.0)
+    if all(_is_const(arg) for arg in args):
+        total = 1.0
+        for arg in args:
+            total *= _const_value(arg)
+        return SX.const(total)
+    return _same_shape_node("prod", args, name)
+
+
+def _special_reduce_max(args: tuple[SX, ...], name: str | None) -> SX:
+    if not args:
+        raise ValueError("vector max is undefined for empty vectors")
+    if all(_is_const(arg) for arg in args):
+        return SX.const(max(_const_value(arg) for arg in args))
+    return _same_shape_node("reduce_max", args, name)
+
+
+def _special_reduce_min(args: tuple[SX, ...], name: str | None) -> SX:
+    if not args:
+        raise ValueError("vector min is undefined for empty vectors")
+    if all(_is_const(arg) for arg in args):
+        return SX.const(min(_const_value(arg) for arg in args))
+    return _same_shape_node("reduce_min", args, name)
+
+
+def _special_mean(args: tuple[SX, ...], name: str | None) -> SX:
+    if not args:
+        raise ValueError("vector mean is undefined for empty vectors")
+    if all(_is_const(arg) for arg in args):
+        return SX.const(sum(_const_value(arg) for arg in args) / len(args))
+    return _same_shape_node("mean", args, name)
+
+
+def _special_norm2(args: tuple[SX, ...], name: str | None) -> SX:
+    if not args:
+        return SX.const(0.0)
+    if all(_is_const(arg) for arg in args):
+        total = sum(_const_value(arg) * _const_value(arg) for arg in args)
+        return SX.const(math.sqrt(total))
+    return _same_shape_node("norm2", args, name)
+
+
+def _special_norm2sq(args: tuple[SX, ...], name: str | None) -> SX:
+    if not args:
+        return SX.const(0.0)
+    if all(_is_const(arg) for arg in args):
+        total = sum(_const_value(arg) * _const_value(arg) for arg in args)
+        return SX.const(total)
+    return _same_shape_node("norm2sq", args, name)
+
+
+def _special_norm1(args: tuple[SX, ...], name: str | None) -> SX:
+    if not args:
+        return SX.const(0.0)
+    if all(_is_const(arg) for arg in args):
+        return SX.const(sum(math.fabs(_const_value(arg)) for arg in args))
+    return _same_shape_node("norm1", args, name)
+
+
+def _special_norm_inf(args: tuple[SX, ...], name: str | None) -> SX:
+    if not args:
+        return SX.const(0.0)
+    if all(_is_const(arg) for arg in args):
+        return SX.const(max(math.fabs(_const_value(arg)) for arg in args))
+    return _same_shape_node("norm_inf", args, name)
+
+
+def _special_norm_p_to_p(args: tuple[SX, ...], name: str | None) -> SX:
+    if len(args) < 2:
+        return SX.const(0.0)
+    if all(_is_const(arg) for arg in args):
+        p = _const_value(args[-1])
+        total = sum(math.fabs(_const_value(arg)) ** p for arg in args[:-1])
+        return SX.const(total)
+    return _same_shape_node("norm_p_to_p", args, name)
+
+
+def _special_norm_p(args: tuple[SX, ...], name: str | None) -> SX:
+    if len(args) < 2:
+        return SX.const(0.0)
+    if all(_is_const(arg) for arg in args):
+        p = _const_value(args[-1])
+        total = sum(math.fabs(_const_value(arg)) ** p for arg in args[:-1])
+        return SX.const(total ** (1.0 / p))
+    return _same_shape_node("norm_p", args, name)
+
+
+def _simplify_neg(args: tuple[SX, ...]) -> SX:
+    """Simplify a negation expression."""
+    arg = args[0]
+    if _is_const(arg):
+        return SX.const(-_const_value(arg))
+    if arg.op == "neg":
+        return arg.args[0]
+    return SX(SXNode.make("neg", (arg.node,)))
+
+
+def _simplify_binary(op: str, args: tuple[SX, ...]) -> SX:
+    """Simplify a binary expression."""
+    left, right = args
+    if _is_const(left) and _is_const(right):
+        return SX.const(
+            _evaluate_const_op(
+                op,
+                _const_value(left),
+                _const_value(right),
+            )
+        )
+
+    if op == "add":
+        return _simplify_add(left, right)
+    if op == "sub":
+        if left.node is right.node:
+            return SX.const(0.0)
+        return _simplify_add(left, -right)
+    if op == "mul":
+        return _simplify_mul(left, right)
+    if op == "div":
+        if _is_zero(left):
+            return SX.const(0.0)
+        if _is_one(right):
+            return left
+        if left.node is right.node:
+            return SX.const(1.0)
+        left_sign, left_base = _strip_negation(left)
+        right_sign, right_base = _strip_negation(right)
+        sign = left_sign * right_sign
+        quotient = SX(SXNode.make("div", (left_base.node, right_base.node)))
+        if sign == -1.0:
+            return -quotient
+        return quotient
+    if op == "pow":
+        if _is_zero(right):
+            return SX.const(1.0)
+        if _is_one(right):
+            return left
+        if _is_zero(left):
+            return SX.const(0.0)
+        if _is_one(left):
+            return SX.const(1.0)
+    return SX(SXNode.make(op, (left.node, right.node)))
+
+
+def _simplify_unary(op: str, args: tuple[SX, ...]) -> SX:
+    """Simplify a unary expression."""
     arg = args[0]
     if _is_const(arg):
         return SX.const(_evaluate_const_unary(op, _const_value(arg)))
@@ -393,6 +520,34 @@ def _apply_rules(op: str, args: tuple[SX, ...], name: str | None = None) -> SX:
         if sign == -1.0:
             return base.cos()
     return SX(SXNode.make(op, (arg.node,)))
+
+
+_SPECIAL_RULES = {
+    "custom_scalar": _special_custom_scalar,
+    "custom_vector": _special_custom_vector,
+    "custom_scalar_jacobian": _special_custom_scalar_jacobian,
+    "custom_scalar_hessian": _special_custom_scalar_hessian,
+    "custom_scalar_hvp": _special_custom_scalar_hvp,
+    "custom_vector_jacobian_component": (
+        _special_custom_vector_jacobian_component
+    ),
+    "custom_vector_hessian_entry": _special_custom_vector_hessian_entry,
+    "custom_vector_hvp_component": _special_custom_vector_hvp_component,
+    "matvec_component": _special_matvec_component,
+    "quadform": _special_quadform,
+    "bilinear_form": _special_bilinear_form,
+    "sum": _special_sum,
+    "prod": _special_prod,
+    "reduce_max": _special_reduce_max,
+    "reduce_min": _special_reduce_min,
+    "mean": _special_mean,
+    "norm2": _special_norm2,
+    "norm2sq": _special_norm2sq,
+    "norm1": _special_norm1,
+    "norm_inf": _special_norm_inf,
+    "norm_p_to_p": _special_norm_p_to_p,
+    "norm_p": _special_norm_p,
+}
 
 
 def _simplify_add(left: SX, right: SX) -> SX:
@@ -489,7 +644,9 @@ def _simplify_mul(left: SX, right: SX) -> SX:
         if exponent == 1.0:
             rebuilt_factors.append(base)
         else:
-            rebuilt_factors.append(SX(SXNode.make("pow", (base.node, SX.const(exponent).node))))
+            rebuilt_factors.append(
+                SX(SXNode.make("pow", (base.node, SX.const(exponent).node)))
+            )
 
     if not rebuilt_factors:
         return SX.const(1.0)
@@ -702,9 +859,13 @@ def _apply_trig_identity_terms(terms: list[SX]) -> list[SX]:
         lhs_sin_base = _match_square_of_unary(lhs, "sin")
         lhs_cos_base = _match_square_of_unary(lhs, "cos")
         if lhs_sin_base is not None:
-            partner_index = _find_matching_square(remaining, lhs_sin_base, "cos", index + 1)
+            partner_index = _find_matching_square(
+                remaining, lhs_sin_base, "cos", index + 1
+            )
         elif lhs_cos_base is not None:
-            partner_index = _find_matching_square(remaining, lhs_cos_base, "sin", index + 1)
+            partner_index = _find_matching_square(
+                remaining, lhs_cos_base, "sin", index + 1
+            )
         else:
             index += 1
             continue
@@ -713,7 +874,12 @@ def _apply_trig_identity_terms(terms: list[SX]) -> list[SX]:
             index += 1
             continue
 
-        replacement_terms = remaining[:index] + [SX.const(1.0)] + remaining[index + 1 : partner_index] + remaining[partner_index + 1 :]
+        replacement_terms = (
+            remaining[:index]
+            + [SX.const(1.0)]
+            + remaining[index + 1 : partner_index]
+            + remaining[partner_index + 1 :]
+        )
         return replacement_terms
     return terms
 
