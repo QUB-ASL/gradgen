@@ -877,8 +877,8 @@ def _apply_trig_identity_terms(terms: list[SX]) -> list[SX]:
         replacement_terms = (
             remaining[:index]
             + [SX.const(1.0)]
-            + remaining[index + 1 : partner_index]
-            + remaining[partner_index + 1 :]
+            + remaining[index + 1: partner_index]
+            + remaining[partner_index + 1:]
         )
         return replacement_terms
     return terms
@@ -893,7 +893,8 @@ def _find_matching_square(
     """Find ``op(base)^2`` in a flattened term list."""
     for index in range(start, len(terms)):
         candidate_base = _match_square_of_unary(terms[index], op)
-        if candidate_base is not None and candidate_base.node is base.node:
+        if candidate_base is not None\
+                and candidate_base.node is base.node:
             return index
     return None
 

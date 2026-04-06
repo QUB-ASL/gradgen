@@ -7,73 +7,27 @@ from .rendering import KernelRenderContext, render_kernel_source
 from ..config import RustBackendConfig, RustBackendMode, RustScalarType
 from ..models import (
     RustCodegenResult,
-    _ArgSpec,
-    _ComposedRepeatPlan,
-    _ComposedSinglePlan,
     _SingleShootingHelperBundle,
 )
 from ..naming import sanitize_ident
-from ...function import Function
-from ...map_zip import ReducedFunction, ZippedFunction, ZippedJacobianFunction
 from ...single_shooting import (
     SingleShootingGradientFunction,
     SingleShootingHvpFunction,
     SingleShootingJointFunction,
-    SingleShootingPrimalFunction,
     SingleShootingProblem,
 )
-from ...sx import SX, SXNode, SXVector
 
 generate_rust = _shared.generate_rust
 _resolve_backend_config = _shared._resolve_backend_config
 _validate_backend_mode = _shared._validate_backend_mode
 _validate_scalar_type = _shared._validate_scalar_type
 _validate_generated_argument_names = _shared._validate_generated_argument_names
-_maybe_simplify_derivative_function = (
-    _shared._maybe_simplify_derivative_function
-)
 _derive_python_function_name = _shared._derive_python_function_name
-_flatten_arg = _shared._flatten_arg
-_arg_size = _shared._arg_size
-_scaled_index_expr = _shared._scaled_index_expr
 _format_float = _shared._format_float
 _format_rust_string_literal = _shared._format_rust_string_literal
-_describe_input_arg = _shared._describe_input_arg
-_describe_output_arg = _shared._describe_output_arg
 _emit_exact_length_assert = _shared._emit_exact_length_assert
 _emit_min_length_assert = _shared._emit_min_length_assert
-_allocate_workspace_slots = _shared._allocate_workspace_slots
-_collect_required_workspace_nodes = _shared._collect_required_workspace_nodes
-_collect_reachable_nodes = _shared._collect_reachable_nodes
-_reemit_direct_output_helper_call = _shared._reemit_direct_output_helper_call
-_collect_suppressed_custom_wrappers = (
-    _shared._collect_suppressed_custom_wrappers
-)
 _build_shared_helper_lines = _shared._build_shared_helper_lines
-_build_composed_input_specs = _shared._build_composed_input_specs
-_emit_composed_fixed_repeat_constants = (
-    _shared._emit_composed_fixed_repeat_constants
-)
-_emit_composed_parameter_ref = _shared._emit_composed_parameter_ref
-_compose_offset_expr = _shared._compose_offset_expr
-_compose_composed_helper_base_name = _shared._compose_composed_helper_base_name
-_emit_composed_primal_single_block = _shared._emit_composed_primal_single_block
-_emit_composed_primal_repeat_block = _shared._emit_composed_primal_repeat_block
-_emit_composed_gradient_forward_single_block = (
-    _shared._emit_composed_gradient_forward_single_block
-)
-_emit_composed_gradient_forward_repeat_block = (
-    _shared._emit_composed_gradient_forward_repeat_block
-)
-_emit_composed_gradient_reverse_single_block = (
-    _shared._emit_composed_gradient_reverse_single_block
-)
-_emit_composed_gradient_reverse_repeat_block = (
-    _shared._emit_composed_gradient_reverse_repeat_block
-)
-_build_directional_derivative_function = (
-    _shared._build_directional_derivative_function
-)
 _build_single_shooting_helpers = _shared._build_single_shooting_helpers
 _build_single_shooting_input_specs = _shared._build_single_shooting_input_specs
 _build_single_shooting_output_specs = (

@@ -97,7 +97,9 @@ def _topological_nodes(outputs: tuple[SX, ...]) -> tuple[SXNode, ...]:
     return tuple(ordered)
 
 
-def _visit_node(node: SXNode, seen: set[SXNode], ordered: list[SXNode]) -> None:
+def _visit_node(node: SXNode,
+                seen: set[SXNode],
+                ordered: list[SXNode]) -> None:
     """Depth-first topological traversal of expression nodes."""
     if node in seen:
         return

@@ -6,8 +6,6 @@ import re
 
 from ...naming import sanitize_ident
 from ...models import _ArgSpec, _ComposedRepeatPlan, _ComposedSinglePlan
-from ....function import Function
-from ....sx import SXNode
 from .. import shared as _shared
 
 
@@ -35,8 +33,8 @@ def _build_composed_input_specs(
                 rust_label=f'"{parameter_name}"',
                 doc_description=(
                     "packed stage-parameter slice for the composed kernel; "
-                    "symbolic parameter blocks are laid out in forward stage order "
-                    "and the terminal block is stored last"
+                    "symbolic parameter blocks are laid out in forward stage "
+                    "order and the terminal block is stored last"
                 ),
                 size=parameter_size,
             )
@@ -52,10 +50,14 @@ def _emit_composed_fixed_repeat_constants(
     """Emit a compile-time fixed-parameter table for a repeat block."""
     row_size = len(values[0]) if values else 0
     rows = ", ".join(
-        "[" + ", ".join(_shared._format_float(value, scalar_type) for value in row) + "]"
+        "[" + ", "
+        .join(_shared._format_float(value, scalar_type) for value in row) + "]"
         for row in values
     )
-    return [f"const {const_name}: [[{scalar_type}; {row_size}]; {len(values)}] = [{rows}];"]
+    emt = [
+        f"const {const_name}: [[{scalar_type}; {row_size}]; "
+        f"{len(values)}] = [{rows}];"]
+    return emt
 
 
 def _emit_composed_parameter_ref(
@@ -80,7 +82,8 @@ def _emit_composed_parameter_ref(
         return "&[" + ", ".join(_shared._format_float(value, scalar_type) for value in fixed_values) + "]"
 
     if parameters_name is None:
-        raise ValueError("symbolic composed parameters require a packed parameter input")
+        raise ValueError(
+            "symbolic composed parameters require a packed parameter input")
     if parameter_size == 0:
         return "&[]"
     if index_var is None:

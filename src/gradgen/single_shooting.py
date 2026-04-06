@@ -702,7 +702,7 @@ def _slice_packed_sequence(
     start = stage_index * block_size
     if isinstance(formal, SX):
         return sequence[start]
-    return SXVector(sequence.elements[start : start + block_size])
+    return SXVector(sequence.elements[start: start + block_size])
 
 
 def _extract_single_output(value: object) -> FunctionArg:

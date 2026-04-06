@@ -668,13 +668,13 @@ class SX:
 
     def hypot(self, other: object) -> SX:
         """Return the symbolic Euclidean norm of two scalar-like values.
-        
+
         The operands are symbolically coerced before the node is created.
-        
+
         Args:
             lhs: Scalar-like left operand.
             rhs: Scalar-like right operand.
-        
+
         Returns:
             A new ``SX`` expression representing ``hypot(lhs, rhs)``.
         """
@@ -683,10 +683,10 @@ class SX:
 
     def abs(self) -> SX:
         """Return the symbolic absolute value of ``self``.
-        
+
         The result is a new ``SX`` expression that shares the 
         same interned graph style as all other nodes.
-        
+
         Returns:
             A new ``SX`` expression representing ``abs(self)``.
         """
@@ -695,13 +695,13 @@ class SX:
 
     def maximum(self, other: object) -> SX:
         """Return the symbolic maximum of two scalar-like expressions.
-        
+
         The operands are symbolically coerced before the node is created.
-        
+
         Args:
             lhs: First scalar-like value to compare.
             rhs: Second scalar-like value to compare.
-        
+
         Returns:
             A new ``SX`` expression representing ``max(lhs, rhs)``.
         """
@@ -710,13 +710,13 @@ class SX:
 
     def minimum(self, other: object) -> SX:
         """Return the symbolic minimum of two scalar-like expressions.
-        
+
         The operands are symbolically coerced before the node is created.
-        
+
         Args:
             lhs: First scalar-like value to compare.
             rhs: Second scalar-like value to compare.
-        
+
         Returns:
             A new ``SX`` expression representing ``min(lhs, rhs)``.
         """
@@ -2018,13 +2018,13 @@ def signum(expr: object) -> SX:
 
 def hypot(lhs: object, rhs: object) -> SX:
     """Return the symbolic Euclidean norm of two scalar-like values.
-    
+
     This is a convenience wrapper around the corresponding symbolic operator.
-    
+
     Args:
         lhs: Scalar-like left operand.
         rhs: Scalar-like right operand.
-    
+
     Returns:
         A new ``SX`` expression representing ``hypot(lhs, rhs)``.
     """
@@ -2033,13 +2033,13 @@ def hypot(lhs: object, rhs: object) -> SX:
 
 def maximum(lhs: object, rhs: object) -> SX:
     """Return the symbolic maximum of two scalar-like expressions.
-    
+
     This is a convenience wrapper around the corresponding symbolic operator.
-    
+
     Args:
         lhs: First scalar-like value to compare.
         rhs: Second scalar-like value to compare.
-    
+
     Returns:
         A new ``SX`` expression representing ``max(lhs, rhs)``.
     """
@@ -2048,13 +2048,13 @@ def maximum(lhs: object, rhs: object) -> SX:
 
 def minimum(lhs: object, rhs: object) -> SX:
     """Return the symbolic minimum of two scalar-like expressions.
-    
+
     This is a convenience wrapper around the corresponding symbolic operator.
-    
+
     Args:
         lhs: First scalar-like value to compare.
         rhs: Second scalar-like value to compare.
-    
+
     Returns:
         A new ``SX`` expression representing ``min(lhs, rhs)``.
     """
