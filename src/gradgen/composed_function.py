@@ -594,7 +594,7 @@ def _resolve_compiled_parameter(
     if isinstance(parameter.formal, SX):
         return packed_parameters[offset], offset + 1
     return (
-        packed_parameters[offset : offset + parameter.size],
+        packed_parameters[offset: offset + parameter.size],
         offset + parameter.size,
     )
 

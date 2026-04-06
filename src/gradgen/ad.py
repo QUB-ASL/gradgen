@@ -300,7 +300,7 @@ def _differentiate_custom_vector_jacobian_component(
         expr.name,
         args,
     )
-    tangent = SXVector(tangents[1 : 1 + len(value)])
+    tangent = SXVector(tangents[1: 1 + len(value)])
     return custom_vector_hvp_component(
         expr.name or "",
         index,
@@ -318,7 +318,7 @@ def _differentiate_matvec_component(
     rows, cols, row, matrix_values, _x_values = parse_matvec_component_args(
         args
     )
-    tangent_values = tangents[3 + (rows * cols) :]
+    tangent_values = tangents[3 + (rows * cols):]
     return SX(
         SXNode.make(
             "matvec_component",
@@ -339,9 +339,9 @@ def _differentiate_quadform(
     tangents: tuple[SX, ...],
 ) -> SX:
     size, matrix_values, x_values = parse_quadform_args(args)
-    x_tangents = tangents[1 + (size * size) :]
+    x_tangents = tangents[1 + (size * size):]
     matrix_rows = [
-        list(matrix_values[row * size : (row + 1) * size])
+        list(matrix_values[row * size: (row + 1) * size])
         for row in range(size)
     ]
     total = bilinear_form(
@@ -366,17 +366,17 @@ def _differentiate_bilinear_form(
         args
     )
     matrix_rows = [
-        list(matrix_values[row * cols : (row + 1) * cols])
+        list(matrix_values[row * cols: (row + 1) * cols])
         for row in range(rows)
     ]
     transpose = matrix_transpose(rows, cols, matrix_values)
     transpose_rows = [
-        list(transpose[row * rows : (row + 1) * rows]) for row in range(cols)
+        list(transpose[row * rows: (row + 1) * rows]) for row in range(cols)
     ]
     x_tangents = SXVector(
-        tangents[2 + (rows * cols) : 2 + (rows * cols) + rows]
+        tangents[2 + (rows * cols): 2 + (rows * cols) + rows]
     )
-    y_tangents = SXVector(tangents[2 + (rows * cols) + rows :])
+    y_tangents = SXVector(tangents[2 + (rows * cols) + rows:])
     return bilinear_form(
         x_tangents,
         matrix_rows,
@@ -907,7 +907,7 @@ def _propagate_reverse_quadform(
     transposed = matrix_transpose(size, size, matrix_values)
     sym_matrix = matrix_add(matrix_values, transposed)
     sym_rows = [
-        list(sym_matrix[row * size : (row + 1) * size]) for row in range(size)
+        list(sym_matrix[row * size: (row + 1) * size]) for row in range(size)
     ]
     gradient_vec = matvec(sym_rows, SXVector(x_values)) * adjoint
     offset = 1 + (size * size)
@@ -928,12 +928,12 @@ def _propagate_reverse_bilinear_form(
         args
     )
     matrix = [
-        list(matrix_values[row * cols : (row + 1) * cols])
+        list(matrix_values[row * cols: (row + 1) * cols])
         for row in range(rows)
     ]
     transpose = matrix_transpose(rows, cols, matrix_values)
     transpose_rows = [
-        list(transpose[row * rows : (row + 1) * rows]) for row in range(cols)
+        list(transpose[row * rows: (row + 1) * rows]) for row in range(cols)
     ]
     grad_x = matvec(matrix, SXVector(y_values)) * adjoint
     grad_y = matvec(transpose_rows, SXVector(x_values)) * adjoint

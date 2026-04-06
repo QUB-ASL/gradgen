@@ -196,6 +196,8 @@ result = reduced_fun(acc=0, x_seq=[0.1, 0.2, 0.3]*N)
 
 ## Repeat and chain
 
+Repeat and chain are variants of the reduce function.
 
 
 ## Code generation
+
