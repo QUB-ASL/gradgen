@@ -6,11 +6,6 @@ import argparse
 from pathlib import Path
 import sys
 
-
-# Allow running this file directly from inside the demo directory.
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "src"))
-
 from gradgen import (
     CodeGenerationBuilder,
     Function,
@@ -20,11 +15,16 @@ from gradgen import (
     SingleShootingProblem,
 )
 
+# Allow running this file directly from inside the demo directory.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(REPO_ROOT / "src"))
+
 
 def parse_args() -> argparse.Namespace:
     """Parse the user-configurable horizon length."""
     parser = argparse.ArgumentParser(
-        description="Generate a loop-based deterministic single-shooting demo.",
+        description="Generate a loop-based deterministic "
+        "single-shooting demo.",
     )
     parser.add_argument(
         "--horizon",
@@ -92,13 +92,6 @@ problem = SingleShootingProblem(
     parameter_name="p",
 )
 
-
-x0_value = [1.0, -0.5]
-U_value = [0.2 if stage_index % 2 == 0 else -0.1 for stage_index in range(args.horizon)]
-p_value = [0.4, -1.2]
-v_U_value = [0.5 if stage_index % 2 == 0 else -1.0 for stage_index in range(args.horizon)]
-
-
 backend_config = (
     RustBackendConfig()
     .with_backend_mode("no_std")
@@ -112,17 +105,17 @@ project = (
     CodeGenerationBuilder()
     .with_backend_config(backend_config)
     .for_function(problem)
-        .add_primal(include_states=True)
-        .add_gradient(include_states=True)
-        .add_hvp(include_states=True)
-        .add_joint(
-            SingleShootingBundle()
-            .add_cost()
-            .add_gradient()
-            .add_rollout_states()
-        )
-        .with_simplification("medium")
-        .done()
+    .add_primal(include_states=True)
+    .add_gradient(include_states=True)
+    .add_hvp(include_states=True)
+    .add_joint(
+        SingleShootingBundle()
+        .add_cost()
+        .add_gradient()
+        .add_rollout_states()
+    )
+    .with_simplification("medium")
+    .done()
     .build(Path(__file__).resolve().parent)
 )
 print("Building project done!")

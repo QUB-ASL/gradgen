@@ -1,4 +1,4 @@
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyAttributeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyDict, PyFloat, PyList, PyTuple};
 use std::vec::Vec;
@@ -99,6 +99,33 @@ fn wrap_output(py: Python<'_>, values: &[f64]) -> PyResult<Py<PyAny>> {
 
 fn all_functions_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
     Ok(PyList::new(py, ["energy"])?.into_any().unbind())
+}
+
+fn module_all_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    Ok(PyList::new(
+        py,
+        [
+            "__version__",
+            "Workspace",
+            "all_functions",
+            "function_info",
+            "workspace_for_function",
+            "call",
+            "energy",
+        ],
+    )?
+    .into_any()
+    .unbind())
+}
+
+#[pyfunction(name = "__getattr__")]
+fn module_getattr(name: &str) -> PyResult<String> {
+    match name {
+        "__version__" => Ok("0.4.0".to_string()),
+        _ => Err(PyAttributeError::new_err(format!(
+            "module has no attribute {name:?}"
+        ))),
+    }
 }
 
 fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<Workspace>> {
@@ -245,8 +272,10 @@ fn gradgen_python_interface(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResul
     m.add_class::<Workspace>()?;
     m.add_function(wrap_pyfunction!(all_functions, m)?)?;
     m.add_function(wrap_pyfunction!(function_info, m)?)?;
+    m.add_function(wrap_pyfunction!(module_getattr, m)?)?;
     m.add_function(wrap_pyfunction!(workspace_for_function, m)?)?;
     m.add_function(wrap_pyfunction!(call, m)?)?;
     m.add_function(wrap_pyfunction!(py_energy, m)?)?;
+    m.dict().set_item("__all__", module_all_impl(_py)?)?;
     Ok(())
 }

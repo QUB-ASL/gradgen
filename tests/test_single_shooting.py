@@ -18,10 +18,9 @@ from gradgen.single_shooting import (
     _validate_single_shooting_bundle,
     _single_shooting_primal_name,
     _single_shooting_joint_name,
-    _single_shooting_bundle_output_names,
-    SingleShootingBundle,
-    SingleShootingProblem,
+    _single_shooting_bundle_output_names
 )
+
 
 def _build_minimal_scalar_problem():
     # state is 2-D, control is scalar, parameter is 3-D
@@ -52,6 +51,7 @@ def _build_minimal_scalar_problem():
         terminal_cost=terminal_cost,
     )
 
+
 def _build_reference_problem(*, horizon: int = 3) -> SingleShootingProblem:
     x = SXVector.sym("x", 2)
     u = SXVector.sym("u", 1)
@@ -60,7 +60,8 @@ def _build_reference_problem(*, horizon: int = 3) -> SingleShootingProblem:
     dynamics = Function(
         "dynamics",
         [x, u, p],
-        [SXVector((x[0] + p[0] * x[1] + u[0], x[1] + p[1] * u[0] - 0.5 * x[0]))],
+        [SXVector((x[0] + p[0] * x[1] + u[0],
+                   x[1] + p[1] * u[0] - 0.5 * x[0]))],
         input_names=["x", "u", "p"],
         output_names=["x_next"],
     )
@@ -90,14 +91,19 @@ def _build_reference_problem(*, horizon: int = 3) -> SingleShootingProblem:
     )
 
 
-def _manual_rollout(x0: list[float], U: list[float], p: list[float], horizon: int) -> tuple[float, list[float]]:
+def _manual_rollout(x0: list[float],
+                    U: list[float],
+                    p: list[float],
+                    horizon: int) -> tuple[float, list[float]]:
     current = [float(x0[0]), float(x0[1])]
     packed_states = [current[0], current[1]]
     total_cost = 0.0
 
     for stage_index in range(horizon):
         u_t = float(U[stage_index])
-        total_cost += current[0] * current[0] + 2.0 * current[1] * current[1] + 0.3 * u_t * u_t + p[0] * u_t
+        total_cost += current[0] * current[0] \
+            + 2.0 * current[1] * current[1] \
+            + 0.3 * u_t * u_t + p[0] * u_t
         next_state = [
             current[0] + p[0] * current[1] + u_t,
             current[1] + p[1] * u_t - 0.5 * current[0],
@@ -105,7 +111,9 @@ def _manual_rollout(x0: list[float], U: list[float], p: list[float], horizon: in
         current = next_state
         packed_states.extend(current)
 
-    total_cost += 3.0 * current[0] * current[0] + 0.5 * current[1] * current[1] + p[1] * current[0]
+    total_cost += 3.0 * current[0] * current[0] \
+        + 0.5 * current[1] * current[1] \
+        + p[1] * current[0]
     return total_cost, packed_states
 
 
@@ -144,15 +152,27 @@ def _finite_difference_hvp(
     backward_controls = [
         control - epsilon * direction for control, direction in zip(U, v_U)
     ]
-    forward_gradient = _finite_difference_gradient(x0, forward_controls, p, horizon, epsilon=epsilon)
-    backward_gradient = _finite_difference_gradient(x0, backward_controls, p, horizon, epsilon=epsilon)
+    forward_gradient = _finite_difference_gradient(
+        x0,
+        forward_controls,
+        p,
+        horizon,
+        epsilon=epsilon)
+    backward_gradient = _finite_difference_gradient(
+        x0,
+        backward_controls,
+        p,
+        horizon,
+        epsilon=epsilon)
     return [
         (forward_value - backward_value) / (2.0 * epsilon)
-        for forward_value, backward_value in zip(forward_gradient, backward_gradient)
+        for forward_value, backward_value in zip(
+            forward_gradient, backward_gradient)
     ]
 
 
-def _build_scalar_reference_problem(*, horizon: int = 2) -> SingleShootingProblem:
+def _build_scalar_reference_problem(*, horizon: int = 2) \
+        -> SingleShootingProblem:
     x = SX.sym("x")
     u = SX.sym("u")
     p = SX.sym("p")
@@ -190,7 +210,10 @@ def _build_scalar_reference_problem(*, horizon: int = 2) -> SingleShootingProble
     )
 
 
-def _manual_scalar_rollout(x0: float, U: list[float], p: float, horizon: int) -> tuple[float, list[float]]:
+def _manual_scalar_rollout(x0: float,
+                           U: list[float],
+                           p: float,
+                           horizon: int) -> tuple[float, list[float]]:
     current = float(x0)
     packed_states = [current]
     total_cost = 0.0
@@ -232,13 +255,18 @@ class SingleShootingProblemTests(unittest.TestCase):
         U = [0.2, -0.1, 0.3]
         p = [0.4, -1.2]
 
-        expected_cost, expected_states = _manual_rollout(x0, U, p, problem.horizon)
-        expected_gradient = _finite_difference_gradient(x0, U, p, problem.horizon)
+        expected_cost, expected_states = _manual_rollout(
+            x0, U, p, problem.horizon)
+        expected_gradient = _finite_difference_gradient(
+            x0, U, p, problem.horizon)
 
         cost_function = problem.to_function()
-        self.assertEqual(cost_function.input_names, ("x0", "U", "p"))
-        self.assertEqual(cost_function.output_names, ("cost",))
-        self.assertAlmostEqual(cost_function(x0, U, p), expected_cost, places=10)
+        self.assertEqual(
+            cost_function.input_names, ("x0", "U", "p"))
+        self.assertEqual(
+            cost_function.output_names, ("cost",))
+        self.assertAlmostEqual(
+            cost_function(x0, U, p), expected_cost, places=10)
 
         cost_and_states = problem.to_function(include_states=True)
         actual_cost, actual_states = cost_and_states(x0, U, p)
@@ -248,13 +276,16 @@ class SingleShootingProblemTests(unittest.TestCase):
         gradient_function = problem.gradient().to_function()
         actual_gradient = gradient_function(x0, U, p)
         self.assertEqual(len(actual_gradient), len(expected_gradient))
-        for actual_value, expected_value in zip(actual_gradient, expected_gradient):
+        for actual_value, expected_value in \
+                zip(actual_gradient, expected_gradient):
             self.assertAlmostEqual(actual_value, expected_value, places=5)
 
-        gradient_and_states = problem.gradient(include_states=True).to_function()
+        gradient_and_states = problem.gradient(
+            include_states=True).to_function()
         actual_gradient, actual_states = gradient_and_states(x0, U, p)
         self.assertEqual(tuple(expected_states), actual_states)
-        for actual_value, expected_value in zip(actual_gradient, expected_gradient):
+        for actual_value, expected_value in zip(
+                actual_gradient, expected_gradient):
             self.assertAlmostEqual(actual_value, expected_value, places=5)
 
         joint_function = (
@@ -269,7 +300,8 @@ class SingleShootingProblemTests(unittest.TestCase):
         actual_cost, actual_gradient, actual_states = joint_function(x0, U, p)
         self.assertAlmostEqual(actual_cost, expected_cost, places=10)
         self.assertEqual(tuple(expected_states), actual_states)
-        for actual_value, expected_value in zip(actual_gradient, expected_gradient):
+        for actual_value, expected_value in zip(
+                actual_gradient, expected_gradient):
             self.assertAlmostEqual(actual_value, expected_value, places=5)
 
     def test_problem_expands_hvp_and_rollout_states(self) -> None:
@@ -302,9 +334,12 @@ class SingleShootingProblemTests(unittest.TestCase):
         p = [0.4, -1.2]
         v_U = [0.5, -1.0, 0.25]
 
-        expected_cost, expected_states = _manual_rollout(x0, U, p, problem.horizon)
-        expected_gradient = _finite_difference_gradient(x0, U, p, problem.horizon)
-        expected_hvp = _finite_difference_hvp(x0, U, p, v_U, problem.horizon)
+        expected_cost, expected_states = _manual_rollout(
+            x0, U, p, problem.horizon)
+        expected_gradient = _finite_difference_gradient(
+            x0, U, p, problem.horizon)
+        expected_hvp = _finite_difference_hvp(
+            x0, U, p, v_U, problem.horizon)
 
         joint_function = (
             problem.joint(
@@ -316,10 +351,12 @@ class SingleShootingProblemTests(unittest.TestCase):
             )
             .to_function()
         )
-        actual_cost, actual_gradient, actual_hvp, actual_states = joint_function(x0, U, p, v_U)
+        actual_cost, actual_gradient, actual_hvp, actual_states = \
+            joint_function(x0, U, p, v_U)
         self.assertAlmostEqual(actual_cost, expected_cost, places=10)
         self.assertEqual(tuple(expected_states), actual_states)
-        for actual_value, expected_value in zip(actual_gradient, expected_gradient):
+        for actual_value, expected_value in zip(
+                actual_gradient, expected_gradient):
             self.assertAlmostEqual(actual_value, expected_value, places=5)
         for actual_value, expected_value in zip(actual_hvp, expected_hvp):
             self.assertAlmostEqual(actual_value, expected_value, places=4)
@@ -360,7 +397,8 @@ class SingleShootingProblemTests(unittest.TestCase):
                 terminal_cost=terminal_cost,
             )
 
-    def test_scalar_problem_supports_scalar_state_control_and_parameter(self) -> None:
+    def test_scalar_problem_supports_scalar_state_control_and_parameter(self) \
+            -> None:
         # This exercises the SX-only single-shooting path rather than the
         # vector path. It helps catch shape bugs in packed control slicing,
         # scalar rollout flattening, and gradient expansion for horizon data.
@@ -369,8 +407,10 @@ class SingleShootingProblemTests(unittest.TestCase):
         U = [0.4, -0.2]
         p = -0.75
 
-        expected_cost, expected_states = _manual_scalar_rollout(x0, U, p, problem.horizon)
-        expected_gradient = _finite_difference_scalar_gradient(x0, U, p, problem.horizon)
+        expected_cost, expected_states = _manual_scalar_rollout(
+            x0, U, p, problem.horizon)
+        expected_gradient = _finite_difference_scalar_gradient(
+            x0, U, p, problem.horizon)
 
         self.assertEqual(problem.state_size, 1)
         self.assertEqual(problem.control_size, 1)
@@ -381,14 +421,16 @@ class SingleShootingProblemTests(unittest.TestCase):
         self.assertAlmostEqual(actual_cost, expected_cost, places=10)
         self.assertEqual(tuple(expected_states), actual_states)
 
-        gradient_and_states = problem.gradient(include_states=True).to_function()
+        gradient_and_states = problem.gradient(include_states=True) \
+            .to_function()
         actual_gradient, actual_states = gradient_and_states(x0, U, p)
         self.assertEqual(tuple(expected_states), actual_states)
         self.assertEqual(len(actual_gradient), len(expected_gradient))
-        for actual_value, expected_value in zip(actual_gradient, expected_gradient):
+        for actual_value, expected_value in zip(
+                actual_gradient, expected_gradient):
             self.assertAlmostEqual(actual_value, expected_value, places=5)
 
-    def test_validation_rejects_nonpositive_horizon_and_bad_terminal_output(self) -> None:
+    def test_validation_rejects_nonpos_horizon_bad_terminal_out(self) -> None:
         x = SXVector.sym("x", 2)
         u = SXVector.sym("u", 1)
         p = SXVector.sym("p", 2)
@@ -453,7 +495,8 @@ class SingleShootingProblemTests(unittest.TestCase):
         problem = _build_reference_problem()
         builder = (
             CodeGenerationBuilder()
-            .with_backend_config(RustBackendConfig().with_crate_name("single_shooting"))
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("single_shooting"))
             .for_function(problem)
             .add_primal(include_states=True)
             .add_gradient(include_states=True)
@@ -472,11 +515,11 @@ class SingleShootingProblemTests(unittest.TestCase):
         self.assertEqual(len(resolved), 1)
 
 
-
 class TestSingleShootingAdditional(unittest.TestCase):
     def test_slice_packed_sequence_scalar_and_vector(self):
         seq = SXVector.sym("U", 4)
-        # scalar formal -> should return a single SX element equal to sequence[start]
+        # scalar formal -> should return a single SX element
+        # equal to sequence[start]
         sx_formal = SX.sym("u")
         first = _slice_packed_sequence(seq, 0, 1, sx_formal)
         self.assertIsInstance(first, SX)
@@ -511,7 +554,8 @@ class TestSingleShootingAdditional(unittest.TestCase):
         s2 = SX.const(4.0)
         packed = _flatten_rollout_states([s1, v, s2])
         self.assertIsInstance(packed, SXVector)
-        self.assertEqual(tuple(elem.value for elem in packed), (1.0, 2.0, 3.0, 4.0))
+        self.assertEqual(
+            tuple(elem.value for elem in packed), (1.0, 2.0, 3.0, 4.0))
 
     def test_validate_single_shooting_bundle_errors_and_name_helpers(self):
         # empty bundle must raise
@@ -525,14 +569,20 @@ class TestSingleShootingAdditional(unittest.TestCase):
             _validate_single_shooting_bundle(only_cost)
 
         # name helpers
-        self.assertEqual(_single_shooting_primal_name("base", False), "base")
-        self.assertEqual(_single_shooting_primal_name("base", True), "base_with_states")
+        self.assertEqual(
+            _single_shooting_primal_name("base", False), "base")
+        self.assertEqual(
+            _single_shooting_primal_name("base", True), "base_with_states")
 
         bundle = SingleShootingBundle().add_cost().add_gradient()
         name = _single_shooting_joint_name("prob", bundle, "U")
         self.assertIn("cost", name)
         self.assertIn("gradient_U", name)
-        self.assertEqual(_single_shooting_bundle_output_names(_build_minimal_scalar_problem(), bundle), ("cost", "gradient_U"))
+        self.assertEqual(
+            _single_shooting_bundle_output_names(
+                _build_minimal_scalar_problem(), bundle),
+            ("cost", "gradient_U")
+            )
 
     def test_primal_to_function_and_staged_wrappers(self):
         problem = _build_minimal_scalar_problem()
@@ -545,5 +595,3 @@ class TestSingleShootingAdditional(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-

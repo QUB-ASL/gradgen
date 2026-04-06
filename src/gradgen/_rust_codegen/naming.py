@@ -64,7 +64,8 @@ RUST_KEYWORDS = frozenset(
 
 def is_rust_ident(name: str) -> bool:
     """Return whether ``name`` is a plain Rust identifier."""
-    return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)) and name not in RUST_KEYWORDS
+    return bool(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name)) \
+        and name not in RUST_KEYWORDS
 
 
 def validate_rust_ident(name: str | None, *, label: str) -> None:
@@ -72,7 +73,8 @@ def validate_rust_ident(name: str | None, *, label: str) -> None:
     if name is None:
         return
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
-        raise ValueError(f"{label} must match the pattern [A-Za-z_][A-Za-z0-9_]*")
+        raise ValueError(
+            f"{label} must match the pattern [A-Za-z_][A-Za-z0-9_]*")
     if name in RUST_KEYWORDS:
         raise ValueError(f"{label} must not be a Rust keyword")
 
@@ -88,7 +90,8 @@ def validate_unique_rust_names(
         previous = seen.get(rust_name)
         if previous is not None:
             raise ValueError(
-                f"{label} names {previous!r} and {raw_name!r} both map to the Rust identifier "
+                f"{label} names {previous!r} and {raw_name!r} "
+                "both map to the Rust identifier "
                 f"{rust_name!r}"
             )
         seen[rust_name] = raw_name
@@ -96,7 +99,8 @@ def validate_unique_rust_names(
 
 def sanitize_ident(name: str) -> str:
     """Convert a user-facing name into a simple Rust identifier."""
-    chars = [character if character.isalnum() or character == "_" else "_" for character in name]
+    chars = [character if character.isalnum()
+             or character == "_" else "_" for character in name]
     ident = "".join(chars)
     if not ident:
         ident = "value"

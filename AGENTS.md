@@ -1,9 +1,6 @@
 ## Virtual environment
 - Use the Python from the virtual environment in `venv` in the package root. It uses Python 3.13. 
 
-
-
-
 ## Repo Structure 
 - `demos`
     - `demos/Makefile`: Makefile to build all demos
@@ -36,6 +33,8 @@
 
 ## Code style and formatting
 
+### Documentation
+
 - Public API functions, methods, and classes need docstrings
 - Use Google-style docstrings.
 - Write detailed API documentation for all public functions in Python. This is an example of good API documentation:
@@ -52,28 +51,31 @@ def zip_function(
 ) -> ZippedFunction:
     """Return a staged zipped function for a multi-input ``function``.
 
-        This helper creates a loop-structured wrapper around ``function`` so it can
-        be evaluated repeatedly over packed input sequences. The returned object is
-        a :class:`ZippedFunction`, which can later be expanded back into a regular
-        symbolic :class:`~gradgen.function.Function` or used for Rust code
-        generation.
+        This helper creates a loop-structured wrapper around ``function`` 
+        so it can be evaluated repeatedly over packed input sequences. 
+        The returned object is a :class:`ZippedFunction`, which can later be 
+        expanded back into a regular symbolic 
+        :class:`~gradgen.function.Function` or used for Rust code generation.
 
         Args:
-            function: The symbolic function to stage. It may accept one or more
-                inputs, and each input can be either a scalar ``SX`` or an
-                ``SXVector``.
-            count: The number of times the function should be applied over the
-                packed input sequences.
-            input_names: Optional names for the packed input sequences. When not
-                provided, each input name defaults to ``"<input_name>_seq"``.
-            name: Optional name for the staged zipped function. When not provided,
-                the generated name defaults to ``"<function.name>_zip"``.
-            simplification: Optional simplification effort passed through to the
-                generated symbolic function when the staged wrapper is expanded.
+            function: The symbolic function to stage. It may accept one or 
+                more inputs, and each input can be either a scalar ``SX`` 
+                or an ``SXVector``.
+            count: The number of times the function should be applied over 
+                the packed input sequences.
+            input_names: Optional names for the packed input sequences. 
+                When not provided, each input name defaults to
+                ``"<input_name>_seq"``.
+            name: Optional name for the staged zipped function. 
+                When not provided, the generated name defaults to 
+                ``"<function.name>_zip"``.
+            simplification: Optional simplification effort passed through 
+                to the generated symbolic function when the staged wrapper 
+                is expanded.
 
         Returns:
-            A :class:`ZippedFunction` describing the staged batched version of
-            ``function``.
+            A :class:`ZippedFunction` describing the staged batched 
+            version of ``function``.
 
         Example:
             >>> from gradgen import Function, SX
@@ -87,8 +89,8 @@ def zip_function(
             ('x_seq', 'y_seq')
         """
 ```
-This is an example of bad API documentation:
 
+This is an example of bad API documentation:
 ```python
 # Bad API documentation
 def zip_function(
@@ -102,6 +104,9 @@ def zip_function(
     """Return a staged zipped function for a multi-input ``function``."""
 ```
 
+### Python code style
+
+- Impose the style guidelines of flake8. For example, all lines of code should be no longer than 79 characters. For slices of arrays, write `a[start:end]` and not `a[start : end]` (do not leave white spaces before or after the colon).
 
 ## What Agents Must Never Do
 

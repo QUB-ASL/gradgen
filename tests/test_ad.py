@@ -914,10 +914,7 @@ class ADSymbolicPTests(unittest.TestCase):
 
 class SympyComparisonTests(unittest.TestCase):
     def setUp(self) -> None:
-        try:
-            import sympy as _sp  # type: ignore
-        except Exception as exc:  # pragma: no cover - skip when sympy missing
-            raise unittest.SkipTest("sympy not available: skipping symbolic comparison tests") from exc
+        pass
 
     def test_scalar_two_var_gradient_matches_sympy(self) -> None:
         import sympy as sp

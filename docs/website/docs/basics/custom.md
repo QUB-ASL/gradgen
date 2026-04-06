@@ -283,7 +283,7 @@ computed too.
 For a function $f:\mathbb{R}^n\times \mathbb{R}^p \to \mathbb{R}$ we may want
 to calculate Hessian-vector products, i.e. the mapping
 
-$$(x, w, v) \mapsto \nabla_x^2 f(x, w)\,v.$$
+$$(x, w, v) \mapsto \nabla_x^2 f(x, w) \cdot v.$$
 
 This is often cheaper than building the full Hessian, especially when you only
 need second-order directional information. For the example above, the
@@ -295,7 +295,7 @@ You can provide a Python callback for the product directly when registering
 the function:
 
 ```python
-def custom_energy_hvp(x: tuple[float, float], v: tuple[float, float], w: tuple[float, float]) -> list[float]:
+def custom_energy_hvp(x, v, w):
     """Return the Hessian-vector product H(x, w) v."""
     return list(np.matmul(np.asarray(custom_energy_hessian(x, w), dtype=float), np.asarray(v, dtype=float)))
 ```

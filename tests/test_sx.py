@@ -155,7 +155,7 @@ class SXTests(unittest.TestCase):
         self.assertEqual(gradgen.maximum(x, 1).op, "max")
         self.assertEqual(gradgen.minimum(x, 1).op, "min")
 
-    def test_numeric_operands_are_coerced_for_binary_operations(self) -> None:
+    def test_numeric_operands_coerced_for_binary_ops(self) -> None:
         x = SX.sym("x")
 
         self.assertEqual({arg.value for arg in (x + 2).args}, {None, 2.0})
@@ -167,7 +167,7 @@ class SXTests(unittest.TestCase):
         self.assertEqual((x**5).args[1].value, 5.0)
         self.assertEqual((5**x).args[0].value, 5.0)
 
-    def test_reverse_and_non_commutative_binary_operators_preserve_order(self) -> None:
+    def test_reverse_non_commutative_binary_ops_preserve_order(self) -> None:
         x = SX.sym("x")
 
         expr_sub = 2 - x
@@ -269,7 +269,9 @@ class SXVectorTests(unittest.TestCase):
     def test_symbolic_vector_can_propagate_metadata(self) -> None:
         x = SXVector.sym("x", 2, metadata={"domain": "real"})
 
-        self.assertEqual([item.metadata for item in x], [{"domain": "real"}, {"domain": "real"}])
+        self.assertEqual(
+            [item.metadata for item in x], 
+            [{"domain": "real"}, {"domain": "real"}])
 
     def test_empty_vectors_are_supported(self) -> None:
         x = SXVector.sym("x", 0)
@@ -335,8 +337,12 @@ class SXVectorTests(unittest.TestCase):
         self.assertTrue(all(item.op == "mul" for item in symbolic_right))
         self.assertEqual({arg.value for arg in left[0].args}, {None, 2.0})
         self.assertEqual({arg.value for arg in right[0].args}, {None, 3.0})
-        self.assertEqual({arg.name for arg in symbolic_left[0].args}, {"u", "x_0"})
-        self.assertEqual({arg.name for arg in symbolic_right[1].args}, {"u", "x_1"})
+        self.assertEqual(
+            {arg.name for arg in symbolic_left[0].args}, 
+            {"u", "x_0"})
+        self.assertEqual(
+            {arg.name for arg in symbolic_right[1].args}, 
+            {"u", "x_1"})
 
     def test_vector_vector_multiplication_is_not_supported(self) -> None:
         x = SXVector.sym("x", 2)
@@ -491,7 +497,8 @@ class SXVectorTests(unittest.TestCase):
 
         self.assertIsInstance(matvec_expr, SXVector)
         self.assertEqual(len(matvec_expr), 2)
-        self.assertTrue(all(element.op == "matvec_component" for element in matvec_expr))
+        self.assertTrue(
+            all(element.op == "matvec_component" for element in matvec_expr))
         self.assertEqual(quadform_expr.op, "quadform")
         self.assertEqual(bilinear_expr.op, "bilinear_form")
 
@@ -617,7 +624,7 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(expr_sub.args[0].value, 2.0)
         self.assertEqual(expr_sub.args[1].name, "u_0")
 
-    def test_longer_vectors_are_still_rejected_in_scalar_expressions(self) -> None:
+    def test_longer_vectors_rejected_in_scalar_expressions(self) -> None:
         x = SXVector.sym("x", 2)
         s = SX.sym("s")
 
@@ -625,7 +632,9 @@ class SXVectorTests(unittest.TestCase):
         self.assertIsInstance(elementwise, SXVector)
         self.assertEqual(len(elementwise), 2)
         self.assertTrue(all(item.op == "mul" for item in elementwise))
-        self.assertEqual({arg.name for arg in elementwise[0].args}, {"s", "x_0"})
+        self.assertEqual(
+            {arg.name for arg in elementwise[0].args}, 
+            {"s", "x_0"})
 
         with self.assertRaises(TypeError):
             _ = x + s
@@ -633,7 +642,8 @@ class SXVectorTests(unittest.TestCase):
     def test_vector_repr_is_informative(self) -> None:
         x = SXVector.sym("x", 2)
 
-        self.assertEqual(repr(x), "SXVector(elements=(SX.sym('x_0'), SX.sym('x_1')))")
+        self.assertEqual(repr(x), 
+                         "SXVector(elements=(SX.sym('x_0'), SX.sym('x_1')))")
 
     def test_empty_matrix_helpers_support_zero_dimension_vectors(self) -> None:
         x = SXVector.sym("x", 0)
@@ -647,7 +657,7 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(quadform_expr.op, "quadform")
         self.assertEqual(bilinear_expr.op, "bilinear_form")
 
-    def test_top_level_scalar_helpers_reject_non_singleton_vectors(self) -> None:
+    def test_toplevel_scalar_helpers_reject_nonsingleton_vectors(self) -> None:
         x = SXVector.sym("x", 2)
 
         with self.assertRaises(TypeError):

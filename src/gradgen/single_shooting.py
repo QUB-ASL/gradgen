@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 
 from .function import Function
-from .sx import SX, SXVector, vector
-
+from ._staged import _create_rust_project
+from ._staged import _generate_rust
+from ._staged import _simplify_function
+from .sx import SX, SXVector
 
 FunctionArg = SX | SXVector
 
@@ -29,7 +31,7 @@ class SingleShootingBundle:
         return replace(self, include_gradient=True)
 
     def add_hvp(self) -> SingleShootingBundle:
-        """Include the Hessian-vector product with respect to the packed control sequence."""
+        """Include the HVP with respect to the packed control sequence."""
         return replace(self, include_hvp=True)
 
     def add_rollout_states(self) -> SingleShootingBundle:
@@ -47,14 +49,12 @@ class SingleShootingPrimalFunction:
     simplification: int | str | None = None
 
     def to_function(self, name: str | None = None) -> Function:
-        """Expand this staged kernel into a regular symbolic ``Function``."""
+        """Expand this staged kernel into a symbolic ``Function``."""
         function = self.problem.to_function(
             include_states=self.include_states,
             name=name or self.name,
         )
-        if self.simplification is None:
-            return function
-        return function.simplify(max_effort=self.simplification, name=function.name)
+        return _simplify_function(function, self.simplification)
 
     @property
     def nodes(self):
@@ -83,9 +83,7 @@ class SingleShootingPrimalFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged primal kernel."""
-        from .rust_codegen import generate_rust
-
-        return generate_rust(
+        return _generate_rust(
             self,
             config=config,
             function_name=function_name,
@@ -104,9 +102,7 @@ class SingleShootingPrimalFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged primal kernel."""
-        from .rust_codegen import create_rust_project
-
-        return create_rust_project(
+        return _create_rust_project(
             self,
             path,
             config=config,
@@ -132,12 +128,7 @@ class SingleShootingGradientFunction:
             include_states=self.include_states,
             name=name or self.name,
         )
-        if self.simplification is None:
-            return gradient_function
-        return gradient_function.simplify(
-            max_effort=self.simplification,
-            name=gradient_function.name,
-        )
+        return _simplify_function(gradient_function, self.simplification)
 
     @property
     def nodes(self):
@@ -166,9 +157,7 @@ class SingleShootingGradientFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged gradient kernel."""
-        from .rust_codegen import generate_rust
-
-        return generate_rust(
+        return _generate_rust(
             self,
             config=config,
             function_name=function_name,
@@ -187,9 +176,7 @@ class SingleShootingGradientFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged gradient kernel."""
-        from .rust_codegen import create_rust_project
-
-        return create_rust_project(
+        return _create_rust_project(
             self,
             path,
             config=config,
@@ -210,17 +197,12 @@ class SingleShootingHvpFunction:
     simplification: int | str | None = None
 
     def to_function(self, name: str | None = None) -> Function:
-        """Expand this staged HVP kernel into a regular symbolic ``Function``."""
+        """Expand this staged HVP kernel into a symbolic ``Function``."""
         hvp_function = self.problem._expanded_hvp_function(
             include_states=self.include_states,
             name=name or self.name,
         )
-        if self.simplification is None:
-            return hvp_function
-        return hvp_function.simplify(
-            max_effort=self.simplification,
-            name=hvp_function.name,
-        )
+        return _simplify_function(hvp_function, self.simplification)
 
     @property
     def nodes(self):
@@ -230,7 +212,10 @@ class SingleShootingHvpFunction:
     @property
     def input_names(self) -> tuple[str, ...]:
         """Return the exposed input names."""
-        return (*self.problem.input_names, f"v_{self.problem.control_sequence_name}")
+        return (
+            *self.problem.input_names,
+            f"v_{self.problem.control_sequence_name}",
+        )
 
     @property
     def output_names(self) -> tuple[str, ...]:
@@ -249,9 +234,7 @@ class SingleShootingHvpFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged HVP kernel."""
-        from .rust_codegen import generate_rust
-
-        return generate_rust(
+        return _generate_rust(
             self,
             config=config,
             function_name=function_name,
@@ -270,9 +253,7 @@ class SingleShootingHvpFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged HVP kernel."""
-        from .rust_codegen import create_rust_project
-
-        return create_rust_project(
+        return _create_rust_project(
             self,
             path,
             config=config,
@@ -293,14 +274,12 @@ class SingleShootingJointFunction:
     simplification: int | str | None = None
 
     def to_function(self, name: str | None = None) -> Function:
-        """Expand this staged joint kernel into a regular symbolic ``Function``."""
+        """Expand this staged joint kernel into a symbolic ``Function``."""
         function = self.problem._expanded_joint_function(
             self.bundle,
             name=name or self.name,
         )
-        if self.simplification is None:
-            return function
-        return function.simplify(max_effort=self.simplification, name=function.name)
+        return _simplify_function(function, self.simplification)
 
     @property
     def nodes(self):
@@ -326,9 +305,7 @@ class SingleShootingJointFunction:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the staged joint kernel."""
-        from .rust_codegen import generate_rust
-
-        return generate_rust(
+        return _generate_rust(
             self,
             config=config,
             function_name=function_name,
@@ -347,9 +324,7 @@ class SingleShootingJointFunction:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the staged joint kernel."""
-        from .rust_codegen import create_rust_project
-
-        return create_rust_project(
+        return _create_rust_project(
             self,
             path,
             config=config,
@@ -381,7 +356,9 @@ class SingleShootingProblem:
         _validate_single_shooting_dynamics(self.dynamics)
         _validate_single_shooting_stage_cost(self.stage_cost)
         _validate_single_shooting_terminal_cost(self.terminal_cost)
-        _validate_single_shooting_shapes(self.dynamics, self.stage_cost, self.terminal_cost)
+        _validate_single_shooting_shapes(
+            self.dynamics, self.stage_cost, self.terminal_cost
+        )
 
     @property
     def state_size(self) -> int:
@@ -438,7 +415,8 @@ class SingleShootingProblem:
             return self
         return SingleShootingPrimalFunction(
             problem=self,
-            name=name or _single_shooting_primal_name(self.name, include_states),
+            name=name
+            or _single_shooting_primal_name(self.name, include_states),
             include_states=include_states,
             simplification=self.simplification,
         )
@@ -482,7 +460,10 @@ class SingleShootingProblem:
         return SingleShootingJointFunction(
             problem=self,
             bundle=bundle,
-            name=name or _single_shooting_joint_name(self.name, bundle, self.control_sequence_name),
+            name=name
+            or _single_shooting_joint_name(
+                self.name, bundle, self.control_sequence_name
+            ),
             simplification=self.simplification,
         )
 
@@ -492,21 +473,27 @@ class SingleShootingProblem:
         include_states: bool = False,
         name: str | None = None,
     ) -> Function:
-        """Expand the total-cost kernel into a regular symbolic ``Function``."""
+        """Expand the total-cost kernel into a symbolic ``Function``."""
         x0, U, p = self._compiled_inputs()
         current_state: FunctionArg = x0
         rollout_states: list[FunctionArg] = [current_state]
         total_cost = SX.const(0.0)
 
         for stage_index in range(self.horizon):
-            u_t = _slice_packed_sequence(U, stage_index, self.control_size, self.dynamics.inputs[1])
+            u_t = _slice_packed_sequence(
+                U, stage_index, self.control_size, self.dynamics.inputs[1]
+            )
             total_cost = total_cost + _extract_scalar_output(
                 self.stage_cost(current_state, u_t, p)
             )
-            current_state = _extract_single_output(self.dynamics(current_state, u_t, p))
+            current_state = _extract_single_output(
+                self.dynamics(current_state, u_t, p)
+            )
             rollout_states.append(current_state)
 
-        total_cost = total_cost + _extract_scalar_output(self.terminal_cost(current_state, p))
+        total_cost = total_cost + _extract_scalar_output(
+            self.terminal_cost(current_state, p)
+        )
         outputs: list[FunctionArg] = [total_cost]
         output_names = ["cost"]
         if include_states:
@@ -520,9 +507,7 @@ class SingleShootingProblem:
             input_names=self.input_names,
             output_names=tuple(output_names),
         )
-        if self.simplification is None:
-            return function
-        return function.simplify(max_effort=self.simplification, name=function.name)
+        return _simplify_function(function, self.simplification)
 
     def _expanded_gradient_function(
         self,
@@ -531,12 +516,18 @@ class SingleShootingProblem:
         name: str,
     ) -> Function:
         """Expand the staged gradient kernel into a symbolic ``Function``."""
-        cost_function = self.to_function(include_states=False, name=f"{name}_cost")
+        cost_function = self.to_function(
+            include_states=False, name=f"{name}_cost"
+        )
         gradient_function = cost_function.gradient(1, name=f"{name}_grad")
         outputs: list[FunctionArg] = [gradient_function.outputs[0]]
         output_names = [f"gradient_{self.control_sequence_name}"]
         if include_states:
-            outputs.append(self.to_function(include_states=True, name=f"{name}_states").outputs[1])
+            outputs.append(
+                self.to_function(
+                    include_states=True, name=f"{name}_states"
+                ).outputs[1]
+            )
             output_names.append("x_traj")
         return Function(
             name,
@@ -553,12 +544,18 @@ class SingleShootingProblem:
         name: str,
     ) -> Function:
         """Expand the staged HVP kernel into a symbolic ``Function``."""
-        cost_function = self.to_function(include_states=False, name=f"{name}_cost")
+        cost_function = self.to_function(
+            include_states=False, name=f"{name}_cost"
+        )
         hvp_function = cost_function.hvp(1, name=f"{name}_hvp")
         outputs: list[FunctionArg] = [hvp_function.outputs[0]]
         output_names = [f"hvp_{self.control_sequence_name}"]
         if include_states:
-            outputs.append(self.to_function(include_states=True, name=f"{name}_states").outputs[1])
+            outputs.append(
+                self.to_function(
+                    include_states=True, name=f"{name}_states"
+                ).outputs[1]
+            )
             output_names.append("x_traj")
         return Function(
             name,
@@ -576,7 +573,9 @@ class SingleShootingProblem:
     ) -> Function:
         """Expand a staged joint kernel into a symbolic ``Function``."""
         _validate_single_shooting_bundle(bundle)
-        cost_function = self.to_function(include_states=False, name=f"{name}_cost")
+        cost_function = self.to_function(
+            include_states=False, name=f"{name}_cost"
+        )
         gradient_function = cost_function.gradient(1, name=f"{name}_grad")
         hvp_function = (
             cost_function.hvp(1, name=f"{name}_hvp")
@@ -596,10 +595,22 @@ class SingleShootingProblem:
             outputs.append(hvp_function.outputs[0])
             output_names.append(f"hvp_{self.control_sequence_name}")
         if bundle.include_states:
-            outputs.append(self.to_function(include_states=True, name=f"{name}_states").outputs[1])
+            outputs.append(
+                self.to_function(
+                    include_states=True, name=f"{name}_states"
+                ).outputs[1]
+            )
             output_names.append("x_traj")
-        inputs = hvp_function.inputs if hvp_function is not None else cost_function.inputs
-        input_names = hvp_function.input_names if hvp_function is not None else cost_function.input_names
+        inputs = (
+            hvp_function.inputs
+            if hvp_function is not None
+            else cost_function.inputs
+        )
+        input_names = (
+            hvp_function.input_names
+            if hvp_function is not None
+            else cost_function.input_names
+        )
         return Function(
             name,
             inputs,
@@ -610,9 +621,13 @@ class SingleShootingProblem:
 
     def _compiled_inputs(self) -> tuple[FunctionArg, SXVector, FunctionArg]:
         """Return symbolic runtime inputs for ``x0``, ``U``, and ``p``."""
-        x0 = _make_symbolic_like(self.dynamics.inputs[0], self.initial_state_name)
+        x0 = _make_symbolic_like(
+            self.dynamics.inputs[0], self.initial_state_name
+        )
         p = _make_symbolic_like(self.dynamics.inputs[2], self.parameter_name)
-        U = SXVector.sym(self.control_sequence_name, self.horizon * self.control_size)
+        U = SXVector.sym(
+            self.control_sequence_name, self.horizon * self.control_size
+        )
         return x0, U, p
 
     def generate_rust(
@@ -624,9 +639,7 @@ class SingleShootingProblem:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the primal total-cost kernel."""
-        from .rust_codegen import generate_rust
-
-        return generate_rust(
+        return _generate_rust(
             self,
             config=config,
             function_name=function_name,
@@ -645,9 +658,7 @@ class SingleShootingProblem:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the total-cost kernel."""
-        from .rust_codegen import create_rust_project
-
-        return create_rust_project(
+        return _create_rust_project(
             self,
             path,
             config=config,
@@ -691,7 +702,7 @@ def _slice_packed_sequence(
     start = stage_index * block_size
     if isinstance(formal, SX):
         return sequence[start]
-    return SXVector(sequence.elements[start : start + block_size])
+    return SXVector(sequence.elements[start: start + block_size])
 
 
 def _extract_single_output(value: object) -> FunctionArg:
@@ -709,7 +720,9 @@ def _extract_scalar_output(value: object) -> SX:
     """Normalize a single scalar output."""
     output = _extract_single_output(value)
     if not isinstance(output, SX):
-        raise ValueError("single-shooting cost functions must return scalar outputs")
+        raise ValueError(
+            "single-shooting cost functions must return scalar outputs"
+        )
     return output
 
 
@@ -768,36 +781,72 @@ def _single_shooting_bundle_output_names(
 
 def _validate_single_shooting_bundle(bundle: SingleShootingBundle) -> None:
     """Validate a joint single-shooting bundle."""
-    if not (bundle.include_cost or bundle.include_gradient or bundle.include_hvp):
-        raise ValueError("SingleShootingBundle must request at least cost, gradient, or HVP")
-    if sum((bundle.include_cost, bundle.include_gradient, bundle.include_hvp, bundle.include_states)) < 2:
-        raise ValueError("joint single-shooting kernels require at least two requested outputs")
+    if not (
+        bundle.include_cost or bundle.include_gradient or bundle.include_hvp
+    ):
+        raise ValueError(
+            "SingleShootingBundle must request at least cost, gradient, or HVP"
+        )
+    if (
+        sum(
+            (
+                bundle.include_cost,
+                bundle.include_gradient,
+                bundle.include_hvp,
+                bundle.include_states,
+            )
+        )
+        < 2
+    ):
+        raise ValueError(
+            "joint single-shooting kernels require at least two "
+            "requested outputs"
+        )
 
 
 def _validate_single_shooting_dynamics(function: Function) -> None:
     """Validate the dynamics function signature."""
     if len(function.inputs) != 3:
-        raise ValueError("SingleShootingProblem dynamics must accept (x, u, p)")
+        raise ValueError(
+            "SingleShootingProblem dynamics must accept (x, u, p)"
+        )
     if len(function.outputs) != 1:
-        raise ValueError("SingleShootingProblem dynamics must return exactly one output")
-    if not _same_single_shooting_shape(function.inputs[0], function.outputs[0]):
-        raise ValueError("SingleShootingProblem dynamics must return the next state with the same shape as x")
+        raise ValueError(
+            "SingleShootingProblem dynamics must return exactly one output"
+        )
+    if not _same_single_shooting_shape(
+        function.inputs[0], function.outputs[0]
+    ):
+        raise ValueError(
+            "SingleShootingProblem dynamics must return the next state "
+            "with the same shape as x"
+        )
 
 
 def _validate_single_shooting_stage_cost(function: Function) -> None:
     """Validate the stage-cost function signature."""
     if len(function.inputs) != 3:
-        raise ValueError("SingleShootingProblem stage_cost must accept (x, u, p)")
+        raise ValueError(
+            "SingleShootingProblem stage_cost must accept (x, u, p)"
+        )
     if len(function.outputs) != 1 or not isinstance(function.outputs[0], SX):
-        raise ValueError("SingleShootingProblem stage_cost must return exactly one scalar output")
+        raise ValueError(
+            "SingleShootingProblem stage_cost must return exactly one "
+            "scalar output"
+        )
 
 
 def _validate_single_shooting_terminal_cost(function: Function) -> None:
     """Validate the terminal-cost function signature."""
     if len(function.inputs) != 2:
-        raise ValueError("SingleShootingProblem terminal_cost must accept (x, p)")
+        raise ValueError(
+            "SingleShootingProblem terminal_cost must accept (x, p)"
+        )
     if len(function.outputs) != 1 or not isinstance(function.outputs[0], SX):
-        raise ValueError("SingleShootingProblem terminal_cost must return exactly one scalar output")
+        raise ValueError(
+            "SingleShootingProblem terminal_cost must return exactly one "
+            "scalar output"
+        )
 
 
 def _validate_single_shooting_shapes(
@@ -805,14 +854,35 @@ def _validate_single_shooting_shapes(
     stage_cost: Function,
     terminal_cost: Function,
 ) -> None:
-    """Validate that all stage functions agree on state, control, and parameter shapes."""
-    if not _same_single_shooting_shape(dynamics.inputs[0], stage_cost.inputs[0]):
-        raise ValueError("stage_cost x input must have the same shape as dynamics x")
-    if not _same_single_shooting_shape(dynamics.inputs[1], stage_cost.inputs[1]):
-        raise ValueError("stage_cost u input must have the same shape as dynamics u")
-    if not _same_single_shooting_shape(dynamics.inputs[2], stage_cost.inputs[2]):
-        raise ValueError("stage_cost p input must have the same shape as dynamics p")
-    if not _same_single_shooting_shape(dynamics.outputs[0], terminal_cost.inputs[0]):
-        raise ValueError("terminal_cost x input must have the same shape as the dynamics state")
-    if not _same_single_shooting_shape(dynamics.inputs[2], terminal_cost.inputs[1]):
-        raise ValueError("terminal_cost p input must have the same shape as dynamics p")
+    """Validate stage functions agree on state, control, and parameters."""
+    if not _same_single_shooting_shape(
+        dynamics.inputs[0], stage_cost.inputs[0]
+    ):
+        raise ValueError(
+            "stage_cost x input must have the same shape as dynamics x"
+        )
+    if not _same_single_shooting_shape(
+        dynamics.inputs[1], stage_cost.inputs[1]
+    ):
+        raise ValueError(
+            "stage_cost u input must have the same shape as dynamics u"
+        )
+    if not _same_single_shooting_shape(
+        dynamics.inputs[2], stage_cost.inputs[2]
+    ):
+        raise ValueError(
+            "stage_cost p input must have the same shape as dynamics p"
+        )
+    if not _same_single_shooting_shape(
+        dynamics.outputs[0], terminal_cost.inputs[0]
+    ):
+        raise ValueError(
+            "terminal_cost x input must have the same shape as the "
+            "dynamics state"
+        )
+    if not _same_single_shooting_shape(
+        dynamics.inputs[2], terminal_cost.inputs[1]
+    ):
+        raise ValueError(
+            "terminal_cost p input must have the same shape as dynamics p"
+        )

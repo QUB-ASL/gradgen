@@ -2,7 +2,7 @@
 
 from .ad import derivative, gradient, hessian, jacobian, jvp, vjp
 from .cse import CSEAssignment, CSEPlan, cse
-from .custom_elementary import (
+from ._custom_elementary import (
     clear_registered_elementary_functions,
     get_registered_elementary_function,
     register_elementary_function,
@@ -17,6 +17,26 @@ from .map_zip import (
     zip_function,
     reduce_function,
 )
+from ._rust_codegen.builder import (
+    CodeGenerationBuilder,
+    FunctionBundle
+)
+from ._rust_codegen.config import (
+    RustBackendMode,
+    RustBackendConfig,
+    RustScalarType
+)
+from ._rust_codegen.models import (
+    RustCodegenResult,
+    RustDerivativeBundleResult,
+    RustMultiFunctionProjectResult,
+    RustProjectResult,
+    RustPythonInterfaceProjectResult,
+)
+from ._rust_codegen.project import (
+    create_rust_derivative_bundle,
+    create_rust_project
+)
 from .single_shooting import (
     SingleShootingBundle,
     SingleShootingGradientFunction,
@@ -25,21 +45,9 @@ from .single_shooting import (
     SingleShootingPrimalFunction,
     SingleShootingProblem,
 )
-from .rust_codegen import (
-    CodeGenerationBuilder,
-    FunctionBundle,
-    RustBackendMode,
-    RustBackendConfig,
-    RustCodegenResult,
-    RustDerivativeBundleResult,
-    RustMultiFunctionProjectResult,
-    RustProjectResult,
-    RustPythonInterfaceProjectResult,
-    RustScalarType,
-    create_rust_derivative_bundle,
+from ._rust_codegen.codegen import (
     create_multi_function_rust_project,
-    create_rust_project,
-    generate_rust,
+    generate_rust
 )
 from .simplify import simplify
 from .sx import (

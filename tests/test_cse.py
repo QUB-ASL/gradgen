@@ -57,7 +57,9 @@ class CSETests(unittest.TestCase):
 
         plan = cse([expr])
 
-        self.assertTrue(any(assignment.expr.op == "add" for assignment in plan.assignments))
+        self.assertTrue(
+            any(assignment.expr.op == "add"
+                for assignment in plan.assignments))
 
     def test_function_cse_works_for_jacobian_functions(self) -> None:
         x = SXVector.sym("x", 2)

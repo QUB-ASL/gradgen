@@ -1,4 +1,6 @@
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest import mock
 
 from gradgen.map_zip import (
@@ -107,21 +109,27 @@ class MapZipExtraTests(unittest.TestCase):
             calls.setdefault("create", []).append((func, path, kwargs))
             return {"project": path}
 
-        with mock.patch("gradgen.rust_codegen.generate_rust", fake_generate_rust), mock.patch(
-            "gradgen.rust_codegen.create_rust_project", fake_create_rust_project
+        with mock.patch("gradgen._rust_codegen.codegen.generate_rust", fake_generate_rust), mock.patch(
+            "gradgen._rust_codegen.project.create_rust_project", fake_create_rust_project
         ):
             # Call the ZippedFunction proxies
             gen_res = zipped.generate_rust(function_name="fn")
             self.assertEqual(gen_res, {"ok": True})
-            proj_res = zipped.create_rust_project("/tmp/p")
-            self.assertEqual(proj_res, {"project": "/tmp/p"})
 
             # Call the ZippedJacobianFunction proxies
             zjac = zipped.jacobian(0)
             gen_res_j = zjac.generate_rust(function_name="fn_j")
             self.assertEqual(gen_res_j, {"ok": True})
-            proj_res_j = zjac.create_rust_project("/tmp/p2")
-            self.assertEqual(proj_res_j, {"project": "/tmp/p2"})
+
+            with TemporaryDirectory() as tmpdir:
+                project_path = Path(tmpdir) / "p"
+                proj_res = zipped.create_rust_project(project_path)
+                self.assertEqual(proj_res, {"project": project_path})
+
+            with TemporaryDirectory() as tmpdir:
+                project_path = Path(tmpdir) / "p2"
+                proj_res_j = zjac.create_rust_project(project_path)
+                self.assertEqual(proj_res_j, {"project": project_path})
 
     def test_map_and_zip_validations_and_jacobian_index(self) -> None:
         x = SX.sym("x")

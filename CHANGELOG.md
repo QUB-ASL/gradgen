@@ -42,6 +42,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Refactored the Rust code generation implementation into smaller internal
+  modules for configuration, validation, template loading, and project
+  creation. The public Rust-generation API remains unchanged.
+- Removed the old `custom_elementary.py` and `gradgen._rust_codegen.render`
+  compatibility shims and switched the package to import the underlying
+  internal modules directly.
+- Split the generated-project helper logic into a dedicated
+  `project_support` module, keeping filesystem/build orchestration separate
+  from the higher-level project entrypoints.
+- Split the remaining Rust code-generation family logic into a dedicated
+  internal generators module, keeping the top-level dispatcher in
+  `rust_codegen.py` thinner and easier to navigate.
+- Further split the generators internals into a package with dedicated
+  `composed`, `map_zip`, and `single_shooting` modules plus shared helper
+  code, keeping the family-specific code paths easier to find and maintain.
 - Removed all `assert!` and `assert_eq!` from the auto-generated Rust code
   so that the functions therein don't panic. Instead, we introduced the error
   `GradgenError` and all public functions return `Result<(), GradgenError>`.
@@ -84,6 +99,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Hardened the Jinja2 environment used for Rust template rendering by
+  replacing the global `autoescape=False` setting with explicit
+  `select_autoescape(...)` configuration. The existing Rust, TOML, and
+  Markdown templates remain unescaped.
 - Fixed issue with redundant memory allocation and cloning in generated code 
   in single shooting optimal control
 - In single shooting OCP, using `std::mem::swap` to avoid unnecessary memory 
@@ -96,6 +115,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Removed
 
+- Removed the `gradgen.rust_codegen` compatibility shim entirely and moved
+  the public code-generation entrypoints to the internal
+  `gradgen._rust_codegen.codegen` module.
 - `no_std` crates now default to `libm` as their math dependency. The
   config-level `with_math_lib(...)` option has been removed, so the generated
   crates consistently use `libm` when targeting `no_std`.
