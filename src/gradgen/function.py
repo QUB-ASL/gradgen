@@ -275,7 +275,7 @@ class Function:
         )
 
     def __call__(
-        self, *args: BoundValue
+        self, *args: BoundValue, **kwargs: BoundValue
     ) -> FunctionArg | tuple[FunctionArg, ...] | float | tuple[float, ...]:
         """Call the function with symbolic or numeric arguments.
 
@@ -283,6 +283,9 @@ class Function:
             *args: One argument for each declared input. Scalar inputs accept
                 ``SX``, ``int``, or ``float``. Vector inputs accept
                 ``SXVector`` or a sequence of scalar-like values.
+            **kwargs: Optional named arguments matching ``input_names``.
+                Keyword arguments may be used to fill the remaining inputs
+                after positional arguments are supplied.
 
         Returns:
             The evaluated outputs. If the call stays symbolic, the return
@@ -290,13 +293,10 @@ class Function:
             reduce to numeric constants, the result is returned as ``float``
             values.
         """
-        if len(args) != len(self.inputs):
-            raise ValueError(
-                f"expected {len(self.inputs)} arguments, received {len(args)}"
-            )
+        bound_args = _resolve_call_arguments(self, args, kwargs)
 
         mapping: dict[SXNode, SX] = {}
-        for formal, actual in zip(self.inputs, args):
+        for formal, actual in zip(self.inputs, bound_args):
             bound = _coerce_bound_arg(actual, formal)
             for formal_scalar, actual_scalar in zip(
                 _flatten_single(formal), _flatten_single(bound)
@@ -857,6 +857,36 @@ def _resolve_names(
     if len(set(resolved)) != len(resolved):
         raise ValueError(f"{label} names must be unique")
     return resolved
+
+
+def _resolve_call_arguments(
+    function: Function,
+    args: tuple[BoundValue, ...],
+    kwargs: dict[str, BoundValue],
+) -> tuple[BoundValue, ...]:
+    """Resolve positional and keyword call arguments in declaration order."""
+    if len(args) > len(function.inputs):
+        raise ValueError(
+            f"expected at most {len(function.inputs)} positional arguments, "
+            f"received {len(args)}"
+        )
+
+    input_names = function.input_names
+    unexpected = [name for name in kwargs if name not in input_names]
+    if unexpected:
+        raise TypeError(f"unexpected keyword argument {unexpected[0]!r}")
+
+    duplicated = set(input_names[: len(args)]) & set(kwargs)
+    if duplicated:
+        name = next(iter(duplicated))
+        raise TypeError(f"multiple values for argument {name!r}")
+
+    bound_args = list(args)
+    for name in input_names[len(args) :]:
+        if name not in kwargs:
+            raise ValueError(f"missing required argument: {name!r}")
+        bound_args.append(kwargs[name])
+    return tuple(bound_args)
 
 
 def _resolve_block_indices(

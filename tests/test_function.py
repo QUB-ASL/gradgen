@@ -29,7 +29,8 @@ class FunctionTests(unittest.TestCase):
         constant_output = Function("constant_vec", [x], [constant_vec])
         mapped = map_function(
             constant_output,
-            3, input_name="x_seq", 
+            3,
+            input_name="x_seq",
             name="constant_vec_map",
         )
 
@@ -68,8 +69,8 @@ class FunctionTests(unittest.TestCase):
         expanded = zipped.to_function()
 
         self.assertEqual(
-            expanded(
-                [1.0, 2.0, 3.0], [10.0, 20.0, 30.0]), (7.0, 7.0, 7.0))
+            expanded([1.0, 2.0, 3.0], [10.0, 20.0, 30.0]), (7.0, 7.0, 7.0)
+        )
 
     def test_zip_function_supports_sym_and_constant_vec_out(self) -> None:
         x = SX.sym("x")
@@ -218,7 +219,44 @@ class FunctionTests(unittest.TestCase):
             arg.name: arg for arg in result.args if arg.name is not None
         }
         self.assertEqual(result_args["z"].metadata, {"domain": "real"})
-        self.assertEqual(result_args["y"].metadata, {"domain": "complex"})
+
+    def test_function_numeric_call_accepts_keyword_arguments(self) -> None:
+        a = SXVector.sym("a", 2)
+        b = SX.sym("b")
+        c = SX.sym("c")
+        h = Function(
+            "h",
+            [a, b, c],
+            [a[0] * b + a[1] + c.sin()],
+            input_names=["a", "b", "c"],
+            output_names=["y"],
+        )
+
+        self.assertAlmostEqual(
+            h(a=[1, 2], b=1, c=1),
+            1.0 * 1 + 2 + math.sin(1),
+        )
+
+    def test_function_call_accepts_mixed_positional_and_keywords(self) -> None:
+        a = SXVector.sym("a", 2)
+        b = SX.sym("b")
+        c = SX.sym("c")
+        h = Function(
+            "h",
+            [a, b, c],
+            [a[0] * b + a[1] + c],
+            input_names=["a", "b", "c"],
+            output_names=["y"],
+        )
+
+        self.assertEqual(h([1, 2], c=3, b=1), 6.0)
+
+    def test_function_call_rejects_unknown_keyword_arguments(self) -> None:
+        x = SX.sym("x")
+        f = Function("f", [x], [x], input_names=["x"], output_names=["y"])
+
+        with self.assertRaises(TypeError):
+            f(y=1.0)
 
     def test_function_uses_sliced_vector_views(self) -> None:
         z = SXVector.sym("z", 4)

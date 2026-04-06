@@ -348,9 +348,9 @@ class ComposedFunction:
             scalar_type=scalar_type,
         )
 
-    def __call__(self, *args):
+    def __call__(self, *args, **kwargs):
         """Evaluate or symbolically call the expanded composition."""
-        return self.to_function()(*args)
+        return self.to_function()(*args, **kwargs)
 
     def _compiled_inputs(
         self, packed_parameters: SXVector | None = None
