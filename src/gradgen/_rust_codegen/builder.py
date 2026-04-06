@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
 
 from ..composed_function import ComposedFunction, ComposedGradientFunction
 from ..function import Function
@@ -18,6 +18,9 @@ from ..single_shooting import (
     SingleShootingProblem,
 )
 from .naming import sanitize_ident
+
+if TYPE_CHECKING:
+    from ..composer import FunctionComposition
 
 
 BuilderSource = (
@@ -421,7 +424,21 @@ def _resolve_builder_functions(
             include_base_name=include_base_name,
             function_name=function_name,
         )
-    if isinstance(function, (ZippedFunction, ZippedJacobianFunction, ReducedFunction)):
+    from ..composer import FunctionComposition
+
+    if isinstance(function, FunctionComposition):
+        return _resolve_builder_function_composition_sources(
+            function,
+            config,
+            requests,
+            simplification,
+            include_base_name=include_base_name,
+            function_name=function_name,
+        )
+    if isinstance(
+        function,
+        (ZippedFunction, ZippedJacobianFunction, ReducedFunction),
+    ):
         return _resolve_builder_zipped_sources(
             function,
             config,
@@ -661,6 +678,53 @@ def _resolve_builder_composed_sources(
         raise ValueError(
             "staged composed sources currently support only add_primal() and "
             "ComposedFunction.add_gradient() in CodeGenerationBuilder"
+        )
+
+    return tuple(resolved)
+
+
+def _resolve_builder_function_composition_sources(
+    function: FunctionComposition,
+    config: RustBuilderConfigLike,
+    requests: tuple[_BuilderRequest, ...],
+    simplification: int | str | None,
+    *,
+    include_base_name: bool = False,
+    function_name: str | None = None,
+) -> tuple[BuilderSource, ...]:
+    """Expand builder requests for staged composer pipelines."""
+    crate_prefix = sanitize_ident(config.crate_name or function.name)
+    base_name = function_name or function.name
+    resolved: list[BuilderSource] = []
+
+    for request in requests:
+        if request.kind == "primal":
+            if request.components:
+                raise ValueError(
+                    "include_states is not supported for composer pipelines"
+                )
+            resolved.append(
+                _rename_builder_source(
+                    function,
+                    _builder_function_name(
+                        crate_prefix,
+                        "f",
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                    ),
+                )
+            )
+            continue
+
+        symbolic_function = function.to_function(name=base_name)
+        resolved.extend(
+            _resolve_builder_base_function_request(
+                symbolic_function,
+                request,
+                crate_prefix=crate_prefix,
+                simplification=simplification,
+                include_base_name=include_base_name,
+            )
         )
 
     return tuple(resolved)

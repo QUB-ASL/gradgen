@@ -198,9 +198,18 @@ class FunctionComposition:
         stage_workspace_sizes = tuple(
             codegen.workspace_size for codegen in stage_codegens
         )
+        stage_output_sizes = tuple(
+            sum(
+                _arg_size(output)
+                for output in _function_like_to_function(
+                    stage.function
+                ).outputs
+            )
+            for stage in self.stages
+        )
         total_workspace = _composition_workspace_size(
             stage_workspace_sizes,
-            output_sizes,
+            stage_output_sizes,
         )
         wrapper_source = _render_composed_wrapper_source(
             function_name=resolved_config.function_name or self.name,
@@ -519,13 +528,11 @@ def _coerce_single_output(value: object) -> FunctionArg:
 
 def _composition_workspace_size(
     stage_workspace_sizes: tuple[int, ...],
-    output_sizes: tuple[int, ...],
+    stage_output_sizes: tuple[int, ...],
 ) -> int:
     if not stage_workspace_sizes:
         return 0
-    intermediate_outputs = (
-        sum(output_sizes[:-1]) if len(output_sizes) > 1 else 0
-    )
+    intermediate_outputs = sum(stage_output_sizes[:-1])
     return sum(stage_workspace_sizes) + intermediate_outputs
 
 
@@ -549,10 +556,50 @@ def _render_composed_wrapper_source(
         for stage in stages
     )
     lines: list[str] = [
-        f"/// Evaluate the composed function `{function_name}`.",
-        "///",
-        f"pub fn {function_name}(",
+        f"/// Return metadata describing [`{function_name}`].",
+        f"pub fn {function_name}_meta() -> FunctionMetadata {{",
+        "    FunctionMetadata {",
+        f"        function_name: \"{function_name}\",",
+        f"        workspace_size: {workspace_size},",
+        "        input_names: &[",
     ]
+    for name in input_names:
+        lines.append(f"            \"{name}\",")
+    lines.extend(
+        [
+            "        ],",
+            "        input_sizes: &[",
+        ]
+    )
+    for size in input_sizes:
+        lines.append(f"            {size},")
+    lines.extend(
+        [
+            "        ],",
+            "        output_names: &[",
+        ]
+    )
+    for name in output_names:
+        lines.append(f"            \"{name}\",")
+    lines.extend(
+        [
+            "        ],",
+            "        output_sizes: &[",
+        ]
+    )
+    for size in output_sizes:
+        lines.append(f"            {size},")
+    lines.extend(
+        [
+            "        ],",
+            "    }",
+            "}",
+            "",
+            f"/// Evaluate the composed function `{function_name}`.",
+            "///",
+            f"pub fn {function_name}(",
+        ]
+    )
     for name, size in zip(input_names, input_sizes):
         lines.append(
             f"    {name}: &[{scalar_type}],  // Expected length: {size}."

@@ -84,6 +84,7 @@ def generate_rust(
     function_keyword: str = "pub fn",
 ) -> RustCodegenResult:
     """Generate Rust source code for primal function evaluation."""
+    from ..composer import FunctionComposition
     from ..composed_function import ComposedFunction, ComposedGradientFunction
     from .generators import (
         _generate_composed_gradient_rust,
@@ -97,6 +98,13 @@ def generate_rust(
         _generate_zipped_primal_rust,
     )
 
+    if isinstance(function, FunctionComposition):
+        return function.generate_rust(
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
     if isinstance(function, ComposedFunction):
         return _generate_composed_primal_rust(
             function,

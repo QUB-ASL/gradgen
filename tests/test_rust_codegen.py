@@ -18,6 +18,7 @@ from gradgen._rust_codegen.project_support import _gradgen_version
 from gradgen import (
     CodeGenerationBuilder,
     ComposedFunction,
+    FunctionComposer,
     Function,
     FunctionBundle,
     RustBackendConfig,
@@ -35,6 +36,7 @@ from gradgen import (
     matvec,
     quadform,
     register_elementary_function,
+    reduce_function,
     zip_function,
 )
 
@@ -206,7 +208,8 @@ mod tests {{
 {chr(10).join(input_binding_lines)}
 {chr(10).join(output_binding_lines)}
         let mut work = [0.0_{scalar_type}; {workspace_size}];
-        {function_name}({parameter_list});
+        let result = {function_name}({parameter_list});
+        assert!(result.is_ok());
 {chr(10).join(output_assertion_lines)}
     }}
 }}
@@ -2072,6 +2075,75 @@ mod tests {{
     }}
 }}
 """.lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_accepts_function_composer(self) -> None:
+        acc = SX.sym("acc")
+        x = SX.sym("x")
+        stage = Function(
+            "stage",
+            [acc, x],
+            [acc + x],
+            input_names=["acc", "x"],
+            output_names=["acc_next"],
+        )
+        reduced = reduce_function(
+            stage,
+            3,
+            accumulator_input_name="acc0",
+            input_name="x_seq",
+            name="sum_reduce",
+        )
+        post = Function(
+            "post",
+            [acc],
+            [acc + 1],
+            input_names=["acc"],
+            output_names=["y"],
+        )
+        composed = (
+            FunctionComposer(reduced)
+            .feed_into(post, arg="acc")
+            .compose(name="comp")
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("composer_demo")
+                .with_enable_python_interface()
+            )
+            .for_function(composed)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "composer_demo")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("for stage_index in 0..3", lib_text)
+            self.assertIn("post_0(", lib_text)
+            self.assertIn("sum_reduce_1(", lib_text)
+            self.assertIn("pub fn composer_demo_comp_f_meta()", lib_text)
+            self.assertIn(
+                f"pub fn {project.codegens[0].function_name}(",
+                lib_text,
+            )
+            self.assertIsNotNone(project.python_interface)
+
+            reference_function = composed.to_function()
+            self._append_reference_test(
+                project.project_dir,
+                reference_function,
+                function_name=project.codegens[0].function_name,
+                inputs=(1.0, [2.0, 3.0, 4.0]),
+                test_name="evaluates_function_composer_builder",
+                workspace_size_override=project.codegens[0].workspace_size,
             )
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")

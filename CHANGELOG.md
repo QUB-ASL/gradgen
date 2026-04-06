@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added `FunctionComposer` for chaining function-like stages into a single
   composed pipeline, while keeping staged wrappers such as
   `ReducedFunction` and `ZippedFunction` intact in generated Rust code.
+- `CodeGenerationBuilder` now accepts `FunctionComposer`-style pipelines
+  directly, so composed staged pipelines can be generated without flattening
+  them into a plain symbolic `Function` first.
+- `FunctionComposer`-generated Rust now exports wrapper metadata, which lets
+  the generated Python interface crate install successfully for composed
+  pipelines.
 - Added an optional PyO3-based Python interface for generated Rust crates via
   `RustBackendConfig().with_enable_python_interface(True)`, now emitted as a
   separate sibling wrapper crate so the low-level generated crate can stay
