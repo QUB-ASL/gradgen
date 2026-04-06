@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- `Functions` accept named arguments
 - Added an optional PyO3-based Python interface for generated Rust crates via
   `RustBackendConfig().with_enable_python_interface(True)`, now emitted as a
   separate sibling wrapper crate so the low-level generated crate can stay

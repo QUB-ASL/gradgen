@@ -43,9 +43,45 @@ class ComposedFunctionTests(unittest.TestCase):
         )
         self.assertEqual(
             composed.gradient().to_function()(
-                    [1.0, 2.0],
-                    [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+                [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+            ),
             (1.0, 192.0),
+        )
+
+    def test_composed_function_accepts_keyword_arguments(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+        pf = SXVector.sym("pf", 1)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, pf],
+            [state[0] + state[1] + pf[0]],
+            input_names=["state", "pf"],
+            output_names=["y"],
+        )
+
+        composed = (
+            ComposedFunction("demo", x)
+            .then(g, p=p)
+            .repeat(g, params=[p, p])
+            .finish(h, p=pf)
+        )
+
+        self.assertEqual(
+            composed(
+                x=[1.0, 2.0],
+                parameters=[3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0],
+            ),
+            409.0,
         )
 
     def test_repeat_requires_uniform_parameter_binding_kind(self) -> None:
@@ -141,9 +177,11 @@ class ComposedFunctionTests(unittest.TestCase):
             output_names=["y"],
         )
 
-        composed = ComposedFunction("demo", x) \
-            .then(g, p=[1.0, 2.0]) \
+        composed = (
+            ComposedFunction("demo", x)
+            .then(g, p=[1.0, 2.0])
             .finish(h, p=[3.0])
+        )
 
         with self.assertRaises(ValueError):
             composed.then(g, p=[1.0, 2.0])
@@ -185,9 +223,9 @@ class ComposedFunctionTests(unittest.TestCase):
             output_names=["next_state"],
         )
         with self.assertRaises(ValueError):
-            ComposedFunction("demo", x) \
-                .then(good_stage, p=[1.0, 2.0]) \
-                .finish(bad_terminal, p=[3.0])
+            ComposedFunction("demo", x).then(good_stage, p=[1.0, 2.0]).finish(
+                bad_terminal, p=[3.0]
+            )
 
     def test_state_input_must_be_symbolic(self) -> None:
         with self.assertRaises(ValueError):

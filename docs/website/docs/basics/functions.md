@@ -104,3 +104,29 @@ g = Function("g", [x], [x / x.norm2sq()])
 
 h = Function("h", [x, a], [f(g(x), a)]) # h(x, a) = f(g(x), a)
 ```
+
+
+## Named input arguments
+
+We can call a function with named input arguments. For example,
+suppose we have the function $f(x, y) = x\Vert y \Vert$,
+where $x\in\mathbb{R}$ and $y\in\mathbb{R}^2$ defined as follows:
+
+```python
+x = SX.sym("x")
+y = SXVector.sym("y", 3)
+
+f = Function(
+    "f",
+    [x, y],
+    [x * y.norm2()],
+    input_names=["x", "y"],
+    output_names=["z"],
+)
+```
+
+We can call `f` by passing named arguments, that is,
+
+```python
+z = f(x=1, y=[2, 3])
+```
