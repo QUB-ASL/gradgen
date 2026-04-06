@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from jinja2 import Environment, FileSystemLoader
+from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
 def _template_environment() -> Environment:
@@ -12,7 +12,12 @@ def _template_environment() -> Environment:
     templates_dir = Path(__file__).resolve().parent.parent / "templates"
     return Environment(
         loader=FileSystemLoader(str(templates_dir)),
-        autoescape=False,
+        # These templates generate Rust, TOML, and Markdown, not HTML.
+        autoescape=select_autoescape(
+            enabled_extensions=("html", "htm", "xml"),
+            default_for_string=False,
+            default=False,
+        ),
         trim_blocks=True,
         lstrip_blocks=True,
     )

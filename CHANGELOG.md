@@ -99,6 +99,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Hardened the Jinja2 environment used for Rust template rendering by
+  replacing the global `autoescape=False` setting with explicit
+  `select_autoescape(...)` configuration. The existing Rust, TOML, and
+  Markdown templates remain unescaped.
 - Fixed issue with redundant memory allocation and cloning in generated code 
   in single shooting optimal control
 - In single shooting OCP, using `std::mem::swap` to avoid unnecessary memory 
