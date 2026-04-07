@@ -22,7 +22,7 @@ from ._rust_codegen.validation import validate_scalar_type
 from ._rust_codegen.naming import sanitize_ident
 from .function import Function
 from .map_zip import ReducedFunction
-from .map_zip import ZippedFunction
+from .map_zip import BatchedFunction
 from .sx import SX
 from .sx import SXVector
 
@@ -43,7 +43,7 @@ class FunctionComposer:
 
     The composer preserves staged wrappers such as
     :class:`~gradgen.map_zip.ReducedFunction` and
-    :class:`~gradgen.map_zip.ZippedFunction` when Rust code is generated.
+    :class:`~gradgen.map_zip.BatchedFunction` when Rust code is generated.
     """
 
     __slots__ = ("_stages",)

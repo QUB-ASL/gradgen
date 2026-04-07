@@ -4607,14 +4607,14 @@ mod joint_hessian_tests {
             input_names=["x", "y"],
             output_names=["z"],
         )
-        zipped = zip_function(
+        batched = zip_function(
             g,
             3,
             input_names=("x_seq", "y_seq"),
             name="pairwise_zip",
             simplification="medium",
         )
-        expanded = zipped.to_function()
+        expanded = batched.to_function()
         inputs = (
             [1.0, 2.0, -1.0, 3.0, 0.5, -2.0],
             [4.0, -1.0, 2.0, 5.0, -3.0, 1.5],
@@ -4622,7 +4622,7 @@ mod joint_hessian_tests {
 
         with TemporaryDirectory() as tmpdir:
             project = create_rust_project(
-                zipped, Path(tmpdir) / "pairwise_zip_kernel"
+                batched, Path(tmpdir) / "pairwise_zip_kernel"
             )
             self.assertIn(
                 "for stage_index in 0..3",
@@ -4649,17 +4649,17 @@ mod joint_hessian_tests {
             input_names=["x", "y"],
             output_names=["out"],
         )
-        zipped = zip_function(
+        batched = zip_function(
             g,
             3,
             input_names=("x_seq", "y_seq"),
             name="pairwise_zip",
             simplification="medium",
         )
-        zipped_jacobian = zipped.jacobian(
+        batched_jacobian = batched.jacobian(
             1, name="pairwise_zip_jacobian_y_seq"
         )
-        expanded = zipped_jacobian.to_function()
+        expanded = batched_jacobian.to_function()
         inputs = (
             [2.0, 1.0, -1.0, 4.0, 0.5, -2.0],
             [3.0, -2.0, 1.5],
@@ -4671,7 +4671,7 @@ mod joint_hessian_tests {
                 .with_backend_config(
                     RustBackendConfig().with_crate_name("pairwise_zip_kernel")
                 )
-                .for_function(zipped)
+                .for_function(batched)
                 .add_primal()
                 .add_jacobian()
                 .done()

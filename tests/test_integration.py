@@ -267,18 +267,18 @@ mod integration_sympy_vector {{
             input_names=["dynamic", "constant", "w"],
             output_names=["y"],
         )
-        zipped = zip_function(
+        batched = zip_function(
             zip_kernel,
             4,
             input_names=["dynamic_seq", "constant_seq", "w_seq"],
-            name="zipped_stage",
+            name="batched_stage",
         ).to_function()
 
         # Compose map + zip into one function with packed sequence inputs.
         z_seq = SXVector.sym("z_seq", 8)
         w_seq = SXVector.sym("w_seq", 4)
         mapped_dynamic_seq, mapped_constant_seq = mapped(z_seq)
-        pipeline_output = zipped(mapped_dynamic_seq, mapped_constant_seq, w_seq)
+        pipeline_output = batched(mapped_dynamic_seq, mapped_constant_seq, w_seq)
         pipeline = Function(
             "map_zip_pipeline",
             [z_seq, w_seq],

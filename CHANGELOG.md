@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `Functions` accept named arguments
 - Added `FunctionComposer` for chaining function-like stages into a single
   composed pipeline, while keeping staged wrappers such as
-  `ReducedFunction` and `ZippedFunction` intact in generated Rust code.
+  `ReducedFunction` and `BatchedFunction` intact in generated Rust code.
 - `CodeGenerationBuilder` now accepts `FunctionComposer`-style pipelines
   directly, so composed staged pipelines can be generated without flattening
   them into a plain symbolic `Function` first.

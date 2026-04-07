@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Callable, Protocol
 
 from ..composed_function import ComposedFunction, ComposedGradientFunction
 from ..function import Function
-from ..map_zip import ZippedFunction, ZippedJacobianFunction, ReducedFunction
+from ..map_zip import BatchedFunction, BatchedJacobianFunction, ReducedFunction
 from ..single_shooting import (
     SingleShootingBundle,
     SingleShootingGradientFunction,
@@ -27,8 +27,8 @@ BuilderSource = (
     Function
     | ComposedFunction
     | ComposedGradientFunction
-    | ZippedFunction
-    | ZippedJacobianFunction
+    | BatchedFunction
+    | BatchedJacobianFunction
     | ReducedFunction
     | SingleShootingProblem
     | SingleShootingPrimalFunction
@@ -437,9 +437,9 @@ def _resolve_builder_functions(
         )
     if isinstance(
         function,
-        (ZippedFunction, ZippedJacobianFunction, ReducedFunction),
+        (BatchedFunction, BatchedJacobianFunction, ReducedFunction),
     ):
-        return _resolve_builder_zipped_sources(
+        return _resolve_builder_batched_sources(
             function,
             config,
             requests,
@@ -730,8 +730,8 @@ def _resolve_builder_function_composition_sources(
     return tuple(resolved)
 
 
-def _resolve_builder_zipped_sources(
-    function: ZippedFunction | ZippedJacobianFunction | ReducedFunction,
+def _resolve_builder_batched_sources(
+    function: BatchedFunction | BatchedJacobianFunction | ReducedFunction,
     config: RustBuilderConfigLike,
     requests: tuple[_BuilderRequest, ...],
     simplification: int | str | None,
@@ -744,7 +744,7 @@ def _resolve_builder_zipped_sources(
     base_name = function_name or function.name
     resolved: list[BuilderSource] = []
 
-    if isinstance(function, ZippedJacobianFunction):
+    if isinstance(function, BatchedJacobianFunction):
         for request in requests:
             if request.kind != "primal":
                 raise ValueError(
@@ -786,7 +786,7 @@ def _resolve_builder_zipped_sources(
         if request.kind == "jacobian":
             if request.components:
                 raise ValueError("include_states is not supported for map/zip/reduce sources")
-            if not isinstance(simplified_function, ZippedFunction):
+            if not isinstance(simplified_function, BatchedFunction):
                 raise ValueError("add_jacobian() is only supported for map/zip sources")
             for input_index, input_name in enumerate(simplified_function.input_names):
                 resolved.append(

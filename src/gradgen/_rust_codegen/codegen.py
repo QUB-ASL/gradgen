@@ -51,8 +51,8 @@ from .validation import (
 from ..function import Function
 from ..map_zip import (
     ReducedFunction,
-    ZippedFunction,
-    ZippedJacobianFunction
+    BatchedFunction,
+    BatchedJacobianFunction
 )
 from ..single_shooting import (
     SingleShootingGradientFunction,
@@ -94,8 +94,8 @@ def generate_rust(
         _generate_single_shooting_hvp_rust,
         _generate_single_shooting_joint_rust,
         _generate_single_shooting_primal_rust,
-        _generate_zipped_jacobian_rust,
-        _generate_zipped_primal_rust,
+        _generate_batched_jacobian_rust,
+        _generate_batched_primal_rust,
     )
 
     if isinstance(function, FunctionComposition):
@@ -125,8 +125,8 @@ def generate_rust(
             math_library=math_library,
             function_index=function_index,
         )
-    if isinstance(function, ZippedFunction):
-        return _generate_zipped_primal_rust(
+    if isinstance(function, BatchedFunction):
+        return _generate_batched_primal_rust(
             function,
             config=config,
             function_name=function_name,
@@ -135,8 +135,8 @@ def generate_rust(
             math_library=math_library,
             function_index=function_index,
         )
-    if isinstance(function, ZippedJacobianFunction):
-        return _generate_zipped_jacobian_rust(
+    if isinstance(function, BatchedJacobianFunction):
+        return _generate_batched_jacobian_rust(
             function,
             config=config,
             function_name=function_name,

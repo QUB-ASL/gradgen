@@ -97,7 +97,7 @@ class FunctionComposerTests(unittest.TestCase):
             input_names=["x"],
             output_names=["y"],
         )
-        zipped = zip_function(stage, 3, input_names=["x_seq"], name="zip")
+        batched = zip_function(stage, 3, input_names=["x_seq"], name="zip")
         y = SXVector.sym("y", 3)
         post = Function(
             "post",
@@ -108,7 +108,7 @@ class FunctionComposerTests(unittest.TestCase):
         )
 
         comp = (
-            FunctionComposer(zipped)
+            FunctionComposer(batched)
             .feed_into(post, arg="y")
             .compose(name="comp")
         )

@@ -11,8 +11,8 @@ from .composer import FunctionComposer, FunctionComposition
 from .composed_function import ComposedFunction, ComposedGradientFunction
 from .function import Function
 from .map_zip import (
-    ZippedFunction,
-    ZippedJacobianFunction,
+    BatchedFunction,
+    BatchedJacobianFunction,
     ReducedFunction,
     map_function,
     zip_function,
@@ -172,7 +172,7 @@ __all__ = [
     "vector",
     "vjp",
     "zip_function",
-    "ZippedFunction",
-    "ZippedJacobianFunction",
+    "BatchedFunction",
+    "BatchedJacobianFunction",
     "ReducedFunction",
 ]

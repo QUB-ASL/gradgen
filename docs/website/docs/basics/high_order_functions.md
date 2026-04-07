@@ -46,7 +46,7 @@ N = 5
 mapped = map_function(map_kernel, N, input_name="x_seq", name="mapped_seq")
 ```
 
-This is an object of type `gradgen.map_zip.ZippedFunction`; this can be cast as a [`Function`](./functions) as follows
+This is an object of type `gradgen.map_zip.BatchedFunction`; this can be cast as a [`Function`](./functions) as follows
 
 ```python
 mapped_function = mapped.to_function()
@@ -94,7 +94,7 @@ h = Function(
 )
 ```
 
-For an integer $N$, the zipped kernel computes
+For an integer $N$, the batched kernel computes
 
 $$
 ((a_1,\dots,a_N),\ (b_1,\dots,b_N),\ (c_1,\dots,c_N))
@@ -106,13 +106,13 @@ This can be constructed as follows:
 
 ```python
 N = 5
-zipped = zip_function(h, N,
+batched = zip_function(h, N,
                       input_names=("a_seq", "b_seq", "c_seq"),
                       name="zip3")
 ```
 
-This is an object of type `gradgen.map_zip.ZippedFunction`.
-We can again use `.to_function()` to cast `zipped` as function.
+This is an object of type `gradgen.map_zip.BatchedFunction`.
+We can again use `.to_function()` to cast `batched` as function.
 
 ## Reduce
 
@@ -193,9 +193,12 @@ result = reduced_fun(acc=0, x_seq=[0.1, 0.2, 0.3]*N)
 
 ## Composition
 
+Suppose you 
+
 <div align="center">
 <img src="/gradgen/img/composer.png" width="30%" alt="reduce operation"/>
 </div>
+
 
 
 ## Repeat and chain

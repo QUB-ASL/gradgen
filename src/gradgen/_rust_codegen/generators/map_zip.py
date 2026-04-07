@@ -5,7 +5,7 @@ from .rendering import KernelRenderContext, render_kernel_source
 from ..config import RustBackendConfig, RustBackendMode, RustScalarType
 from ..models import RustCodegenResult, _ArgSpec
 from ..naming import sanitize_ident
-from ...map_zip import ReducedFunction, ZippedFunction, ZippedJacobianFunction
+from ...map_zip import ReducedFunction, BatchedFunction, BatchedJacobianFunction
 
 generate_rust = _shared.generate_rust
 _resolve_backend_config = _shared._resolve_backend_config
@@ -61,8 +61,8 @@ def _build_parameter_signature(
     )
 
 
-def _generate_zipped_primal_rust(
-    zipped: ZippedFunction,
+def _generate_batched_primal_rust(
+    batched: BatchedFunction,
     *,
     config: RustBackendConfig | None = None,
     function_name: str | None = None,
@@ -74,7 +74,7 @@ def _generate_zipped_primal_rust(
     """Generate Rust for a staged map/zip primal kernel.
 
     Args:
-        zipped: The staged symbolic map/zip function to render.
+        batched: The staged symbolic map/zip function to render.
         config: Optional backend configuration override.
         function_name: Optional exported Rust function name.
         backend_mode: Requested Rust backend mode.
@@ -102,13 +102,13 @@ def _generate_zipped_primal_rust(
         math_library=resolved_math_library,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
     )
-    name = sanitize_ident(resolved_config.function_name or zipped.name)
+    name = sanitize_ident(resolved_config.function_name or batched.name)
     helper_name = sanitize_ident(f"{name}_helper")
 
-    helper_function = zipped.function
-    if zipped.simplification is not None:
+    helper_function = batched.function
+    if batched.simplification is not None:
         helper_function = helper_function.simplify(
-            max_effort=zipped.simplification,
+            max_effort=batched.simplification,
             name=helper_function.name,
         )
 
@@ -125,10 +125,10 @@ def _generate_zipped_primal_rust(
     )
 
     packed_input_sizes = tuple(
-        zipped.count * _arg_size(arg) for arg in zipped.function.inputs
+        batched.count * _arg_size(arg) for arg in batched.function.inputs
     )
     packed_output_sizes = tuple(
-        zipped.count * _arg_size(arg) for arg in zipped.function.outputs
+        batched.count * _arg_size(arg) for arg in batched.function.outputs
     )
     input_specs = tuple(
         _ArgSpec(
@@ -138,7 +138,7 @@ def _generate_zipped_primal_rust(
             doc_description=_describe_input_arg(raw_name),
             size=size,
         )
-        for raw_name, size in zip(zipped.input_names, packed_input_sizes)
+        for raw_name, size in zip(batched.input_names, packed_input_sizes)
     )
     output_specs = tuple(
         _ArgSpec(
@@ -148,7 +148,7 @@ def _generate_zipped_primal_rust(
             doc_description=_describe_output_arg(raw_name),
             size=size,
         )
-        for raw_name, size in zip(zipped.output_names, packed_output_sizes)
+        for raw_name, size in zip(batched.output_names, packed_output_sizes)
     )
     _validate_generated_argument_names(input_specs, output_specs)
 
@@ -169,8 +169,8 @@ def _generate_zipped_primal_rust(
         )
     else:
         computation_lines.append("let helper_work = &mut work[..0];")
-    computation_lines.append(f"for stage_index in 0..{zipped.count} {{")
-    for input_spec, formal in zip(input_specs, zipped.function.inputs):
+    computation_lines.append(f"for stage_index in 0..{batched.count} {{")
+    for input_spec, formal in zip(input_specs, batched.function.inputs):
         block_size = _arg_size(formal)
         start_expr = _scaled_index_expr("stage_index", block_size)
         end_expr = _scaled_index_expr("stage_index + 1", block_size)
@@ -178,7 +178,7 @@ def _generate_zipped_primal_rust(
             f"    let {input_spec.rust_name}_stage = "
             f"&{input_spec.rust_name}[{start_expr}..{end_expr}];"
         )
-    for output_spec, formal in zip(output_specs, zipped.function.outputs):
+    for output_spec, formal in zip(output_specs, batched.function.outputs):
         block_size = _arg_size(formal)
         start_expr = _scaled_index_expr("stage_index", block_size)
         end_expr = _scaled_index_expr("stage_index + 1", block_size)
@@ -258,8 +258,8 @@ def _generate_zipped_primal_rust(
     )
 
 
-def _generate_zipped_jacobian_rust(
-    zipped_jacobian: ZippedJacobianFunction,
+def _generate_batched_jacobian_rust(
+    batched_jacobian: BatchedJacobianFunction,
     *,
     config: RustBackendConfig | None = None,
     function_name: str | None = None,
@@ -271,7 +271,7 @@ def _generate_zipped_jacobian_rust(
     """Generate Rust for a staged map/zip Jacobian kernel.
 
     Args:
-        zipped_jacobian: The staged symbolic Jacobian wrapper to render.
+        batched_jacobian: The staged symbolic Jacobian wrapper to render.
         config: Optional backend configuration override.
         function_name: Optional exported Rust function name.
         backend_mode: Requested Rust backend mode.
@@ -300,18 +300,18 @@ def _generate_zipped_jacobian_rust(
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
     )
     name = sanitize_ident(
-        resolved_config.function_name or zipped_jacobian.name
+        resolved_config.function_name or batched_jacobian.name
     )
     helper_name = sanitize_ident(f"{name}_helper")
 
-    zipped = zipped_jacobian.zipped
-    local_jacobian = zipped.function.jacobian(
-        zipped_jacobian.wrt_index,
+    batched = batched_jacobian.batched
+    local_jacobian = batched.function.jacobian(
+        batched_jacobian.wrt_index,
         name=helper_name,
     )
-    if zipped_jacobian.simplification is not None:
+    if batched_jacobian.simplification is not None:
         local_jacobian = local_jacobian.simplify(
-            max_effort=zipped_jacobian.simplification,
+            max_effort=batched_jacobian.simplification,
             name=local_jacobian.name,
         )
 
@@ -328,7 +328,7 @@ def _generate_zipped_jacobian_rust(
     )
 
     packed_input_sizes = tuple(
-        zipped.count * _arg_size(arg) for arg in zipped.function.inputs
+        batched.count * _arg_size(arg) for arg in batched.function.inputs
     )
     input_specs = tuple(
         _ArgSpec(
@@ -338,16 +338,16 @@ def _generate_zipped_jacobian_rust(
             doc_description=_describe_input_arg(raw_name),
             size=size,
         )
-        for raw_name, size in zip(zipped.input_names, packed_input_sizes)
+        for raw_name, size in zip(batched.input_names, packed_input_sizes)
     )
-    wrt_size = _arg_size(zipped.function.inputs[zipped_jacobian.wrt_index])
-    packed_wrt_size = zipped.count * wrt_size
+    wrt_size = _arg_size(batched.function.inputs[batched_jacobian.wrt_index])
+    packed_wrt_size = batched.count * wrt_size
     output_specs: list[_ArgSpec] = []
     local_output_sizes: list[int] = []
     row_sizes: list[int] = []
     for raw_name, output in zip(
-        zipped.function.output_names,
-        zipped.function.outputs,
+        batched.function.output_names,
+        batched.function.outputs,
     ):
         row_size = _arg_size(output)
         row_sizes.append(row_size)
@@ -359,7 +359,7 @@ def _generate_zipped_jacobian_rust(
                 rust_name=sanitize_ident(f"jacobian_{raw_name}"),
                 rust_label=_format_rust_string_literal(f"jacobian_{raw_name}"),
                 doc_description=_describe_output_arg(f"jacobian_{raw_name}"),
-                size=(zipped.count * row_size) * packed_wrt_size,
+                size=(batched.count * row_size) * packed_wrt_size,
             )
         )
     output_specs_tuple = tuple(output_specs)
@@ -396,8 +396,8 @@ def _generate_zipped_jacobian_rust(
             f"{remaining_work_name}.split_at_mut({local_size});"
         )
         remaining_work_name = next_remaining
-    computation_lines.append(f"for stage_index in 0..{zipped.count} {{")
-    for input_spec, formal in zip(input_specs, zipped.function.inputs):
+    computation_lines.append(f"for stage_index in 0..{batched.count} {{")
+    for input_spec, formal in zip(input_specs, batched.function.inputs):
         block_size = _arg_size(formal)
         start_expr = _scaled_index_expr("stage_index", block_size)
         end_expr = _scaled_index_expr("stage_index + 1", block_size)

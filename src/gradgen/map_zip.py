@@ -14,14 +14,14 @@ FunctionArg = SX | SXVector
 
 
 @dataclass(frozen=True, slots=True)
-class ZippedJacobianFunction:
-    """Staged Jacobian wrapper for a zipped function.
+class BatchedJacobianFunction:
+    """Staged Jacobian wrapper for a batched function.
 
     This object represents the Jacobian of a staged batched function without
     immediately expanding it back into an ordinary :class:`Function`.
 
     Attributes:
-        zipped: The underlying staged batched function.
+        batched: The underlying staged batched function.
         wrt_index: The input index with respect to which the Jacobian is
             taken.
         name: The symbolic name of the staged Jacobian wrapper.
@@ -29,7 +29,7 @@ class ZippedJacobianFunction:
             expanded symbolic function.
     """
 
-    zipped: ZippedFunction
+    batched: BatchedFunction
     wrt_index: int
     name: str
     simplification: int | str | None = None
@@ -45,7 +45,7 @@ class ZippedJacobianFunction:
             A symbolic :class:`~gradgen.function.Function` representing the
             expanded Jacobian.
         """
-        function = self.zipped.to_function().jacobian(
+        function = self.batched.to_function().jacobian(
             self.wrt_index, name=name or self.name
         )
         return _simplify_function(function, self.simplification)
@@ -53,13 +53,13 @@ class ZippedJacobianFunction:
     @property
     def input_names(self) -> tuple[str, ...]:
         """Return the packed input names used by the staged Jacobian."""
-        return self.zipped.input_names
+        return self.batched.input_names
 
     @property
     def output_names(self) -> tuple[str, ...]:
         """Return the generated Jacobian output names."""
         return tuple(
-            f"jacobian_{name}" for name in self.zipped.function.output_names
+            f"jacobian_{name}" for name in self.batched.function.output_names
         )
 
     def generate_rust(
@@ -124,7 +124,7 @@ class ZippedJacobianFunction:
 
 
 @dataclass(frozen=True, slots=True)
-class ZippedFunction:
+class BatchedFunction:
     """Staged wrapper that batches a function over packed inputs.
 
     The wrapper represents a symbolic function evaluated repeatedly over
@@ -173,7 +173,7 @@ class ZippedFunction:
 
     def jacobian(
         self, wrt_index: int = 0, *, name: str | None = None
-    ) -> ZippedJacobianFunction:
+    ) -> BatchedJacobianFunction:
         """Return a staged Jacobian wrapper for one packed input.
 
         Args:
@@ -181,12 +181,12 @@ class ZippedFunction:
             name: Optional symbolic name for the staged Jacobian wrapper.
 
         Returns:
-            A :class:`ZippedJacobianFunction` describing the staged Jacobian.
+            A :class:`BatchedJacobianFunction` describing the staged Jacobian.
         """
         if wrt_index < 0 or wrt_index >= len(self.function.inputs):
             raise IndexError("wrt_index out of range")
-        return ZippedJacobianFunction(
-            zipped=self,
+        return BatchedJacobianFunction(
+            batched=self,
             wrt_index=wrt_index,
             name=name or f"{self.name}_jacobian_{self.input_names[wrt_index]}",
             simplification=self.simplification,
@@ -470,7 +470,7 @@ def map_function(
     input_name: str | None = None,
     name: str | None = None,
     simplification: int | str | None = None,
-) -> ZippedFunction:
+) -> BatchedFunction:
     """Return a staged mapped function for a unary function.
 
     Args:
@@ -485,14 +485,14 @@ def map_function(
             expanded symbolic function.
 
     Returns:
-        A :class:`ZippedFunction` representing the staged batched function.
+        A :class:`BatchedFunction` representing the staged batched function.
     """
     if len(function.inputs) != 1:
         raise ValueError(
             "map_function requires a function " "with exactly one input"
         )
     sequence_name = input_name or f"{function.input_names[0]}_seq"
-    return ZippedFunction(
+    return BatchedFunction(
         function=function,
         count=count,
         name=name or f"{function.name}_map",
@@ -508,12 +508,12 @@ def zip_function(
     input_names: tuple[str, ...] | list[str] | None = None,
     name: str | None = None,
     simplification: int | str | None = None,
-) -> ZippedFunction:
-    """Return a staged zipped function for a multi-input ``function``.
+) -> BatchedFunction:
+    """Return a staged batched function for a multi-input ``function``.
 
     This helper creates a loop-structured wrapper around ``function`` so it can
     be evaluated repeatedly over packed input sequences. The returned object is
-    a :class:`ZippedFunction`, which can later be expanded back into a regular
+    a :class:`BatchedFunction`, which can later be expanded back into a regular
     symbolic :class:`~gradgen.function.Function` or used for Rust code
     generation.
 
@@ -525,13 +525,13 @@ def zip_function(
             packed input sequences.
         input_names: Optional names for the packed input sequences. When not
             provided, each input name defaults to ``"<input_name>_seq"``.
-        name: Optional name for the staged zipped function. When not provided,
+        name: Optional name for the staged batched function. When not provided,
             the generated name defaults to ``"<function.name>_zip"``.
         simplification: Optional simplification effort passed through to the
             generated symbolic function when the staged wrapper is expanded.
 
     Returns:
-        A :class:`ZippedFunction` describing the staged batched version of
+        A :class:`BatchedFunction` describing the staged batched version of
         ``function``.
 
     Example:
@@ -539,10 +539,10 @@ def zip_function(
         >>> x = SX.sym("x")
         >>> y = SX.sym("y")
         >>> f = Function("add", (x, y), (x + y,))
-        >>> zipped = zip_function(f, 4)
-        >>> zipped.name
+        >>> batched = zip_function(f, 4)
+        >>> batched.name
         'add_zip'
-        >>> zipped.input_names
+        >>> batched.input_names
         ('x_seq', 'y_seq')
     """
     resolved_names = (
@@ -550,7 +550,7 @@ def zip_function(
         if input_names is not None
         else tuple(f"{input_name}_seq" for input_name in function.input_names)
     )
-    return ZippedFunction(
+    return BatchedFunction(
         function=function,
         count=count,
         name=name or f"{function.name}_zip",
@@ -683,7 +683,7 @@ def _coerce_function_arg_like(
             raise ValueError("unexpected vector output length")
         return SXVector(tuple(_coerce_scalar_output(item) for item in value))
 
-    raise TypeError("zipped functions require symbolic outputs")
+    raise TypeError("batched functions require symbolic outputs")
 
 
 def _coerce_scalar_output(value: object) -> SX:
@@ -692,4 +692,4 @@ def _coerce_scalar_output(value: object) -> SX:
         return value
     if isinstance(value, (int, float)):
         return SX.const(value)
-    raise TypeError("zipped functions require symbolic outputs")
+    raise TypeError("batched functions require symbolic outputs")
