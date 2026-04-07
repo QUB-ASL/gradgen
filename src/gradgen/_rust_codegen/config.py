@@ -73,7 +73,7 @@ class RustBackendConfig:
         """
         Return a copy with Python wrapper compilation enabled or disabled.
         """
-        if not self.enable_python_interface:
+        if build_python_interface and not self.enable_python_interface:
             return ValueError(
                 "To use with_build_python_interface, you first need "
                 "to call with_enable_python_interface"

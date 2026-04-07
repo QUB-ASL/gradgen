@@ -191,7 +191,11 @@ result = reduced_fun(acc=0, x_seq=[0.1, 0.2, 0.3]*N)
 
 
 
-## Map-reduce
+## Composition
+
+<div align="center">
+<img src="/gradgen/img/composer.png" width="30%" alt="reduce operation"/>
+</div>
 
 
 ## Repeat and chain
