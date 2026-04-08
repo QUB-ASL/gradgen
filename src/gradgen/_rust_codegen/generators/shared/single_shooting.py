@@ -315,13 +315,17 @@ def _append_generated_helper(
         helper_function,
         config=helper_config,
         function_name=helper_name,
-        function_index=1,
-        shared_helper_nodes=(),
+        function_index=0,
+        shared_helper_nodes=tuple(helper_function.nodes),
         emit_crate_header=False,
         emit_docs=False,
         function_keyword="fn",
     )
-    helper_sources.append(helper_codegen.source.rstrip())
+    helper_sources.append(
+        _shared._strip_generated_module_preamble(
+            helper_codegen.source.rstrip()
+        )
+    )
     helper_nodes.extend(helper_function.nodes)
     return max(max_workspace, helper_codegen.workspace_size)
 

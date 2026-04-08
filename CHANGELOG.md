@@ -10,6 +10,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 - `Functions` accept named arguments
+- `CodeGenerationBuilder.add_gradient(wrt=...)` and the scoped builder
+  variant now accept input names or indices and generate only the selected
+  gradient blocks.
+- `FunctionBundle().add_gradient(wrt=[...])` now accepts input names as well
+  as indices and generates one gradient block per selected input block.
 - Added `FunctionComposer` for chaining function-like stages into a single
   composed pipeline, while keeping staged wrappers such as
   `ReducedFunction` and `BatchedFunction` intact in generated Rust code.

@@ -19,6 +19,9 @@ _describe_input_arg = _shared._describe_input_arg
 _describe_output_arg = _shared._describe_output_arg
 _emit_exact_length_assert = _shared._emit_exact_length_assert
 _emit_min_length_assert = _shared._emit_min_length_assert
+_strip_generated_module_preamble = (
+    _shared._strip_generated_module_preamble
+)
 
 
 def _build_exact_length_checks(
@@ -117,8 +120,8 @@ def _generate_batched_primal_rust(
         helper_function,
         config=helper_config,
         function_name=helper_name,
-        function_index=1,
-        shared_helper_nodes=(),
+        function_index=0,
+        shared_helper_nodes=tuple(helper_function.nodes),
         emit_crate_header=False,
         emit_docs=False,
         function_keyword="fn",
@@ -238,7 +241,14 @@ def _generate_batched_primal_rust(
         output_write_lines=[],
         shared_helper_lines=[],
     ).rstrip()
-    source = "\n\n".join([driver_source, helper_codegen.source.rstrip()])
+    source = "\n\n".join(
+        [
+            driver_source,
+            _strip_generated_module_preamble(
+                helper_codegen.source.rstrip()
+            ),
+        ]
+    )
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
@@ -320,8 +330,8 @@ def _generate_batched_jacobian_rust(
         local_jacobian,
         config=helper_config,
         function_name=helper_name,
-        function_index=1,
-        shared_helper_nodes=(),
+        function_index=0,
+        shared_helper_nodes=tuple(local_jacobian.nodes),
         emit_crate_header=False,
         emit_docs=False,
         function_keyword="fn",
@@ -480,7 +490,14 @@ def _generate_batched_jacobian_rust(
         output_write_lines=[],
         shared_helper_lines=[],
     ).rstrip()
-    source = "\n\n".join([driver_source, helper_codegen.source.rstrip()])
+    source = "\n\n".join(
+        [
+            driver_source,
+            _strip_generated_module_preamble(
+                helper_codegen.source.rstrip()
+            ),
+        ]
+    )
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",
@@ -556,8 +573,8 @@ def _generate_reduced_primal_rust(
         helper_function,
         config=helper_config,
         function_name=helper_name,
-        function_index=1,
-        shared_helper_nodes=(),
+        function_index=0,
+        shared_helper_nodes=tuple(helper_function.nodes),
         emit_crate_header=False,
         emit_docs=False,
         function_keyword="fn",
@@ -693,7 +710,14 @@ def _generate_reduced_primal_rust(
         output_write_lines=[],
         shared_helper_lines=[],
     ).rstrip()
-    source = "\n\n".join([driver_source, helper_codegen.source.rstrip()])
+    source = "\n\n".join(
+        [
+            driver_source,
+            _strip_generated_module_preamble(
+                helper_codegen.source.rstrip()
+            ),
+        ]
+    )
 
     return RustCodegenResult(
         source=source if source.endswith("\n") else f"{source}\n",

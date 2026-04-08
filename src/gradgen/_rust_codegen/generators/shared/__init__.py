@@ -29,6 +29,7 @@ from ...validation import (
     validate_scalar_type as _validate_scalar_type,
 )
 from .common import _build_directional_derivative_function
+from .common import _strip_generated_module_preamble
 from .composed import (
     _build_composed_input_specs,
     _compose_composed_helper_base_name,

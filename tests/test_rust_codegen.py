@@ -1671,6 +1671,50 @@ mod single_shooting_multi_u_tests {{
             [("f", None), ("jf", (0, 2)), ("hessian", (1,)), ("hvp", (0, 1))],
         )
 
+    def test_function_bundle_supports_named_gradient_targets(self) -> None:
+        bundle = FunctionBundle().add_gradient(wrt=["x", "p"])
+
+        self.assertEqual(
+            [(item.kind, item.wrt_indices) for item in bundle.items],
+            [("grad", ("x", "p"))],
+        )
+
+    def test_function_bundle_supports_single_named_gradient_target(
+        self,
+    ) -> None:
+        bundle = FunctionBundle().add_gradient(wrt="x")
+
+        self.assertEqual(
+            [(item.kind, item.wrt_indices) for item in bundle.items],
+            [("grad", ("x",))],
+        )
+
+    def test_code_generation_builder_supports_named_gradient_targets(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 2)
+        p = SX.sym("p")
+        f = Function(
+            "named_gradient",
+            [x, p],
+            [x[0] * x[0] + x[1] * p + (x[0] + p).sin()],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+
+        builder = CodeGenerationBuilder(f).add_gradient(wrt=["x", "p"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "named_gradient")
+
+            self.assertEqual(len(project.codegens), 2)
+            self.assertTrue(
+                project.codegens[0].function_name.endswith("_grad_x")
+            )
+            self.assertTrue(
+                project.codegens[1].function_name.endswith("_grad_p")
+            )
+
     def test_code_generation_builder_supports_simplification_setting(
         self,
     ) -> None:

@@ -171,7 +171,7 @@ $$\mathrm{reduce}_{\otimes, N}: (a_0, \mathbf{x}) \mapsto a_0 \otimes x_1 \ldots
 
 ```python
 N = 5
-reduced = gg.reduce_function(
+reduced = reduce_function(
     r, N,
     accumulator_input_name="acc",
     input_name="x_seq",
@@ -193,11 +193,148 @@ result = reduced_fun(acc=0, x_seq=[0.1, 0.2, 0.3]*N)
 
 ## Composition
 
-Suppose you 
+Suppose you want to combine a [map](/gradgen/docs/basics/high_order_functions#map) and a
+[reduce](/gradgen/docs/basics/high_order_functions#reduce) operation, i.e., feed the output
+of a map into a reduce, and then feed the output of reduce into a post-processing function $h(x; b)$
+(with parameter $b$) as shown in the following figure
 
 <div align="center">
 <img src="/gradgen/img/composer.png" width="30%" alt="reduce operation"/>
 </div>
+
+By composing these functions as shown in the figure you have an overall function
+with input arguments $(a, x, b)$.
+
+:::warning
+
+Of course you can use `.to_function` and compose the three functions as discussed
+[here](/gradgen/docs/basics/functions#composition-of-functions), but then you
+**flatten** the map and reduce functions, gradgen forgets about their special
+structure, and the generated code can end up being several thousands or even
+millions lines of code. Instead, what you need to do is to use a `FunctionComposer`
+with which we can create compositions such as the one shown above.
+
+:::
+
+**Example.** Consider an input argument $\mathbf{x} = (x_1, \ldots, x_n)$
+with $x_i\in\mathbb{R}^2$ and the function $u:\mathbb{R}^2\to\mathbb{R}$ with
+$u(x_i) = \sin(\Vert x_i \Vert^2)$.
+
+<p>This defines map$_{u, n}$ which computes the vector $y = (u(x_1), \ldots, u(x_n))$.
+The result of this map operation is then fed into $\mathrm{reduce}_{+, n}$
+which computes the sum $s = a_0 + \sum_{i=1}^{n}y_i$. Lastly, the result of the
+reduce operation is fed into the post-processing function $h(s, b) = bs^3$,
+which produces the final result, $z$, as shown in the following figure.</p>
+
+<div align="center">
+<img src="/gradgen/img/composer-example.png" width="70%" alt="reduce operation"/>
+</div>
+
+<p>Firstly, let us introduce function $u$ and $\mathrm{map}_{u, N}$</p>
+
+```python
+x = SXVector.sym('x', 2)
+N = 5
+
+# Function u: R^2 --> R
+u = Function(
+    "u_map",
+    [x],
+    [sin(x.norm2sq())],
+    input_names=["x"],
+    output_names=["y"],
+)
+
+# The map
+mapped = map_function(u, N, input_name="x_seq", name="mapped_seq")
+```
+
+Next, we introduce the [reduce](/gradgen/docs/basics/high_order_functions#reduce) function 
+
+```
+a = SX.sym("a")
+y = SX.sym("y")
+r = Function(
+    "h",
+    [a, y], [a + y],
+    input_names=["a", "y"],
+    output_names=["s"],
+)
+reduced = reduce_function(
+    r, N,
+    accumulator_input_name="acc",
+    input_name="y_seq",
+    output_name="acc_final",
+    name="summation",
+)
+```
+
+And lastly, we define the function $h$:
+
+```python
+b = SX.sym("b")
+s = SX.sym("s")
+h = Function(
+    "h",
+    [b, s],
+    [b * s**3],
+    input_names=["b", "s"],
+    output_names=["z"],
+)
+```
+
+We have everything we need. We now need to compose the above three functions
+as follows:
+
+```python
+comp = (
+    FunctionComposer(mapped)
+    .feed_into(reduced, arg="y_seq")
+    .feed_into(h, arg="s")
+    .compose(name="comp")
+)
+```
+
+<details>
+
+<summary>Generated code (details)</summary>
+
+The generated Rust code respects the structure of the three composed functions.
+This is an excerpt from the generated function `compozer_comp_f`:
+
+```rust
+pub fn compozer_comp_f(
+    x_seq: &[f64],
+    acc: &[f64],
+    b: &[f64],
+    z: &mut [f64],
+    work: &mut [f64],
+) -> Result<(), GradgenError> {    
+    /*   (...)   */
+    mapped_seq_1(x_seq, stage_0_out, stage_0_work)?;
+    summation_2(acc, stage_0_out, stage_1_out, stage_1_work)?;
+    post_0(b, stage_1_out, z, stage_2_work)?;
+    Ok(())
+}
+```
+
+Note that each of the components of the composition correspond to different 
+functions. The auto-generated function `mapped_seq_1` looks like this:
+
+```rust
+pub fn mapped_seq_1(x_seq: &[f64], y: &mut [f64], work: &mut [f64]) -> Result<(), GradgenError> {
+    let helper_work = &mut work[..1];
+    for stage_index in 0..5 {
+        let x_seq_stage = &x_seq[stage_index * 2..((stage_index + 1) * 2)];
+        let y_stage = &mut y[stage_index..stage_index + 1];
+        mapped_seq_1_helper(x_seq_stage, y_stage, helper_work); // summation
+    }
+    Ok(())
+}
+```
+
+</details>
+
 
 
 
@@ -207,4 +344,3 @@ Repeat and chain are variants of the reduce function.
 
 
 ## Code generation
-
