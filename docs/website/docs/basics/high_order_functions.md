@@ -343,7 +343,8 @@ pub fn mapped_seq_1(x_seq: &[f64], y: &mut [f64], work: &mut [f64]) -> Result<()
 
 ### Graph composition
 
-Coming soon...
+Coming soon: functions, incl. higher-order functions, are composed
+over a directed acyclic graph.
 
 <div align="center">
 <img src="/gradgen/img/composer-parallel.png" width="70%" alt="reduce operation"/>
@@ -382,7 +383,7 @@ x = SXVector.sym("x", 2)
 state = SXVector.sym("state", 2)
 p = SXVector.sym("p", 3)
 
-stage = Function(
+g = Function(
     "g",
     [state, p],
     [SXVector(
@@ -393,9 +394,39 @@ stage = Function(
 )
 ```
 
-We can now compose
+We can now compose `g` with itself $N$ times as follows:
+
+```python
+N = 5
+composed = (
+    ComposedFunction("multistage", x)
+    .repeat(g, params=[p] * N)
+    .finish()
+)
+```
 
 
 ### Chain
 
+Documentation to be updated soon.
+
+
 ## Code generation
+
+```python
+builder = (
+    CodeGenerationBuilder()
+    .with_backend_config(
+        RustBackendConfig()
+        .with_crate_name("super_composition")
+        .with_enable_python_interface()
+    )
+    .for_function(composed)
+        .add_primal()
+        .add_joint(
+            FunctionBundle().add_f().add_jf(wrt=0)
+        )
+        .done()
+    .build()
+)
+```
