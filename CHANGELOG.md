@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `FunctionComposer`-generated Rust now exports wrapper metadata, which lets
   the generated Python interface crate install successfully for composed
   pipelines.
+- Multi-function Rust crates now emit `GradgenError` and
+  `FunctionMetadata` once, even when composed pipelines contribute multiple
+  generated functions.
 - Added an optional PyO3-based Python interface for generated Rust crates via
   `RustBackendConfig().with_enable_python_interface(True)`, now emitted as a
   separate sibling wrapper crate so the low-level generated crate can stay

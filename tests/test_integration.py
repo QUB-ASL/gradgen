@@ -286,6 +286,97 @@ mod integration_sympy_vector {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
             self.assertIn("fn norm2sq(", lib_text)
 
+    def test_nested_composed_pipeline_shares_module_prelude_once(self) -> None:
+        x = SXVector.sym("x", 2)
+        mapped_function = Function(
+            "u_map",
+            [x],
+            [x.norm2sq().sin()],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        mapped = map_function(
+            mapped_function,
+            5,
+            input_name="x_seq",
+            name="mapped_seq",
+        )
+
+        a = SX.sym("a")
+        y = SX.sym("y")
+        reduced_function = Function(
+            "h",
+            [a, y],
+            [a + y],
+            input_names=["a", "y"],
+            output_names=["s"],
+        )
+        reduced = reduce_function(
+            reduced_function,
+            5,
+            accumulator_input_name="acc",
+            input_name="y_seq",
+            output_name="acc_final",
+            name="summation",
+        )
+
+        b = SX.sym("b")
+        s = SX.sym("s")
+        post = Function(
+            "post",
+            [b, s],
+            [b * s**3],
+            input_names=["b", "s"],
+            output_names=["z"],
+        )
+
+        comp = (
+            FunctionComposer(mapped)
+            .feed_into(reduced, arg="y_seq")
+            .feed_into(post, arg="s")
+            .compose(name="comp")
+        )
+
+        ss = SX.sym("ss")
+        j = Function(
+            "jjj",
+            [ss],
+            [ss + 1],
+            input_names=["ss"],
+            output_names=["zz"],
+        )
+        comp2 = (
+            FunctionComposer(comp)
+            .feed_into(j, arg="ss")
+            .compose(name="comp2")
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("compozer")
+                .with_enable_python_interface()
+                .with_build_python_interface()
+            )
+            .for_function(comp2)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "compozer")
+            self.assertIsNotNone(project.python_interface)
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertEqual(
+                lib_text.count("pub enum GradgenError {"),
+                1,
+            )
+            self.assertEqual(
+                lib_text.count("pub struct FunctionMetadata {"),
+                1,
+            )
+
     def test_named_gradient_builder_matches_sympy_blocks(self) -> None:
         x0, x1, p = sp.symbols("x0 x1 p", real=True)
         sympy_expr = x0 * x0 + x1 * p + sp.sin(x0 + p) + x1 * x1 * x1

@@ -35,7 +35,9 @@ def build_parameters_value(repeats: int) -> list[float]:
     """Build one concrete packed parameter vector for the chosen repeat count."""
     values: list[float] = []
     for repeat_index in range(repeats):
-        values.extend([float(2 * repeat_index + 3), float(2 * repeat_index + 4)])
+        values.extend(
+            [float(2 * repeat_index + 3),
+             float(2 * repeat_index + 4)])
     values.append(float(2 * repeats + 3))
     return values
 
