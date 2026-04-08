@@ -5,11 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased
+## 0.4.0 - 08-04-2026
 
 ### Added
 
 - `Functions` accept named arguments
+- `CodeGenerationBuilder.add_gradient(wrt=...)` and the scoped builder
+  variant now accept input names or indices and generate only the selected
+  gradient blocks.
+- `CodeGenerationBuilder.add_jacobian()` now supports staged
+  `ComposedFunction` sources and emits a loop-based Jacobian kernel without
+  flattening the composed stages.
+- `CodeGenerationBuilder.add_joint(FunctionBundle().add_f().add_jf(wrt=0))`
+  now supports staged `ComposedFunction` sources and emits a shared
+  loop-based primal-plus-Jacobian kernel without flattening the composed
+  stages.
+- `FunctionBundle().add_gradient(wrt=[...])` now accepts input names as well
+  as indices and generates one gradient block per selected input block.
+- Added `FunctionComposer` for chaining function-like stages into a single
+  composed pipeline, while keeping staged wrappers such as
+  `ReducedFunction` and `BatchedFunction` intact in generated Rust code.
+- `CodeGenerationBuilder` now accepts `FunctionComposer`-style pipelines
+  directly, so composed staged pipelines can be generated without flattening
+  them into a plain symbolic `Function` first.
+- `FunctionComposer`-generated Rust now exports wrapper metadata, which lets
+  the generated Python interface crate install successfully for composed
+  pipelines.
+- Multi-function Rust crates now emit `GradgenError` and
+  `FunctionMetadata` once, even when composed pipelines contribute multiple
+  generated functions.
 - Added an optional PyO3-based Python interface for generated Rust crates via
   `RustBackendConfig().with_enable_python_interface(True)`, now emitted as a
   separate sibling wrapper crate so the low-level generated crate can stay
@@ -43,6 +67,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Updated `ComposedFunction.repeat(...)` to model repeated applications of the
+  same stage only, with `finish()` now acting as a no-argument finalizer that
+  returns the final state instead of invoking a terminal scalar function.
 - Refactored the Rust code generation implementation into smaller internal
   modules for configuration, validation, template loading, and project
   creation. The public Rust-generation API remains unchanged.

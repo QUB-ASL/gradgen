@@ -59,14 +59,14 @@ class FunctionTests(unittest.TestCase):
         x = SX.sym("x")
         y = SX.sym("y")
         constant_output = Function("constant_zip", [x, y], [SX.const(7.0)])
-        zipped = zip_function(
+        batched = zip_function(
             constant_output,
             3,
             input_names=["x_seq", "y_seq"],
             name="constant_zip_batch",
         )
 
-        expanded = zipped.to_function()
+        expanded = batched.to_function()
 
         self.assertEqual(
             expanded([1.0, 2.0, 3.0], [10.0, 20.0, 30.0]), (7.0, 7.0, 7.0)
@@ -82,14 +82,14 @@ class FunctionTests(unittest.TestCase):
             [x + y, constant_vec],
             output_names=["sum", "const_vec"],
         )
-        zipped = zip_function(
+        batched = zip_function(
             mixed,
             2,
             input_names=["x_seq", "y_seq"],
             name="mixed_zip_batch",
         )
 
-        expanded = zipped.to_function()
+        expanded = batched.to_function()
 
         self.assertEqual(
             expanded([1.0, 2.0], [3.0, 4.0]),

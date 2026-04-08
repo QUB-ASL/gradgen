@@ -18,6 +18,7 @@ from gradgen._rust_codegen.project_support import _gradgen_version
 from gradgen import (
     CodeGenerationBuilder,
     ComposedFunction,
+    FunctionComposer,
     Function,
     FunctionBundle,
     RustBackendConfig,
@@ -35,6 +36,7 @@ from gradgen import (
     matvec,
     quadform,
     register_elementary_function,
+    reduce_function,
     zip_function,
 )
 
@@ -206,7 +208,8 @@ mod tests {{
 {chr(10).join(input_binding_lines)}
 {chr(10).join(output_binding_lines)}
         let mut work = [0.0_{scalar_type}; {workspace_size}];
-        {function_name}({parameter_list});
+        let result = {function_name}({parameter_list});
+        assert!(result.is_ok());
 {chr(10).join(output_assertion_lines)}
     }}
 }}
@@ -1170,7 +1173,6 @@ mod single_shooting_multi_u_tests {{
 
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 1)
         g = Function(
             "g",
             [state, p],
@@ -1178,17 +1180,10 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, pf],
-            [state[0] + pf[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
         composed = (
             ComposedFunction("demo", x)
             .then(g, p=[1.0, 2.0])
-            .finish(h, p=[3.0])
+            .finish()
         )
 
         with self.assertRaises(ValueError):
@@ -1668,6 +1663,50 @@ mod single_shooting_multi_u_tests {{
             [("f", None), ("jf", (0, 2)), ("hessian", (1,)), ("hvp", (0, 1))],
         )
 
+    def test_function_bundle_supports_named_gradient_targets(self) -> None:
+        bundle = FunctionBundle().add_gradient(wrt=["x", "p"])
+
+        self.assertEqual(
+            [(item.kind, item.wrt_indices) for item in bundle.items],
+            [("grad", ("x", "p"))],
+        )
+
+    def test_function_bundle_supports_single_named_gradient_target(
+        self,
+    ) -> None:
+        bundle = FunctionBundle().add_gradient(wrt="x")
+
+        self.assertEqual(
+            [(item.kind, item.wrt_indices) for item in bundle.items],
+            [("grad", ("x",))],
+        )
+
+    def test_code_generation_builder_supports_named_gradient_targets(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 2)
+        p = SX.sym("p")
+        f = Function(
+            "named_gradient",
+            [x, p],
+            [x[0] * x[0] + x[1] * p + (x[0] + p).sin()],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+
+        builder = CodeGenerationBuilder(f).add_gradient(wrt=["x", "p"])
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "named_gradient")
+
+            self.assertEqual(len(project.codegens), 2)
+            self.assertTrue(
+                project.codegens[0].function_name.endswith("_grad_x")
+            )
+            self.assertTrue(
+                project.codegens[1].function_name.endswith("_grad_p")
+            )
+
     def test_code_generation_builder_supports_simplification_setting(
         self,
     ) -> None:
@@ -1727,7 +1766,6 @@ mod single_shooting_multi_u_tests {{
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 1)
 
         g = Function(
             "G",
@@ -1736,17 +1774,10 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, pf],
-            [state[0] + state[1] + pf[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
         composed = (
             ComposedFunction("repeat_demo", x)
             .repeat(g, params=[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
-            .finish(h, p=[7.0])
+            .finish()
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -1790,19 +1821,12 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, SXVector.sym("pf", 0)],
-            [state[0] - state[1]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
 
         composed = (
             ComposedFunction("mixed_primal", x)
             .then(g, p=[10.0, 20.0])
             .repeat(g, params=[p1, p2])
-            .finish(h, p=[])
+            .finish()
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -1833,7 +1857,6 @@ mod single_shooting_multi_u_tests {{
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
         p_stage = SXVector.sym("p_stage", 2)
-        p_terminal = SXVector.sym("p_terminal", 1)
 
         g = Function(
             "g",
@@ -1842,18 +1865,11 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, p_terminal],
-            [state[0] * state[1] + p_terminal[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
 
         composed = (
             ComposedFunction("offset_demo", x)
             .then(g, p=p_stage)
-            .finish(h, p=p_terminal)
+            .finish()
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -1864,15 +1880,15 @@ mod single_shooting_multi_u_tests {{
 
             self.assertIn("parameters: &[f64]", lib_text)
             self.assertIn("parameters[0..2]", lib_text)
-            self.assertIn("parameters[2..3]", lib_text)
+            self.assertNotIn("parameters[2..3]", lib_text)
             self.assertNotIn("for repeat_index", lib_text)
 
             self._append_reference_test(
                 project.project_dir,
                 composed.to_function(),
                 function_name=project.codegen.function_name,
-                inputs=([2.0, 3.0], [5.0, 7.0, 11.0]),
-                test_name="evaluates_symbolic_stage_and_terminal_offsets",
+                inputs=([2.0, 3.0], [5.0, 7.0]),
+                test_name="evaluates_symbolic_stage_offsets",
                 workspace_size_override=project.codegen.workspace_size,
             )
 
@@ -1883,7 +1899,6 @@ mod single_shooting_multi_u_tests {{
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 1)
 
         g = Function(
             "G",
@@ -1892,18 +1907,11 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, pf],
-            [state[0] + state[1] + pf[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
         composed = (
             ComposedFunction("packed_demo", x)
             .then(g, p=p)
             .repeat(g, params=[p, p])
-            .finish(h, p=pf)
+            .finish()
         )
         gradient = composed.gradient()
 
@@ -1914,16 +1922,187 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("parameters: &[f64]", lib_text)
-            self.assertIn("for repeat_index in (0..2).rev() {", lib_text)
-            self.assertIn("_vjp(", lib_text)
+            self.assertNotIn("_vjp(", lib_text)
 
             self._append_reference_test(
                 project.project_dir,
                 gradient.to_function(),
                 function_name=project.codegen.function_name,
-                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]),
                 test_name="evaluates_composed_gradient_reference",
                 workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_composed_jacobian_codegen_uses_staged_loops(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        composed = (
+            ComposedFunction("jacobian_demo", x)
+            .then(g, p=p)
+            .repeat(g, params=[p, p])
+            .finish()
+        )
+        jacobian = composed.jacobian()
+
+        with TemporaryDirectory() as tmpdir:
+            project = (
+                CodeGenerationBuilder()
+                .with_backend_config(
+                    RustBackendConfig().with_crate_name("jacobian_demo")
+                )
+                .for_function(composed)
+                .add_primal()
+                .add_jacobian()
+                .done()
+                .build(Path(tmpdir) / "jacobian_demo")
+            )
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn jacobian_demo_jacobian_demo_f(", lib_text)
+            self.assertIn("for output_index in 0..2 {", lib_text)
+            self.assertIn("lambda_a[output_index] = 1.0_f64;", lib_text)
+            self.assertIn("jacobian_y", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                jacobian.to_function(),
+                function_name=project.codegens[1].function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]),
+                test_name="evaluates_composed_jacobian_reference",
+                workspace_size_override=project.codegens[1].workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_composed_joint_codegen_supports_primal_and_jacobian(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        composed = (
+            ComposedFunction("joint_demo", x)
+            .then(g, p=p)
+            .repeat(g, params=[p, p])
+            .finish()
+        )
+        primal_function = composed.to_function()
+        jacobian_function = composed.jacobian().to_function()
+
+        with TemporaryDirectory() as tmpdir:
+            project = (
+                CodeGenerationBuilder()
+                .with_backend_config(
+                    RustBackendConfig().with_crate_name("joint_demo")
+                )
+                .for_function(composed)
+                .add_primal()
+                .add_jacobian()
+                .add_joint(FunctionBundle().add_f().add_jf(wrt=0))
+                .done()
+                .build(Path(tmpdir) / "joint_demo")
+            )
+            self.assertEqual(len(project.codegens), 3)
+            joint_codegen = project.codegens[2]
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn joint_demo_joint_demo_f_jf_x(", lib_text)
+            self.assertIn("for output_index in 0..2 {", lib_text)
+            self.assertIn("jacobian_y", lib_text)
+            self.assertIn("y.copy_from_slice(current_state);", lib_text)
+
+            primal_expected = self._flatten_runtime_output(
+                primal_function,
+                primal_function(
+                    [1.0, 2.0],
+                    [3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                ),
+            )
+            jacobian_expected = self._flatten_runtime_output(
+                jacobian_function,
+                jacobian_function(
+                    [1.0, 2.0],
+                    [3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                ),
+            )
+            primal_expected_literal = self._rust_array_literal(
+                primal_expected, "f64"
+            )
+            jacobian_expected_literal = self._rust_array_literal(
+                jacobian_expected, "f64"
+            )
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod tests {{
+    use super::*;
+
+    fn assert_close_slice(
+        actual: &[f64],
+        expected: &[f64],
+        tolerance: f64,
+    ) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in
+            actual.iter().zip(expected.iter())
+        {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn evaluates_joint_primal_and_jacobian() {{
+        let x = [1.0_f64, 2.0_f64];
+        let parameters = [3.0_f64, 4.0_f64, 5.0_f64, 6.0_f64, 7.0_f64, 8.0_f64];
+        let mut y = [0.0_f64; {joint_codegen.output_sizes[0]}];
+        let mut jacobian_y = [0.0_f64; {joint_codegen.output_sizes[1]}];
+        let mut work = [0.0_f64; {joint_codegen.workspace_size}];
+
+        let result = {joint_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut y,
+            &mut jacobian_y,
+            &mut work,
+        );
+        assert!(result.is_ok());
+        assert_close_slice(
+            &y,
+            &{primal_expected_literal},
+            1e-10_f64,
+        );
+        assert_close_slice(
+            &jacobian_y,
+            &{jacobian_expected_literal},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
             )
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
@@ -1935,7 +2114,6 @@ mod single_shooting_multi_u_tests {{
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 1)
 
         g = Function(
             "G",
@@ -1944,17 +2122,10 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, pf],
-            [state[0] + state[1] + pf[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
         composed = (
             ComposedFunction("loop_demo", x)
             .repeat(g, params=[p, p, p])
-            .finish(h, p=pf)
+            .finish()
         )
 
         builder = (
@@ -1973,9 +2144,10 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("pub fn loop_demo_loop_demo_f(", lib_text)
-            self.assertIn("pub fn loop_demo_loop_demo_grad_x(", lib_text)
             self.assertIn("for repeat_index in 0..3 {", lib_text)
-            self.assertIn("for repeat_index in (0..3).rev() {", lib_text)
+            self.assertIn("repeat_index * 2", lib_text)
+            self.assertIn("(repeat_index + 1) * 2", lib_text)
+            self.assertNotIn("_vjp(", lib_text)
             self.assertEqual(
                 len(
                     re.findall(
@@ -1984,7 +2156,7 @@ mod single_shooting_multi_u_tests {{
                         flags=re.MULTILINE,
                     )
                 ),
-                2,
+                1,
             )
             self.assertNotIn("loop_demo_loop_demo_f_repeat_0_", lib_text)
 
@@ -1993,13 +2165,13 @@ mod single_shooting_multi_u_tests {{
             primal_expected = self._flatten_runtime_output(
                 primal_function,
                 primal_function(
-                    [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+                    [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
                 ),
             )
             gradient_expected = self._flatten_runtime_output(
                 gradient_function,
                 gradient_function(
-                    [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+                    [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
                 ),
             )
             primal_expected_literal = self._rust_array_literal(
@@ -2041,9 +2213,8 @@ mod tests {{
             6.0_f64,
             7.0_f64,
             8.0_f64,
-            9.0_f64,
         ];
-        let mut primal_y = [0.0_f64; 1];
+        let mut primal_y = [0.0_f64; 2];
         let mut primal_work = [0.0_f64; {project.codegens[0].workspace_size}];
         {project.codegens[0].function_name}(
             &x,
@@ -2053,7 +2224,7 @@ mod tests {{
         );
         assert_close_slice(&primal_y, &{primal_expected_literal}, 1e-12_f64);
 
-        let mut gradient_y = [0.0_f64; 2];
+        let mut gradient_y = [0.0_f64; 4];
         let mut gradient_work = [
             0.0_f64;
             {project.codegens[1].workspace_size}
@@ -2072,6 +2243,75 @@ mod tests {{
     }}
 }}
 """.lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_code_generation_builder_accepts_function_composer(self) -> None:
+        acc = SX.sym("acc")
+        x = SX.sym("x")
+        stage = Function(
+            "stage",
+            [acc, x],
+            [acc + x],
+            input_names=["acc", "x"],
+            output_names=["acc_next"],
+        )
+        reduced = reduce_function(
+            stage,
+            3,
+            accumulator_input_name="acc0",
+            input_name="x_seq",
+            name="sum_reduce",
+        )
+        post = Function(
+            "post",
+            [acc],
+            [acc + 1],
+            input_names=["acc"],
+            output_names=["y"],
+        )
+        composed = (
+            FunctionComposer(reduced)
+            .feed_into(post, arg="acc")
+            .compose(name="comp")
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("composer_demo")
+                .with_enable_python_interface()
+            )
+            .for_function(composed)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "composer_demo")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("for stage_index in 0..3", lib_text)
+            self.assertIn("post_0(", lib_text)
+            self.assertIn("sum_reduce_1(", lib_text)
+            self.assertIn("pub fn composer_demo_comp_f_meta()", lib_text)
+            self.assertIn(
+                f"pub fn {project.codegens[0].function_name}(",
+                lib_text,
+            )
+            self.assertIsNotNone(project.python_interface)
+
+            reference_function = composed.to_function()
+            self._append_reference_test(
+                project.project_dir,
+                reference_function,
+                function_name=project.codegens[0].function_name,
+                inputs=(1.0, [2.0, 3.0, 4.0]),
+                test_name="evaluates_function_composer_builder",
+                workspace_size_override=project.codegens[0].workspace_size,
             )
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
@@ -4535,14 +4775,14 @@ mod joint_hessian_tests {
             input_names=["x", "y"],
             output_names=["z"],
         )
-        zipped = zip_function(
+        batched = zip_function(
             g,
             3,
             input_names=("x_seq", "y_seq"),
             name="pairwise_zip",
             simplification="medium",
         )
-        expanded = zipped.to_function()
+        expanded = batched.to_function()
         inputs = (
             [1.0, 2.0, -1.0, 3.0, 0.5, -2.0],
             [4.0, -1.0, 2.0, 5.0, -3.0, 1.5],
@@ -4550,7 +4790,7 @@ mod joint_hessian_tests {
 
         with TemporaryDirectory() as tmpdir:
             project = create_rust_project(
-                zipped, Path(tmpdir) / "pairwise_zip_kernel"
+                batched, Path(tmpdir) / "pairwise_zip_kernel"
             )
             self.assertIn(
                 "for stage_index in 0..3",
@@ -4577,17 +4817,17 @@ mod joint_hessian_tests {
             input_names=["x", "y"],
             output_names=["out"],
         )
-        zipped = zip_function(
+        batched = zip_function(
             g,
             3,
             input_names=("x_seq", "y_seq"),
             name="pairwise_zip",
             simplification="medium",
         )
-        zipped_jacobian = zipped.jacobian(
+        batched_jacobian = batched.jacobian(
             1, name="pairwise_zip_jacobian_y_seq"
         )
-        expanded = zipped_jacobian.to_function()
+        expanded = batched_jacobian.to_function()
         inputs = (
             [2.0, 1.0, -1.0, 4.0, 0.5, -2.0],
             [3.0, -2.0, 1.5],
@@ -4599,7 +4839,7 @@ mod joint_hessian_tests {
                 .with_backend_config(
                     RustBackendConfig().with_crate_name("pairwise_zip_kernel")
                 )
-                .for_function(zipped)
+                .for_function(batched)
                 .add_primal()
                 .add_jacobian()
                 .done()

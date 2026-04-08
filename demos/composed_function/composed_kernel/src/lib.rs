@@ -31,9 +31,9 @@ pub fn composed_kernel_composed_demo_f_meta() -> FunctionMetadata {
         function_name: "composed_kernel_composed_demo_f",
         workspace_size: 6,
         input_names: &["x", "parameters"],
-        input_sizes: &[2, 11],
+        input_sizes: &[2, 10],
         output_names: &["y"],
-        output_sizes: &[1],
+        output_sizes: &[2],
     }
 }
 
@@ -47,12 +47,11 @@ pub fn composed_kernel_composed_demo_f_meta() -> FunctionMetadata {
 ///   Expected length: 2.
 /// - `parameters`:
 ///   packed stage-parameter slice for the composed kernel; symbolic
-///   parameter blocks are laid out in forward stage order and the
-///   terminal block is stored last
-///   Expected length: 11.
+///   parameter blocks are laid out in forward stage order
+///   Expected length: 10.
 /// - `y`:
 ///   primal output slice for the declared result `y`
-///   Expected length: 1.
+///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 6.
 pub fn composed_kernel_composed_demo_f(
@@ -67,11 +66,11 @@ pub fn composed_kernel_composed_demo_f(
     if x.len() != 2 {
         return Err(GradgenError::InputTooSmall("x expected length 2"));
     };
-    if parameters.len() != 11 {
-        return Err(GradgenError::InputTooSmall("parameters expected length 11"));
+    if parameters.len() != 10 {
+        return Err(GradgenError::InputTooSmall("parameters expected length 10"));
     };
-    if y.len() != 1 {
-        return Err(GradgenError::OutputTooSmall("y expected length 1"));
+    if y.len() != 2 {
+        return Err(GradgenError::OutputTooSmall("y expected length 2"));
     };
     let (state_buffers, stage_work) = work.split_at_mut(4);
     let (current_state, next_state) = state_buffers.split_at_mut(2);
@@ -85,7 +84,7 @@ pub fn composed_kernel_composed_demo_f(
         );
         current_state.copy_from_slice(next_state);
     }
-    composed_kernel_composed_demo_terminal_h(current_state, &parameters[10..11], y, stage_work);
+    y.copy_from_slice(current_state);
     Ok(())
 }
 
@@ -103,28 +102,15 @@ fn composed_kernel_composed_demo_repeat_0_g(
     next_state[1] = work[1];
 }
 
-fn composed_kernel_composed_demo_terminal_h(
-    state: &[f64],
-    pf: &[f64],
-    y: &mut [f64],
-    work: &mut [f64],
-) {
-    work[0] = 2.0_f64 * state[0];
-    work[1] = -state[1];
-    work[0] += work[1];
-    work[0] += pf[0];
-    y[0] = work[0];
-}
-
 /// Return metadata describing [`composed_kernel_composed_demo_grad_x`].
 pub fn composed_kernel_composed_demo_grad_x_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "composed_kernel_composed_demo_grad_x",
-        workspace_size: 18,
+        workspace_size: 1,
         input_names: &["x", "parameters"],
-        input_sizes: &[2, 11],
-        output_names: &["y"],
-        output_sizes: &[2],
+        input_sizes: &[2, 10],
+        output_names: &["jacobian_y"],
+        output_sizes: &[4],
     }
 }
 
@@ -137,132 +123,39 @@ pub fn composed_kernel_composed_demo_grad_x_meta() -> FunctionMetadata {
 ///   input slice for the declared argument `x`
 ///   Expected length: 2.
 /// - `parameters`:
-///   packed stage-parameter slice for the composed kernel; symbolic
-///   parameter blocks are laid out in forward stage order and the
-///   terminal block is stored last
-///   Expected length: 11.
-/// - `y`:
-///   primal output slice for the declared result `y`
-///   Expected length: 2.
+///   input slice for the declared argument `parameters`
+///   Expected length: 10.
+/// - `jacobian_y`:
+///   output slice receiving the Jacobian block for declared result `y`
+///   Expected length: 4.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 18.
+///   while evaluating this kernel. Expected length: at least 1.
 pub fn composed_kernel_composed_demo_grad_x(
     x: &[f64],
     parameters: &[f64],
-    y: &mut [f64],
+    jacobian_y: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 18 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 18"));
+    if work.is_empty() {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 1"));
     };
     if x.len() != 2 {
         return Err(GradgenError::InputTooSmall("x expected length 2"));
     };
-    if parameters.len() != 11 {
-        return Err(GradgenError::InputTooSmall("parameters expected length 11"));
+    if parameters.len() != 10 {
+        return Err(GradgenError::InputTooSmall("parameters expected length 10"));
     };
-    if y.len() != 2 {
-        return Err(GradgenError::OutputTooSmall("y expected length 2"));
+    if jacobian_y.len() != 4 {
+        return Err(GradgenError::OutputTooSmall("jacobian_y expected length 4"));
     };
-    let (state_history, rest) = work.split_at_mut(10);
-    let (current_state, rest) = rest.split_at_mut(2);
-    let (lambda_buffers, stage_work) = rest.split_at_mut(4);
-    let (lambda_a, lambda_b) = lambda_buffers.split_at_mut(2);
-    current_state.copy_from_slice(x);
-    for repeat_index in 0..5 {
-        let stage_index = repeat_index;
-        let stage_start = stage_index * 2;
-        let stage_end = stage_start + 2;
-        {
-            let next_state = &mut state_history[stage_start..stage_end];
-            composed_kernel_composed_demo_repeat_0_g(
-                current_state,
-                &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
-                next_state,
-                stage_work,
-            );
-            current_state.copy_from_slice(next_state);
-        }
-    }
-    composed_kernel_composed_demo_terminal_h_grad(
-        current_state,
-        &parameters[10..11],
-        lambda_a,
-        stage_work,
-    );
-    let mut current_lambda_is_a = true;
-    for repeat_index in (0..5).rev() {
-        let stage_index = repeat_index;
-        if stage_index == 0 {
-            if current_lambda_is_a {
-                composed_kernel_composed_demo_repeat_0_g_vjp(
-                    x,
-                    &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
-                    &lambda_a[..],
-                    lambda_b,
-                    stage_work,
-                );
-            } else {
-                composed_kernel_composed_demo_repeat_0_g_vjp(
-                    x,
-                    &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
-                    &lambda_b[..],
-                    lambda_a,
-                    stage_work,
-                );
-            }
-        } else {
-            let prev_start = (stage_index - 1) * 2;
-            let prev_end = prev_start + 2;
-            if current_lambda_is_a {
-                composed_kernel_composed_demo_repeat_0_g_vjp(
-                    &state_history[prev_start..prev_end],
-                    &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
-                    &lambda_a[..],
-                    lambda_b,
-                    stage_work,
-                );
-            } else {
-                composed_kernel_composed_demo_repeat_0_g_vjp(
-                    &state_history[prev_start..prev_end],
-                    &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
-                    &lambda_b[..],
-                    lambda_a,
-                    stage_work,
-                );
-            }
-        }
-        current_lambda_is_a = !current_lambda_is_a;
-    }
-    let gradient = if current_lambda_is_a {
-        &lambda_a[..]
-    } else {
-        &lambda_b[..]
-    };
-    y.copy_from_slice(gradient);
+    work[0] = 1.0000000000000004e-05_f64 * parameters[7];
+    work[0] *= parameters[9];
+    work[0] *= parameters[5];
+    work[0] *= parameters[3];
+    work[0] *= parameters[1];
+    jacobian_y[0] = 0.5904900000000002_f64;
+    jacobian_y[1] = 0.0_f64;
+    jacobian_y[2] = 0.0_f64;
+    jacobian_y[3] = work[0];
     Ok(())
-}
-
-fn composed_kernel_composed_demo_repeat_0_g_vjp(
-    _state: &[f64],
-    p: &[f64],
-    cotangent_next_state: &[f64],
-    vjp_state: &mut [f64],
-    work: &mut [f64],
-) {
-    work[0] = 0.9_f64 * cotangent_next_state[0];
-    work[1] = 0.1_f64 * cotangent_next_state[1];
-    work[1] *= p[1];
-    vjp_state[0] = work[0];
-    vjp_state[1] = work[1];
-}
-
-fn composed_kernel_composed_demo_terminal_h_grad(
-    _state: &[f64],
-    _pf: &[f64],
-    y: &mut [f64],
-    _work: &mut [f64],
-) {
-    y[0] = 2.0_f64;
-    y[1] = -1.0_f64;
 }

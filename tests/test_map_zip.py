@@ -10,7 +10,7 @@ from gradgen.map_zip import (
     _normalize_function_result,
     _coerce_function_arg_like,
     _coerce_scalar_output,
-    ZippedFunction,
+    BatchedFunction,
     map_function,
     zip_function,
 )
@@ -92,10 +92,10 @@ class MapZipExtraTests(unittest.TestCase):
     def test_zipped_and_jacobian_rust_proxying_and_nodes(self) -> None:
         x = SX.sym("x")
         single = Function("g", [x], [x])
-        zipped = zip_function(single, 2)
+        batched = zip_function(single, 2)
 
         # cover the nodes property which calls to_function().nodes
-        nodes = zipped.nodes
+        nodes = batched.nodes
         self.assertIsInstance(nodes, tuple)
 
         # Patch rust_codegen hooks to ensure generate/create proxies call through
@@ -112,18 +112,18 @@ class MapZipExtraTests(unittest.TestCase):
         with mock.patch("gradgen._rust_codegen.codegen.generate_rust", fake_generate_rust), mock.patch(
             "gradgen._rust_codegen.project.create_rust_project", fake_create_rust_project
         ):
-            # Call the ZippedFunction proxies
-            gen_res = zipped.generate_rust(function_name="fn")
+            # Call the BatchedFunction proxies
+            gen_res = batched.generate_rust(function_name="fn")
             self.assertEqual(gen_res, {"ok": True})
 
-            # Call the ZippedJacobianFunction proxies
-            zjac = zipped.jacobian(0)
+            # Call the BatchedJacobianFunction proxies
+            zjac = batched.jacobian(0)
             gen_res_j = zjac.generate_rust(function_name="fn_j")
             self.assertEqual(gen_res_j, {"ok": True})
 
             with TemporaryDirectory() as tmpdir:
                 project_path = Path(tmpdir) / "p"
-                proj_res = zipped.create_rust_project(project_path)
+                proj_res = batched.create_rust_project(project_path)
                 self.assertEqual(proj_res, {"project": project_path})
 
             with TemporaryDirectory() as tmpdir:
@@ -143,14 +143,14 @@ class MapZipExtraTests(unittest.TestCase):
 
         # zip_function with defaults resolves input sequence names
         single = Function("g", [x], [x])
-        zipped = zip_function(single, 2)
-        self.assertTrue(zipped.input_sequence_names[0].endswith("_seq"))
+        batched = zip_function(single, 2)
+        self.assertTrue(batched.input_sequence_names[0].endswith("_seq"))
 
-        # ZippedFunction should validate input_sequence_names length (mismatch)
+        # BatchedFunction should validate input_sequence_names length (mismatch)
         with self.assertRaises(ValueError):
-            ZippedFunction(function=f, count=2, name="bad", input_sequence_names=("only_one",))
+            BatchedFunction(function=f, count=2, name="bad", input_sequence_names=("only_one",))
 
-        # count must be positive (map_function triggers ZippedFunction validation)
+        # count must be positive (map_function triggers BatchedFunction validation)
         with self.assertRaises(ValueError):
             map_function(single, 0)
 

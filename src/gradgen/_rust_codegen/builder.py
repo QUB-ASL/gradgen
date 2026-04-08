@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import TYPE_CHECKING, Callable, Protocol
 
-from ..composed_function import ComposedFunction, ComposedGradientFunction
+from ..composed_function import (
+    ComposedFunction,
+    ComposedGradientFunction,
+    ComposedJacobianFunction,
+    ComposedJointFunction,
+)
 from ..function import Function
-from ..map_zip import ZippedFunction, ZippedJacobianFunction, ReducedFunction
+from ..map_zip import BatchedFunction, BatchedJacobianFunction, ReducedFunction
 from ..single_shooting import (
     SingleShootingBundle,
     SingleShootingGradientFunction,
@@ -19,13 +24,18 @@ from ..single_shooting import (
 )
 from .naming import sanitize_ident
 
+if TYPE_CHECKING:
+    from ..composer import FunctionComposition
+
 
 BuilderSource = (
     Function
     | ComposedFunction
     | ComposedGradientFunction
-    | ZippedFunction
-    | ZippedJacobianFunction
+    | ComposedJacobianFunction
+    | ComposedJointFunction
+    | BatchedFunction
+    | BatchedJacobianFunction
     | ReducedFunction
     | SingleShootingProblem
     | SingleShootingPrimalFunction
@@ -51,6 +61,7 @@ class _BuilderRequest:
 
     kind: str
     components: tuple[str, ...] = ()
+    wrt_targets: tuple[int | str, ...] | None = None
     bundle: FunctionBundle | SingleShootingBundle | None = None
 
 
@@ -59,7 +70,7 @@ class _BundleItem:
     """One artifact entry inside a ``FunctionBundle``."""
 
     kind: str
-    wrt_indices: tuple[int, ...] | None = None
+    wrt_indices: tuple[int | str, ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,12 +85,35 @@ class FunctionBundle:
         """Include the primal outputs."""
         return self._add_item("f")
 
-    def add_gradient(self,
-                     *,
-                     wrt: int | list[int] | tuple[int, ...]) \
-            -> FunctionBundle:
-        """Include gradient blocks for one or more input indices."""
-        return self._add_item("grad", wrt)
+    def add_gradient(
+        self,
+        *,
+        wrt: int
+        | str
+        | list[int | str]
+        | tuple[int | str, ...],
+    ) -> FunctionBundle:
+        """Include gradient blocks for one or more selected inputs.
+
+        Args:
+            wrt: One or more input selectors. Each selector may be either
+                a zero-based input index or the declared name of an input
+                block. When multiple selectors are provided, the bundle keeps
+                one gradient block per selected input block.
+
+        Returns:
+            A new :class:`FunctionBundle` with the requested gradient blocks
+            appended.
+
+        Example:
+            >>> bundle = FunctionBundle().add_gradient(wrt=["x", "p"])
+            >>> [(item.kind, item.wrt_indices) for item in bundle.items]
+            [('grad', ('x', 'p'))]
+        """
+        candidate = _BundleItem("grad", _normalize_wrt_targets(wrt))
+        if any(item == candidate for item in self.items):
+            return self
+        return replace(self, items=(*self.items, candidate))
 
     def add_jf(self,
                *,
@@ -151,10 +185,40 @@ class CodeGenerationBuilder:
         components = ("states",) if include_states else ()
         return self._add_request("primal", components=components)
 
-    def add_gradient(self, *, include_states: bool = False) -> CodeGenerationBuilder:
-        """Include gradient kernels for scalar-output functions."""
+    def add_gradient(
+        self,
+        *,
+        wrt: int
+        | str
+        | list[int | str]
+        | tuple[int | str, ...]
+        | None = None,
+        include_states: bool = False,
+    ) -> CodeGenerationBuilder:
+        """Include gradient kernels for selected input blocks.
+
+        Args:
+            wrt: Optional selector for the input blocks with respect to which
+                gradients should be generated. Each selector may be either a
+                zero-based input index or the declared name of an input block.
+                When omitted, gradients are generated for every input block,
+                matching the previous behavior.
+            include_states: When ``True``, include rollout-state outputs for
+                single-shooting sources that support them.
+
+        Returns:
+            A new builder with the gradient request appended.
+
+        Example:
+            >>> builder = CodeGenerationBuilder(f).add_gradient(wrt=["x", "p"])
+        """
         components = ("states",) if include_states else ()
-        return self._add_request("gradient", components=components)
+        wrt_targets = None if wrt is None else _normalize_wrt_targets(wrt)
+        return self._add_request(
+            "gradient",
+            components=components,
+            wrt_targets=wrt_targets,
+        )
 
     def add_jacobian(self) -> CodeGenerationBuilder:
         """Include Jacobian kernels for all input blocks."""
@@ -250,6 +314,7 @@ class CodeGenerationBuilder:
         kind: str,
         *,
         components: tuple[str, ...] = (),
+        wrt_targets: tuple[int | str, ...] | None = None,
         bundle: FunctionBundle | None = None,
     ) -> CodeGenerationBuilder:
         if self.function is None:
@@ -257,7 +322,7 @@ class CodeGenerationBuilder:
                 "no source function is selected; initialize CodeGenerationBuilder(function) "
                 "or use for_function(...)"
             )
-        candidate = _BuilderRequest(kind, components, bundle)
+        candidate = _BuilderRequest(kind, components, wrt_targets, bundle)
         if any(request == candidate for request in self.requests):
             return self
         return replace(self, requests=(*self.requests, candidate))
@@ -299,10 +364,37 @@ class FunctionCodegenBuilder:
         components = ("states",) if include_states else ()
         return self._add_request("primal", components=components)
 
-    def add_gradient(self, *, include_states: bool = False) -> FunctionCodegenBuilder:
-        """Include gradient kernels for scalar-output functions."""
+    def add_gradient(
+        self,
+        *,
+        wrt: int
+        | str
+        | list[int | str]
+        | tuple[int | str, ...]
+        | None = None,
+        include_states: bool = False,
+    ) -> FunctionCodegenBuilder:
+        """Include gradient kernels for selected input blocks.
+
+        Args:
+            wrt: Optional selector for the input blocks with respect to which
+                gradients should be generated. Each selector may be either a
+                zero-based input index or the declared name of an input block.
+                When omitted, gradients are generated for every input block,
+                matching the previous behavior.
+            include_states: When ``True``, include rollout-state outputs for
+                single-shooting sources that support them.
+
+        Returns:
+            A new scoped builder with the gradient request appended.
+        """
         components = ("states",) if include_states else ()
-        return self._add_request("gradient", components=components)
+        wrt_targets = None if wrt is None else _normalize_wrt_targets(wrt)
+        return self._add_request(
+            "gradient",
+            components=components,
+            wrt_targets=wrt_targets,
+        )
 
     def add_jacobian(self) -> FunctionCodegenBuilder:
         """Include Jacobian kernels for all input blocks."""
@@ -345,9 +437,10 @@ class FunctionCodegenBuilder:
         kind: str,
         *,
         components: tuple[str, ...] = (),
+        wrt_targets: tuple[int | str, ...] | None = None,
         bundle: FunctionBundle | None = None,
     ) -> FunctionCodegenBuilder:
-        candidate = _BuilderRequest(kind, components, bundle)
+        candidate = _BuilderRequest(kind, components, wrt_targets, bundle)
         if any(request == candidate for request in self.requests):
             return self
         return replace(self, requests=(*self.requests, candidate))
@@ -412,7 +505,10 @@ def _resolve_builder_functions(
             "add_* method first"
         )
 
-    if isinstance(function, (ComposedFunction, ComposedGradientFunction)):
+    if isinstance(
+        function,
+        (ComposedFunction, ComposedGradientFunction, ComposedJacobianFunction),
+    ):
         return _resolve_builder_composed_sources(
             function,
             config,
@@ -421,8 +517,22 @@ def _resolve_builder_functions(
             include_base_name=include_base_name,
             function_name=function_name,
         )
-    if isinstance(function, (ZippedFunction, ZippedJacobianFunction, ReducedFunction)):
-        return _resolve_builder_zipped_sources(
+    from ..composer import FunctionComposition
+
+    if isinstance(function, FunctionComposition):
+        return _resolve_builder_function_composition_sources(
+            function,
+            config,
+            requests,
+            simplification,
+            include_base_name=include_base_name,
+            function_name=function_name,
+        )
+    if isinstance(
+        function,
+        (BatchedFunction, BatchedJacobianFunction, ReducedFunction),
+    ):
+        return _resolve_builder_batched_sources(
             function,
             config,
             requests,
@@ -502,6 +612,10 @@ def _resolve_builder_base_function_request(
                 "include_states is only supported for "
                 "SingleShootingProblem sources"
             )
+        indices = _resolve_wrt_targets_to_indices(
+            request.wrt_targets,
+            base_function.input_names,
+        )
         return tuple(
             _rename_generated_function(
                 _maybe_simplify_generated_function(
@@ -517,7 +631,7 @@ def _resolve_builder_base_function_request(
                     include_input_name=len(base_function.inputs) > 1,
                 ),
             )
-            for index in range(len(base_function.inputs))
+            for index in indices
         )
     if request.kind == "jacobian":
         return tuple(
@@ -555,7 +669,11 @@ def _resolve_builder_base_function_request(
         return tuple(
             _rename_generated_function(
                 _maybe_simplify_generated_function(
-                    base_function.joint(components, index),
+                    _build_function_bundle_component(
+                        base_function,
+                        index,
+                        components,
+                    ),
                     simplification,
                 ),
                 _builder_function_name(
@@ -570,6 +688,7 @@ def _resolve_builder_base_function_request(
             for index, components in _resolve_function_bundle(
                 request.bundle,
                 len(base_function.inputs),
+                base_function.input_names,
             )
         )
     if request.kind == "hessian":
@@ -642,7 +761,20 @@ def _resolve_builder_composed_sources(
             continue
         if request.kind == "gradient" and isinstance(function, ComposedFunction):
             if request.components:
-                raise ValueError("include_states is only supported for SingleShootingProblem sources")
+                raise ValueError(
+                    "include_states is only supported for "
+                    "SingleShootingProblem sources"
+                )
+            if request.wrt_targets is not None:
+                indices = _resolve_wrt_targets_to_indices(
+                    request.wrt_targets,
+                    function.input_names,
+                )
+                if indices != (0,):
+                    raise ValueError(
+                        "ComposedFunction gradients can only be requested "
+                        "with respect to the stage input"
+                    )
             simplified_function = replace(function, simplification=simplification)
             resolved.append(
                 _rename_builder_source(
@@ -658,16 +790,139 @@ def _resolve_builder_composed_sources(
                 )
             )
             continue
+        if request.kind == "jacobian" and isinstance(function, ComposedFunction):
+            if request.components:
+                raise ValueError(
+                    "include_states is only supported for "
+                    "SingleShootingProblem sources"
+                )
+            if request.wrt_targets is not None:
+                indices = _resolve_wrt_targets_to_indices(
+                    request.wrt_targets,
+                    function.input_names,
+                )
+                if indices != (0,):
+                    raise ValueError(
+                        "ComposedFunction Jacobians can only be requested "
+                        "with respect to the stage input"
+                    )
+            simplified_function = replace(function, simplification=simplification)
+            resolved.append(
+                _rename_builder_source(
+                    simplified_function.jacobian(),
+                    _builder_function_name(
+                        crate_prefix,
+                        "jf",
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                        input_name=function.input_name,
+                        include_input_name=True,
+                    ),
+                )
+            )
+            continue
+        if request.kind == "joint" and isinstance(function, ComposedFunction):
+            if request.components:
+                raise ValueError(
+                    "include_states is only supported for "
+                    "SingleShootingProblem sources"
+                )
+            if request.bundle is None:
+                raise ValueError("joint builder requests require a FunctionBundle")
+            resolved_bundle = _resolve_function_bundle(
+                request.bundle,
+                len(function.inputs),
+                function.input_names,
+            )
+            if len(resolved_bundle) != 1:
+                raise ValueError(
+                    "ComposedFunction joint bundles can only target the "
+                    "stage input"
+                )
+            index, components = resolved_bundle[0]
+            if index != 0:
+                raise ValueError(
+                    "ComposedFunction joint bundles can only target the "
+                    "stage input"
+                )
+            if any(component not in {"f", "jf"} for component in components):
+                raise ValueError(
+                    "ComposedFunction joint bundles currently support only "
+                    "'f' and 'jf' components"
+                )
+            simplified_function = replace(function, simplification=simplification)
+            resolved.append(
+                _rename_builder_source(
+                    simplified_function.joint(components, wrt_index=index),
+                    _builder_function_name(
+                        crate_prefix,
+                        *_builder_joint_labels(components),
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                        input_name=function.input_name,
+                        include_input_name=True,
+                    ),
+                )
+            )
+            continue
         raise ValueError(
-            "staged composed sources currently support only add_primal() and "
-            "ComposedFunction.add_gradient() in CodeGenerationBuilder"
+            "staged composed sources currently support only add_primal(), "
+            "add_gradient(), add_jacobian(), and add_joint() in "
+            "CodeGenerationBuilder"
         )
 
     return tuple(resolved)
 
 
-def _resolve_builder_zipped_sources(
-    function: ZippedFunction | ZippedJacobianFunction | ReducedFunction,
+def _resolve_builder_function_composition_sources(
+    function: FunctionComposition,
+    config: RustBuilderConfigLike,
+    requests: tuple[_BuilderRequest, ...],
+    simplification: int | str | None,
+    *,
+    include_base_name: bool = False,
+    function_name: str | None = None,
+) -> tuple[BuilderSource, ...]:
+    """Expand builder requests for staged composer pipelines."""
+    crate_prefix = sanitize_ident(config.crate_name or function.name)
+    base_name = function_name or function.name
+    resolved: list[BuilderSource] = []
+
+    for request in requests:
+        if request.kind == "primal":
+            if request.components:
+                raise ValueError(
+                    "include_states is not supported for composer pipelines"
+                )
+            resolved.append(
+                _rename_builder_source(
+                    function,
+                    _builder_function_name(
+                        crate_prefix,
+                        "f",
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                    ),
+                )
+            )
+            continue
+
+        symbolic_function = function.to_function(name=base_name)
+        resolved.extend(
+            _resolve_builder_base_function_request(
+                symbolic_function,
+                request,
+                crate_prefix=crate_prefix,
+                simplification=simplification,
+                include_base_name=include_base_name,
+            )
+        )
+
+    return tuple(resolved)
+
+
+def _resolve_builder_batched_sources(
+    function: BatchedFunction | BatchedJacobianFunction | ReducedFunction,
     config: RustBuilderConfigLike,
     requests: tuple[_BuilderRequest, ...],
     simplification: int | str | None,
@@ -680,7 +935,7 @@ def _resolve_builder_zipped_sources(
     base_name = function_name or function.name
     resolved: list[BuilderSource] = []
 
-    if isinstance(function, ZippedJacobianFunction):
+    if isinstance(function, BatchedJacobianFunction):
         for request in requests:
             if request.kind != "primal":
                 raise ValueError(
@@ -722,7 +977,7 @@ def _resolve_builder_zipped_sources(
         if request.kind == "jacobian":
             if request.components:
                 raise ValueError("include_states is not supported for map/zip/reduce sources")
-            if not isinstance(simplified_function, ZippedFunction):
+            if not isinstance(simplified_function, BatchedFunction):
                 raise ValueError("add_jacobian() is only supported for map/zip sources")
             for input_index, input_name in enumerate(simplified_function.input_names):
                 resolved.append(
@@ -814,6 +1069,16 @@ def _resolve_builder_single_shooting_sources(
             continue
         if request.kind == "gradient":
             include_states = "states" in request.components
+            if request.wrt_targets is not None:
+                indices = _resolve_wrt_targets_to_indices(
+                    request.wrt_targets,
+                    simplified_problem.input_names,
+                )
+                if indices != (1,):
+                    raise ValueError(
+                        "single-shooting gradients can only be requested "
+                        "with respect to the control sequence"
+                    )
             gradient_source = simplified_problem.gradient(include_states=include_states)
             labels = ("grad", "states") if include_states else ("grad",)
             resolved.append(
@@ -954,24 +1219,72 @@ def _normalize_wrt_indices(wrt: int | list[int] | tuple[int, ...]) -> tuple[int,
     return tuple(wrt)
 
 
+def _normalize_wrt_targets(
+    wrt: int | str | list[int | str] | tuple[int | str, ...],
+) -> tuple[int | str, ...]:
+    if isinstance(wrt, (int, str)):
+        return (wrt,)
+    return tuple(wrt)
+
+
+def _resolve_wrt_targets_to_indices(
+    wrt_targets: tuple[int | str, ...] | None,
+    input_names: tuple[str, ...],
+) -> tuple[int, ...]:
+    if wrt_targets is None:
+        return tuple(range(len(input_names)))
+
+    input_name_to_index = {
+        name: index for index, name in enumerate(input_names)
+    }
+    resolved: list[int] = []
+    seen: set[int] = set()
+    for target in wrt_targets:
+        if isinstance(target, str):
+            if target not in input_name_to_index:
+                raise ValueError(f"unknown wrt input name {target!r}")
+            index = input_name_to_index[target]
+        else:
+            index = target
+            if not 0 <= index < len(input_names):
+                raise IndexError("wrt_index is out of range")
+        if index not in seen:
+            seen.add(index)
+            resolved.append(index)
+    return tuple(resolved)
+
+
 def _resolve_function_bundle(
     bundle: FunctionBundle,
     input_count: int,
+    input_names: tuple[str, ...],
 ) -> tuple[tuple[int, tuple[str, ...]], ...]:
     if not bundle.items:
         raise ValueError("FunctionBundle must contain at least one item")
 
     has_primal = any(item.kind == "f" for item in bundle.items)
     grouped: dict[int, list[str]] = {}
+    input_name_to_index = {name: index for index, name in enumerate(input_names)}
 
     for item in bundle.items:
         if item.kind == "f":
             continue
         if item.wrt_indices is None:
-            raise ValueError(f"FunctionBundle item {item.kind!r} requires a wrt specification")
-        for index in item.wrt_indices:
-            if not 0 <= index < input_count:
-                raise IndexError("wrt_index is out of range")
+            raise ValueError(
+                f"FunctionBundle item {item.kind!r} requires a wrt "
+                "specification"
+            )
+        for target in item.wrt_indices:
+            if isinstance(target, str):
+                if target not in input_name_to_index:
+                    raise ValueError(
+                        f"unknown wrt input name {target!r}"
+                    )
+                index = input_name_to_index[target]
+            else:
+                index = target
+                if not 0 <= index < input_count:
+                    raise IndexError("wrt_index is out of range")
             grouped.setdefault(index, [])
             if has_primal and "f" not in grouped[index]:
                 grouped[index].append("f")
@@ -979,15 +1292,36 @@ def _resolve_function_bundle(
                 grouped[index].append(item.kind)
 
     if not grouped:
-        raise ValueError("FunctionBundle must include at least one derivative-producing item")
+        raise ValueError(
+            "FunctionBundle must include at least one derivative-producing "
+            "item"
+        )
 
     resolved: list[tuple[int, tuple[str, ...]]] = []
     for index in sorted(grouped):
         components = tuple(grouped[index])
-        if len(components) < 2:
-            raise ValueError("joint functions require at least two components")
         resolved.append((index, components))
     return tuple(resolved)
+
+
+def _build_function_bundle_component(
+    base_function: Function,
+    wrt_index: int,
+    components: tuple[str, ...],
+) -> Function:
+    if len(components) == 1:
+        component = components[0]
+        if component == "f":
+            return base_function
+        if component == "grad":
+            return base_function.gradient(wrt_index)
+        if component == "jf":
+            return base_function.jacobian(wrt_index)
+        if component == "hessian":
+            return base_function.hessian(wrt_index)
+        if component == "hvp":
+            return base_function.hvp(wrt_index)
+    return base_function.joint(components, wrt_index)
 
 
 def _maybe_simplify_generated_function(

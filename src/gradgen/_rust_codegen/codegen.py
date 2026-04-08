@@ -51,8 +51,8 @@ from .validation import (
 from ..function import Function
 from ..map_zip import (
     ReducedFunction,
-    ZippedFunction,
-    ZippedJacobianFunction
+    BatchedFunction,
+    BatchedJacobianFunction
 )
 from ..single_shooting import (
     SingleShootingGradientFunction,
@@ -84,19 +84,34 @@ def generate_rust(
     function_keyword: str = "pub fn",
 ) -> RustCodegenResult:
     """Generate Rust source code for primal function evaluation."""
-    from ..composed_function import ComposedFunction, ComposedGradientFunction
+    from ..composer import FunctionComposition
+    from ..composed_function import (
+        ComposedFunction,
+        ComposedGradientFunction,
+        ComposedJacobianFunction,
+        ComposedJointFunction,
+    )
     from .generators import (
         _generate_composed_gradient_rust,
+        _generate_composed_jacobian_rust,
+        _generate_composed_joint_rust,
         _generate_composed_primal_rust,
         _generate_reduced_primal_rust,
         _generate_single_shooting_gradient_rust,
         _generate_single_shooting_hvp_rust,
         _generate_single_shooting_joint_rust,
         _generate_single_shooting_primal_rust,
-        _generate_zipped_jacobian_rust,
-        _generate_zipped_primal_rust,
+        _generate_batched_jacobian_rust,
+        _generate_batched_primal_rust,
     )
 
+    if isinstance(function, FunctionComposition):
+        return function.generate_rust(
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
     if isinstance(function, ComposedFunction):
         return _generate_composed_primal_rust(
             function,
@@ -108,7 +123,24 @@ def generate_rust(
             function_index=function_index,
         )
     if isinstance(function, ComposedGradientFunction):
-        return _generate_composed_gradient_rust(
+        return generate_rust(
+            function.to_function(),
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+            shared_helper_nodes=shared_helper_nodes,
+            shared_helper_suppressed_custom_wrappers=(
+                shared_helper_suppressed_custom_wrappers
+            ),
+            emit_crate_header=emit_crate_header,
+            emit_docs=emit_docs,
+            function_keyword=function_keyword,
+        )
+    if isinstance(function, ComposedJacobianFunction):
+        return _generate_composed_jacobian_rust(
             function,
             config=config,
             function_name=function_name,
@@ -117,8 +149,8 @@ def generate_rust(
             math_library=math_library,
             function_index=function_index,
         )
-    if isinstance(function, ZippedFunction):
-        return _generate_zipped_primal_rust(
+    if isinstance(function, ComposedJointFunction):
+        return _generate_composed_joint_rust(
             function,
             config=config,
             function_name=function_name,
@@ -127,8 +159,18 @@ def generate_rust(
             math_library=math_library,
             function_index=function_index,
         )
-    if isinstance(function, ZippedJacobianFunction):
-        return _generate_zipped_jacobian_rust(
+    if isinstance(function, BatchedFunction):
+        return _generate_batched_primal_rust(
+            function,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+    if isinstance(function, BatchedJacobianFunction):
+        return _generate_batched_jacobian_rust(
             function,
             config=config,
             function_name=function_name,

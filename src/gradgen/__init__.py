@@ -7,11 +7,17 @@ from ._custom_elementary import (
     get_registered_elementary_function,
     register_elementary_function,
 )
-from .composed_function import ComposedFunction, ComposedGradientFunction
+from .composer import FunctionComposer, FunctionComposition
+from .composed_function import (
+    ComposedFunction,
+    ComposedGradientFunction,
+    ComposedJacobianFunction,
+    ComposedJointFunction,
+)
 from .function import Function
 from .map_zip import (
-    ZippedFunction,
-    ZippedJacobianFunction,
+    BatchedFunction,
+    BatchedJacobianFunction,
     ReducedFunction,
     map_function,
     zip_function,
@@ -97,8 +103,12 @@ __all__ = [
     "CodeGenerationBuilder",
     "ComposedFunction",
     "ComposedGradientFunction",
+    "ComposedJacobianFunction",
+    "ComposedJointFunction",
     "Function",
     "FunctionBundle",
+    "FunctionComposer",
+    "FunctionComposition",
     "RustBackendMode",
     "RustBackendConfig",
     "RustCodegenResult",
@@ -169,7 +179,7 @@ __all__ = [
     "vector",
     "vjp",
     "zip_function",
-    "ZippedFunction",
-    "ZippedJacobianFunction",
+    "BatchedFunction",
+    "BatchedJacobianFunction",
     "ReducedFunction",
 ]

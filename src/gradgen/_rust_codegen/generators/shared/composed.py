@@ -34,7 +34,7 @@ def _build_composed_input_specs(
                 doc_description=(
                     "packed stage-parameter slice for the composed kernel; "
                     "symbolic parameter blocks are laid out in forward stage "
-                    "order and the terminal block is stored last"
+                    "order"
                 ),
                 size=parameter_size,
             )

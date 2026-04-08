@@ -56,10 +56,10 @@ if count <= 0:
 # Zip h stage-wise over packed sequences:
 # ((a1_0,a1_1), ..., (aN_0,aN_1)), (b1, ..., bN), (c1, ..., cN)
 # -> (h(a1,b1,c1), ..., h(aN,bN,cN)).
-zipped = zip_function(h, count, input_names=("a_seq", "b_seq", "c_seq"), name="zip3")
-zipped_jac_a = zipped.jacobian(wrt_index=0)
-zipped_fn = zipped.to_function()
-zipped_jac_a_fn = zipped_jac_a.to_function()
+batched = zip_function(h, count, input_names=("a_seq", "b_seq", "c_seq"), name="zip3")
+batched_jac_a = batched.jacobian(wrt_index=0)
+batched_fn = batched.to_function()
+batched_jac_a_fn = batched_jac_a.to_function()
 
 a_seq_value, b_seq_value, c_seq_value = _build_sequence_values(count)
 
@@ -67,10 +67,10 @@ print("N =", count)
 print("a_seq =", a_seq_value)
 print("b_seq =", b_seq_value)
 print("c_seq =", c_seq_value)
-print("zip3(a_seq, b_seq, c_seq) =", zipped_fn(a_seq_value, b_seq_value, c_seq_value))
+print("zip3(a_seq, b_seq, c_seq) =", batched_fn(a_seq_value, b_seq_value, c_seq_value))
 print(
     "J_zip3 wrt a_seq (flat row-major) =",
-    zipped_jac_a_fn(a_seq_value, b_seq_value, c_seq_value),
+    batched_jac_a_fn(a_seq_value, b_seq_value, c_seq_value),
 )
 
 # Generate a Rust crate containing zip3 primal + jacobian kernels.
@@ -82,7 +82,7 @@ project = (
         .with_backend_mode("no_std")
         .with_scalar_type("f64")
     )
-    .for_function(zipped)
+    .for_function(batched)
         .add_primal()
         .add_jacobian()
         .with_simplification("medium")

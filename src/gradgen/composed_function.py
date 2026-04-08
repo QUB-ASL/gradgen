@@ -76,29 +76,25 @@ StageStep = _SingleStage | _RepeatStage
 
 
 @dataclass(frozen=True, slots=True)
-class _TerminalStage:
-    """Terminal scalar stage."""
-
-    function: Function
-    parameter: _PackedParameter
-
-    @property
-    def symbolic_parameter_size(self) -> int:
-        """Return the number of packed symbolic parameter scalars."""
-        return self.parameter.symbolic_size
-
-
-@dataclass(frozen=True, slots=True)
 class ComposedGradientFunction:
-    """Gradient kernel for a finished ``ComposedFunction``."""
+    """Derivative kernel for a finished ``ComposedFunction``.
+
+    The expanded derivative is the Jacobian of the composed rollout with
+    respect to the state input.
+    """
 
     composed: ComposedFunction
     name: str
     simplification: int | str | None = None
 
     def to_function(self, name: str | None = None) -> Function:
-        """Expand this staged gradient into a regular symbolic ``Function``."""
-        gradient = self.composed.to_function().gradient(
+        """Expand this staged derivative into a regular symbolic ``Function``.
+
+        Returns:
+            A symbolic function whose output is the flattened Jacobian of the
+            finished rollout with respect to the state input.
+        """
+        gradient = self.composed.to_function().jacobian(
             0,
             name=name or self.name,
         )
@@ -117,7 +113,80 @@ class ComposedGradientFunction:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Generate compact Rust for the staged gradient kernel."""
+        """Generate compact Rust for the staged derivative kernel."""
+        return _generate_rust(
+            self.to_function(),
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
+
+    def create_rust_project(
+        self,
+        path: str,
+        *,
+        config=None,
+        crate_name: str | None = None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+    ):
+        """Create a Rust crate containing the staged derivative kernel."""
+        return _create_rust_project(
+            self.to_function(),
+            path,
+            config=config,
+            crate_name=crate_name,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ComposedJacobianFunction:
+    """Jacobian kernel for a finished ``ComposedFunction``."""
+
+    composed: ComposedFunction
+    name: str
+    simplification: int | str | None = None
+
+    def to_function(self, name: str | None = None) -> Function:
+        """Expand this staged Jacobian into a regular symbolic ``Function``."""
+        packed_parameters = (
+            SXVector.sym(
+                self.composed.parameter_name,
+                self.composed.parameter_size,
+            )
+            if self.composed.parameter_size > 0
+            else None
+        )
+        jacobian = self._build_symbolic_jacobian(packed_parameters)
+        output_name = f"jacobian_{self.composed.output_names[0]}"
+        function = Function(
+            name or self.name,
+            self.composed._compiled_inputs(packed_parameters),
+            [jacobian],
+            input_names=self.composed.input_names,
+            output_names=(output_name,),
+        )
+        return _simplify_function(function, self.simplification)
+
+    @property
+    def nodes(self):
+        """Return dependency nodes for shared-helper discovery."""
+        return self.to_function().nodes
+
+    def generate_rust(
+        self,
+        *,
+        config=None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+    ):
+        """Generate compact Rust for the staged Jacobian kernel."""
         return _generate_rust(
             self,
             config=config,
@@ -136,7 +205,170 @@ class ComposedGradientFunction:
         backend_mode: str = "std",
         scalar_type: str = "f64",
     ):
-        """Create a Rust crate containing the staged gradient kernel."""
+        """Create a Rust crate containing the staged Jacobian kernel."""
+        return _create_rust_project(
+            self,
+            path,
+            config=config,
+            crate_name=crate_name,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
+
+    def _build_symbolic_jacobian(
+        self, packed_parameters: SXVector | None
+    ) -> SXVector:
+        """Build the flattened Jacobian using staged symbolic backprop."""
+        state_size = _arg_size(self.composed.state_input)
+
+        state: FunctionArg = self.composed.state_input
+        parameter_offset = 0
+        applications: list[tuple[Function, FunctionArg, FunctionArg]] = []
+
+        for step in self.composed.steps:
+            if isinstance(step, _SingleStage):
+                parameter_arg, parameter_offset = _resolve_compiled_parameter(
+                    step.parameter,
+                    packed_parameters,
+                    parameter_offset,
+                )
+                applications.append((step.function, state, parameter_arg))
+                state = _coerce_single_output(
+                    step.function(state, parameter_arg)
+                )
+                continue
+
+            for parameter in step.parameters:
+                parameter_arg, parameter_offset = _resolve_compiled_parameter(
+                    parameter,
+                    packed_parameters,
+                    parameter_offset,
+                )
+                applications.append((step.function, state, parameter_arg))
+                state = _coerce_single_output(
+                    step.function(state, parameter_arg)
+                )
+
+        if parameter_offset != self.composed.parameter_size:
+            raise AssertionError(
+                "packed parameter offsets did not consume the expected size"
+            )
+
+        rows: list[SX] = []
+        for row_index in range(state_size):
+            if state_size == 1:
+                current_lambda: FunctionArg = SX.const(1.0)
+            else:
+                current_lambda = SXVector(
+                    tuple(
+                        SX.const(1.0) if index == row_index else SX.const(0.0)
+                        for index in range(state_size)
+                    )
+                )
+
+            for function, state_arg, parameter_arg in reversed(applications):
+                current_lambda = _coerce_single_output(
+                    function.vjp(wrt_index=0)(
+                        state_arg,
+                        parameter_arg,
+                        current_lambda,
+                    )
+                )
+
+            rows.extend(_flatten_symbolic_arg(current_lambda))
+
+        return SXVector(tuple(rows))
+
+
+@dataclass(frozen=True, slots=True)
+class ComposedJointFunction:
+    """Joint kernel for a finished ``ComposedFunction``."""
+
+    composed: ComposedFunction
+    name: str
+    components: tuple[str, ...]
+    wrt_index: int = 0
+    simplification: int | str | None = None
+
+    def to_function(self, name: str | None = None) -> Function:
+        """Expand this staged joint kernel into a regular symbolic function."""
+        self.composed._require_finished()
+        if self.wrt_index != 0:
+            raise ValueError(
+                "ComposedFunction joint kernels only support wrt_index=0"
+            )
+        resolved_components = _resolve_composed_joint_components(
+            self.components
+        )
+        packed_parameters = (
+            SXVector.sym(
+                self.composed.parameter_name,
+                self.composed.parameter_size,
+            )
+            if self.composed.parameter_size > 0
+            else None
+        )
+        primal_function = self.composed.to_function()
+        jacobian_function = self.composed.jacobian().to_function()
+        outputs: list[FunctionArg] = []
+        output_names: list[str] = []
+
+        for component in resolved_components:
+            if component == "f":
+                outputs.extend(primal_function.outputs)
+                output_names.extend(primal_function.output_names)
+                continue
+            if component == "jf":
+                outputs.extend(jacobian_function.outputs)
+                output_names.extend(jacobian_function.output_names)
+                continue
+            raise AssertionError(
+                f"unexpected composed joint component {component!r}"
+            )
+
+        function = Function(
+            name or self.name,
+            self.composed._compiled_inputs(packed_parameters),
+            outputs,
+            input_names=self.composed.input_names,
+            output_names=tuple(output_names),
+        )
+        return _simplify_function(function, self.simplification)
+
+    @property
+    def nodes(self):
+        """Return dependency nodes for shared-helper discovery."""
+        return self.to_function().nodes
+
+    def generate_rust(
+        self,
+        *,
+        config=None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+    ):
+        """Generate compact Rust for the staged joint kernel."""
+        return _generate_rust(
+            self,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
+
+    def create_rust_project(
+        self,
+        path: str,
+        *,
+        config=None,
+        crate_name: str | None = None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+    ):
+        """Create a Rust crate containing the staged joint kernel."""
         return _create_rust_project(
             self,
             path,
@@ -150,11 +382,11 @@ class ComposedGradientFunction:
 
 @dataclass(frozen=True, slots=True)
 class ComposedFunction:
-    """Staged composition of vector state transforms ending in a scalar output.
+    """Staged composition of vector state transforms.
 
     A ``ComposedFunction`` represents a chain such as
 
-    ``x -> G1(x, p1) -> G2(..., p2) -> ... -> h(..., pf)``
+    ``x -> G1(x, p1) -> G2(..., p2) -> ... -> GN(...)``
 
     while keeping the stage structure available for Rust code generation.
     Symbolic stage parameters are packed into one additional runtime input
@@ -167,7 +399,7 @@ class ComposedFunction:
     parameter_name: str = "parameters"
     simplification: int | str | None = None
     steps: tuple[StageStep, ...] = ()
-    terminal: _TerminalStage | None = None
+    finished: bool = False
 
     def __post_init__(self) -> None:
         """Validate and normalize constructor inputs."""
@@ -181,11 +413,7 @@ class ComposedFunction:
     @property
     def parameter_size(self) -> int:
         """Return the packed runtime parameter length."""
-        return sum(step.symbolic_parameter_size for step in self.steps) + (
-            0
-            if self.terminal is None
-            else self.terminal.symbolic_parameter_size
-        )
+        return sum(step.symbolic_parameter_size for step in self.steps)
 
     @property
     def stage_count(self) -> int:
@@ -219,8 +447,8 @@ class ComposedFunction:
     @property
     def output_names(self) -> tuple[str, ...]:
         """Return the compiled symbolic output names."""
-        terminal = self._require_terminal()
-        return terminal.function.output_names
+        self._require_finished()
+        return ("y",)
 
     def then(
         self, function: Function, *, p: StageValue = None
@@ -265,25 +493,24 @@ class ComposedFunction:
             self, steps=(*self.steps, _RepeatStage(function, normalized))
         )
 
-    def finish(
-        self, function: Function, *, p: StageValue = None
-    ) -> ComposedFunction:
-        """Attach the terminal scalar stage."""
+    def finish(self) -> ComposedFunction:
+        """Finalize the staged composition without adding another stage.
+
+        Returns:
+            A finished copy of the staged composition. The expanded function
+            evaluates the repeated stage sequence and returns the final
+            state.
+        """
         self._ensure_not_finished()
         if not self.steps:
             raise ValueError(
-                "finish requires at least one stage before "
-                "the terminal scalar function"
+                "finish requires at least one stage before finalizing"
             )
-        _validate_terminal_function(function, self.state_input)
-        parameter = _normalize_stage_parameter(
-            function.inputs[1], p, role="terminal"
-        )
-        return replace(self, terminal=_TerminalStage(function, parameter))
+        return replace(self, finished=True)
 
     def to_function(self, name: str | None = None) -> Function:
         """Expand the staged composition into a symbolic ``Function``."""
-        terminal = self._require_terminal()
+        self._require_finished()
         packed_parameters = (
             SXVector.sym(self.parameter_name, self.parameter_size)
             if self.parameter_size > 0
@@ -296,18 +523,51 @@ class ComposedFunction:
             inputs,
             [compiled_output],
             input_names=self.input_names,
-            output_names=terminal.function.output_names,
+            output_names=self.output_names,
         )
         return _simplify_function(function, self.simplification)
 
     def gradient(self, name: str | None = None) -> ComposedGradientFunction:
-        """Return a staged gradient kernel with respect to the state input."""
-        self._require_terminal()
+        """Return a staged derivative kernel with respect to the state input."""
+        self._require_finished()
         gradient_name = name or f"{self.name}_gradient_{self.input_name}"
         return ComposedGradientFunction(
             self,
             gradient_name,
             self.simplification,
+        )
+
+    def jacobian(self, name: str | None = None) -> ComposedJacobianFunction:
+        """Return a staged Jacobian kernel with respect to the state input."""
+        self._require_finished()
+        jacobian_name = name or f"{self.name}_jacobian_{self.input_name}"
+        return ComposedJacobianFunction(
+            self,
+            jacobian_name,
+            self.simplification,
+        )
+
+    def joint(
+        self,
+        components: Iterable[str],
+        wrt_index: int = 0,
+        name: str | None = None,
+        simplify_joint: int | str | None = None,
+    ) -> ComposedJointFunction:
+        """Return a staged joint kernel for supported composed components."""
+        self._require_finished()
+        resolved_components = _resolve_composed_joint_components(components)
+        joint_name = name or _composed_joint_function_name(
+            self.name,
+            self.input_name,
+            resolved_components,
+        )
+        return ComposedJointFunction(
+            self,
+            joint_name,
+            resolved_components,
+            wrt_index=wrt_index,
+            simplification=simplify_joint,
         )
 
     def generate_rust(
@@ -364,9 +624,10 @@ class ComposedFunction:
             return (self.state_input,)
         return (self.state_input, packed_parameters)
 
-    def _build_symbolic_output(self, packed_parameters: SXVector | None) -> SX:
-        """Build the scalar symbolic output using a packed parameter vector."""
-        terminal = self._require_terminal()
+    def _build_symbolic_output(
+        self, packed_parameters: SXVector | None
+    ) -> FunctionArg:
+        """Build the final symbolic state using a packed parameter vector."""
         parameter_offset = 0
         state: FunctionArg = self.state_input
 
@@ -391,36 +652,22 @@ class ComposedFunction:
                 state = _coerce_single_output(
                     step.function(state, parameter_arg)
                 )
-
-        terminal_parameter, parameter_offset = _resolve_compiled_parameter(
-            terminal.parameter,
-            packed_parameters,
-            parameter_offset,
-        )
-        output = _coerce_single_output(
-            terminal.function(state, terminal_parameter)
-        )
-        if not isinstance(output, SX):
-            raise TypeError(
-                "terminal function must produce a scalar SX output"
-            )
         if parameter_offset != self.parameter_size:
             raise AssertionError(
-                "packed parameter offsets did " "not consume the expected size"
+                "packed parameter offsets did not consume the expected size"
             )
-        return output
+        return state
 
-    def _require_terminal(self) -> _TerminalStage:
-        """Return the terminal stage or raise when incomplete."""
-        if self.terminal is None:
+    def _require_finished(self) -> None:
+        """Raise when the composition has not been finalized yet."""
+        if not self.finished:
             raise ValueError(
-                "ComposedFunction is not finished; call finish(...) first"
+                "ComposedFunction is not finished; call finish() first"
             )
-        return self.terminal
 
     def _ensure_not_finished(self) -> None:
-        """Reject stage edits after the terminal stage is attached."""
-        if self.terminal is not None:
+        """Reject stage edits after the composition is finalized."""
+        if self.finished:
             raise ValueError("ComposedFunction is already finished")
 
 
@@ -471,23 +718,6 @@ def _validate_stage_function(
     _validate_matching_shape(function.outputs[0], state_input, "stage output")
 
 
-def _validate_terminal_function(
-    function: Function, state_input: FunctionArg
-) -> None:
-    """Validate the terminal scalar stage."""
-    if len(function.inputs) != 2:
-        raise ValueError(
-            "terminal function must take exactly two inputs: (state, p)"
-        )
-    if len(function.outputs) != 1 or not isinstance(function.outputs[0], SX):
-        raise ValueError(
-            "terminal function must produce exactly one scalar output"
-        )
-    _validate_matching_shape(
-        function.inputs[0], state_input, "terminal state input"
-    )
-
-
 def _validate_matching_shape(
     actual: FunctionArg, expected: FunctionArg, label: str
 ) -> None:
@@ -505,7 +735,7 @@ def _validate_matching_shape(
 def _normalize_stage_parameter(
     formal: FunctionArg, value: StageValue, *, role: str
 ) -> _PackedParameter:
-    """Normalize one stage or terminal parameter binding."""
+    """Normalize one stage parameter binding."""
     size = _arg_size(formal)
 
     if value is None:
@@ -615,6 +845,40 @@ def _coerce_single_output(value: object) -> FunctionArg:
     raise TypeError(
         "stage functions must evaluate to a single SX or SXVector output"
     )
+
+
+def _flatten_symbolic_arg(arg: FunctionArg) -> tuple[SX, ...]:
+    """Return scalar leaves from a symbolic scalar or vector argument."""
+    if isinstance(arg, SX):
+        return (arg,)
+    return tuple(arg)
+
+
+def _resolve_composed_joint_components(
+    components: Iterable[str],
+) -> tuple[str, ...]:
+    """Validate joint components supported by ``ComposedFunction``."""
+    resolved = tuple(components)
+    if not resolved:
+        raise ValueError("joint functions require at least one component")
+    allowed = {"f", "jf"}
+    if any(component not in allowed for component in resolved):
+        raise ValueError(
+            "ComposedFunction joint kernels currently support only 'f' and "
+            "'jf' components"
+        )
+    if len(set(resolved)) != len(resolved):
+        raise ValueError("joint components must be unique")
+    return resolved
+
+
+def _composed_joint_function_name(
+    base_name: str,
+    input_name: str,
+    components: tuple[str, ...],
+) -> str:
+    """Build the default name for a composed joint kernel."""
+    return f"{base_name}_joint_{'_'.join(components)}_{input_name}"
 
 
 def _arg_size(arg: FunctionArg) -> int:

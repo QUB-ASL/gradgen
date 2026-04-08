@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from ....ad import jvp
 from ....function import Function, _add_like, _make_symbolic_input_like, _zero_like
 from ....sx import SX, SXVector
@@ -65,3 +67,30 @@ def _append_generated_helper_source(
     helper_sources.append(helper_codegen.source.rstrip())
     helper_nodes.extend(helper_function.nodes)
     return max(max_workspace, helper_codegen.workspace_size)
+
+
+def _strip_generated_module_preamble(source: str) -> str:
+    """Strip standalone crate boilerplate from nested generated sources."""
+    sections = [section.rstrip() for section in source.split("\n\n")]
+    stripped_sections: list[str] = []
+    skipping = True
+
+    for section in sections:
+        if not section.strip():
+            continue
+        stripped = section.lstrip()
+        if skipping and (
+            stripped.startswith("#![")
+            or "pub enum GradgenError" in section
+            or "pub struct FunctionMetadata" in section
+            or "Return metadata describing" in section
+            or re.match(
+                r"pub fn [A-Za-z_][A-Za-z0-9_]*_meta\(",
+                stripped,
+            )
+        ):
+            continue
+        skipping = False
+        stripped_sections.append(section)
+
+    return "\n\n".join(stripped_sections)

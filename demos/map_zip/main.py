@@ -76,17 +76,17 @@ count = args.count
 if count <= 0:
     raise ValueError("count must be a positive integer")
 
-# Stage-preserving mapped and zipped kernels over packed stage-major inputs.
+# Stage-preserving mapped and batched kernels over packed stage-major inputs.
 unary_map = map_function(unary, count, input_name="x_seq", name="unary_map")
 binary_zip = zip_function(binary, count, input_names=("a_seq", "b_seq"), name="binary_zip")
 
-# Jacobian of the zipped function with respect to the packed a-sequence input.
+# Jacobian of the batched function with respect to the packed a-sequence input.
 binary_zip_jac_a = binary_zip.jacobian(wrt_index=0)
 unary_map_fn = unary_map.to_function()
 binary_zip_fn = binary_zip.to_function()
 binary_zip_jac_a_fn = binary_zip_jac_a.to_function()
 
-# Compose mapped unary outputs into both inputs of the zipped binary kernel:
+# Compose mapped unary outputs into both inputs of the batched binary kernel:
 # composed(x_seq, b_seq) = binary_zip(unary_map(x_seq), unary_map(b_seq))
 x_seq_symbol = SXVector.sym("x_seq", count * len(x))
 b_seq_symbol = SXVector.sym("b_seq", count * len(b))
@@ -125,7 +125,7 @@ print(
 )
 
 
-# Generate one Rust crate containing map, zip, and zipped Jacobian kernels.
+# Generate one Rust crate containing map, zip, and batched Jacobian kernels.
 project = (
     CodeGenerationBuilder()
     .with_backend_config(

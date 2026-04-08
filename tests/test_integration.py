@@ -8,19 +8,24 @@ import sympy as sp
 from gradgen import (
     CodeGenerationBuilder,
     ComposedFunction,
+    FunctionComposer,
     Function,
+    FunctionBundle,
     RustBackendConfig,
+    SX,
     SXVector,
     SingleShootingBundle,
     SingleShootingProblem,
     map_function,
+    reduce_function,
     zip_function,
 )
 
 
 class IntegrationTests(unittest.TestCase):
     @staticmethod
-    def _run_cargo(project_dir: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    def _run_cargo(project_dir: Path, *args: str) \
+            -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["cargo", *args],
             cwd=project_dir,
@@ -52,7 +57,8 @@ class IntegrationTests(unittest.TestCase):
             + sp.sqrt(x_symbols[4] + 5)
             + x_symbols[0] * x_symbols[3] * x_symbols[4]
         )
-        sympy_gradient = sp.Matrix([sp.diff(sympy_expr, symbol) for symbol in x_symbols])
+        sympy_gradient = sp.Matrix([sp.diff(sympy_expr, symbol)
+                                    for symbol in x_symbols])
         sympy_hessian = sp.hessian(sympy_expr, x_symbols)
 
         numeric_point = [0.5, -0.75, 0.3, 1.2, 2.0]
@@ -211,6 +217,281 @@ mod integration_sympy_vector {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_composed_pipeline_emits_norm2sq_helper(self) -> None:
+        x = SXVector.sym("x", 2)
+        mapped_function = Function(
+            "u_map",
+            [x],
+            [x.norm2sq().sin()],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        mapped = map_function(
+            mapped_function,
+            5,
+            input_name="x_seq",
+            name="mapped_seq",
+        )
+
+        a = SX.sym("a")
+        y = SX.sym("y")
+        reduced_function = Function(
+            "h",
+            [a, y],
+            [a + y],
+            input_names=["a", "y"],
+            output_names=["s"],
+        )
+        reduced = reduce_function(
+            reduced_function,
+            5,
+            accumulator_input_name="acc",
+            input_name="y_seq",
+            output_name="acc_final",
+            name="summation",
+        )
+
+        b = SX.sym("b")
+        s = SX.sym("s")
+        post = Function(
+            "post",
+            [b, s],
+            [b * s**3],
+            input_names=["b", "s"],
+            output_names=["z"],
+        )
+
+        comp = (
+            FunctionComposer(mapped)
+            .feed_into(reduced, arg="y_seq")
+            .feed_into(post, arg="s")
+            .compose(name="comp")
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("compozer")
+                .with_enable_python_interface()
+                .with_build_python_interface()
+            )
+            .for_function(comp)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "compozer")
+            self.assertIsNotNone(project.python_interface)
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("fn norm2sq(", lib_text)
+
+    def test_nested_composed_pipeline_shares_module_prelude_once(self) -> None:
+        x = SXVector.sym("x", 2)
+        mapped_function = Function(
+            "u_map",
+            [x],
+            [x.norm2sq().sin()],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        mapped = map_function(
+            mapped_function,
+            5,
+            input_name="x_seq",
+            name="mapped_seq",
+        )
+
+        a = SX.sym("a")
+        y = SX.sym("y")
+        reduced_function = Function(
+            "h",
+            [a, y],
+            [a + y],
+            input_names=["a", "y"],
+            output_names=["s"],
+        )
+        reduced = reduce_function(
+            reduced_function,
+            5,
+            accumulator_input_name="acc",
+            input_name="y_seq",
+            output_name="acc_final",
+            name="summation",
+        )
+
+        b = SX.sym("b")
+        s = SX.sym("s")
+        post = Function(
+            "post",
+            [b, s],
+            [b * s**3],
+            input_names=["b", "s"],
+            output_names=["z"],
+        )
+
+        comp = (
+            FunctionComposer(mapped)
+            .feed_into(reduced, arg="y_seq")
+            .feed_into(post, arg="s")
+            .compose(name="comp")
+        )
+
+        ss = SX.sym("ss")
+        j = Function(
+            "jjj",
+            [ss],
+            [ss + 1],
+            input_names=["ss"],
+            output_names=["zz"],
+        )
+        comp2 = (
+            FunctionComposer(comp)
+            .feed_into(j, arg="ss")
+            .compose(name="comp2")
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("compozer")
+                .with_enable_python_interface()
+                .with_build_python_interface()
+            )
+            .for_function(comp2)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "compozer")
+            self.assertIsNotNone(project.python_interface)
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertEqual(
+                lib_text.count("pub enum GradgenError {"),
+                1,
+            )
+            self.assertEqual(
+                lib_text.count("pub struct FunctionMetadata {"),
+                1,
+            )
+
+    def test_named_gradient_builder_matches_sympy_blocks(self) -> None:
+        x0, x1, p = sp.symbols("x0 x1 p", real=True)
+        sympy_expr = x0 * x0 + x1 * p + sp.sin(x0 + p) + x1 * x1 * x1
+        sympy_dx = sp.Matrix([sp.diff(sympy_expr, x0),
+                              sp.diff(sympy_expr, x1)])
+        sympy_dp = sp.Matrix([sp.diff(sympy_expr, p)])
+
+        numeric_x = [0.4, -1.2]
+        numeric_p = [0.75]
+        substitutions = {
+            x0: numeric_x[0],
+            x1: numeric_x[1],
+            p: numeric_p[0],
+        }
+        expected_dx = self._flatten_sympy_matrix(
+            sympy_dx.subs(substitutions).evalf()
+        )
+        expected_dp = self._flatten_sympy_matrix(
+            sympy_dp.subs(substitutions).evalf()
+        )
+
+        x = SXVector.sym("x", 2)
+        p_symbol = SXVector.sym("p", 1)
+        function = Function(
+            "named_gradient",
+            [x, p_symbol[0]],
+            [
+                x[0] * x[0]
+                + x[1] * p_symbol[0]
+                + (x[0] + p_symbol[0]).sin()
+                + x[1] * x[1] * x[1]
+            ],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+
+        builder = (
+            CodeGenerationBuilder(function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("named_gradient")
+            )
+            .add_gradient(wrt=["x", "p"])
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "named_gradient")
+            gradient_x_codegen, gradient_p_codegen = project.codegens
+            gradient_x_workspace = gradient_x_codegen.workspace_size
+            gradient_p_workspace = gradient_p_codegen.workspace_size
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_named_gradient_bundle {{
+    use super::*;
+
+    fn assert_close_slice(
+        actual: &[f64],
+        expected: &[f64],
+        tolerance: f64,
+    ) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in
+            actual.iter().zip(expected.iter())
+        {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_blocks() {{
+        let x = {self._rust_array_literal(numeric_x, "f64")};
+        let p = {self._rust_array_literal(numeric_p, "f64")};
+
+        let mut gradient_x = [0.0_f64; 2];
+        let mut gradient_x_work = [0.0_f64; {gradient_x_workspace}];
+        {gradient_x_codegen.function_name}(
+            &x,
+            &p,
+            &mut gradient_x,
+            &mut gradient_x_work,
+        );
+        assert_close_slice(
+            &gradient_x,
+            &{self._rust_array_literal(expected_dx, "f64")},
+            1e-10_f64,
+        );
+
+        let mut gradient_p = [0.0_f64; 1];
+        let mut gradient_p_work = [0.0_f64; {gradient_p_workspace}];
+        {gradient_p_codegen.function_name}(
+            &x,
+            &p,
+            &mut gradient_p,
+            &mut gradient_p_work,
+        );
+        assert_close_slice(
+            &gradient_p,
+            &{self._rust_array_literal(expected_dp, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_map_zip_pipeline_matches_sympy_primal_and_jacobian(self) -> None:
         # Build a SymPy reference for a 4-stage map->zip pipeline.
         # Each stage uses two state entries z=(z0,z1) and one exogenous scalar w.
@@ -237,8 +518,10 @@ mod integration_sympy_vector {{
             **{symbol: value for symbol, value in zip(z_symbols, z_values)},
             **{symbol: value for symbol, value in zip(w_symbols, w_values)},
         }
-        expected_primal = self._flatten_sympy_matrix(sympy_output_vector.subs(substitutions).evalf())
-        expected_jacobian = self._flatten_sympy_matrix(sympy_jacobian.subs(substitutions).evalf())
+        expected_primal = self._flatten_sympy_matrix(
+            sympy_output_vector.subs(substitutions).evalf())
+        expected_jacobian = self._flatten_sympy_matrix(
+            sympy_jacobian.subs(substitutions).evalf())
 
         # Symbolically define and expand the map stage over 4 stages.
         # The second output is effectively constant but still symbolic.
@@ -250,7 +533,9 @@ mod integration_sympy_vector {{
             input_names=["z"],
             output_names=["dynamic", "constant"],
         )
-        mapped = map_function(map_kernel, 4, input_name="z_seq", name="mapped_stage").to_function()
+        mapped = map_function(map_kernel, 4,
+                              input_name="z_seq", name="mapped_stage") \
+            .to_function()
 
         # Define and expand the zip stage, consuming mapped outputs and w.
         dynamic_stage = SXVector.sym("dynamic", 1)
@@ -267,18 +552,19 @@ mod integration_sympy_vector {{
             input_names=["dynamic", "constant", "w"],
             output_names=["y"],
         )
-        zipped = zip_function(
+        batched = zip_function(
             zip_kernel,
             4,
             input_names=["dynamic_seq", "constant_seq", "w_seq"],
-            name="zipped_stage",
+            name="batched_stage",
         ).to_function()
 
         # Compose map + zip into one function with packed sequence inputs.
         z_seq = SXVector.sym("z_seq", 8)
         w_seq = SXVector.sym("w_seq", 4)
         mapped_dynamic_seq, mapped_constant_seq = mapped(z_seq)
-        pipeline_output = zipped(mapped_dynamic_seq, mapped_constant_seq, w_seq)
+        pipeline_output = batched(
+            mapped_dynamic_seq, mapped_constant_seq, w_seq)
         pipeline = Function(
             "map_zip_pipeline",
             [z_seq, w_seq],
@@ -291,7 +577,9 @@ mod integration_sympy_vector {{
         # against the SymPy reference end-to-end through cargo test.
         builder = (
             CodeGenerationBuilder(pipeline)
-            .with_backend_config(RustBackendConfig().with_crate_name("sympy_map_zip_pipeline"))
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_map_zip_pipeline")
+            )
             .add_primal()
             .add_jacobian()
             .with_simplification("medium")
@@ -349,10 +637,9 @@ mod integration_sympy_map_zip_pipeline {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
-    def test_composed_function_matches_sympy_primal_and_gradient(self) -> None:
+    def test_composed_function_matches_sympy_primal_and_jacobian(self) -> None:
         x0, x1 = sp.symbols("x0 x1", real=True)
         p_symbols = sp.symbols("p0:8", real=True)
-        pf0, pf1 = sp.symbols("pf0 pf1", real=True)
 
         state = sp.Matrix([x0, x1])
         for repeat_index in range(4):
@@ -360,56 +647,65 @@ mod integration_sympy_map_zip_pipeline {{
             p1 = p_symbols[2 * repeat_index + 1]
             state = sp.Matrix(
                 [
-                    sp.Float("0.7") * state[0] + p0 * state[1] + sp.sin(p1),
-                    sp.Float("0.2") * state[1] + p1 * state[0] + p0**2,
+                    sp.Float("0.7") * state[0] ** 2
+                    + p0 * state[1]
+                    + sp.sin(p1),
+                    sp.Float("0.2") * state[1] ** 2
+                    + p1 * state[0]
+                    + p0**2,
                 ]
             )
-        sympy_expr = state[0] ** 2 + pf0 * state[1] + sp.exp(state[0] - pf1)
-        sympy_gradient = sp.Matrix([sp.diff(sympy_expr, x0), sp.diff(sympy_expr, x1)])
+        sympy_jacobian = state.jacobian(sp.Matrix([x0, x1]))
 
         x_values = [0.25, -0.4]
-        parameter_values = [0.6, -0.2, -0.3, 0.5, 0.9, -0.7, 0.1, 0.8, 0.75, -0.1]
+        parameter_values = [0.6, -0.2, -0.3, 0.5, 0.9, -0.7, 0.1, 0.8]
         substitutions = {
             x0: x_values[0],
             x1: x_values[1],
-            **{symbol: value for symbol, value in zip(p_symbols, parameter_values[:8])},
-            pf0: parameter_values[8],
-            pf1: parameter_values[9],
+            **{
+                symbol: value
+                for symbol, value in zip(p_symbols, parameter_values)
+            },
         }
-        expected_primal = float(sympy_expr.subs(substitutions).evalf())
-        expected_gradient = self._flatten_sympy_matrix(sympy_gradient.subs(substitutions).evalf())
+        expected_primal = self._flatten_sympy_matrix(
+            state.subs(substitutions).evalf()
+        )
+        expected_jacobian = self._flatten_sympy_matrix(
+            sympy_jacobian.subs(substitutions).evalf()
+        )
 
         x = SXVector.sym("x", 2)
         state_vector = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 2)
 
         g = Function(
             "g",
             [state_vector, p],
-            [
-                SXVector(
-                    (
-                        0.7 * state_vector[0] + p[0] * state_vector[1] + p[1].sin(),
-                        0.2 * state_vector[1] + p[1] * state_vector[0] + p[0] * p[0],
+                [
+                    SXVector(
+                        (
+                            0.7 * state_vector[0] * state_vector[0]
+                            + p[0] * state_vector[1]
+                            + p[1].sin(),
+                            0.2 * state_vector[1] * state_vector[1]
+                            + p[1] * state_vector[0]
+                            + p[0] * p[0],
+                        )
                     )
-                )
             ],
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state_vector, pf],
-            [state_vector[0] * state_vector[0] + pf[0] * state_vector[1] + (state_vector[0] - pf[1]).exp()],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
-        composed = ComposedFunction("sympy_composed", x).repeat(g, params=[p, p, p, p]).finish(h, p=pf)
+        composed = ComposedFunction("sympy_composed", x).repeat(
+            g,
+            params=[p, p, p, p],
+        ).finish()
 
         builder = (
             CodeGenerationBuilder()
-            .with_backend_config(RustBackendConfig().with_crate_name("sympy_composed"))
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_composed")
+            )
             .for_function(composed)
             .add_primal()
             .add_gradient()
@@ -442,21 +738,105 @@ mod integration_sympy_composed {{
     fn matches_sympy_reference_values() {{
         let x = {self._rust_array_literal(x_values, "f64")};
         let parameters = {self._rust_array_literal(parameter_values, "f64")};
-        let mut primal_y = [0.0_f64; 1];
+        let mut primal_y = [0.0_f64; 2];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &parameters, &mut primal_y, &mut primal_work);
-        assert_close_slice(&primal_y, &{self._rust_array_literal([expected_primal], "f64")}, 1e-10_f64);
+        {primal_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut primal_y,
+            &mut primal_work,
+        );
+        assert_close_slice(
+            &primal_y,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
 
-        let mut gradient_y = [0.0_f64; 2];
+        let mut gradient_y = [0.0_f64; 4];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x, &parameters, &mut gradient_y, &mut gradient_work);
-        assert_close_slice(&gradient_y, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-10_f64);
-    }}
+        {gradient_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut gradient_y,
+            &mut gradient_work,
+        );
+            assert_close_slice(
+                &gradient_y,
+                &{self._rust_array_literal(expected_jacobian, "f64")},
+                1e-10_f64,
+            );
+        }}
 }}
 """.lstrip(),
             )
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+            joint_builder = (
+                CodeGenerationBuilder()
+                .with_backend_config(
+                    RustBackendConfig().with_crate_name("sympy_composed")
+                )
+                .for_function(composed)
+                .add_primal()
+                .add_gradient()
+                .add_joint(FunctionBundle().add_f().add_jf(wrt=0))
+                .with_simplification("medium")
+                .done()
+            )
+            joint_project = joint_builder.build(
+                Path(tmpdir) / "sympy_composed_joint"
+            )
+            joint_codegen = joint_project.codegens[2]
+
+            self._append_rust_test(
+                joint_project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_composed_joint {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(x_values, "f64")};
+        let parameters = {self._rust_array_literal(parameter_values, "f64")};
+        let mut y = [0.0_f64; {joint_codegen.output_sizes[0]}];
+        let mut jacobian_y = [0.0_f64; {joint_codegen.output_sizes[1]}];
+        let mut work = [0.0_f64; {joint_codegen.workspace_size}];
+        {joint_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut y,
+            &mut jacobian_y,
+            &mut work,
+        );
+        assert_close_slice(
+            &y,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
+        assert_close_slice(
+            &jacobian_y,
+            &{self._rust_array_literal(expected_jacobian, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(joint_project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
     def test_single_shooting_problem_matches_sympy_cost_gradient_and_states(self) -> None:
@@ -610,7 +990,8 @@ mod integration_sympy_single_shooting {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
-    def test_single_shooting_problem_matches_sympy_cost_gradient_hvp_and_states(self) -> None:
+    def test_single_shooting_matches_sympy_cost_gradient_hvp_and_states(self) \
+            -> None:
         sx0, sx1 = sp.symbols("x0:2", real=True)
         u_symbols = sp.symbols("u0:6", real=True)
         v_symbols = sp.symbols("v0:6", real=True)

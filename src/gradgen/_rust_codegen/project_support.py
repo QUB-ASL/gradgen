@@ -281,6 +281,18 @@ def _private_helper_section_key(section: str) -> str | None:
     return section
 
 
+def _generated_module_section_key(section: str) -> str | None:
+    """Return a stable key for a shared generated-module section."""
+    stripped = section.lstrip()
+    if stripped.startswith("#!["):
+        return "module_header"
+    if "pub enum GradgenError" in section:
+        return "gradgen_error"
+    if "pub struct FunctionMetadata" in section:
+        return "function_metadata"
+    return None
+
+
 def _render_multi_function_lib(
     codegens: tuple[RustCodegenResult, ...],
     config: RustBackendConfig,
@@ -288,6 +300,7 @@ def _render_multi_function_lib(
     """Render a crate source file containing many generated functions."""
     sections: list[str] = []
     seen_private_helpers: set[str] = set()
+    seen_generated_module_sections: set[str] = set()
     if config.backend_mode == "no_std":
         sections.append("#![no_std]")
 
@@ -299,6 +312,11 @@ def _render_multi_function_lib(
             source = source[len("#![no_std]\n"):]
         for section in (part.rstrip()
                         for part in source.split("\n\n") if part.strip()):
+            module_key = _generated_module_section_key(section)
+            if module_key is not None:
+                if module_key in seen_generated_module_sections:
+                    continue
+                seen_generated_module_sections.add(module_key)
             helper_key = _private_helper_section_key(section)
             if helper_key is not None:
                 if helper_key in seen_private_helpers:
