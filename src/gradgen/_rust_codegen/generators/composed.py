@@ -292,6 +292,353 @@ def _generate_composed_primal_rust(
     )
 
 
+def _generate_composed_jacobian_rust(
+    jacobian,
+    *,
+    config: RustBackendConfig | None = None,
+    function_name: str | None = None,
+    backend_mode: RustBackendMode = "std",
+    scalar_type: RustScalarType = "f64",
+    math_library: str | None = None,
+    function_index: int = 0,
+) -> RustCodegenResult:
+    """Generate compact Rust for a staged composed Jacobian kernel."""
+    from ...composed_function import _SingleStage
+
+    composed = jacobian.composed
+    composed._require_finished()
+    resolved_config = _resolve_backend_config(
+        config,
+        function_name=function_name,
+        backend_mode=backend_mode,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
+    _validate_backend_mode(resolved_config.backend_mode)
+    _validate_scalar_type(resolved_config.scalar_type)
+    if resolved_config.backend_mode == "std":
+        if math_library is not None:
+            raise ValueError(
+                "math_library is only supported for no_std backend mode"
+            )
+        resolved_math_library = None
+    else:
+        resolved_math_library = math_library or "libm"
+    render_context = KernelRenderContext(
+        backend_mode=resolved_config.backend_mode,
+        scalar_type=resolved_config.scalar_type,
+        math_library=resolved_math_library,
+        emit_metadata_helpers=resolved_config.emit_metadata_helpers,
+    )
+    helper_simplification = composed.simplification
+
+    name = sanitize_ident(resolved_config.function_name or jacobian.name)
+    helper_base_name = _compose_composed_helper_base_name(
+        resolved_config.crate_name,
+        name,
+    )
+    helper_config = resolved_config.with_emit_metadata_helpers(False)
+    helper_sources: list[str] = []
+    helper_nodes: list[SXNode] = []
+    constant_lines: list[str] = []
+    plans: list[_ComposedSinglePlan | _ComposedRepeatPlan] = []
+
+    stage_index = 0
+    parameter_offset = 0
+    max_helper_workspace = 0
+    for block_index, step in enumerate(composed.steps):
+        if isinstance(step, _SingleStage):
+            helper_name = sanitize_ident(
+                f"{helper_base_name}_stage_{block_index}_{step.function.name}"
+            )
+            helper_function = _maybe_simplify_derivative_function(
+                step.function, helper_simplification
+            )
+            vjp_helper_name = sanitize_ident(
+                f"{helper_base_name}_stage_{block_index}_"
+                f"{step.function.name}_vjp"
+            )
+            vjp_function = _maybe_simplify_derivative_function(
+                step.function.vjp(wrt_index=0, name=vjp_helper_name),
+                helper_simplification,
+            )
+            max_helper_workspace = _append_generated_helper_source(
+                helper_function,
+                helper_name,
+                config=helper_config,
+                helper_sources=helper_sources,
+                helper_nodes=helper_nodes,
+                max_workspace=max_helper_workspace,
+            )
+            max_helper_workspace = _append_generated_helper_source(
+                vjp_function,
+                vjp_helper_name,
+                config=helper_config,
+                helper_sources=helper_sources,
+                helper_nodes=helper_nodes,
+                max_workspace=max_helper_workspace,
+            )
+            plans.append(
+                _ComposedSinglePlan(
+                    helper_name=helper_name,
+                    vjp_helper_name=vjp_helper_name,
+                    parameter_kind=step.parameter.kind,
+                    parameter_size=step.parameter.size,
+                    parameter_offset=parameter_offset,
+                    fixed_values=step.parameter.values,
+                    stage_index=stage_index,
+                )
+            )
+            parameter_offset += step.parameter.symbolic_size
+            stage_index += 1
+            continue
+
+        helper_name = sanitize_ident(
+            f"{helper_base_name}_repeat_{block_index}_{step.function.name}"
+        )
+        helper_function = _maybe_simplify_derivative_function(
+            step.function, helper_simplification
+        )
+        vjp_helper_name = sanitize_ident(
+            f"{helper_base_name}_repeat_{block_index}_{step.function.name}_vjp"
+        )
+        vjp_function = _maybe_simplify_derivative_function(
+            step.function.vjp(wrt_index=0, name=vjp_helper_name),
+            helper_simplification,
+        )
+        max_helper_workspace = _append_generated_helper_source(
+            helper_function,
+            helper_name,
+            config=helper_config,
+            helper_sources=helper_sources,
+            helper_nodes=helper_nodes,
+            max_workspace=max_helper_workspace,
+        )
+        max_helper_workspace = _append_generated_helper_source(
+            vjp_function,
+            vjp_helper_name,
+            config=helper_config,
+            helper_sources=helper_sources,
+            helper_nodes=helper_nodes,
+            max_workspace=max_helper_workspace,
+        )
+
+        const_name = sanitize_ident(
+            f"{helper_base_name}_repeat_{block_index}_params"
+        ).upper()
+        parameter_kind = step.parameters[0].kind
+        if parameter_kind == "fixed" and step.parameters[0].size > 0:
+            constant_lines.extend(
+                _emit_composed_fixed_repeat_constants(
+                    const_name,
+                    tuple(parameter.values for parameter in step.parameters),
+                    resolved_config.scalar_type,
+                )
+            )
+
+        plans.append(
+            _ComposedRepeatPlan(
+                helper_name=helper_name,
+                vjp_helper_name=vjp_helper_name,
+                parameter_kind=parameter_kind,
+                parameter_size=step.parameters[0].size,
+                parameter_offset=parameter_offset,
+                fixed_values=tuple(
+                    parameter.values for parameter in step.parameters
+                ),
+                repeat_count=len(step.parameters),
+                stage_start_index=stage_index,
+                const_name=const_name,
+            )
+        )
+        parameter_offset += sum(
+            parameter.symbolic_size for parameter in step.parameters
+        )
+        stage_index += len(step.parameters)
+
+    state_size = _arg_size(composed.state_input)
+    output_name = f"jacobian_{composed.output_names[0]}"
+    input_specs = _build_composed_input_specs(
+        composed.input_name,
+        state_size,
+        composed.parameter_name,
+        composed.parameter_size,
+    )
+    output_specs = (
+        _ArgSpec(
+            raw_name=output_name,
+            rust_name=sanitize_ident(output_name),
+            rust_label=_format_rust_string_literal(output_name),
+            doc_description=_describe_output_arg(output_name),
+            size=state_size * state_size,
+        ),
+    )
+    _validate_generated_argument_names(input_specs, output_specs)
+    input_assert_lines = []
+    input_return_lines = []
+    output_assert_lines = []
+    output_return_lines = []
+    _assert, _in_return, _out_return = _emit_exact_length_assert(
+        input_specs[0].rust_name,
+        input_specs[0].raw_name,
+        state_size,
+    )
+    input_assert_lines.append(_assert)
+    input_return_lines.append(_in_return)
+    if composed.parameter_size > 0:
+        _assert, _in_return, _out_return = _emit_exact_length_assert(
+            input_specs[1].rust_name,
+            input_specs[1].raw_name,
+            composed.parameter_size,
+        )
+        input_assert_lines.append(_assert)
+        input_return_lines.append(_in_return)
+    _assert, _in_return, _out_return = _emit_exact_length_assert(
+        output_specs[0].rust_name,
+        output_specs[0].raw_name,
+        state_size * state_size,
+    )
+    output_assert_lines.append(_assert)
+    output_return_lines.append(_out_return)
+
+    state_history_size = composed.stage_count * state_size
+    state_work_size = 2 * state_size
+    workspace_size = (
+        state_history_size
+        + state_work_size
+        + state_work_size
+        + max_helper_workspace
+    )
+    computation_lines = [
+        (
+            f"let (state_history, rest) = "
+            f"work.split_at_mut({state_history_size});"
+        ),
+        (
+            f"let (state_buffers, rest) = "
+            f"rest.split_at_mut({state_work_size});"
+        ),
+        (
+            f"let (current_state, _next_state) = "
+            f"state_buffers.split_at_mut({state_size});"
+        ),
+        (
+            f"let (lambda_buffers, stage_work) = "
+            f"rest.split_at_mut({state_work_size});"
+        ),
+        (
+            f"let (lambda_a, lambda_b) = "
+            f"lambda_buffers.split_at_mut({state_size});"
+        ),
+        f"current_state.copy_from_slice({input_specs[0].rust_name});",
+    ]
+    for plan in plans:
+        if isinstance(plan, _ComposedSinglePlan):
+            computation_lines.extend(
+                _emit_composed_gradient_forward_single_block(
+                    plan,
+                    parameters_name=(
+                        input_specs[1].rust_name
+                        if composed.parameter_size > 0
+                        else None
+                    ),
+                    scalar_type=resolved_config.scalar_type,
+                    state_size=state_size,
+                )
+            )
+            continue
+        computation_lines.extend(
+            _emit_composed_gradient_forward_repeat_block(
+                plan,
+                parameters_name=(
+                    input_specs[1].rust_name
+                    if composed.parameter_size > 0
+                    else None
+                ),
+                scalar_type=resolved_config.scalar_type,
+                state_size=state_size,
+            )
+        )
+
+    computation_lines.append(
+        f"for output_index in 0..{state_size} {{"
+    )
+    computation_lines.extend(
+        [
+            f"    lambda_a.fill(0.0_{resolved_config.scalar_type});",
+            f"    lambda_b.fill(0.0_{resolved_config.scalar_type});",
+            f"    lambda_a[output_index] = 1.0_{resolved_config.scalar_type};",
+            "    let mut current_lambda_is_a = true;",
+        ]
+    )
+    for plan in reversed(plans):
+        if isinstance(plan, _ComposedSinglePlan):
+            computation_lines.extend(
+                f"    {line}" for line in
+                _emit_composed_gradient_reverse_single_block(
+                    plan,
+                    parameters_name=(
+                        input_specs[1].rust_name
+                        if composed.parameter_size > 0
+                        else None
+                    ),
+                    scalar_type=resolved_config.scalar_type,
+                    state_size=state_size,
+                    input_name=input_specs[0].rust_name,
+                )
+            )
+            continue
+        computation_lines.extend(
+            f"    {line}" for line in
+            _emit_composed_gradient_reverse_repeat_block(
+                plan,
+                parameters_name=(
+                    input_specs[1].rust_name
+                    if composed.parameter_size > 0
+                    else None
+                ),
+                scalar_type=resolved_config.scalar_type,
+                state_size=state_size,
+                input_name=input_specs[0].rust_name,
+            )
+        )
+    computation_lines.extend(
+        [
+            (
+                "    let gradient_row = if current_lambda_is_a { "
+                "&lambda_a[..] } else { &lambda_b[..] };"
+            ),
+            f"    let row_start = output_index * {state_size};",
+            f"    let row_end = row_start + {state_size};",
+            (
+                f"    {output_specs[0].rust_name}[row_start..row_end]"
+                ".copy_from_slice(gradient_row);"
+            ),
+            "}",
+        ]
+    )
+
+    return _render_composed_kernel_result(
+        render_context=render_context,
+        name=name,
+        function_index=function_index,
+        resolved_config=resolved_config,
+        resolved_math_library=resolved_math_library,
+        workspace_size=workspace_size,
+        input_specs=input_specs,
+        output_specs=output_specs,
+        input_assert_lines=input_assert_lines,
+        input_return_lines=input_return_lines,
+        output_assert_lines=output_assert_lines,
+        output_return_lines=output_return_lines,
+        computation_lines=computation_lines,
+        helper_nodes=helper_nodes,
+        constant_lines=constant_lines,
+        helper_sources=helper_sources,
+        output_write_lines=[],
+    )
+
+
 def _render_composed_kernel_result(
     *,
     render_context: KernelRenderContext,

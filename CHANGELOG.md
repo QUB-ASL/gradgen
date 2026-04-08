@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `CodeGenerationBuilder.add_gradient(wrt=...)` and the scoped builder
   variant now accept input names or indices and generate only the selected
   gradient blocks.
+- `CodeGenerationBuilder.add_jacobian()` now supports staged
+  `ComposedFunction` sources and emits a loop-based Jacobian kernel without
+  flattening the composed stages.
 - `FunctionBundle().add_gradient(wrt=[...])` now accepts input names as well
   as indices and generates one gradient block per selected input block.
 - Added `FunctionComposer` for chaining function-like stages into a single

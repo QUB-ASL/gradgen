@@ -85,9 +85,14 @@ def generate_rust(
 ) -> RustCodegenResult:
     """Generate Rust source code for primal function evaluation."""
     from ..composer import FunctionComposition
-    from ..composed_function import ComposedFunction, ComposedGradientFunction
+    from ..composed_function import (
+        ComposedFunction,
+        ComposedGradientFunction,
+        ComposedJacobianFunction,
+    )
     from .generators import (
         _generate_composed_gradient_rust,
+        _generate_composed_jacobian_rust,
         _generate_composed_primal_rust,
         _generate_reduced_primal_rust,
         _generate_single_shooting_gradient_rust,
@@ -131,6 +136,16 @@ def generate_rust(
             emit_crate_header=emit_crate_header,
             emit_docs=emit_docs,
             function_keyword=function_keyword,
+        )
+    if isinstance(function, ComposedJacobianFunction):
+        return _generate_composed_jacobian_rust(
+            function,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
         )
     if isinstance(function, BatchedFunction):
         return _generate_batched_primal_rust(

@@ -6,7 +6,11 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Protocol
 
-from ..composed_function import ComposedFunction, ComposedGradientFunction
+from ..composed_function import (
+    ComposedFunction,
+    ComposedGradientFunction,
+    ComposedJacobianFunction,
+)
 from ..function import Function
 from ..map_zip import BatchedFunction, BatchedJacobianFunction, ReducedFunction
 from ..single_shooting import (
@@ -27,6 +31,7 @@ BuilderSource = (
     Function
     | ComposedFunction
     | ComposedGradientFunction
+    | ComposedJacobianFunction
     | BatchedFunction
     | BatchedJacobianFunction
     | ReducedFunction
@@ -498,7 +503,10 @@ def _resolve_builder_functions(
             "add_* method first"
         )
 
-    if isinstance(function, (ComposedFunction, ComposedGradientFunction)):
+    if isinstance(
+        function,
+        (ComposedFunction, ComposedGradientFunction, ComposedJacobianFunction),
+    ):
         return _resolve_builder_composed_sources(
             function,
             config,
@@ -780,9 +788,40 @@ def _resolve_builder_composed_sources(
                 )
             )
             continue
+        if request.kind == "jacobian" and isinstance(function, ComposedFunction):
+            if request.components:
+                raise ValueError(
+                    "include_states is only supported for "
+                    "SingleShootingProblem sources"
+                )
+            if request.wrt_targets is not None:
+                indices = _resolve_wrt_targets_to_indices(
+                    request.wrt_targets,
+                    function.input_names,
+                )
+                if indices != (0,):
+                    raise ValueError(
+                        "ComposedFunction Jacobians can only be requested "
+                        "with respect to the stage input"
+                    )
+            simplified_function = replace(function, simplification=simplification)
+            resolved.append(
+                _rename_builder_source(
+                    simplified_function.jacobian(),
+                    _builder_function_name(
+                        crate_prefix,
+                        "jf",
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                        input_name=function.input_name,
+                        include_input_name=True,
+                    ),
+                )
+            )
+            continue
         raise ValueError(
-            "staged composed sources currently support only add_primal() and "
-            "ComposedFunction.add_gradient() in CodeGenerationBuilder"
+            "staged composed sources currently support only add_primal(), "
+            "add_gradient(), and add_jacobian() in CodeGenerationBuilder"
         )
 
     return tuple(resolved)

@@ -1936,6 +1936,57 @@ mod single_shooting_multi_u_tests {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_composed_jacobian_codegen_uses_staged_loops(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        composed = (
+            ComposedFunction("jacobian_demo", x)
+            .then(g, p=p)
+            .repeat(g, params=[p, p])
+            .finish()
+        )
+        jacobian = composed.jacobian()
+
+        with TemporaryDirectory() as tmpdir:
+            project = (
+                CodeGenerationBuilder()
+                .with_backend_config(
+                    RustBackendConfig().with_crate_name("jacobian_demo")
+                )
+                .for_function(composed)
+                .add_primal()
+                .add_jacobian()
+                .done()
+                .build(Path(tmpdir) / "jacobian_demo")
+            )
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn jacobian_demo_jacobian_demo_f(", lib_text)
+            self.assertIn("for output_index in 0..2 {", lib_text)
+            self.assertIn("lambda_a[output_index] = 1.0_f64;", lib_text)
+            self.assertIn("jacobian_y", lib_text)
+
+            self._append_reference_test(
+                project.project_dir,
+                jacobian.to_function(),
+                function_name=project.codegens[1].function_name,
+                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]),
+                test_name="evaluates_composed_jacobian_reference",
+                workspace_size_override=project.codegens[1].workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_code_generation_builder_accepts_composed_sources_directly(
         self,
     ) -> None:

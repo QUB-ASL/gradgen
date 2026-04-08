@@ -145,6 +145,139 @@ class ComposedGradientFunction:
 
 
 @dataclass(frozen=True, slots=True)
+class ComposedJacobianFunction:
+    """Jacobian kernel for a finished ``ComposedFunction``."""
+
+    composed: ComposedFunction
+    name: str
+    simplification: int | str | None = None
+
+    def to_function(self, name: str | None = None) -> Function:
+        """Expand this staged Jacobian into a regular symbolic ``Function``."""
+        packed_parameters = (
+            SXVector.sym(
+                self.composed.parameter_name,
+                self.composed.parameter_size,
+            )
+            if self.composed.parameter_size > 0
+            else None
+        )
+        jacobian = self._build_symbolic_jacobian(packed_parameters)
+        output_name = f"jacobian_{self.composed.output_names[0]}"
+        function = Function(
+            name or self.name,
+            self.composed._compiled_inputs(packed_parameters),
+            [jacobian],
+            input_names=self.composed.input_names,
+            output_names=(output_name,),
+        )
+        return _simplify_function(function, self.simplification)
+
+    @property
+    def nodes(self):
+        """Return dependency nodes for shared-helper discovery."""
+        return self.to_function().nodes
+
+    def generate_rust(
+        self,
+        *,
+        config=None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+    ):
+        """Generate compact Rust for the staged Jacobian kernel."""
+        return _generate_rust(
+            self,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
+
+    def create_rust_project(
+        self,
+        path: str,
+        *,
+        config=None,
+        crate_name: str | None = None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+    ):
+        """Create a Rust crate containing the staged Jacobian kernel."""
+        return _create_rust_project(
+            self,
+            path,
+            config=config,
+            crate_name=crate_name,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
+
+    def _build_symbolic_jacobian(
+        self, packed_parameters: SXVector | None
+    ) -> SXVector:
+        """Build the flattened Jacobian using staged symbolic backprop."""
+        state_size = _arg_size(self.composed.state_input)
+
+        state: FunctionArg = self.composed.state_input
+        parameter_offset = 0
+        applications: list[tuple[Function, FunctionArg, FunctionArg]] = []
+
+        for step in self.composed.steps:
+            if isinstance(step, _SingleStage):
+                parameter_arg, parameter_offset = _resolve_compiled_parameter(
+                    step.parameter,
+                    packed_parameters,
+                    parameter_offset,
+                )
+                applications.append((step.function, state, parameter_arg))
+                state = _coerce_single_output(step.function(state, parameter_arg))
+                continue
+
+            for parameter in step.parameters:
+                parameter_arg, parameter_offset = _resolve_compiled_parameter(
+                    parameter,
+                    packed_parameters,
+                    parameter_offset,
+                )
+                applications.append((step.function, state, parameter_arg))
+                state = _coerce_single_output(step.function(state, parameter_arg))
+
+        if parameter_offset != self.composed.parameter_size:
+            raise AssertionError(
+                "packed parameter offsets did not consume the expected size"
+            )
+
+        rows: list[SX] = []
+        for row_index in range(state_size):
+            if state_size == 1:
+                current_lambda: FunctionArg = SX.const(1.0)
+            else:
+                current_lambda = SXVector(
+                    tuple(
+                        SX.const(1.0) if index == row_index else SX.const(0.0)
+                        for index in range(state_size)
+                    )
+                )
+
+            for function, state_arg, parameter_arg in reversed(applications):
+                current_lambda = _coerce_single_output(
+                    function.vjp(wrt_index=0)(
+                        state_arg,
+                        parameter_arg,
+                        current_lambda,
+                    )
+                )
+
+            rows.extend(_flatten_symbolic_arg(current_lambda))
+
+        return SXVector(tuple(rows))
+
+
+@dataclass(frozen=True, slots=True)
 class ComposedFunction:
     """Staged composition of vector state transforms.
 
@@ -298,6 +431,16 @@ class ComposedFunction:
         return ComposedGradientFunction(
             self,
             gradient_name,
+            self.simplification,
+        )
+
+    def jacobian(self, name: str | None = None) -> ComposedJacobianFunction:
+        """Return a staged Jacobian kernel with respect to the state input."""
+        self._require_finished()
+        jacobian_name = name or f"{self.name}_jacobian_{self.input_name}"
+        return ComposedJacobianFunction(
+            self,
+            jacobian_name,
             self.simplification,
         )
 
@@ -576,6 +719,13 @@ def _coerce_single_output(value: object) -> FunctionArg:
     raise TypeError(
         "stage functions must evaluate to a single SX or SXVector output"
     )
+
+
+def _flatten_symbolic_arg(arg: FunctionArg) -> tuple[SX, ...]:
+    """Return scalar leaves from a symbolic scalar or vector argument."""
+    if isinstance(arg, SX):
+        return (arg,)
+    return tuple(arg)
 
 
 def _arg_size(arg: FunctionArg) -> int:

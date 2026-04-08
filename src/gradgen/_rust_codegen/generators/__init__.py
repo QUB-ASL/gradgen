@@ -1,13 +1,14 @@
 """Family-specific Rust generation helpers."""
 
 from .composed import (
-    _generate_composed_gradient_rust, 
-    _generate_composed_primal_rust
+    _generate_composed_gradient_rust,
+    _generate_composed_jacobian_rust,
+    _generate_composed_primal_rust,
 )
 from .map_zip import (
-    _generate_reduced_primal_rust, 
-     _generate_batched_jacobian_rust,
-     _generate_batched_primal_rust
+    _generate_reduced_primal_rust,
+    _generate_batched_jacobian_rust,
+    _generate_batched_primal_rust,
 )
 from .single_shooting import (
     _generate_single_shooting_driver_rust,
@@ -20,6 +21,7 @@ from .single_shooting import (
 __all__ = [
     '_generate_composed_primal_rust',
     '_generate_composed_gradient_rust',
+    '_generate_composed_jacobian_rust',
     '_generate_batched_primal_rust',
     '_generate_batched_jacobian_rust',
     '_generate_reduced_primal_rust',

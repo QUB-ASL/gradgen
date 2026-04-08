@@ -8,7 +8,11 @@ from ._custom_elementary import (
     register_elementary_function,
 )
 from .composer import FunctionComposer, FunctionComposition
-from .composed_function import ComposedFunction, ComposedGradientFunction
+from .composed_function import (
+    ComposedFunction,
+    ComposedGradientFunction,
+    ComposedJacobianFunction,
+)
 from .function import Function
 from .map_zip import (
     BatchedFunction,
@@ -98,6 +102,7 @@ __all__ = [
     "CodeGenerationBuilder",
     "ComposedFunction",
     "ComposedGradientFunction",
+    "ComposedJacobianFunction",
     "Function",
     "FunctionBundle",
     "FunctionComposer",
