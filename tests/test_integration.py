@@ -10,6 +10,7 @@ from gradgen import (
     ComposedFunction,
     FunctionComposer,
     Function,
+    FunctionBundle,
     RustBackendConfig,
     SX,
     SXVector,
@@ -755,8 +756,74 @@ mod integration_sympy_composed {{
             &mut gradient_y,
             &mut gradient_work,
         );
+            assert_close_slice(
+                &gradient_y,
+                &{self._rust_array_literal(expected_jacobian, "f64")},
+                1e-10_f64,
+            );
+        }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+            joint_builder = (
+                CodeGenerationBuilder()
+                .with_backend_config(
+                    RustBackendConfig().with_crate_name("sympy_composed")
+                )
+                .for_function(composed)
+                .add_primal()
+                .add_gradient()
+                .add_joint(FunctionBundle().add_f().add_jf(wrt=0))
+                .with_simplification("medium")
+                .done()
+            )
+            joint_project = joint_builder.build(
+                Path(tmpdir) / "sympy_composed_joint"
+            )
+            joint_codegen = joint_project.codegens[2]
+
+            self._append_rust_test(
+                joint_project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_composed_joint {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(x_values, "f64")};
+        let parameters = {self._rust_array_literal(parameter_values, "f64")};
+        let mut y = [0.0_f64; {joint_codegen.output_sizes[0]}];
+        let mut jacobian_y = [0.0_f64; {joint_codegen.output_sizes[1]}];
+        let mut work = [0.0_f64; {joint_codegen.workspace_size}];
+        {joint_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut y,
+            &mut jacobian_y,
+            &mut work,
+        );
         assert_close_slice(
-            &gradient_y,
+            &y,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
+        assert_close_slice(
+            &jacobian_y,
             &{self._rust_array_literal(expected_jacobian, "f64")},
             1e-10_f64,
         );
@@ -765,7 +832,7 @@ mod integration_sympy_composed {{
 """.lstrip(),
             )
 
-            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            completed = self._run_cargo(joint_project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
     def test_single_shooting_problem_matches_sympy_cost_gradient_and_states(self) -> None:

@@ -89,10 +89,12 @@ def generate_rust(
         ComposedFunction,
         ComposedGradientFunction,
         ComposedJacobianFunction,
+        ComposedJointFunction,
     )
     from .generators import (
         _generate_composed_gradient_rust,
         _generate_composed_jacobian_rust,
+        _generate_composed_joint_rust,
         _generate_composed_primal_rust,
         _generate_reduced_primal_rust,
         _generate_single_shooting_gradient_rust,
@@ -139,6 +141,16 @@ def generate_rust(
         )
     if isinstance(function, ComposedJacobianFunction):
         return _generate_composed_jacobian_rust(
+            function,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+            math_library=math_library,
+            function_index=function_index,
+        )
+    if isinstance(function, ComposedJointFunction):
+        return _generate_composed_joint_rust(
             function,
             config=config,
             function_name=function_name,

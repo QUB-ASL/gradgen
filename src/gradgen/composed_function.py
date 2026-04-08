@@ -234,7 +234,9 @@ class ComposedJacobianFunction:
                     parameter_offset,
                 )
                 applications.append((step.function, state, parameter_arg))
-                state = _coerce_single_output(step.function(state, parameter_arg))
+                state = _coerce_single_output(
+                    step.function(state, parameter_arg)
+                )
                 continue
 
             for parameter in step.parameters:
@@ -244,7 +246,9 @@ class ComposedJacobianFunction:
                     parameter_offset,
                 )
                 applications.append((step.function, state, parameter_arg))
-                state = _coerce_single_output(step.function(state, parameter_arg))
+                state = _coerce_single_output(
+                    step.function(state, parameter_arg)
+                )
 
         if parameter_offset != self.composed.parameter_size:
             raise AssertionError(
@@ -275,6 +279,105 @@ class ComposedJacobianFunction:
             rows.extend(_flatten_symbolic_arg(current_lambda))
 
         return SXVector(tuple(rows))
+
+
+@dataclass(frozen=True, slots=True)
+class ComposedJointFunction:
+    """Joint kernel for a finished ``ComposedFunction``."""
+
+    composed: ComposedFunction
+    name: str
+    components: tuple[str, ...]
+    wrt_index: int = 0
+    simplification: int | str | None = None
+
+    def to_function(self, name: str | None = None) -> Function:
+        """Expand this staged joint kernel into a regular symbolic function."""
+        self.composed._require_finished()
+        if self.wrt_index != 0:
+            raise ValueError(
+                "ComposedFunction joint kernels only support wrt_index=0"
+            )
+        resolved_components = _resolve_composed_joint_components(
+            self.components
+        )
+        packed_parameters = (
+            SXVector.sym(
+                self.composed.parameter_name,
+                self.composed.parameter_size,
+            )
+            if self.composed.parameter_size > 0
+            else None
+        )
+        primal_function = self.composed.to_function()
+        jacobian_function = self.composed.jacobian().to_function()
+        outputs: list[FunctionArg] = []
+        output_names: list[str] = []
+
+        for component in resolved_components:
+            if component == "f":
+                outputs.extend(primal_function.outputs)
+                output_names.extend(primal_function.output_names)
+                continue
+            if component == "jf":
+                outputs.extend(jacobian_function.outputs)
+                output_names.extend(jacobian_function.output_names)
+                continue
+            raise AssertionError(
+                f"unexpected composed joint component {component!r}"
+            )
+
+        function = Function(
+            name or self.name,
+            self.composed._compiled_inputs(packed_parameters),
+            outputs,
+            input_names=self.composed.input_names,
+            output_names=tuple(output_names),
+        )
+        return _simplify_function(function, self.simplification)
+
+    @property
+    def nodes(self):
+        """Return dependency nodes for shared-helper discovery."""
+        return self.to_function().nodes
+
+    def generate_rust(
+        self,
+        *,
+        config=None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+    ):
+        """Generate compact Rust for the staged joint kernel."""
+        return _generate_rust(
+            self,
+            config=config,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
+
+    def create_rust_project(
+        self,
+        path: str,
+        *,
+        config=None,
+        crate_name: str | None = None,
+        function_name: str | None = None,
+        backend_mode: str = "std",
+        scalar_type: str = "f64",
+    ):
+        """Create a Rust crate containing the staged joint kernel."""
+        return _create_rust_project(
+            self,
+            path,
+            config=config,
+            crate_name=crate_name,
+            function_name=function_name,
+            backend_mode=backend_mode,
+            scalar_type=scalar_type,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,6 +545,29 @@ class ComposedFunction:
             self,
             jacobian_name,
             self.simplification,
+        )
+
+    def joint(
+        self,
+        components: Iterable[str],
+        wrt_index: int = 0,
+        name: str | None = None,
+        simplify_joint: int | str | None = None,
+    ) -> ComposedJointFunction:
+        """Return a staged joint kernel for supported composed components."""
+        self._require_finished()
+        resolved_components = _resolve_composed_joint_components(components)
+        joint_name = name or _composed_joint_function_name(
+            self.name,
+            self.input_name,
+            resolved_components,
+        )
+        return ComposedJointFunction(
+            self,
+            joint_name,
+            resolved_components,
+            wrt_index=wrt_index,
+            simplification=simplify_joint,
         )
 
     def generate_rust(
@@ -726,6 +852,33 @@ def _flatten_symbolic_arg(arg: FunctionArg) -> tuple[SX, ...]:
     if isinstance(arg, SX):
         return (arg,)
     return tuple(arg)
+
+
+def _resolve_composed_joint_components(
+    components: Iterable[str],
+) -> tuple[str, ...]:
+    """Validate joint components supported by ``ComposedFunction``."""
+    resolved = tuple(components)
+    if not resolved:
+        raise ValueError("joint functions require at least one component")
+    allowed = {"f", "jf"}
+    if any(component not in allowed for component in resolved):
+        raise ValueError(
+            "ComposedFunction joint kernels currently support only 'f' and "
+            "'jf' components"
+        )
+    if len(set(resolved)) != len(resolved):
+        raise ValueError("joint components must be unique")
+    return resolved
+
+
+def _composed_joint_function_name(
+    base_name: str,
+    input_name: str,
+    components: tuple[str, ...],
+) -> str:
+    """Build the default name for a composed joint kernel."""
+    return f"{base_name}_joint_{'_'.join(components)}_{input_name}"
 
 
 def _arg_size(arg: FunctionArg) -> int:

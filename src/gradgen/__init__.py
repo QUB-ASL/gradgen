@@ -12,6 +12,7 @@ from .composed_function import (
     ComposedFunction,
     ComposedGradientFunction,
     ComposedJacobianFunction,
+    ComposedJointFunction,
 )
 from .function import Function
 from .map_zip import (
@@ -103,6 +104,7 @@ __all__ = [
     "ComposedFunction",
     "ComposedGradientFunction",
     "ComposedJacobianFunction",
+    "ComposedJointFunction",
     "Function",
     "FunctionBundle",
     "FunctionComposer",

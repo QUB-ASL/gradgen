@@ -10,6 +10,7 @@ from ..composed_function import (
     ComposedFunction,
     ComposedGradientFunction,
     ComposedJacobianFunction,
+    ComposedJointFunction,
 )
 from ..function import Function
 from ..map_zip import BatchedFunction, BatchedJacobianFunction, ReducedFunction
@@ -32,6 +33,7 @@ BuilderSource = (
     | ComposedFunction
     | ComposedGradientFunction
     | ComposedJacobianFunction
+    | ComposedJointFunction
     | BatchedFunction
     | BatchedJacobianFunction
     | ReducedFunction
@@ -819,9 +821,54 @@ def _resolve_builder_composed_sources(
                 )
             )
             continue
+        if request.kind == "joint" and isinstance(function, ComposedFunction):
+            if request.components:
+                raise ValueError(
+                    "include_states is only supported for "
+                    "SingleShootingProblem sources"
+                )
+            if request.bundle is None:
+                raise ValueError("joint builder requests require a FunctionBundle")
+            resolved_bundle = _resolve_function_bundle(
+                request.bundle,
+                len(function.inputs),
+                function.input_names,
+            )
+            if len(resolved_bundle) != 1:
+                raise ValueError(
+                    "ComposedFunction joint bundles can only target the "
+                    "stage input"
+                )
+            index, components = resolved_bundle[0]
+            if index != 0:
+                raise ValueError(
+                    "ComposedFunction joint bundles can only target the "
+                    "stage input"
+                )
+            if any(component not in {"f", "jf"} for component in components):
+                raise ValueError(
+                    "ComposedFunction joint bundles currently support only "
+                    "'f' and 'jf' components"
+                )
+            simplified_function = replace(function, simplification=simplification)
+            resolved.append(
+                _rename_builder_source(
+                    simplified_function.joint(components, wrt_index=index),
+                    _builder_function_name(
+                        crate_prefix,
+                        *_builder_joint_labels(components),
+                        base_name=base_name,
+                        include_base_name=include_base_name,
+                        input_name=function.input_name,
+                        include_input_name=True,
+                    ),
+                )
+            )
+            continue
         raise ValueError(
             "staged composed sources currently support only add_primal(), "
-            "add_gradient(), and add_jacobian() in CodeGenerationBuilder"
+            "add_gradient(), add_jacobian(), and add_joint() in "
+            "CodeGenerationBuilder"
         )
 
     return tuple(resolved)

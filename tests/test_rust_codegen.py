@@ -1987,6 +1987,127 @@ mod single_shooting_multi_u_tests {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_composed_joint_codegen_supports_primal_and_jacobian(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+
+        g = Function(
+            "G",
+            [state, p],
+            [SXVector((state[0] + p[0], state[1] * p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        composed = (
+            ComposedFunction("joint_demo", x)
+            .then(g, p=p)
+            .repeat(g, params=[p, p])
+            .finish()
+        )
+        primal_function = composed.to_function()
+        jacobian_function = composed.jacobian().to_function()
+
+        with TemporaryDirectory() as tmpdir:
+            project = (
+                CodeGenerationBuilder()
+                .with_backend_config(
+                    RustBackendConfig().with_crate_name("joint_demo")
+                )
+                .for_function(composed)
+                .add_primal()
+                .add_jacobian()
+                .add_joint(FunctionBundle().add_f().add_jf(wrt=0))
+                .done()
+                .build(Path(tmpdir) / "joint_demo")
+            )
+            self.assertEqual(len(project.codegens), 3)
+            joint_codegen = project.codegens[2]
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("pub fn joint_demo_joint_demo_f_jf_x(", lib_text)
+            self.assertIn("for output_index in 0..2 {", lib_text)
+            self.assertIn("jacobian_y", lib_text)
+            self.assertIn("y.copy_from_slice(current_state);", lib_text)
+
+            primal_expected = self._flatten_runtime_output(
+                primal_function,
+                primal_function(
+                    [1.0, 2.0],
+                    [3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                ),
+            )
+            jacobian_expected = self._flatten_runtime_output(
+                jacobian_function,
+                jacobian_function(
+                    [1.0, 2.0],
+                    [3.0, 4.0, 5.0, 6.0, 7.0, 8.0],
+                ),
+            )
+            primal_expected_literal = self._rust_array_literal(
+                primal_expected, "f64"
+            )
+            jacobian_expected_literal = self._rust_array_literal(
+                jacobian_expected, "f64"
+            )
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod tests {{
+    use super::*;
+
+    fn assert_close_slice(
+        actual: &[f64],
+        expected: &[f64],
+        tolerance: f64,
+    ) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in
+            actual.iter().zip(expected.iter())
+        {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn evaluates_joint_primal_and_jacobian() {{
+        let x = [1.0_f64, 2.0_f64];
+        let parameters = [3.0_f64, 4.0_f64, 5.0_f64, 6.0_f64, 7.0_f64, 8.0_f64];
+        let mut y = [0.0_f64; {joint_codegen.output_sizes[0]}];
+        let mut jacobian_y = [0.0_f64; {joint_codegen.output_sizes[1]}];
+        let mut work = [0.0_f64; {joint_codegen.workspace_size}];
+
+        let result = {joint_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut y,
+            &mut jacobian_y,
+            &mut work,
+        );
+        assert!(result.is_ok());
+        assert_close_slice(
+            &y,
+            &{primal_expected_literal},
+            1e-10_f64,
+        );
+        assert_close_slice(
+            &jacobian_y,
+            &{jacobian_expected_literal},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_code_generation_builder_accepts_composed_sources_directly(
         self,
     ) -> None:

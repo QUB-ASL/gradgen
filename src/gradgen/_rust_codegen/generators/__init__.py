@@ -3,6 +3,7 @@
 from .composed import (
     _generate_composed_gradient_rust,
     _generate_composed_jacobian_rust,
+    _generate_composed_joint_rust,
     _generate_composed_primal_rust,
 )
 from .map_zip import (
@@ -22,6 +23,7 @@ __all__ = [
     '_generate_composed_primal_rust',
     '_generate_composed_gradient_rust',
     '_generate_composed_jacobian_rust',
+    '_generate_composed_joint_rust',
     '_generate_batched_primal_rust',
     '_generate_batched_jacobian_rust',
     '_generate_reduced_primal_rust',
