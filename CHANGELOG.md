@@ -204,6 +204,9 @@ Link: https://pypi.org/project/gradgen/0.3.1/
   closer to `cargo fmt` style.
 - Updated zero-workspace generated Rust functions to use `_work` instead of
   `work` to avoid unused-variable warnings.
+- Updated `ComposedFunction.repeat(...)` to model repeated applications of the
+  same stage only, with `finish()` now acting as a no-argument finalizer that
+  returns the final state instead of invoking a terminal scalar function.
 - Updated Rust reduction helpers to use collision-safe names such as
   `vec_sum`, `vec_prod`, `vec_max`, `vec_min`, and `vec_mean`.
 - Updated singleton `SXVector` behavior so length-1 vectors can participate more

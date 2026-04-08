@@ -11,7 +11,13 @@ import sys
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT / "src"))
 
-from gradgen import CodeGenerationBuilder, ComposedFunction, Function, RustBackendConfig, SXVector
+from gradgen import (
+    CodeGenerationBuilder,
+    ComposedFunction,
+    Function,
+    RustBackendConfig,
+    SXVector,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -36,20 +42,21 @@ def build_parameters_value(repeats: int) -> list[float]:
     values: list[float] = []
     for repeat_index in range(repeats):
         values.extend(
-            [float(2 * repeat_index + 3),
-             float(2 * repeat_index + 4)])
-    values.append(float(2 * repeats + 3))
+            [
+                float(2 * repeat_index + 3),
+                float(2 * repeat_index + 4),
+            ]
+        )
     return values
 
 
 args = parse_args()
 
 
-# Define the composed state input and reusable stage/terminal signatures.
+# Define the composed state input and reusable stage signature.
 x = SXVector.sym("x", 2)
 state = SXVector.sym("state", 2)
 p = SXVector.sym("p", 2)
-pf = SXVector.sym("pf", 1)
 
 
 # G(a, p) = [0.9 * a_1 + p_1,
@@ -63,24 +70,13 @@ stage = Function(
 )
 
 
-# h(a, pf) = 2 * a_1 - a_2 + pf
-terminal = Function(
-    "h",
-    [state, pf],
-    [2 * state[0] - state[1] + pf[0]],
-    input_names=["state", "pf"],
-    output_names=["y"],
-)
-
-
 # Build a staged composition that starts directly with N repeated
 # applications of the same stage. Symbolic stage parameters are packed into one
-# runtime vector named "parameters", with one 2D block per stage followed by
-# the terminal scalar parameter.
+# runtime vector named "parameters", with one 2D block per stage.
 composed = (
     ComposedFunction("composed_demo", x)
     .repeat(stage, params=[p] * args.repeats)
-    .finish(terminal, p=pf)
+    .finish()
 )
 gradient = composed.gradient()
 
@@ -91,12 +87,15 @@ parameters_value = build_parameters_value(args.repeats)
 
 print("repeat count =", args.repeats)
 print("f(x, parameters) =", composed(x_value, parameters_value))
-print("grad f(x, parameters) =", gradient.to_function()(x_value, parameters_value))
+print(
+    "jacobian f(x, parameters) =",
+    gradient.to_function()(x_value, parameters_value),
+)
 
 
 # Generate one Rust crate directly from the staged composed-function object.
 # The multi-function builder now accepts staged sources directly, so the
-# generated crate can contain both the primal and staged gradient kernels while
+# generated crate can contain both the primal and staged Jacobian kernels while
 # still preserving the loop structure of the repeated stage.
 backend_config = (
     RustBackendConfig()

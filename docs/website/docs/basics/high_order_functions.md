@@ -4,7 +4,10 @@ sidebar_position: 7
 
 # Higher-order functions
 
-Gradgen supports high-order functions such as map, zip, and reduce.
+Gradgen supports higher-order functions such as map, zip, and reduce.
+The structure of these higher-order functions is exploited by the 
+code generator leading to efficient Rust code and **significantly 
+smaller code sizes**. 
 
 ## Map
 
@@ -216,7 +219,10 @@ with which we can create compositions such as the one shown above.
 
 :::
 
-**Example.** Consider an input argument $\mathbf{x} = (x_1, \ldots, x_n)$
+
+### Serial composition
+
+Consider an input argument $\mathbf{x} = (x_1, \ldots, x_n)$
 with $x_i\in\mathbb{R}^2$ and the function $u:\mathbb{R}^2\to\mathbb{R}$ with
 $u(x_i) = \sin(\Vert x_i \Vert^2)$.
 
@@ -335,12 +341,61 @@ pub fn mapped_seq_1(x_seq: &[f64], y: &mut [f64], work: &mut [f64]) -> Result<()
 
 </details>
 
+### Graph composition
+
+Coming soon...
+
+<div align="center">
+<img src="/gradgen/img/composer-parallel.png" width="70%" alt="reduce operation"/>
+</div>
 
 
+## Chained composition
 
-## Repeat and chain
+### Repeat
 
-Repeat and chain are variants of the reduce function.
+Suppose we have a symbol $x\in\mathbb{R}^n$ and a function $G({}\cdot{}, p):\mathbb{R}^n\to \mathbb{R}^n$, where $p$ is a parameter. 
+For an integer $N$ and a sequence of parameter symbols, $p_0, \ldots, p_{N-1}$ we define the following sequence:
+$$\begin{align}
+x_0 ={}& x, \\\\
+x_{k+1} ={}& G(x_k, p_k),
+\end{align}$$
+for $k=0, \ldots, N-1$. 
 
+We define the mapping 
+
+<p>$$\mathrm{repeat}_{G, N}:x \mapsto x_{N},$$</p>
+
+where $x_N$ is produced by the above sequence. For example, for $N=2$,
+we have 
+
+<p>$$\mathrm{repeat}_{G, 2}(x, p_0, p_1) = G(G(x, p_0), p_1).$$</p>
+
+Let us consider an example where $x\in\mathbb{R}^2$, 
+$p\in\mathbb{R}^3$, and 
+<p>$$G(x, p) = \begin{bmatrix}p_1 x_1 + p_2  \sin(x_1x_2) \\ \tfrac{1}{2}x_1 + p_3 x_2\end{bmatrix}.$$</p>
+
+We start by defining function $G$ as a [`Function`](/gradgen/docs/basics/functions) object:
+
+```python
+x = SXVector.sym("x", 2)
+state = SXVector.sym("state", 2)
+p = SXVector.sym("p", 3)
+
+stage = Function(
+    "g",
+    [state, p],
+    [SXVector(
+        (p[0]*state[0] + p[1]*sin(state[0]*state[1]),
+         state[0]/2 + p[2]*state[1]))],
+    input_names=["state", "p"],
+    output_names=["next_state"],
+)
+```
+
+We can now compose
+
+
+### Chain
 
 ## Code generation

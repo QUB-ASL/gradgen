@@ -1173,7 +1173,6 @@ mod single_shooting_multi_u_tests {{
 
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 1)
         g = Function(
             "g",
             [state, p],
@@ -1181,17 +1180,10 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, pf],
-            [state[0] + pf[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
         composed = (
             ComposedFunction("demo", x)
             .then(g, p=[1.0, 2.0])
-            .finish(h, p=[3.0])
+            .finish()
         )
 
         with self.assertRaises(ValueError):
@@ -1774,7 +1766,6 @@ mod single_shooting_multi_u_tests {{
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 1)
 
         g = Function(
             "G",
@@ -1783,17 +1774,10 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, pf],
-            [state[0] + state[1] + pf[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
         composed = (
             ComposedFunction("repeat_demo", x)
             .repeat(g, params=[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
-            .finish(h, p=[7.0])
+            .finish()
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -1837,19 +1821,12 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, SXVector.sym("pf", 0)],
-            [state[0] - state[1]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
 
         composed = (
             ComposedFunction("mixed_primal", x)
             .then(g, p=[10.0, 20.0])
             .repeat(g, params=[p1, p2])
-            .finish(h, p=[])
+            .finish()
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -1880,7 +1857,6 @@ mod single_shooting_multi_u_tests {{
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
         p_stage = SXVector.sym("p_stage", 2)
-        p_terminal = SXVector.sym("p_terminal", 1)
 
         g = Function(
             "g",
@@ -1889,18 +1865,11 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, p_terminal],
-            [state[0] * state[1] + p_terminal[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
 
         composed = (
             ComposedFunction("offset_demo", x)
             .then(g, p=p_stage)
-            .finish(h, p=p_terminal)
+            .finish()
         )
 
         with TemporaryDirectory() as tmpdir:
@@ -1911,15 +1880,15 @@ mod single_shooting_multi_u_tests {{
 
             self.assertIn("parameters: &[f64]", lib_text)
             self.assertIn("parameters[0..2]", lib_text)
-            self.assertIn("parameters[2..3]", lib_text)
+            self.assertNotIn("parameters[2..3]", lib_text)
             self.assertNotIn("for repeat_index", lib_text)
 
             self._append_reference_test(
                 project.project_dir,
                 composed.to_function(),
                 function_name=project.codegen.function_name,
-                inputs=([2.0, 3.0], [5.0, 7.0, 11.0]),
-                test_name="evaluates_symbolic_stage_and_terminal_offsets",
+                inputs=([2.0, 3.0], [5.0, 7.0]),
+                test_name="evaluates_symbolic_stage_offsets",
                 workspace_size_override=project.codegen.workspace_size,
             )
 
@@ -1930,7 +1899,6 @@ mod single_shooting_multi_u_tests {{
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 1)
 
         g = Function(
             "G",
@@ -1939,18 +1907,11 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, pf],
-            [state[0] + state[1] + pf[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
         composed = (
             ComposedFunction("packed_demo", x)
             .then(g, p=p)
             .repeat(g, params=[p, p])
-            .finish(h, p=pf)
+            .finish()
         )
         gradient = composed.gradient()
 
@@ -1961,14 +1922,13 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("parameters: &[f64]", lib_text)
-            self.assertIn("for repeat_index in (0..2).rev() {", lib_text)
-            self.assertIn("_vjp(", lib_text)
+            self.assertNotIn("_vjp(", lib_text)
 
             self._append_reference_test(
                 project.project_dir,
                 gradient.to_function(),
                 function_name=project.codegen.function_name,
-                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]),
+                inputs=([1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]),
                 test_name="evaluates_composed_gradient_reference",
                 workspace_size_override=project.codegen.workspace_size,
             )
@@ -1982,7 +1942,6 @@ mod single_shooting_multi_u_tests {{
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 1)
 
         g = Function(
             "G",
@@ -1991,17 +1950,10 @@ mod single_shooting_multi_u_tests {{
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state, pf],
-            [state[0] + state[1] + pf[0]],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
         composed = (
             ComposedFunction("loop_demo", x)
             .repeat(g, params=[p, p, p])
-            .finish(h, p=pf)
+            .finish()
         )
 
         builder = (
@@ -2020,9 +1972,10 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("pub fn loop_demo_loop_demo_f(", lib_text)
-            self.assertIn("pub fn loop_demo_loop_demo_grad_x(", lib_text)
             self.assertIn("for repeat_index in 0..3 {", lib_text)
-            self.assertIn("for repeat_index in (0..3).rev() {", lib_text)
+            self.assertIn("repeat_index * 2", lib_text)
+            self.assertIn("(repeat_index + 1) * 2", lib_text)
+            self.assertNotIn("_vjp(", lib_text)
             self.assertEqual(
                 len(
                     re.findall(
@@ -2031,7 +1984,7 @@ mod single_shooting_multi_u_tests {{
                         flags=re.MULTILINE,
                     )
                 ),
-                2,
+                1,
             )
             self.assertNotIn("loop_demo_loop_demo_f_repeat_0_", lib_text)
 
@@ -2040,13 +1993,13 @@ mod single_shooting_multi_u_tests {{
             primal_expected = self._flatten_runtime_output(
                 primal_function,
                 primal_function(
-                    [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+                    [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
                 ),
             )
             gradient_expected = self._flatten_runtime_output(
                 gradient_function,
                 gradient_function(
-                    [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+                    [1.0, 2.0], [3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
                 ),
             )
             primal_expected_literal = self._rust_array_literal(
@@ -2088,9 +2041,8 @@ mod tests {{
             6.0_f64,
             7.0_f64,
             8.0_f64,
-            9.0_f64,
         ];
-        let mut primal_y = [0.0_f64; 1];
+        let mut primal_y = [0.0_f64; 2];
         let mut primal_work = [0.0_f64; {project.codegens[0].workspace_size}];
         {project.codegens[0].function_name}(
             &x,
@@ -2100,7 +2052,7 @@ mod tests {{
         );
         assert_close_slice(&primal_y, &{primal_expected_literal}, 1e-12_f64);
 
-        let mut gradient_y = [0.0_f64; 2];
+        let mut gradient_y = [0.0_f64; 4];
         let mut gradient_work = [
             0.0_f64;
             {project.codegens[1].workspace_size}

@@ -636,10 +636,9 @@ mod integration_sympy_map_zip_pipeline {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
-    def test_composed_function_matches_sympy_primal_and_gradient(self) -> None:
+    def test_composed_function_matches_sympy_primal_and_jacobian(self) -> None:
         x0, x1 = sp.symbols("x0 x1", real=True)
         p_symbols = sp.symbols("p0:8", real=True)
-        pf0, pf1 = sp.symbols("pf0 pf1", real=True)
 
         state = sp.Matrix([x0, x1])
         for repeat_index in range(4):
@@ -651,29 +650,28 @@ mod integration_sympy_map_zip_pipeline {{
                     sp.Float("0.2") * state[1] + p1 * state[0] + p0**2,
                 ]
             )
-        sympy_expr = state[0] ** 2 + pf0 * state[1] + sp.exp(state[0] - pf1)
-        sympy_gradient = sp.Matrix(
-            [sp.diff(sympy_expr, x0), sp.diff(sympy_expr, x1)])
+        sympy_jacobian = state.jacobian(sp.Matrix([x0, x1]))
 
         x_values = [0.25, -0.4]
-        parameter_values = [0.6, -0.2, -0.3, 0.5, 0.9,
-                            -0.7, 0.1, 0.8, 0.75, -0.1]
+        parameter_values = [0.6, -0.2, -0.3, 0.5, 0.9, -0.7, 0.1, 0.8]
         substitutions = {
             x0: x_values[0],
             x1: x_values[1],
-            **{symbol: value for symbol, value in zip(
-                p_symbols, parameter_values[:8])},
-            pf0: parameter_values[8],
-            pf1: parameter_values[9],
+            **{
+                symbol: value
+                for symbol, value in zip(p_symbols, parameter_values)
+            },
         }
-        expected_primal = float(sympy_expr.subs(substitutions).evalf())
-        expected_gradient = self._flatten_sympy_matrix(
-            sympy_gradient.subs(substitutions).evalf())
+        expected_primal = self._flatten_sympy_matrix(
+            state.subs(substitutions).evalf()
+        )
+        expected_jacobian = self._flatten_sympy_matrix(
+            sympy_jacobian.subs(substitutions).evalf()
+        )
 
         x = SXVector.sym("x", 2)
         state_vector = SXVector.sym("state", 2)
         p = SXVector.sym("p", 2)
-        pf = SXVector.sym("pf", 2)
 
         g = Function(
             "g",
@@ -681,22 +679,22 @@ mod integration_sympy_map_zip_pipeline {{
             [
                 SXVector(
                     (
-                        0.7 * state_vector[0] + p[0] * state_vector[1] + p[1].sin(),
-                        0.2 * state_vector[1] + p[1] * state_vector[0] + p[0] * p[0],
+                        0.7 * state_vector[0]
+                        + p[0] * state_vector[1]
+                        + p[1].sin(),
+                        0.2 * state_vector[1]
+                        + p[1] * state_vector[0]
+                        + p[0] * p[0],
                     )
                 )
             ],
             input_names=["state", "p"],
             output_names=["next_state"],
         )
-        h = Function(
-            "h",
-            [state_vector, pf],
-            [state_vector[0] * state_vector[0] + pf[0] * state_vector[1] + (state_vector[0] - pf[1]).exp()],
-            input_names=["state", "pf"],
-            output_names=["y"],
-        )
-        composed = ComposedFunction("sympy_composed", x).repeat(g, params=[p, p, p, p]).finish(h, p=pf)
+        composed = ComposedFunction("sympy_composed", x).repeat(
+            g,
+            params=[p, p, p, p],
+        ).finish()
 
         builder = (
             CodeGenerationBuilder()
@@ -735,15 +733,33 @@ mod integration_sympy_composed {{
     fn matches_sympy_reference_values() {{
         let x = {self._rust_array_literal(x_values, "f64")};
         let parameters = {self._rust_array_literal(parameter_values, "f64")};
-        let mut primal_y = [0.0_f64; 1];
+        let mut primal_y = [0.0_f64; 2];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &parameters, &mut primal_y, &mut primal_work);
-        assert_close_slice(&primal_y, &{self._rust_array_literal([expected_primal], "f64")}, 1e-10_f64);
+        {primal_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut primal_y,
+            &mut primal_work,
+        );
+        assert_close_slice(
+            &primal_y,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
 
-        let mut gradient_y = [0.0_f64; 2];
+        let mut gradient_y = [0.0_f64; 4];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x, &parameters, &mut gradient_y, &mut gradient_work);
-        assert_close_slice(&gradient_y, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-10_f64);
+        {gradient_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut gradient_y,
+            &mut gradient_work,
+        );
+        assert_close_slice(
+            &gradient_y,
+            &{self._rust_array_literal(expected_jacobian, "f64")},
+            1e-10_f64,
+        );
     }}
 }}
 """.lstrip(),
