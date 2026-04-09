@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## 0.4.0 - 08-04-2026
 
+[![PyPI](https://img.shields.io/badge/gradgen-v0.4.0-blue)](https://pypi.org/project/gradgen/0.4.0)
+[![PyPI](https://img.shields.io/badge/release-v0.4.0-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.4.0)
+
+
 ### Added
 
 - `Functions` accept named arguments
@@ -158,13 +162,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## 0.3.1 - 29-03-2026
 
-Link: https://pypi.org/project/gradgen/0.3.1/ 
+[![PyPI](https://img.shields.io/badge/gradgen-v0.3.1-blue)](https://pypi.org/project/gradgen/0.3.1)
+[![PyPI](https://img.shields.io/badge/release-v0.3.1-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.3.1)
+
 
 ### Fixed
 
 - Minor: Small changes in README for the image to be properly visible
 
 ## 0.3.0 - 29-03-2026
+
+[![PyPI](https://img.shields.io/badge/gradgen-v0.3.0-blue)](https://pypi.org/project/gradgen/0.3.0)
+[![PyPI](https://img.shields.io/badge/release-v0.3.0-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.3.0)
 
 ### Added
 
