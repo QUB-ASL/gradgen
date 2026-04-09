@@ -361,7 +361,11 @@ $$\begin{align}
 x_0 ={}& x, \\\\
 x_{k+1} ={}& G(x_k, p_k),
 \end{align}$$
-for $k=0, \ldots, N-1$. 
+for $k=0, \ldots, N-1$. This is illustrated below
+
+<div align="center">
+<img src="/gradgen/img/repeat.png" width="60%" alt="repeat opearation"/>
+</div>
 
 We define the mapping 
 

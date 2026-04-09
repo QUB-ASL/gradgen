@@ -1143,8 +1143,15 @@ def _generate_composed_gradient_rust(
     function_index: int = 0,
 ) -> RustCodegenResult:
     """Generate compact Rust for a staged composed derivative kernel."""
-    return generate_rust(
-        gradient.to_function(),
+    from ...composed_function import ComposedJacobianFunction
+
+    jacobian = ComposedJacobianFunction(
+        gradient.composed,
+        gradient.name,
+        gradient.simplification,
+    )
+    return _generate_composed_jacobian_rust(
+        jacobian,
         config=config,
         function_name=function_name,
         backend_mode=backend_mode,

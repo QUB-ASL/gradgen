@@ -115,7 +115,7 @@ class ComposedGradientFunction:
     ):
         """Generate compact Rust for the staged derivative kernel."""
         return _generate_rust(
-            self.to_function(),
+            self,
             config=config,
             function_name=function_name,
             backend_mode=backend_mode,
@@ -134,7 +134,7 @@ class ComposedGradientFunction:
     ):
         """Create a Rust crate containing the staged derivative kernel."""
         return _create_rust_project(
-            self.to_function(),
+            self,
             path,
             config=config,
             crate_name=crate_name,
@@ -465,11 +465,18 @@ class ComposedFunction:
 
     def chain(self, stages: Iterable[ChainItem]) -> ComposedFunction:
         """Append a heterogeneous list of stages."""
-        composed = self
+        self._ensure_not_finished()
+        steps = list(self.steps)
         for item in stages:
-            function, parameter = _parse_chain_item(item)
-            composed = composed.then(function, p=parameter)
-        return composed
+            function, parameter_value = _parse_chain_item(item)
+            _validate_stage_function(function, self.state_input)
+            parameter = _normalize_stage_parameter(
+                function.inputs[1],
+                parameter_value,
+                role="stage",
+            )
+            _append_chained_stage(steps, function, parameter)
+        return replace(self, steps=tuple(steps))
 
     def repeat(
         self, function: Function, *, params: Iterable[StageValue]
@@ -800,6 +807,32 @@ def _parse_chain_item(item: ChainItem) -> tuple[Function, StageValue]:
         "chain entries must be Function instances or "
         "(Function, parameter) tuples"
     )
+
+
+def _append_chained_stage(
+    steps: list[StageStep], function: Function, parameter: _PackedParameter
+) -> None:
+    """Append one normalized chain stage, merging adjacent repeats."""
+    if not steps:
+        steps.append(_SingleStage(function, parameter))
+        return
+
+    last = steps[-1]
+    if isinstance(last, _SingleStage):
+        if last.function == function and last.parameter.kind == parameter.kind:
+            steps[-1] = _RepeatStage(
+                function,
+                (last.parameter, parameter),
+            )
+            return
+        steps.append(_SingleStage(function, parameter))
+        return
+
+    if last.function == function and last.parameters[0].kind == parameter.kind:
+        steps[-1] = _RepeatStage(function, (*last.parameters, parameter))
+        return
+
+    steps.append(_SingleStage(function, parameter))
 
 
 def _resolve_compiled_parameter(

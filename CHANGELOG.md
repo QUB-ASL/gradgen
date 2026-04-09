@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Added a new `demos/composed_chain` demo showing how to use
+  `ComposedFunction.chain(...)` with heterogeneous stages and mixed fixed and
+  symbolic parameter bindings.
+
+### Changed
+
+- `ComposedFunction.gradient()` and composed-source `add_gradient()` now
+  generate staged gradient kernels directly instead of flattening the
+  composed rollout into a plain symbolic Jacobian first.
+- `ComposedFunction.chain(...)` now collapses adjacent identical stages into
+  a repeat block, so generated Rust can reuse one helper definition and keep
+  loop-based emission for repeated stages.
+
+  
 ## 0.4.0 - 08-04-2026
 
 [![PyPI](https://img.shields.io/badge/gradgen-v0.4.0-blue)](https://pypi.org/project/gradgen/0.4.0)

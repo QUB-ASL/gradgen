@@ -839,6 +839,161 @@ mod integration_sympy_composed_joint {{
             completed = self._run_cargo(joint_project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_composed_chain_matches_sympy_primal_and_jacobian(self) -> None:
+        x0, x1 = sp.symbols("x0 x1", real=True)
+        p0, p1, q0, q1 = sp.symbols("p0 p1 q0 q1", real=True)
+
+        state = sp.Matrix([x0, x1])
+        state = sp.Matrix([state[0] + 1, sp.Float("0.5") * state[1] + 2])
+        state = sp.Matrix(
+            [
+                state[0] + p0 * state[1],
+                state[1] + p1,
+            ]
+        )
+        state = sp.Matrix(
+            [
+                sp.Float("0.25") * state[0] + q0,
+                sp.Float("2.0") * state[1] - q1,
+            ]
+        )
+        sympy_jacobian = state.jacobian(sp.Matrix([x0, x1]))
+
+        x_values = [0.5, -0.4]
+        parameter_values = [0.6, -1.5, 0.75, 0.2]
+        substitutions = {
+            x0: x_values[0],
+            x1: x_values[1],
+            p0: parameter_values[0],
+            p1: parameter_values[1],
+            q0: parameter_values[2],
+            q1: parameter_values[3],
+        }
+        expected_primal = self._flatten_sympy_matrix(
+            state.subs(substitutions).evalf()
+        )
+        expected_jacobian = self._flatten_sympy_matrix(
+            sympy_jacobian.subs(substitutions).evalf()
+        )
+
+        x = SXVector.sym("x", 2)
+        state_vector = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+
+        warmup = Function(
+            "warmup",
+            [state_vector, p],
+            [SXVector((state_vector[0] + 1.0, 0.5 * state_vector[1] + 2.0))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        mix = Function(
+            "mix",
+            [state_vector, p],
+            [
+                SXVector(
+                    (
+                        state_vector[0] + p[0] * state_vector[1],
+                        state_vector[1] + p[1],
+                    )
+                )
+            ],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        settle = Function(
+            "settle",
+            [state_vector, p],
+            [
+                SXVector(
+                    (
+                        0.25 * state_vector[0] + p[0],
+                        2.0 * state_vector[1] - p[1],
+                    )
+                )
+            ],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+
+        composed = (
+            ComposedFunction("sympy_chain", x)
+            .chain([(warmup, [1.0, 2.0]), (mix, p), (settle, p)])
+            .finish()
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_chain")
+            )
+            .for_function(composed)
+            .add_primal()
+            .add_gradient()
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_chain")
+            primal_codegen, gradient_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_chain {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(x_values, "f64")};
+        let parameters = {self._rust_array_literal(parameter_values, "f64")};
+        let mut primal_y = [0.0_f64; 2];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        {primal_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut primal_y,
+            &mut primal_work,
+        );
+        assert_close_slice(
+            &primal_y,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
+
+        let mut gradient_y = [0.0_f64; 4];
+        let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
+        {gradient_codegen.function_name}(
+            &x,
+            &parameters,
+            &mut gradient_y,
+            &mut gradient_work,
+        );
+        assert_close_slice(
+            &gradient_y,
+            &{self._rust_array_literal(expected_jacobian, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_single_shooting_problem_matches_sympy_cost_gradient_and_states(self) -> None:
         sx0, sx1 = sp.symbols("x0:2", real=True)
         u_symbols = sp.symbols("u0:6", real=True)
