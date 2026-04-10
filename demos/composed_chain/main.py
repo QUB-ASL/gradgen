@@ -109,8 +109,6 @@ backend_config = (
     .with_backend_mode("no_std")
     .with_scalar_type("f64")
     .with_crate_name("composed_chain_kernel")
-    .with_enable_python_interface()
-    .with_build_python_interface()
 )
 
 project = (
@@ -121,13 +119,7 @@ project = (
     .add_gradient()
     .with_simplification("medium")
     .done()
-    # .build(Path(__file__).resolve().parent)
+    .build(Path(__file__).resolve().parent)
 )
 
-# print("Generated Rust crate:", project.project_dir)
-
-import composed_chain_kernel as cck # noqa 
-
-print(cck.all_functions())
-
-print(cck.function_info('chain_demo'))
+print("Generated Rust crate:", project.project_dir)
