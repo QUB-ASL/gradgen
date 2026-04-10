@@ -412,7 +412,9 @@ composed = (
 
 ### Chain
 
-Documentation to be updated soon.
+The chain function is very similar to `repeat` but a lot more 
+flexible because it allows composing different functions with different 
+parameters.
 
 
 ## Code generation

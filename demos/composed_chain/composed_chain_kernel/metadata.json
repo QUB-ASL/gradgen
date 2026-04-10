@@ -1,6 +1,6 @@
 {
   "crate_name": "composed_chain_kernel",
-  "created_at": "2026-04-09T23:31:39.130409Z",
+  "created_at": "2026-04-10T11:23:21.223423Z",
   "gradgen_version": "0.4.0",
   "functions": [
     {
@@ -12,7 +12,7 @@
       ],
       "input_sizes": [
         2,
-        26
+        24
       ],
       "output_names": [
         "y"
@@ -30,7 +30,7 @@
       ],
       "input_sizes": [
         2,
-        26
+        24
       ],
       "output_names": [
         "jacobian_y"

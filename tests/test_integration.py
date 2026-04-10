@@ -682,13 +682,13 @@ mod integration_sympy_map_zip_pipeline {{
         g = Function(
             "g",
             [state_vector, p],
-                [
+            [
                     SXVector(
                         (
-                            0.7 * state_vector[0] * state_vector[0]
+                            0.7 * state_vector[0]**2
                             + p[0] * state_vector[1]
                             + p[1].sin(),
-                            0.2 * state_vector[1] * state_vector[1]
+                            0.2 * state_vector[1]**2
                             + p[1] * state_vector[0]
                             + p[0] * p[0],
                         )

@@ -1,0 +1,16 @@
+[package]
+name = "composed_chain_kernel_python"
+version = "0.1.0"
+edition = "2021"
+description = "Generated gradgen Python wrapper for composed_chain_kernel"
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+composed_chain_kernel = { path = "../composed_chain_kernel" }
+
+[dependencies.pyo3]
+version = "0.28.2"
+features = ["extension-module"]
