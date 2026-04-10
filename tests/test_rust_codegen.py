@@ -1794,7 +1794,7 @@ mod single_shooting_multi_u_tests {{
                 ),
                 lib_text,
             )
-            self.assertIn("for repeat_index in 0..3 {", lib_text)
+            self.assertIn("for (repeat_index, _) in", lib_text)
             self.assertNotIn("parameters: &[f64]", lib_text)
 
             self._append_reference_test(
@@ -1878,8 +1878,8 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
             helper_prefix = "chain_codegen_chain_demo"
 
-            self.assertIn("for repeat_index in 0..11 {", lib_text)
-            self.assertIn("for repeat_index in (0..11).rev() {", lib_text)
+            self.assertIn("for &parameter_offset in", lib_text)
+            self.assertIn("for &parameter_offset in", lib_text)
             self.assertEqual(
                 len(
                     re.findall(
@@ -1958,7 +1958,7 @@ mod single_shooting_multi_u_tests {{
 
             self.assertIn("parameters: &[f64]", lib_text)
             self.assertIn("&[10.0_f64, 20.0_f64]", lib_text)
-            self.assertIn("for repeat_index in 0..2 {", lib_text)
+            self.assertIn("for &parameter_offset in", lib_text)
             self.assertIn(
                 "let mixed_primal_repeat_1_g_parameter_offsets: [usize; 2] = "
                 "[0, 2];",
@@ -2050,8 +2050,8 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("parameters: &[f64]", lib_text)
-            self.assertIn("for repeat_index in 0..2 {", lib_text)
-            self.assertIn("for repeat_index in (0..2).rev() {", lib_text)
+            self.assertIn("for (repeat_index, &parameter_offset) in", lib_text)
+            self.assertIn("for (repeat_index, &parameter_offset) in", lib_text)
 
             self._append_reference_test(
                 project.project_dir,
@@ -2273,8 +2273,8 @@ mod tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("pub fn loop_demo_loop_demo_f(", lib_text)
-            self.assertIn("for repeat_index in 0..3 {", lib_text)
-            self.assertIn("for repeat_index in (0..3).rev() {", lib_text)
+            self.assertIn("for &parameter_offset in", lib_text)
+            self.assertIn("for (repeat_index, &parameter_offset) in", lib_text)
             self.assertIn(
                 "let loop_demo_loop_demo_repeat_0_G_parameter_offsets: "
                 "[usize; 3] = [0, 2, 4];",

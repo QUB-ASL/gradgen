@@ -1,7 +1,7 @@
 {
   "crate_name": "composed_kernel",
-  "created_at": "2026-04-08T13:12:54.272567Z",
-  "gradgen_version": "0.4.0a6",
+  "created_at": "2026-04-10T16:20:14.068641Z",
+  "gradgen_version": "0.4.0",
   "functions": [
     {
       "function_name": "composed_kernel_composed_demo_f",
@@ -23,7 +23,7 @@
     },
     {
       "function_name": "composed_kernel_composed_demo_grad_x",
-      "workspace_size": 1,
+      "workspace_size": 20,
       "input_names": [
         "x",
         "parameters"

@@ -1,7 +1,7 @@
 {
   "crate_name": "multi_function_kernel",
-  "created_at": "2026-04-05T02:35:04.814694Z",
-  "gradgen_version": "0.4.0a6",
+  "created_at": "2026-04-10T16:20:12.629926Z",
+  "gradgen_version": "0.4.0",
   "functions": [
     {
       "function_name": "multi_function_kernel_energy_f",

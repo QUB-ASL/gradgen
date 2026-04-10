@@ -20,10 +20,12 @@ from gradgen import (  # noqa: E402
 
 
 def build_parameters_value() -> list[float]:
-    """Return one concrete packed parameter vector for the demo chain."""
-    values = [0.6, -1.5] * 11
-    values.extend([0.75, 0.2])
-    return values
+    """Return one concrete packed parameter vector for the demo chain.
+
+    The same symbolic parameter ``p`` is reused across all chained stages,
+    so the generated composed function only needs one packed parameter block.
+    """
+    return [0.6, -1.5]
 
 
 # Define the composed state input and reusable stage signature.

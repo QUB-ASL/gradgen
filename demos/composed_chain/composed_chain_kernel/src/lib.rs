@@ -31,7 +31,7 @@ pub fn composed_chain_kernel_chain_demo_f_meta() -> FunctionMetadata {
         function_name: "composed_chain_kernel_chain_demo_f",
         workspace_size: 7,
         input_names: &["x", "parameters"],
-        input_sizes: &[2, 24],
+        input_sizes: &[2, 2],
         output_names: &["y"],
         output_sizes: &[2],
     }
@@ -48,7 +48,7 @@ pub fn composed_chain_kernel_chain_demo_f_meta() -> FunctionMetadata {
 /// - `parameters`:
 ///   packed stage-parameter slice for the composed kernel; symbolic
 ///   parameter blocks are laid out in forward stage order
-///   Expected length: 24.
+///   Expected length: 2.
 /// - `y`:
 ///   primal output slice for the declared result `y`
 ///   Expected length: 2.
@@ -66,8 +66,8 @@ pub fn composed_chain_kernel_chain_demo_f(
     if x.len() != 2 {
         return Err(GradgenError::InputTooSmall("x expected length 2"));
     };
-    if parameters.len() != 24 {
-        return Err(GradgenError::InputTooSmall("parameters expected length 24"));
+    if parameters.len() != 2 {
+        return Err(GradgenError::InputTooSmall("parameters expected length 2"));
     };
     if y.len() != 2 {
         return Err(GradgenError::OutputTooSmall("y expected length 2"));
@@ -82,10 +82,13 @@ pub fn composed_chain_kernel_chain_demo_f(
         stage_work,
     );
     current_state.copy_from_slice(next_state);
-    for repeat_index in 0..11 {
+    let composed_chain_kernel_chain_demo_repeat_1_mix_parameter_offsets: [usize; 11] =
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    for &parameter_offset in composed_chain_kernel_chain_demo_repeat_1_mix_parameter_offsets.iter()
+    {
         composed_chain_kernel_chain_demo_repeat_1_mix(
             current_state,
-            &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
+            &parameters[parameter_offset..parameter_offset + 2],
             next_state,
             stage_work,
         );
@@ -93,7 +96,7 @@ pub fn composed_chain_kernel_chain_demo_f(
     }
     composed_chain_kernel_chain_demo_stage_2_settle(
         current_state,
-        &parameters[22..24],
+        &parameters[0..2],
         next_state,
         stage_work,
     );
@@ -149,7 +152,7 @@ pub fn composed_chain_kernel_chain_demo_grad_x_meta() -> FunctionMetadata {
         function_name: "composed_chain_kernel_chain_demo_grad_x",
         workspace_size: 37,
         input_names: &["x", "parameters"],
-        input_sizes: &[2, 24],
+        input_sizes: &[2, 2],
         output_names: &["jacobian_y"],
         output_sizes: &[4],
     }
@@ -166,7 +169,7 @@ pub fn composed_chain_kernel_chain_demo_grad_x_meta() -> FunctionMetadata {
 /// - `parameters`:
 ///   packed stage-parameter slice for the composed kernel; symbolic
 ///   parameter blocks are laid out in forward stage order
-///   Expected length: 24.
+///   Expected length: 2.
 /// - `jacobian_y`:
 ///   output slice receiving the Jacobian block for declared result `y`
 ///   Expected length: 4.
@@ -184,8 +187,8 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
     if x.len() != 2 {
         return Err(GradgenError::InputTooSmall("x expected length 2"));
     };
-    if parameters.len() != 24 {
-        return Err(GradgenError::InputTooSmall("parameters expected length 24"));
+    if parameters.len() != 2 {
+        return Err(GradgenError::InputTooSmall("parameters expected length 2"));
     };
     if jacobian_y.len() != 4 {
         return Err(GradgenError::OutputTooSmall("jacobian_y expected length 4"));
@@ -206,7 +209,13 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
         );
         current_state.copy_from_slice(next_state);
     }
-    for repeat_index in 0..11 {
+    let composed_chain_kernel_chain_demo_repeat_1_mix_parameter_offsets: [usize; 11] =
+        [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    for (repeat_index, &parameter_offset) in
+        composed_chain_kernel_chain_demo_repeat_1_mix_parameter_offsets
+            .iter()
+            .enumerate()
+    {
         let stage_index = 1 + repeat_index;
         let stage_start = stage_index * 2;
         let stage_end = stage_start + 2;
@@ -214,7 +223,7 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
             let next_state = &mut state_history[stage_start..stage_end];
             composed_chain_kernel_chain_demo_repeat_1_mix(
                 current_state,
-                &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
+                &parameters[parameter_offset..parameter_offset + 2],
                 next_state,
                 stage_work,
             );
@@ -225,7 +234,7 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
         let next_state = &mut state_history[24..26];
         composed_chain_kernel_chain_demo_stage_2_settle(
             current_state,
-            &parameters[22..24],
+            &parameters[0..2],
             next_state,
             stage_work,
         );
@@ -240,7 +249,7 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
             if current_lambda_is_a {
                 composed_chain_kernel_chain_demo_stage_2_settle_vjp(
                     &state_history[22..24],
-                    &parameters[22..24],
+                    &parameters[0..2],
                     &lambda_a[..],
                     lambda_b,
                     stage_work,
@@ -248,7 +257,7 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
             } else {
                 composed_chain_kernel_chain_demo_stage_2_settle_vjp(
                     &state_history[22..24],
-                    &parameters[22..24],
+                    &parameters[0..2],
                     &lambda_b[..],
                     lambda_a,
                     stage_work,
@@ -256,13 +265,20 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
             }
             current_lambda_is_a = !current_lambda_is_a;
         }
-        for repeat_index in (0..11).rev() {
+        let composed_chain_kernel_chain_demo_repeat_1_mix_parameter_offsets: [usize; 11] =
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        for (repeat_index, &parameter_offset) in
+            composed_chain_kernel_chain_demo_repeat_1_mix_parameter_offsets
+                .iter()
+                .enumerate()
+                .rev()
+        {
             let stage_index = 1 + repeat_index;
             if stage_index == 0 {
                 if current_lambda_is_a {
                     composed_chain_kernel_chain_demo_repeat_1_mix_vjp(
                         x,
-                        &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
+                        &parameters[parameter_offset..parameter_offset + 2],
                         &lambda_a[..],
                         lambda_b,
                         stage_work,
@@ -270,7 +286,7 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
                 } else {
                     composed_chain_kernel_chain_demo_repeat_1_mix_vjp(
                         x,
-                        &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
+                        &parameters[parameter_offset..parameter_offset + 2],
                         &lambda_b[..],
                         lambda_a,
                         stage_work,
@@ -282,7 +298,7 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
                 if current_lambda_is_a {
                     composed_chain_kernel_chain_demo_repeat_1_mix_vjp(
                         &state_history[prev_start..prev_end],
-                        &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
+                        &parameters[parameter_offset..parameter_offset + 2],
                         &lambda_a[..],
                         lambda_b,
                         stage_work,
@@ -290,7 +306,7 @@ pub fn composed_chain_kernel_chain_demo_grad_x(
                 } else {
                     composed_chain_kernel_chain_demo_repeat_1_mix_vjp(
                         &state_history[prev_start..prev_end],
-                        &parameters[(repeat_index * 2)..((repeat_index + 1) * 2)],
+                        &parameters[parameter_offset..parameter_offset + 2],
                         &lambda_b[..],
                         lambda_a,
                         stage_work,
