@@ -2,6 +2,7 @@ import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import importlib
 
 import sympy as sp
 
@@ -994,7 +995,211 @@ mod integration_sympy_chain {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
-    def test_single_shooting_problem_matches_sympy_cost_gradient_and_states(self) -> None:
+    def test_composed_chain_matches_sympy_via_python_interface(self) -> None:
+        # Build a SymPy reference by applying the same chain one stage at a time.
+        # This makes the expected output and Jacobian easy to read and review.
+        x0, x1 = sp.symbols("x0 x1", real=True)
+        p1_0, p1_1 = sp.symbols("p1_0 p1_1", real=True)
+        p2_0, p2_1 = sp.symbols("p2_0 p2_1", real=True)
+
+        def f_stage(state: sp.Matrix, p0: sp.Symbol, p1: sp.Symbol) \
+                -> sp.Matrix:
+            return sp.Matrix(
+                [
+                    state[0] + p0 * state[1] + 1,
+                    sp.Rational(1, 2) * state[1] + p1,
+                ]
+            )
+
+        def g_stage(state: sp.Matrix, p0: sp.Symbol, p1: sp.Symbol) \
+                -> sp.Matrix:
+            return sp.Matrix(
+                [
+                    state[0] + p0 * state[1],
+                    state[1] + p1,
+                ]
+            )
+
+        def h_stage(state: sp.Matrix, p0: sp.Symbol, p1: sp.Symbol) \
+                -> sp.Matrix:
+            return sp.Matrix(
+                [
+                    sp.Rational(1, 4) * state[0] + p0,
+                    2 * state[1] - p1,
+                ]
+            )
+
+        sympy_state = sp.Matrix([x0, x1])
+        sympy_state = f_stage(sympy_state, p1_0, p1_1)
+        sympy_state = g_stage(sympy_state, p2_0, p2_1)
+        sympy_state = g_stage(sympy_state, sp.Integer(1), sp.Integer(2))
+        sympy_state = h_stage(sympy_state, p2_0, p2_1)
+        sympy_jacobian = sympy_state.jacobian(sp.Matrix([x0, x1]))
+
+        x_values = [0.3, -0.7]
+        p1_values = [0.2, 1.1]
+        p2_values = [-0.4, 0.6]
+        packed_parameters = [
+            *p1_values,
+            *p2_values,
+            *p2_values,
+        ]
+        substitutions = {
+            x0: x_values[0],
+            x1: x_values[1],
+            p1_0: p1_values[0],
+            p1_1: p1_values[1],
+            p2_0: p2_values[0],
+            p2_1: p2_values[1],
+        }
+        expected_primal = self._flatten_sympy_matrix(
+            sympy_state.subs(substitutions).evalf()
+        )
+        expected_jacobian = self._flatten_sympy_matrix(
+            sympy_jacobian.subs(substitutions).evalf()
+        )
+
+        # Define the same stage sequence symbolically in gradgen.
+        x = SXVector.sym("x", 2)
+        p1 = SXVector.sym("p1", 2)
+        p2 = SXVector.sym("p2", 2)
+
+        f = Function(
+            "f",
+            [x, p1],
+            [
+                SXVector(
+                    (
+                        x[0] + p1[0] * x[1] + 1.0,
+                        0.5 * x[1] + p1[1],
+                    )
+                )
+            ],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        g = Function(
+            "g",
+            [x, p2],
+            [
+                SXVector(
+                    (
+                        x[0] + p2[0] * x[1],
+                        x[1] + p2[1],
+                    )
+                )
+            ],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [x, p2],
+            [
+                SXVector(
+                    (
+                        0.25 * x[0] + p2[0],
+                        2.0 * x[1] - p2[1],
+                    )
+                )
+            ],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+
+        composed = (
+            ComposedFunction("test_chain", x)
+            .chain(
+                [
+                    (f, p1),
+                    (g, p2),
+                    (g, [1.0, 2.0]),
+                    (h, p2),
+                ]
+            )
+            .finish()
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("test_chain_kernel")
+                .with_enable_python_interface(True)
+                .with_build_python_interface(True)
+            )
+            .for_function(composed)
+            .add_primal()
+            .add_gradient()
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "test_chain_kernel")
+            self.assertIsNotNone(project.python_interface)
+            wrapper = project.python_interface
+
+            primal_codegen, gradient_codegen = project.codegens
+
+            # Make sure the generated Rust crate and the wrapper crate both
+            # compile before we exercise the Python entry points.
+            self._run_cargo(project.project_dir, "check")
+            self._run_cargo(wrapper.project_dir, "check")
+
+            # The wrapper is installed into the active test environment, so we
+            # can import it directly and exercise the public Python API here.
+            chain_module = importlib.import_module(wrapper.module_name)
+
+            def assert_close(
+                actual: list[float],
+                expected: list[float],
+                tolerance: float = 1e-10,
+            ) -> None:
+                self.assertEqual(len(actual), len(expected))
+                for index, (actual_value, expected_value) in enumerate(
+                    zip(actual, expected)
+                ):
+                    self.assertLessEqual(
+                        abs(actual_value - expected_value),
+                        tolerance,
+                        msg=(
+                            f"mismatch at index {index}: "
+                            f"{actual_value} vs {expected_value}"
+                        ),
+                    )
+
+            primal_workspace = chain_module.workspace_for_function(
+                primal_codegen.python_name
+            )
+            gradient_workspace = chain_module.workspace_for_function(
+                gradient_codegen.python_name
+            )
+
+            primal = getattr(chain_module, primal_codegen.python_name)
+            gradient = getattr(chain_module, gradient_codegen.python_name)
+
+            primal_result = primal(
+                x_values,
+                packed_parameters,
+                primal_workspace,
+            )
+            gradient_result = gradient(
+                x_values,
+                packed_parameters,
+                gradient_workspace,
+            )
+
+            assert_close(
+                primal_result[primal_codegen.output_names[0]],
+                expected_primal,
+            )
+            assert_close(
+                gradient_result[gradient_codegen.output_names[0]],
+                expected_jacobian,
+            )
+
+    def test_single_shooting_matches_sympy_cost_gradient_states(self) -> None:
         sx0, sx1 = sp.symbols("x0:2", real=True)
         u_symbols = sp.symbols("u0:6", real=True)
         p0, p1 = sp.symbols("p0 p1", real=True)
