@@ -677,20 +677,21 @@ mod integration_sympy_map_zip_pipeline {{
 
         x = SXVector.sym("x", 2)
         state_vector = SXVector.sym("state", 2)
-        p = SXVector.sym("p", 2)
+        mix_p = SXVector.sym("mix_p", 2)
+        settle_p = SXVector.sym("settle_p", 2)
 
         g = Function(
             "g",
-            [state_vector, p],
+            [state_vector, mix_p],
             [
                     SXVector(
                         (
                             0.7 * state_vector[0]**2
-                            + p[0] * state_vector[1]
-                            + p[1].sin(),
+                            + mix_p[0] * state_vector[1]
+                            + mix_p[1].sin(),
                             0.2 * state_vector[1]**2
-                            + p[1] * state_vector[0]
-                            + p[0] * p[0],
+                            + mix_p[1] * state_vector[0]
+                            + mix_p[0] * mix_p[0],
                         )
                     )
             ],
@@ -699,7 +700,7 @@ mod integration_sympy_map_zip_pipeline {{
         )
         composed = ComposedFunction("sympy_composed", x).repeat(
             g,
-            params=[p, p, p, p],
+            params=[mix_p, mix_p, mix_p, mix_p],
         ).finish()
 
         builder = (
@@ -879,23 +880,24 @@ mod integration_sympy_composed_joint {{
 
         x = SXVector.sym("x", 2)
         state_vector = SXVector.sym("state", 2)
-        p = SXVector.sym("p", 2)
+        mix_p = SXVector.sym("mix_p", 2)
+        settle_p = SXVector.sym("settle_p", 2)
 
         warmup = Function(
             "warmup",
-            [state_vector, p],
+            [state_vector, mix_p],
             [SXVector((state_vector[0] + 1.0, 0.5 * state_vector[1] + 2.0))],
             input_names=["state", "p"],
             output_names=["next_state"],
         )
         mix = Function(
             "mix",
-            [state_vector, p],
+            [state_vector, mix_p],
             [
                 SXVector(
                     (
-                        state_vector[0] + p[0] * state_vector[1],
-                        state_vector[1] + p[1],
+                        state_vector[0] + mix_p[0] * state_vector[1],
+                        state_vector[1] + mix_p[1],
                     )
                 )
             ],
@@ -904,12 +906,12 @@ mod integration_sympy_composed_joint {{
         )
         settle = Function(
             "settle",
-            [state_vector, p],
+            [state_vector, settle_p],
             [
                 SXVector(
                     (
-                        0.25 * state_vector[0] + p[0],
-                        2.0 * state_vector[1] - p[1],
+                        0.25 * state_vector[0] + settle_p[0],
+                        2.0 * state_vector[1] - settle_p[1],
                     )
                 )
             ],
@@ -919,7 +921,9 @@ mod integration_sympy_composed_joint {{
 
         composed = (
             ComposedFunction("sympy_chain", x)
-            .chain([(warmup, [1.0, 2.0]), (mix, p), (settle, p)])
+            .chain(
+                [(warmup, [1.0, 2.0]), (mix, mix_p), (settle, settle_p)]
+            )
             .finish()
         )
 
@@ -1042,7 +1046,6 @@ mod integration_sympy_chain {{
         packed_parameters = [
             *p1_values,
             *p2_values,
-            *p2_values,
         ]
         substitutions = {
             x0: x_values[0],
@@ -1062,7 +1065,8 @@ mod integration_sympy_chain {{
         # Define the same stage sequence symbolically in gradgen.
         x = SXVector.sym("x", 2)
         p1 = SXVector.sym("p1", 2)
-        p2 = SXVector.sym("p2", 2)
+        p2_a = SXVector.sym("p2", 2)
+        p2_b = SXVector.sym("p2", 2)
 
         f = Function(
             "f",
@@ -1080,12 +1084,12 @@ mod integration_sympy_chain {{
         )
         g = Function(
             "g",
-            [x, p2],
+            [x, p2_a],
             [
                 SXVector(
                     (
-                        x[0] + p2[0] * x[1],
-                        x[1] + p2[1],
+                        x[0] + p2_a[0] * x[1],
+                        x[1] + p2_a[1],
                     )
                 )
             ],
@@ -1094,12 +1098,12 @@ mod integration_sympy_chain {{
         )
         h = Function(
             "h",
-            [x, p2],
+            [x, p2_b],
             [
                 SXVector(
                     (
-                        0.25 * x[0] + p2[0],
-                        2.0 * x[1] - p2[1],
+                        0.25 * x[0] + p2_b[0],
+                        2.0 * x[1] - p2_b[1],
                     )
                 )
             ],
@@ -1112,9 +1116,9 @@ mod integration_sympy_chain {{
             .chain(
                 [
                     (f, p1),
-                    (g, p2),
+                    (g, p2_a),
                     (g, [1.0, 2.0]),
-                    (h, p2),
+                    (h, p2_b),
                 ]
             )
             .finish()

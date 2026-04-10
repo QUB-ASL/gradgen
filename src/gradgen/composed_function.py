@@ -27,6 +27,8 @@ class _PackedParameter:
     size: int
     formal: FunctionArg
     values: tuple[float, ...] = ()
+    binding_key: tuple[str, ...] | str | None = None
+    slot_index: int | None = None
 
     @property
     def symbolic_size(self) -> int:
@@ -224,6 +226,7 @@ class ComposedJacobianFunction:
 
         state: FunctionArg = self.composed.state_input
         parameter_offset = 0
+        slot_offsets: dict[int, int] = {}
         applications: list[tuple[Function, FunctionArg, FunctionArg]] = []
 
         for step in self.composed.steps:
@@ -232,6 +235,7 @@ class ComposedJacobianFunction:
                     step.parameter,
                     packed_parameters,
                     parameter_offset,
+                    slot_offsets,
                 )
                 applications.append((step.function, state, parameter_arg))
                 state = _coerce_single_output(
@@ -244,6 +248,7 @@ class ComposedJacobianFunction:
                     parameter,
                     packed_parameters,
                     parameter_offset,
+                    slot_offsets,
                 )
                 applications.append((step.function, state, parameter_arg))
                 state = _coerce_single_output(
@@ -413,7 +418,22 @@ class ComposedFunction:
     @property
     def parameter_size(self) -> int:
         """Return the packed runtime parameter length."""
-        return sum(step.symbolic_parameter_size for step in self.steps)
+        seen_slots: set[int] = set()
+        size = 0
+        for step in self.steps:
+            if isinstance(step, _SingleStage):
+                parameters = (step.parameter,)
+            else:
+                parameters = step.parameters
+            for parameter in parameters:
+                if parameter.kind != "symbolic":
+                    continue
+                if parameter.slot_index is not None:
+                    if parameter.slot_index in seen_slots:
+                        continue
+                    seen_slots.add(parameter.slot_index)
+                size += parameter.size
+        return size
 
     @property
     def stage_count(self) -> int:
@@ -467,6 +487,18 @@ class ComposedFunction:
         """Append a heterogeneous list of stages."""
         self._ensure_not_finished()
         steps = list(self.steps)
+        slot_indices = [
+            parameter.slot_index
+            for step in steps
+            for parameter in (
+                (step.parameter,)
+                if isinstance(step, _SingleStage)
+                else step.parameters
+            )
+            if parameter.slot_index is not None
+        ]
+        next_slot_index = (max(slot_indices) + 1) if slot_indices else 0
+        alias_slots: dict[tuple[str, ...] | str, int] = {}
         for item in stages:
             function, parameter_value = _parse_chain_item(item)
             _validate_stage_function(function, self.state_input)
@@ -474,7 +506,19 @@ class ComposedFunction:
                 function.inputs[1],
                 parameter_value,
                 role="stage",
+                share_aliases=True,
             )
+            if parameter.kind == "symbolic":
+                if parameter.binding_key is not None:
+                    slot_index = alias_slots.get(parameter.binding_key)
+                    if slot_index is None:
+                        slot_index = next_slot_index
+                        alias_slots[parameter.binding_key] = slot_index
+                        next_slot_index += 1
+                else:
+                    slot_index = next_slot_index
+                    next_slot_index += 1
+                parameter = replace(parameter, slot_index=slot_index)
             _append_chained_stage(steps, function, parameter)
         return replace(self, steps=tuple(steps))
 
@@ -636,6 +680,7 @@ class ComposedFunction:
     ) -> FunctionArg:
         """Build the final symbolic state using a packed parameter vector."""
         parameter_offset = 0
+        slot_offsets: dict[int, int] = {}
         state: FunctionArg = self.state_input
 
         for step in self.steps:
@@ -644,6 +689,7 @@ class ComposedFunction:
                     step.parameter,
                     packed_parameters,
                     parameter_offset,
+                    slot_offsets,
                 )
                 state = _coerce_single_output(
                     step.function(state, parameter_arg)
@@ -655,6 +701,7 @@ class ComposedFunction:
                     parameter,
                     packed_parameters,
                     parameter_offset,
+                    slot_offsets,
                 )
                 state = _coerce_single_output(
                     step.function(state, parameter_arg)
@@ -740,7 +787,11 @@ def _validate_matching_shape(
 
 
 def _normalize_stage_parameter(
-    formal: FunctionArg, value: StageValue, *, role: str
+    formal: FunctionArg,
+    value: StageValue,
+    *,
+    role: str,
+    share_aliases: bool = False,
 ) -> _PackedParameter:
     """Normalize one stage parameter binding."""
     size = _arg_size(formal)
@@ -752,7 +803,8 @@ def _normalize_stage_parameter(
 
     if isinstance(value, (SX, SXVector)):
         _validate_matching_shape(value, formal, f"{role} parameter")
-        return _PackedParameter("symbolic", size, formal)
+        binding_key = _stage_parameter_binding_key(value) if share_aliases else None
+        return _PackedParameter("symbolic", size, formal, binding_key=binding_key)
 
     if isinstance(formal, SX):
         numeric = _coerce_numeric_scalar(value, role)
@@ -791,6 +843,23 @@ def _coerce_numeric_vector(
             f"{role} vector parameters must contain only numeric values"
         )
     return tuple(float(item) for item in value)
+
+
+def _stage_parameter_binding_key(
+    value: FunctionArg,
+) -> tuple[str, ...] | str | None:
+    """Return a stable alias key for a symbolic stage parameter."""
+    if isinstance(value, SX):
+        if value.op != "symbol" or value.name is None:
+            return None
+        return value.name
+
+    names: list[str] = []
+    for element in value:
+        if element.op != "symbol" or element.name is None:
+            return None
+        names.append(element.name)
+    return tuple(names)
 
 
 def _parse_chain_item(item: ChainItem) -> tuple[Function, StageValue]:
@@ -839,6 +908,7 @@ def _resolve_compiled_parameter(
     parameter: _PackedParameter,
     packed_parameters: SXVector | None,
     offset: int,
+    slot_offsets: dict[int, int],
 ) -> tuple[FunctionArg, int]:
     """Return the symbolic argument bound to one stage parameter."""
     if parameter.kind == "fixed":
@@ -853,6 +923,13 @@ def _resolve_compiled_parameter(
         raise ValueError(
             "symbolic stage parameters require a packed parameter input"
         )
+
+    if parameter.slot_index is not None:
+        slot_offset = slot_offsets.get(parameter.slot_index)
+        if slot_offset is not None:
+            offset = slot_offset
+        else:
+            slot_offsets[parameter.slot_index] = offset
 
     if isinstance(parameter.formal, SX):
         return packed_parameters[offset], offset + 1

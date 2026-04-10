@@ -57,6 +57,26 @@ class SXTests(unittest.TestCase):
         self.assertIs(x1.node, x2.node)
         self.assertIsNot(x1.node, xc.node)
 
+    def test_symbol_equality_and_hash_use_symbol_name(self) -> None:
+        x1 = SX.sym("x", metadata={"domain": "real"})
+        x2 = SX.sym("x", metadata={"domain": "complex"})
+        y = SX.sym("y")
+
+        self.assertEqual(x1, x2)
+        self.assertEqual(hash(x1), hash(x2))
+        self.assertNotEqual(x1, y)
+        self.assertEqual({x1: "value"}[x2], "value")
+
+    def test_vector_equality_uses_elementwise_symbol_names(self) -> None:
+        p1 = SXVector.sym("p", 2)
+        p2 = SXVector.sym("p", 2)
+        q = SXVector.sym("q", 2)
+
+        self.assertEqual(p1, p2)
+        self.assertEqual(hash(p1), hash(p2))
+        self.assertNotEqual(p1, q)
+        self.assertEqual({p1: "value"}[p2], "value")
+
     def test_identical_binary_expressions_are_interned(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")

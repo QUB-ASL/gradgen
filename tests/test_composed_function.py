@@ -116,6 +116,68 @@ class ComposedFunctionTests(unittest.TestCase):
             (8.0, 25.0),
         )
 
+    def test_chain_reuses_symbolic_parameters_with_matching_names(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p1 = SXVector.sym("p1", 2)
+        p2_a = SXVector.sym("p2", 2)
+        p2_b = SXVector.sym("p2", 2)
+
+        f = Function(
+            "f",
+            [state, p1],
+            [
+                SXVector(
+                    (
+                        state[0] + p1[0] * state[1] + 1.0,
+                        0.5 * state[1] + p1[1],
+                    )
+                )
+            ],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        g = Function(
+            "g",
+            [state, p2_a],
+            [
+                SXVector(
+                    (
+                        state[0] + p2_a[0] * state[1],
+                        state[1] + p2_a[1],
+                    )
+                )
+            ],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        h = Function(
+            "h",
+            [state, p2_b],
+            [
+                SXVector(
+                    (
+                        0.25 * state[0] + p2_b[0],
+                        2.0 * state[1] - p2_b[1],
+                    )
+                )
+            ],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+
+        composed = (
+            ComposedFunction("demo", x)
+            .chain([(f, p1), (g, p2_a), (g, [1.0, 2.0]), (h, p2_b)])
+            .finish()
+        )
+
+        self.assertEqual(composed.parameter_size, 4)
+        self.assertEqual(
+            composed.to_function()([0.5, -0.4], [0.6, -1.5, 0.75, 0.2]),
+            (0.37125, 0.8),
+        )
+
     def test_repeat_rejects_empty_parameter_list(self) -> None:
         x = SXVector.sym("x", 2)
         state = SXVector.sym("state", 2)

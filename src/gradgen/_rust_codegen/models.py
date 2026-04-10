@@ -109,6 +109,7 @@ class _ComposedRepeatPlan:
     parameter_kind: str
     parameter_size: int
     parameter_offset: int
+    parameter_offsets: tuple[int, ...]
     fixed_values: tuple[tuple[float, ...], ...]
     repeat_count: int
     stage_start_index: int

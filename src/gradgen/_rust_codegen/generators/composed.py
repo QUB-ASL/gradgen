@@ -52,6 +52,26 @@ _emit_composed_gradient_reverse_repeat_block = (
 )
 
 
+def _resolve_composed_parameter_offset(
+    parameter,
+    slot_offsets: dict[int, int],
+    next_parameter_offset: int,
+) -> tuple[int, int]:
+    """Return the packed offset for one composed parameter binding."""
+    if parameter.kind == "fixed":
+        return next_parameter_offset, next_parameter_offset
+
+    if parameter.slot_index is not None:
+        existing_offset = slot_offsets.get(parameter.slot_index)
+        if existing_offset is not None:
+            return existing_offset, next_parameter_offset
+        slot_offsets[parameter.slot_index] = next_parameter_offset
+    return (
+        next_parameter_offset,
+        next_parameter_offset + parameter.symbolic_size,
+    )
+
+
 def _generate_composed_primal_rust(
     composed,
     *,
@@ -103,7 +123,8 @@ def _generate_composed_primal_rust(
     plans: list[_ComposedSinglePlan | _ComposedRepeatPlan] = []
 
     stage_index = 0
-    parameter_offset = 0
+    next_parameter_offset = 0
+    slot_offsets: dict[int, int] = {}
     max_helper_workspace = 0
     for block_index, step in enumerate(composed.steps):
         if isinstance(step, _SingleStage):
@@ -121,6 +142,13 @@ def _generate_composed_primal_rust(
                 helper_nodes=helper_nodes,
                 max_workspace=max_helper_workspace,
             )
+            parameter_offset, next_parameter_offset = (
+                _resolve_composed_parameter_offset(
+                    step.parameter,
+                    slot_offsets,
+                    next_parameter_offset,
+                )
+            )
             plans.append(
                 _ComposedSinglePlan(
                     helper_name=helper_name,
@@ -132,7 +160,6 @@ def _generate_composed_primal_rust(
                     stage_index=stage_index,
                 )
             )
-            parameter_offset += step.parameter.symbolic_size
             stage_index += 1
             continue
 
@@ -164,13 +191,27 @@ def _generate_composed_primal_rust(
                 )
             )
 
+        parameter_offsets: list[int] = []
+        for parameter in step.parameters:
+            parameter_offset, next_parameter_offset = (
+                _resolve_composed_parameter_offset(
+                    parameter,
+                    slot_offsets,
+                    next_parameter_offset,
+                )
+            )
+            parameter_offsets.append(parameter_offset)
+
         plans.append(
             _ComposedRepeatPlan(
                 helper_name=helper_name,
                 vjp_helper_name="",
                 parameter_kind=parameter_kind,
                 parameter_size=step.parameters[0].size,
-                parameter_offset=parameter_offset,
+                parameter_offset=(
+                    parameter_offsets[0] if parameter_offsets else 0
+                ),
+                parameter_offsets=tuple(parameter_offsets),
                 fixed_values=tuple(
                     parameter.values for parameter in step.parameters
                 ),
@@ -178,9 +219,6 @@ def _generate_composed_primal_rust(
                 stage_start_index=stage_index,
                 const_name=const_name,
             )
-        )
-        parameter_offset += sum(
-            parameter.symbolic_size for parameter in step.parameters
         )
         stage_index += len(step.parameters)
 
@@ -344,7 +382,8 @@ def _generate_composed_jacobian_rust(
     plans: list[_ComposedSinglePlan | _ComposedRepeatPlan] = []
 
     stage_index = 0
-    parameter_offset = 0
+    next_parameter_offset = 0
+    slot_offsets: dict[int, int] = {}
     max_helper_workspace = 0
     for block_index, step in enumerate(composed.steps):
         if isinstance(step, _SingleStage):
@@ -378,6 +417,13 @@ def _generate_composed_jacobian_rust(
                 helper_nodes=helper_nodes,
                 max_workspace=max_helper_workspace,
             )
+            parameter_offset, next_parameter_offset = (
+                _resolve_composed_parameter_offset(
+                    step.parameter,
+                    slot_offsets,
+                    next_parameter_offset,
+                )
+            )
             plans.append(
                 _ComposedSinglePlan(
                     helper_name=helper_name,
@@ -389,7 +435,6 @@ def _generate_composed_jacobian_rust(
                     stage_index=stage_index,
                 )
             )
-            parameter_offset += step.parameter.symbolic_size
             stage_index += 1
             continue
 
@@ -436,13 +481,27 @@ def _generate_composed_jacobian_rust(
                 )
             )
 
+        parameter_offsets: list[int] = []
+        for parameter in step.parameters:
+            parameter_offset, next_parameter_offset = (
+                _resolve_composed_parameter_offset(
+                    parameter,
+                    slot_offsets,
+                    next_parameter_offset,
+                )
+            )
+            parameter_offsets.append(parameter_offset)
+
         plans.append(
             _ComposedRepeatPlan(
                 helper_name=helper_name,
                 vjp_helper_name=vjp_helper_name,
                 parameter_kind=parameter_kind,
                 parameter_size=step.parameters[0].size,
-                parameter_offset=parameter_offset,
+                parameter_offset=(
+                    parameter_offsets[0] if parameter_offsets else 0
+                ),
+                parameter_offsets=tuple(parameter_offsets),
                 fixed_values=tuple(
                     parameter.values for parameter in step.parameters
                 ),
@@ -450,9 +509,6 @@ def _generate_composed_jacobian_rust(
                 stage_start_index=stage_index,
                 const_name=const_name,
             )
-        )
-        parameter_offset += sum(
-            parameter.symbolic_size for parameter in step.parameters
         )
         stage_index += len(step.parameters)
 
@@ -700,6 +756,7 @@ def _generate_composed_joint_rust(
 
     stage_index = 0
     parameter_offset = 0
+    slot_offsets: dict[int, int] = {}
     max_helper_workspace = 0
     for block_index, step in enumerate(composed.steps):
         if isinstance(step, _SingleStage):
@@ -791,13 +848,28 @@ def _generate_composed_joint_rust(
                 )
             )
 
+        parameter_offsets: list[int] = []
+        next_parameter_offset = parameter_offset
+        for parameter in step.parameters:
+            parameter_offset, next_parameter_offset = (
+                _resolve_composed_parameter_offset(
+                    parameter,
+                    slot_offsets,
+                    next_parameter_offset,
+                )
+            )
+            parameter_offsets.append(parameter_offset)
+
         plans.append(
             _ComposedRepeatPlan(
                 helper_name=helper_name,
                 vjp_helper_name=vjp_helper_name,
                 parameter_kind=parameter_kind,
                 parameter_size=step.parameters[0].size,
-                parameter_offset=parameter_offset,
+                parameter_offset=(
+                    parameter_offsets[0] if parameter_offsets else 0
+                ),
+                parameter_offsets=tuple(parameter_offsets),
                 fixed_values=tuple(
                     parameter.values for parameter in step.parameters
                 ),
@@ -806,9 +878,7 @@ def _generate_composed_joint_rust(
                 const_name=const_name,
             )
         )
-        parameter_offset += sum(
-            parameter.symbolic_size for parameter in step.parameters
-        )
+        parameter_offset = next_parameter_offset
         stage_index += len(step.parameters)
 
     state_size = _arg_size(composed.state_input)

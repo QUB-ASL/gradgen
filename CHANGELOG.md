@@ -15,13 +15,17 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- `SX` implements `__eq__` and `__hash__` so that two symbols are equal if and only 
+  if they have the same name
+- `SX` and `SXVector` now compare symbolic values by symbol name, and
+  `ComposedFunction.chain(...)` reuses the same packed parameter slot when
+  the same symbolic name appears multiple times in a chain.
 - `ComposedFunction.gradient()` and composed-source `add_gradient()` now
   generate staged gradient kernels directly instead of flattening the
   composed rollout into a plain symbolic Jacobian first.
 - `ComposedFunction.chain(...)` now collapses adjacent identical stages into
   a repeat block, so generated Rust can reuse one helper definition and keep
   loop-based emission for repeated stages.
-
   
 ## 0.4.0 - 08-04-2026
 
