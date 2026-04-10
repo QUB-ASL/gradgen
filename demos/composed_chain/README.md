@@ -23,15 +23,17 @@ G_3(a, p^{(2)}) =
 
 The final state is
 
-$$f(x, w) = G_3(G_2(G_1(x), p^{(1)}), p^{(2)}),$$
+$$f(x, w) = G_3(G_2(\cdots G_2(G_1(x), p), \ldots), p),$$
 
-where the packed parameter vector is
+where the packed parameter vector is a single shared block
 
-$$w = \left(p^{(1)}, p^{(2)}\right).$$
+$$w = p.$$
 
 This is a good minimal example because it shows:
 
 - `chain([...])` for heterogeneous stage sequences
+- repeated reuse of the same symbolic stage parameter name, which now
+  aliases to one packed parameter block
 - a mixture of fixed and symbolic stage bindings
 - one packed `parameters` input in the generated Rust code
 - one Rust crate containing both the staged primal and staged Jacobian kernels
@@ -58,6 +60,8 @@ python demos/composed_chain/main.py
 This will:
 
 - build a composition that chains three heterogeneous stages
+- reuse the same symbolic parameter name across the symbolic stages, so the
+  generated function only needs one packed 2D parameter block
 - evaluate the composed function in Python
 - evaluate the composed Jacobian in Python
 - generate one staged Rust crate in:
@@ -65,6 +69,9 @@ This will:
 ```text
 demos/composed_chain/composed_chain_kernel
 ```
+
+The generated Rust crate expects `parameters = [p_0, p_1]` and reuses that
+same block for every symbolic stage in the chain.
 
 To see how the generated crate can be used from Rust in practice, run:
 

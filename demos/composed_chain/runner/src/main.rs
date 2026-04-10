@@ -13,23 +13,13 @@ fn format_slice(values: &[f64]) -> String {
 }
 
 fn build_parameters(parameter_len: usize) -> Vec<f64> {
-    assert!(
-        parameter_len >= 4 && parameter_len.is_multiple_of(2),
-        "expected packed composed parameters to contain 2D stage blocks",
+    assert_eq!(
+        parameter_len,
+        2,
+        "expected the aliased chain demo to use one 2D parameter block",
     );
 
-    let block_count = parameter_len / 2;
-    let mut values = Vec::with_capacity(parameter_len);
-    for block_index in 0..block_count {
-        if block_index + 1 == block_count {
-            values.push(0.75);
-            values.push(0.2);
-        } else {
-            values.push(0.6);
-            values.push(-1.5);
-        }
-    }
-    values
+    vec![0.6, -1.5]
 }
 
 fn main() {
