@@ -480,6 +480,14 @@ chained = (
 
 ## Code generation
 
+We can now generate code for any of the above higher-order functions
+
+<div align="center">
+<img src="/gradgen/img/gradgen-what-it-does.png" width="60%" alt="chain opearation"/>
+</div>
+
+
+
 ```python
 builder = (
     CodeGenerationBuilder()
