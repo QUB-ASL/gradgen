@@ -487,16 +487,19 @@ We can now generate code for any of the above higher-order functions
 </div>
 
 
+Code generation works as with regular functions, that is, we can use 
+a `CodeGenerationBuilder`, enable a [Rust-Python interface](/gradgen/docs/basics/rust_py_iface), 
+etc. 
 
 ```python
 builder = (
     CodeGenerationBuilder()
     .with_backend_config(
         RustBackendConfig()
-        .with_crate_name("super_composition")
+        .with_crate_name("chained")
         .with_enable_python_interface()
     )
-    .for_function(composed)
+    .for_function(chained)
         .add_primal()
         .add_joint(
             FunctionBundle().add_f().add_jf(wrt=0)
@@ -505,3 +508,12 @@ builder = (
     .build()
 )
 ```
+
+The most significant difference with that the generated code will now be 
+**staged**, that is, instead of fully unrolled code, the above higher-order 
+functions lead to Rust code with for loops (or, what is the same iterators).
+The result is human-readable Rust code, just a few hundreds or thousands of 
+lines long (depending on the problem). The Rust code will have a significantly 
+smaller size than fully unrolled code (e.g., using [`Function`](/gradgen/docs/basics/functions)
+or using [CasADi](https://web.casadi.org/)) and will compile much faster.
+
