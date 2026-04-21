@@ -12,7 +12,8 @@ This directory contains runnable end-to-end examples showing how to use
 - [map_zip](./map_zip/README.md): staged loop-preserving packed map/zip kernels
 - [zip_3](./zip_3/README.md): three-input stage-wise batched kernels with packed sequences
 - [reduce_map](./reduce_map/README.md): map + reduce staged kernels and a loop-preserving fold pipeline
-- [composed_function](./composed_function/README.md): staged compositions with `ComposedFunction` and repeated stages
+- [composed_function](./composed_function/README.md): staged compositions with `ComposedFunction` and repeated stages via `repeat`
+- [composed_chain](./composed_chain/README.md): staged compositions with heterogeneous stages via `chain`
 - [single_shooting](./single_shooting/README.md): loop-based deterministic single-shooting OCP code generation
 - [python_interface](./python_interface/README.md): generate a Rust crate plus a separate PyO3 wrapper imported from Python
 

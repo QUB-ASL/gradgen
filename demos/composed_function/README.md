@@ -1,6 +1,8 @@
 # Composed Function Demo
 
 This demo shows how to build a staged composition with `ComposedFunction`.
+For the heterogeneous `chain([...])` variant, see
+[`../composed_chain`](../composed_chain/README.md).
 
 The state update is
 

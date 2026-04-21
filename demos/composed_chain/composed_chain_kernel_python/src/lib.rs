@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyAnyMethods, PyDict, PyFloat, PyList, PyTuple};
 use std::vec::Vec;
 
-use ::foo as gradgen_low_level;
+use ::composed_chain_kernel as gradgen_low_level;
 
 #[pyclass]
 struct Workspace {
@@ -98,7 +98,9 @@ fn wrap_output(py: Python<'_>, values: &[f64]) -> PyResult<Py<PyAny>> {
 }
 
 fn all_functions_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
-    Ok(PyList::new(py, ["energy"])?.into_any().unbind())
+    Ok(PyList::new(py, ["chain_demo", "chain_demo_grad_x"])?
+        .into_any()
+        .unbind())
 }
 
 fn module_all_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
@@ -111,7 +113,8 @@ fn module_all_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
             "function_info",
             "workspace_for_function",
             "call",
-            "energy",
+            "chain_demo",
+            "chain_demo_grad_x",
         ],
     )?
     .into_any()
@@ -121,7 +124,7 @@ fn module_all_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
 #[pyfunction(name = "__getattr__")]
 fn module_getattr(name: &str) -> PyResult<String> {
     match name {
-        "__version__" => Ok("0.5.0".to_string()),
+        "__version__" => Ok("0.1.0".to_string()),
         _ => Err(PyAttributeError::new_err(format!(
             "module has no attribute {name:?}"
         ))),
@@ -130,13 +133,24 @@ fn module_getattr(name: &str) -> PyResult<String> {
 
 fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<Workspace>> {
     match function_name {
-        "energy" => {
-            let mut values = Vec::with_capacity(2);
-            values.resize(2, 0.0_f64);
+        "chain_demo" | "composed_chain_kernel_chain_demo_f" => {
+            let mut values = Vec::with_capacity(7);
+            values.resize(7, 0.0_f64);
             Py::new(
                 py,
                 Workspace {
-                    function_name: "energy",
+                    function_name: "chain_demo",
+                    values,
+                },
+            )
+        }
+        "chain_demo_grad_x" | "composed_chain_kernel_chain_demo_grad_x" => {
+            let mut values = Vec::with_capacity(37);
+            values.resize(37, 0.0_f64);
+            Py::new(
+                py,
+                Workspace {
+                    function_name: "chain_demo_grad_x",
                     values,
                 },
             )
@@ -149,9 +163,13 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
 
 fn function_info_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<PyAny>> {
     match function_name {
-        "energy" => {
-            let metadata = gradgen_low_level::energy_meta();
-            build_function_info(py, "energy", metadata)
+        "chain_demo" | "composed_chain_kernel_chain_demo_f" => {
+            let metadata = gradgen_low_level::composed_chain_kernel_chain_demo_f_meta();
+            build_function_info(py, "chain_demo", metadata)
+        }
+        "chain_demo_grad_x" | "composed_chain_kernel_chain_demo_grad_x" => {
+            let metadata = gradgen_low_level::composed_chain_kernel_chain_demo_grad_x_meta();
+            build_function_info(py, "chain_demo_grad_x", metadata)
         }
         _ => Err(PyValueError::new_err(format!(
             "unknown generated function {function_name:?}"
@@ -165,24 +183,30 @@ fn call_impl(
     inputs: &Bound<'_, PyTuple>,
 ) -> PyResult<Py<PyAny>> {
     match function_name {
-        "energy" => call_energy_from_tuple_impl(py, inputs),
+        "chain_demo" | "composed_chain_kernel_chain_demo_f" => {
+            call_composed_chain_kernel_chain_demo_f_from_tuple_impl(py, inputs)
+        }
+        "chain_demo_grad_x" | "composed_chain_kernel_chain_demo_grad_x" => {
+            call_composed_chain_kernel_chain_demo_grad_x_from_tuple_impl(py, inputs)
+        }
         _ => Err(PyValueError::new_err(format!(
             "unknown generated function {function_name:?}"
         ))),
     }
 }
 
-fn call_energy_impl(
+fn call_composed_chain_kernel_chain_demo_f_impl(
     py: Python<'_>,
     input_0: Vec<f64>,
     input_1: Vec<f64>,
     mut workspace: PyRefMut<'_, Workspace>,
 ) -> PyResult<Py<PyAny>> {
-    let metadata = gradgen_low_level::energy_meta();
-    if workspace.function_name != "energy" && workspace.function_name != metadata.function_name {
+    let metadata = gradgen_low_level::composed_chain_kernel_chain_demo_f_meta();
+    if workspace.function_name != "chain_demo" && workspace.function_name != metadata.function_name
+    {
         return Err(PyValueError::new_err(format!(
             "workspace_for_function({:?}) must be used with {}",
-            workspace.function_name, "energy"
+            workspace.function_name, "chain_demo"
         )));
     }
     if workspace.values.len() < metadata.workspace_size {
@@ -192,30 +216,30 @@ fn call_energy_impl(
         )));
     }
 
-    let mut output_0 = [0.0_f64; 1];
-    let mut output_1 = [0.0_f64; 1];
+    let mut output_0 = [0.0_f64; 2];
 
-    gradgen_low_level::energy(
+    gradgen_low_level::composed_chain_kernel_chain_demo_f(
         &input_0[..],
         &input_1[..],
         &mut output_0[..],
-        &mut output_1[..],
         workspace.values.as_mut_slice(),
     )
     .map_err(pyerr_from_gradgen_error)?;
 
     let result = PyDict::new(py);
     result.set_item(metadata.output_names[0], wrap_output(py, &output_0)?)?;
-    result.set_item(metadata.output_names[1], wrap_output(py, &output_1)?)?;
     Ok(result.into_any().unbind())
 }
 
-fn call_energy_from_tuple_impl(py: Python<'_>, inputs: &Bound<'_, PyTuple>) -> PyResult<Py<PyAny>> {
-    let metadata = gradgen_low_level::energy_meta();
+fn call_composed_chain_kernel_chain_demo_f_from_tuple_impl(
+    py: Python<'_>,
+    inputs: &Bound<'_, PyTuple>,
+) -> PyResult<Py<PyAny>> {
+    let metadata = gradgen_low_level::composed_chain_kernel_chain_demo_f_meta();
     let expected_arg_count = metadata.input_sizes.len() + 1;
     if inputs.len() != expected_arg_count {
         return Err(PyValueError::new_err(format!(
-            "energy expected {expected_arg_count} arguments including workspace"
+            "chain_demo expected {expected_arg_count} arguments including workspace"
         )));
     }
 
@@ -231,19 +255,95 @@ fn call_energy_from_tuple_impl(py: Python<'_>, inputs: &Bound<'_, PyTuple>) -> P
     )?;
 
     let workspace = inputs.get_item(2)?.extract::<PyRefMut<'_, Workspace>>()?;
-    call_energy_impl(py, input_0, input_1, workspace)
+    call_composed_chain_kernel_chain_demo_f_impl(py, input_0, input_1, workspace)
 }
 
-#[pyfunction(name = "energy")]
-fn py_energy(
+#[pyfunction(name = "chain_demo")]
+fn py_composed_chain_kernel_chain_demo_f(
     py: Python<'_>,
     arg_0: &Bound<'_, PyAny>,
     arg_1: &Bound<'_, PyAny>,
     workspace: PyRefMut<'_, Workspace>,
 ) -> PyResult<Py<PyAny>> {
     let input_0 = extract_values(arg_0, 2, "x")?;
-    let input_1 = extract_values(arg_1, 1, "w")?;
-    call_energy_impl(py, input_0, input_1, workspace)
+    let input_1 = extract_values(arg_1, 24, "parameters")?;
+    call_composed_chain_kernel_chain_demo_f_impl(py, input_0, input_1, workspace)
+}
+
+fn call_composed_chain_kernel_chain_demo_grad_x_impl(
+    py: Python<'_>,
+    input_0: Vec<f64>,
+    input_1: Vec<f64>,
+    mut workspace: PyRefMut<'_, Workspace>,
+) -> PyResult<Py<PyAny>> {
+    let metadata = gradgen_low_level::composed_chain_kernel_chain_demo_grad_x_meta();
+    if workspace.function_name != "chain_demo_grad_x"
+        && workspace.function_name != metadata.function_name
+    {
+        return Err(PyValueError::new_err(format!(
+            "workspace_for_function({:?}) must be used with {}",
+            workspace.function_name, "chain_demo_grad_x"
+        )));
+    }
+    if workspace.values.len() < metadata.workspace_size {
+        return Err(PyValueError::new_err(format!(
+            "workspace expected at least {}",
+            metadata.workspace_size
+        )));
+    }
+
+    let mut output_0 = [0.0_f64; 4];
+
+    gradgen_low_level::composed_chain_kernel_chain_demo_grad_x(
+        &input_0[..],
+        &input_1[..],
+        &mut output_0[..],
+        workspace.values.as_mut_slice(),
+    )
+    .map_err(pyerr_from_gradgen_error)?;
+
+    let result = PyDict::new(py);
+    result.set_item(metadata.output_names[0], wrap_output(py, &output_0)?)?;
+    Ok(result.into_any().unbind())
+}
+
+fn call_composed_chain_kernel_chain_demo_grad_x_from_tuple_impl(
+    py: Python<'_>,
+    inputs: &Bound<'_, PyTuple>,
+) -> PyResult<Py<PyAny>> {
+    let metadata = gradgen_low_level::composed_chain_kernel_chain_demo_grad_x_meta();
+    let expected_arg_count = metadata.input_sizes.len() + 1;
+    if inputs.len() != expected_arg_count {
+        return Err(PyValueError::new_err(format!(
+            "chain_demo_grad_x expected {expected_arg_count} arguments including workspace"
+        )));
+    }
+
+    let input_0 = extract_values(
+        &inputs.get_item(0)?,
+        metadata.input_sizes[0],
+        metadata.input_names[0],
+    )?;
+    let input_1 = extract_values(
+        &inputs.get_item(1)?,
+        metadata.input_sizes[1],
+        metadata.input_names[1],
+    )?;
+
+    let workspace = inputs.get_item(2)?.extract::<PyRefMut<'_, Workspace>>()?;
+    call_composed_chain_kernel_chain_demo_grad_x_impl(py, input_0, input_1, workspace)
+}
+
+#[pyfunction(name = "chain_demo_grad_x")]
+fn py_composed_chain_kernel_chain_demo_grad_x(
+    py: Python<'_>,
+    arg_0: &Bound<'_, PyAny>,
+    arg_1: &Bound<'_, PyAny>,
+    workspace: PyRefMut<'_, Workspace>,
+) -> PyResult<Py<PyAny>> {
+    let input_0 = extract_values(arg_0, 2, "x")?;
+    let input_1 = extract_values(arg_1, 24, "parameters")?;
+    call_composed_chain_kernel_chain_demo_grad_x_impl(py, input_0, input_1, workspace)
 }
 
 #[pyfunction]
@@ -267,7 +367,7 @@ fn call(py: Python<'_>, function_name: &str, inputs: &Bound<'_, PyTuple>) -> PyR
 }
 
 #[pymodule]
-#[pyo3(name = "foo")]
+#[pyo3(name = "composed_chain_kernel")]
 fn gradgen_python_interface(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Workspace>()?;
     m.add_function(wrap_pyfunction!(all_functions, m)?)?;
@@ -275,7 +375,11 @@ fn gradgen_python_interface(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResul
     m.add_function(wrap_pyfunction!(module_getattr, m)?)?;
     m.add_function(wrap_pyfunction!(workspace_for_function, m)?)?;
     m.add_function(wrap_pyfunction!(call, m)?)?;
-    m.add_function(wrap_pyfunction!(py_energy, m)?)?;
+    m.add_function(wrap_pyfunction!(py_composed_chain_kernel_chain_demo_f, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        py_composed_chain_kernel_chain_demo_grad_x,
+        m
+    )?)?;
     m.dict().set_item("__all__", module_all_impl(_py)?)?;
     Ok(())
 }

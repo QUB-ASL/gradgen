@@ -123,21 +123,14 @@ def generate_rust(
             function_index=function_index,
         )
     if isinstance(function, ComposedGradientFunction):
-        return generate_rust(
-            function.to_function(),
+        return _generate_composed_gradient_rust(
+            function,
             config=config,
             function_name=function_name,
             backend_mode=backend_mode,
             scalar_type=scalar_type,
             math_library=math_library,
             function_index=function_index,
-            shared_helper_nodes=shared_helper_nodes,
-            shared_helper_suppressed_custom_wrappers=(
-                shared_helper_suppressed_custom_wrappers
-            ),
-            emit_crate_header=emit_crate_header,
-            emit_docs=emit_docs,
-            function_keyword=function_keyword,
         )
     if isinstance(function, ComposedJacobianFunction):
         return _generate_composed_jacobian_rust(

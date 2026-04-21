@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "single_shooting_kernel_python"
-version = "0.3.0"
+version = "0.4.0"
 description = "Generated gradgen Python wrapper for single_shooting_kernel"
 requires-python = ">=3.11"
 

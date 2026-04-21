@@ -229,6 +229,29 @@ class SX:
         """
         return self.node.value
 
+    def __eq__(self, other: object) -> bool:
+        """Compare symbolic expressions.
+
+        Symbols compare by name only so that symbol aliases behave as the
+        same symbolic variable. Non-symbol expressions still compare by the
+        underlying canonical node structure.
+        """
+        if not isinstance(other, SX):
+            return NotImplemented
+        if self.op == "symbol" and other.op == "symbol":
+            return self.name == other.name
+        return self.node == other.node
+
+    def __hash__(self) -> int:
+        """Hash symbolic expressions.
+
+        The hash matches :meth:`__eq__` so symbols with the same name can be
+        used interchangeably as dictionary keys or set members.
+        """
+        if self.op == "symbol":
+            return hash(("symbol", self.name))
+        return hash(self.node)
+
     @property
     def metadata(self) -> dict[str, Hashable]:
         """Return symbol metadata as a plain dictionary.

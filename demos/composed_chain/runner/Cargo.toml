@@ -1,0 +1,7 @@
+[package]
+name = "composed_chain_runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+composed_chain_kernel = { path = "../composed_chain_kernel" }

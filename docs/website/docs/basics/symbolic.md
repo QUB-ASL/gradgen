@@ -33,7 +33,7 @@ Although `SXVector`s of length 1 behave like scalar, you can "cast"
 an `SXVector` of length 1 as an `SX` using 
 
 ```python
-x = SXVector.sym("x", 2)
+x = SXVector.sym("x", 1)
 x = x[0]
 ```
 
@@ -53,6 +53,9 @@ Using scalar and vector symbols we can construct symbolic expressions.
 For example, to define the function $f(x) = ux/\Vert x \Vert_1$ we can do  
 
 ```python
+x = SXVector.sym("x", 5)
+u = SX.sym("u")
+
 f = u * x / x.norm1()
 ```
 
@@ -81,6 +84,46 @@ For vectors, the following scalar-valued operations are available:
 - `norm_p(p)`: $p$-norm
 - `norm_p_to_p(p)`: $p$-norm to the power $p$ 
 
+
+## Constants
+
+Scalar constants are first-class symbolic expressions. You can create them
+explicitly with `SX.const(...)` or the top-level `const(...)` helper:
+
+```python
+from gradgen import SX
+
+c1 = SX.const(3)
+```
+
+Constants participate in the same symbolic expressions as variables, so they
+work naturally inside function definitions and code generation.
+
+## Vectors from iterables
+
+If you already have an iterable of scalar-like values, use `vector(...)` to
+coerce it into an `SXVector`:
+
+```python
+from gradgen import SX, SXVector, vector
+
+a = SX.sym("a")
+b = SX.sym("b")
+v = vector([a, b, 1.0])
+```
+
+This is convenient when building vectors from Python lists or tuples. If you
+want a flat packed vector made from existing vectors, unpack them first:
+
+```python
+w = SXVector.sym("w", 5)
+u = SXVector((a, b))
+p = SXVector((*w, *u))
+```
+
+
+## Matvec, bilinear, and quadratic functions
+
 In optimal control applications we frequently encounter terms of the form 
 $x^\intercal P x$, where $P$ is a symmetric matrix. Such expressions can be
 constructed with `quadform` as follows
@@ -102,115 +145,87 @@ One limitation of the current framework is that $P$ needs to be a constant
 matrix. Quadratic forms with a symbolic matrix will be supported in a future 
 version.
 
+The lower-level helpers `matvec(...)` and `bilinear_form(...)` are also
+available when you want to express a constant matrix-vector product or a
+bilinear form directly:
+
+```python
+import gradgen as gg
+
+x = SXVector.sym("x", 2)
+y = SXVector.sym("y", 2)
+P = [[1, 4],
+     [2, 5]]
+
+mx = gg.matvec(P, x)
+b = gg.bilinear_form(x, P, y)
+q = gg.quadform(P, x)
+```
+
+`matvec(...)` returns a vector, `bilinear_form(...)` returns a scalar, and
+`quadform(...)` is the quadratic-form special case.
+
 Likewise, we often need to compute dot products. This can be done with `dot`:
 
 ```python
 n = 3
 x = SXVector.sym("x", n)
-q = SXVector.sym("x", n)
+q = SXVector.sym("q", n)
 f = x.dot(q)
 ```
 
-
-
-<!-- ## Complete Example
-
-Here is an example where we will define the function 
-
-$$f(x, u) = \Vert x \Vert_2^2 + u  \sin(x_1) + x_2  x_3,$$
-
-for a three-dimensional input $x$ and scalar $u$.
-
-The goal is to generate Rust code for the functions $f$, $Jf$ (the Jacobian matrix
-of $f$). 
-
-Furthermore, we want to generate a Rust function that computes simultaneous $f$ 
-and $\nabla_x f$. This often is computationally more efficient compared to computing
-$f(x, u)$ and $\nabla_x f(x, u)$ in separate functions (look for `FunctionBundle` below).
+To get the length of a vector, do 
 
 ```python
-from gradgen import CodeGenerationBuilder, Function, RustBackendConfig, SXVector, sin
+x = SXVector.sym("x", 10)
+l = len(x)  # l = 10
+```
 
-# Define the symbolic inputs.
+## Equality of symbols
+
+Symbols are uniquely identified by their *name*. For example, the following 
+symbols are equal
+
+```python
+x1 = SX.sym("x")
+x2 = SX.sym("x")
+assert x1 == x2
+```
+
+Because symbols compare by name, they are also suitable as dictionary keys or
+set members when you want name-based aliasing.
+
+
+## Concatenation
+
+Two or more symbols can be packed into a vector using the constructor of `SXVector`. For example,
+
+```python
+a = SX.sym("a")
+b = SX.sym("b")
+c = SX.sym("c")
+x = SXVector((a, b, c))
+
+assert x[0] == a
+assert len(x) == 3
+```
+
+Vectors can also be concatenated as follows:
+
+```python
 x = SXVector.sym("x", 3)
-u = SXVector.sym("u", 1)
+y = SXVector.sym("y", 5)
+a = SX.sym("a")
+z = SXVector((*x, *y, a))
 
-# Build a simple scalar-valued function of x and u
-# f(x, u) = ||x||_2^2 + u_1 * sin(x_1) + x_2 * x_3
-f_expr = x.norm2sq() + u[0] * sin(x[0]) + x[1] * x[2]
-
-# Define a Function object
-f = Function(
-    "energy",
-    [x, u],
-    [f_expr],
-    input_names=["x", "u"],
-    output_names=["energy"],
-)
-
-# (Optional) Evaluate f in Python
-x_value = [1.0, 2.0, -0.5]
-u_value = [3.0]
-print("f(x, u) =", f(x_value, u_value))
-
-# Generate code
-project = (
-    CodeGenerationBuilder()
-    .with_backend_config(
-        RustBackendConfig()
-        .with_crate_name("my_kernel")
-        .with_backend_mode("no_std")
-        .with_scalar_type("f64")
-    )
-    .for_function(f)
-        .add_primal()
-        .add_jacobian()
-        .add_joint(
-            FunctionBundle()
-            .add_f()
-            .add_jf(wrt=0)
-        )
-        .with_simplification("medium")
-        .done()
-    .build(Path(__file__).resolve().parent)
-)
+assert len(z) == 9
+assert z[1] == x[1]
+assert z[3] == y[0]
+assert z[8] == a
 ```
 
+Note that we unpack `*x` and `*y` to pass them to the constructor.
 
-Add **Markdown or React** files to `src/pages` to create a **standalone page**:
-
-- `src/pages/index.js` → `localhost:3000/`
-- `src/pages/foo.md` → `localhost:3000/foo`
-- `src/pages/foo/bar.js` → `localhost:3000/foo/bar`
-
-## Create your first React Page
-
-Create a file at `src/pages/my-react-page.js`:
-
-```jsx title="src/pages/my-react-page.js"
-import React from 'react';
-import Layout from '@theme/Layout';
-
-export default function MyReactPage() {
-  return (
-    <Layout>
-      <h1>My React page</h1>
-      <p>This is a React page</p>
-    </Layout>
-  );
-}
-```
-
-A new page is now available at [http://localhost:3000/my-react-page](http://localhost:3000/my-react-page).
-
-## Create your first Markdown Page
-
-Create a file at `src/pages/my-markdown-page.md`:
-
-```mdx title="src/pages/my-markdown-page.md"
-# My Markdown page
-
-This is a Markdown page
-```
-
-A new page is now available at [http://localhost:3000/my-markdown-page](http://localhost:3000/my-markdown-page). -->
+If you omit the unpacking, the constructor stores nested vectors instead of
+flattening them. For packed state and parameter vectors, the unpacked form is
+usually what you want.

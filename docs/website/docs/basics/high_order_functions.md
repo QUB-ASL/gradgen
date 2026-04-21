@@ -361,7 +361,11 @@ $$\begin{align}
 x_0 ={}& x, \\\\
 x_{k+1} ={}& G(x_k, p_k),
 \end{align}$$
-for $k=0, \ldots, N-1$. 
+for $k=0, \ldots, N-1$. This is illustrated below
+
+<div align="center">
+<img src="/gradgen/img/repeat.png" width="60%" alt="repeat opearation"/>
+</div>
 
 We define the mapping 
 
@@ -408,20 +412,94 @@ composed = (
 
 ### Chain
 
-Documentation to be updated soon.
+The chain function is very similar to `repeat` but a lot more 
+flexible because it allows composing different functions with different 
+parameters. An example is shown in the figure below.
+
+<div align="center">
+<img src="/gradgen/img/chain.png" width="60%" alt="chain opearation"/>
+</div>
+
+More formally, suppose we have a sequence of functions $F_i:\mathbb{R}^n\times \mathbb{R}^{m_i} \to \mathbb{R}^n$
+and symbols $p_i$, for $i=0,\ldots, K-1$. Some of these functions or symbols can be the same (see [equality of symbols](/gradgen/docs/basics/symbolic#equality-of-symbols)). 
+Consider the composition 
+$$\begin{align}x_0 ={}& x \\\\ x_{i+1} ={}& F_i(x_i, p_i), i=0, \ldots, K-1\end{align}$$
+We define the *chain* function
+<p>$$\mathrm{chain}_{(F_0, p_0)\ldots(F_{K-1}, p_{K-1})}(x, p_0, \ldots, p_{K-1}) = x_K$$</p>
+
+Let us have a look at an example. Suppose $x\in\mathbb{R}^2$, $p_0\in\mathbb{R}$, and $p_1, p_3\in\mathbb{R}^2$. Let 
+$$\begin{align}
+F(x, p_0) ={}& p_0x,
+\\\\
+G(x, p_1) {}={}& \frac{p_1^\intercal x}{\Vert p_1\Vert^2 + 1}x,
+\\\\
+H(x, p_3){}={}& \sin(p_3^\intercal x)x,
+\end{align}$$
+and suppose we want to compose these functions as shown in the figure above. 
+
+We start by defining the necessary symbols:
+
+```python
+x = SXVector.sym("x", 2)
+p0 = SX.sym("p0")
+p1 = SXVector.sym("p1", 2)
+p2 = p1
+p3 = SXVector.sym("p3", 2)
+```
+
+and then we define the functions $F$, $G$ and $H$:
+
+```python
+F = Function(name="F",
+             inputs=[x, p0],
+             outputs=[p0 * x])
+
+G = Function(name="G",
+             inputs=[x, p1],
+             outputs=[p1.dot(x) / (p1.norm2sq() + 1) * x])
+
+H = Function(name="H",
+             inputs=[x, p3],
+             outputs=[sin(p3.dot(x))*x])
+```
+
+We can now create a chain object
+
+```python
+chained = (
+    ComposedFunction("chained", x)
+    .chain([
+        (F, p0),
+        (G, p1),
+        (G, p2),
+        (H, p3)
+    ]).finish()
+)
+```
 
 
 ## Code generation
+
+We can now generate code for any of the above higher-order functions
+
+<div align="center">
+<img src="/gradgen/img/gradgen-what-it-does.png" width="60%" alt="chain opearation"/>
+</div>
+
+
+Code generation works as with regular functions, that is, we can use 
+a `CodeGenerationBuilder`, enable a [Rust-Python interface](/gradgen/docs/basics/rust_py_iface), 
+etc. 
 
 ```python
 builder = (
     CodeGenerationBuilder()
     .with_backend_config(
         RustBackendConfig()
-        .with_crate_name("super_composition")
+        .with_crate_name("chained")
         .with_enable_python_interface()
     )
-    .for_function(composed)
+    .for_function(chained)
         .add_primal()
         .add_joint(
             FunctionBundle().add_f().add_jf(wrt=0)
@@ -430,3 +508,12 @@ builder = (
     .build()
 )
 ```
+
+The most significant difference with that the generated code will now be 
+**staged**, that is, instead of fully unrolled code, the above higher-order 
+functions lead to Rust code with for loops (or, what is the same iterators).
+The result is human-readable Rust code, just a few hundreds or thousands of 
+lines long (depending on the problem). The Rust code will have a significantly 
+smaller size than fully unrolled code (e.g., using [`Function`](/gradgen/docs/basics/functions)
+or using [CasADi](https://web.casadi.org/)) and will compile much faster.
+

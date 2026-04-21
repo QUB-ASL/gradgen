@@ -1,18 +1,18 @@
 {
-  "crate_name": "composed_kernel",
-  "created_at": "2026-04-10T16:20:14.068641Z",
+  "crate_name": "composed_chain_kernel",
+  "created_at": "2026-04-10T16:23:39.825008Z",
   "gradgen_version": "0.4.0",
   "functions": [
     {
-      "function_name": "composed_kernel_composed_demo_f",
-      "workspace_size": 6,
+      "function_name": "composed_chain_kernel_chain_demo_f",
+      "workspace_size": 7,
       "input_names": [
         "x",
         "parameters"
       ],
       "input_sizes": [
         2,
-        10
+        2
       ],
       "output_names": [
         "y"
@@ -22,15 +22,15 @@
       ]
     },
     {
-      "function_name": "composed_kernel_composed_demo_grad_x",
-      "workspace_size": 20,
+      "function_name": "composed_chain_kernel_chain_demo_grad_x",
+      "workspace_size": 37,
       "input_names": [
         "x",
         "parameters"
       ],
       "input_sizes": [
         2,
-        10
+        2
       ],
       "output_names": [
         "jacobian_y"

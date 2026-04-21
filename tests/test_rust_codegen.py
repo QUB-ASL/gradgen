@@ -120,6 +120,7 @@ class RustCodegenTests(unittest.TestCase):
         function_name: str,
         inputs: object,
         test_name: str,
+        module_name: str = "tests",
         config: RustBackendConfig | None = None,
         tolerance: float = 1e-12,
         workspace_size_override: int | None = None,
@@ -184,7 +185,7 @@ class RustCodegenTests(unittest.TestCase):
             project_dir,
             f"""
 #[cfg(test)]
-mod tests {{
+mod {module_name} {{
     use super::*;
 
     fn assert_close_slice(
@@ -1793,7 +1794,7 @@ mod single_shooting_multi_u_tests {{
                 ),
                 lib_text,
             )
-            self.assertIn("for repeat_index in 0..3 {", lib_text)
+            self.assertIn("for (repeat_index, _) in", lib_text)
             self.assertNotIn("parameters: &[f64]", lib_text)
 
             self._append_reference_test(
@@ -1803,6 +1804,126 @@ mod single_shooting_multi_u_tests {{
                 inputs=([1.0, 2.0],),
                 test_name="evaluates_composed_primal_reference",
                 workspace_size_override=project.codegen.workspace_size,
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_composed_chain_collapses_adjacent_identical_stages(self) -> None:
+        x = SXVector.sym("x", 2)
+        state = SXVector.sym("state", 2)
+        p = SXVector.sym("p", 2)
+
+        warmup = Function(
+            "warmup",
+            [state, p],
+            [SXVector((state[0] + p[0], 0.5 * state[1] + p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        mix = Function(
+            "mix",
+            [state, p],
+            [SXVector((state[0] + p[0] * state[1], state[1] + p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+        settle = Function(
+            "settle",
+            [state, p],
+            [SXVector((0.25 * state[0] + p[0], 2.0 * state[1] - p[1]))],
+            input_names=["state", "p"],
+            output_names=["next_state"],
+        )
+
+        composed = (
+            ComposedFunction("chain_demo", x)
+            .chain(
+                [
+                    (warmup, [1.0, 2.0]),
+                    (mix, p),
+                    (mix, p),
+                    (mix, p),
+                    (mix, p),
+                    (mix, p),
+                    (mix, p),
+                    (mix, p),
+                    (mix, p),
+                    (mix, p),
+                    (mix, p),
+                    (mix, p),
+                    (settle, p),
+                ]
+            )
+            .finish()
+        )
+
+        backend_config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_crate_name("chain_codegen")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = (
+                CodeGenerationBuilder()
+                .with_backend_config(backend_config)
+                .for_function(composed)
+                .add_primal()
+                .add_gradient()
+                .with_simplification("medium")
+                .done()
+                .build(Path(tmpdir) / "chain_codegen")
+            )
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            helper_prefix = "chain_codegen_chain_demo"
+
+            self.assertIn("for &parameter_offset in", lib_text)
+            self.assertIn("for &parameter_offset in", lib_text)
+            self.assertEqual(
+                len(
+                    re.findall(
+                        rf"fn {re.escape(helper_prefix)}_repeat_1_mix\(",
+                        lib_text,
+                    )
+                ),
+                1,
+            )
+            self.assertEqual(
+                len(
+                    re.findall(
+                        rf"fn {re.escape(helper_prefix)}_repeat_1_mix_vjp\(",
+                        lib_text,
+                    )
+                ),
+                1,
+            )
+            self.assertNotIn(
+                f"fn {helper_prefix}_stage_2_mix(", lib_text
+            )
+            self.assertNotIn(
+                f"fn {helper_prefix}_stage_3_mix(", lib_text
+            )
+
+            self._append_reference_test(
+                project.project_dir,
+                composed.to_function(),
+                function_name=project.codegens[0].function_name,
+                inputs=([0.5, -0.4], [0.6, -1.5]),
+                test_name="evaluates_composed_chain_primal_reference",
+                module_name="chain_primal_tests",
+                config=backend_config,
+                workspace_size_override=project.codegens[0].workspace_size,
+            )
+            self._append_reference_test(
+                project.project_dir,
+                composed.gradient().to_function(),
+                function_name=project.codegens[1].function_name,
+                inputs=([0.5, -0.4], [0.6, -1.5]),
+                test_name="evaluates_composed_chain_gradient_reference",
+                module_name="chain_gradient_tests",
+                config=backend_config,
+                workspace_size_override=project.codegens[1].workspace_size,
             )
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
@@ -1837,9 +1958,16 @@ mod single_shooting_multi_u_tests {{
 
             self.assertIn("parameters: &[f64]", lib_text)
             self.assertIn("&[10.0_f64, 20.0_f64]", lib_text)
-            self.assertIn("for repeat_index in 0..2 {", lib_text)
-            self.assertIn("repeat_index * 2", lib_text)
-            self.assertIn("(repeat_index + 1) * 2", lib_text)
+            self.assertIn("for &parameter_offset in", lib_text)
+            self.assertIn(
+                "let mixed_primal_repeat_1_g_parameter_offsets: [usize; 2] = "
+                "[0, 2];",
+                lib_text,
+            )
+            self.assertIn(
+                "&parameters[parameter_offset..parameter_offset + 2]",
+                lib_text,
+            )
 
             self._append_reference_test(
                 project.project_dir,
@@ -1922,7 +2050,8 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("parameters: &[f64]", lib_text)
-            self.assertNotIn("_vjp(", lib_text)
+            self.assertIn("for (repeat_index, &parameter_offset) in", lib_text)
+            self.assertIn("for (repeat_index, &parameter_offset) in", lib_text)
 
             self._append_reference_test(
                 project.project_dir,
@@ -2144,21 +2273,37 @@ mod tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("pub fn loop_demo_loop_demo_f(", lib_text)
-            self.assertIn("for repeat_index in 0..3 {", lib_text)
-            self.assertIn("repeat_index * 2", lib_text)
-            self.assertIn("(repeat_index + 1) * 2", lib_text)
-            self.assertNotIn("_vjp(", lib_text)
+            self.assertIn("for &parameter_offset in", lib_text)
+            self.assertIn("for (repeat_index, &parameter_offset) in", lib_text)
+            self.assertIn(
+                "let loop_demo_loop_demo_repeat_0_G_parameter_offsets: "
+                "[usize; 3] = [0, 2, 4];",
+                lib_text,
+            )
+            self.assertIn(
+                "&parameters[parameter_offset..parameter_offset + 2]",
+                lib_text,
+            )
             self.assertEqual(
                 len(
                     re.findall(
-                        r"^fn loop_demo_loop_demo_repeat_0_[A-Za-z0-9_]+\(",
+                        r"^fn loop_demo_loop_demo_repeat_0_G\(",
                         lib_text,
                         flags=re.MULTILINE,
                     )
                 ),
                 1,
             )
-            self.assertNotIn("loop_demo_loop_demo_f_repeat_0_", lib_text)
+            self.assertEqual(
+                len(
+                    re.findall(
+                        r"^fn loop_demo_loop_demo_repeat_0_G_vjp\(",
+                        lib_text,
+                        flags=re.MULTILINE,
+                    )
+                ),
+                1,
+            )
 
             primal_function = composed.to_function()
             gradient_function = composed.gradient().to_function()

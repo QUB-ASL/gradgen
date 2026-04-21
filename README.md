@@ -103,7 +103,7 @@ See this complete [tutorial](https://qub-asl.github.io/gradgen/docs/basics/ocp) 
 
 - Truly embdedable safe Rust code with optional [`#[no_std]`](https://docs.rust-embedded.org/book/intro/no-std.html), no dynamic memory allocation, no `panic!`s
 - Specialised code generation tools for optimal control problems ([docs](https://qub-asl.github.io/gradgen/docs/basics/ocp))
-- Very efficient code generation thanks to modular code generation using [`map`](./demos/map_zip/), [`zip`](./demos/zip_3/), [`repeat`](./demos/composed_function/), and `chain` high-order functions.
+- Very efficient code generation thanks to modular code generation using [`map`](./demos/map_zip/), [`zip`](./demos/zip_3/), [`repeat`](./demos/composed_function/), and [`chain`](./demos/composed_chain/) high-order functions.
 - Supports both single (`f32`) and double (`f64`) precision arithmetic
 
 ## Where to go next?

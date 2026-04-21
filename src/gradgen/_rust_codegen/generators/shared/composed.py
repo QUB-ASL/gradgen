@@ -70,6 +70,7 @@ def _emit_composed_parameter_ref(
     scalar_type,
     const_name: str,
     index_var: str | None = None,
+    offset_expr: str | None = None,
 ) -> str:
     """Return the Rust expression used to pass one composed parameter slice."""
     if parameter_kind == "fixed":
@@ -86,6 +87,13 @@ def _emit_composed_parameter_ref(
             "symbolic composed parameters require a packed parameter input")
     if parameter_size == 0:
         return "&[]"
+    if offset_expr is not None:
+        if parameter_size == 1:
+            return f"&{parameters_name}[{offset_expr}..{offset_expr} + 1]"
+        return (
+            f"&{parameters_name}[{offset_expr}.."
+            f"{offset_expr} + {parameter_size}]"
+        )
     if index_var is None:
         end = parameter_offset + parameter_size
         return f"&{parameters_name}[{parameter_offset}..{end}]"
@@ -158,6 +166,33 @@ def _emit_composed_primal_repeat_block(
     scalar_type,
 ) -> list[str]:
     """Emit a loop-based primal repeat block."""
+    offsets_name = sanitize_ident(f"{plan.helper_name}_parameter_offsets")
+    offset_values = ", ".join(str(offset) for offset in plan.parameter_offsets)
+    lines = [
+        f"let {offsets_name}: [usize; {plan.repeat_count}] = "
+        f"[{offset_values}];",
+    ]
+    if plan.parameter_kind == "fixed":
+        parameter_ref = _emit_composed_parameter_ref(
+            plan.parameter_kind,
+            plan.parameter_size,
+            plan.parameter_offset,
+            (),
+            parameters_name=parameters_name,
+            scalar_type=scalar_type,
+            const_name=plan.const_name,
+            index_var="repeat_index",
+        )
+        lines.extend(
+            [
+                f"for (repeat_index, _) in {offsets_name}.iter().enumerate() {{",
+                f"    {plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
+                "    current_state.copy_from_slice(next_state);",
+                "}",
+            ]
+        )
+        return lines
+
     parameter_ref = _emit_composed_parameter_ref(
         plan.parameter_kind,
         plan.parameter_size,
@@ -166,14 +201,17 @@ def _emit_composed_primal_repeat_block(
         parameters_name=parameters_name,
         scalar_type=scalar_type,
         const_name=plan.const_name,
-        index_var="repeat_index",
+        offset_expr="parameter_offset",
     )
-    return [
-        f"for repeat_index in 0..{plan.repeat_count} {{",
-        f"    {plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
-        "    current_state.copy_from_slice(next_state);",
-        "}",
-    ]
+    lines.extend(
+        [
+            f"for &parameter_offset in {offsets_name}.iter() {{",
+            f"    {plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
+            "    current_state.copy_from_slice(next_state);",
+            "}",
+        ]
+    )
+    return lines
 
 
 def _emit_composed_gradient_forward_single_block(
@@ -212,6 +250,39 @@ def _emit_composed_gradient_forward_repeat_block(
     state_size: int,
 ) -> list[str]:
     """Emit one forward-pass repeat loop for a composed gradient."""
+    offsets_name = sanitize_ident(f"{plan.helper_name}_parameter_offsets")
+    offset_values = ", ".join(str(offset) for offset in plan.parameter_offsets)
+    lines = [
+        f"let {offsets_name}: [usize; {plan.repeat_count}] = "
+        f"[{offset_values}];",
+    ]
+    if plan.parameter_kind == "fixed":
+        parameter_ref = _emit_composed_parameter_ref(
+            plan.parameter_kind,
+            plan.parameter_size,
+            plan.parameter_offset,
+            (),
+            parameters_name=parameters_name,
+            scalar_type=scalar_type,
+            const_name=plan.const_name,
+            index_var="repeat_index",
+        )
+        lines.extend(
+            [
+                f"for (repeat_index, _) in {offsets_name}.iter().enumerate() {{",
+                f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
+                f"    let stage_start = stage_index * {state_size};",
+                f"    let stage_end = stage_start + {state_size};",
+                "    {",
+                "        let next_state = &mut state_history[stage_start..stage_end];",
+                f"        {plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
+                "        current_state.copy_from_slice(next_state);",
+                "    }",
+                "}",
+            ]
+        )
+        return lines
+
     parameter_ref = _emit_composed_parameter_ref(
         plan.parameter_kind,
         plan.parameter_size,
@@ -220,20 +291,23 @@ def _emit_composed_gradient_forward_repeat_block(
         parameters_name=parameters_name,
         scalar_type=scalar_type,
         const_name=plan.const_name,
-        index_var="repeat_index",
+        offset_expr="parameter_offset",
     )
-    return [
-        f"for repeat_index in 0..{plan.repeat_count} {{",
-        f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
-        f"    let stage_start = stage_index * {state_size};",
-        f"    let stage_end = stage_start + {state_size};",
-        "    {",
-        "        let next_state = &mut state_history[stage_start..stage_end];",
-        f"        {plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
-        "        current_state.copy_from_slice(next_state);",
-        "    }",
-        "}",
-    ]
+    lines.extend(
+        [
+            f"for (repeat_index, &parameter_offset) in {offsets_name}.iter().enumerate() {{",
+            f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
+            f"    let stage_start = stage_index * {state_size};",
+            f"    let stage_end = stage_start + {state_size};",
+            "    {",
+            "        let next_state = &mut state_history[stage_start..stage_end];",
+            f"        {plan.helper_name}(current_state, {parameter_ref}, next_state, stage_work);",
+            "        current_state.copy_from_slice(next_state);",
+            "    }",
+            "}",
+        ]
+    )
+    return lines
 
 
 def _emit_composed_gradient_reverse_single_block(
@@ -281,6 +355,48 @@ def _emit_composed_gradient_reverse_repeat_block(
     input_name: str,
 ) -> list[str]:
     """Emit one reverse-pass repeat loop for a composed gradient."""
+    offsets_name = sanitize_ident(f"{plan.helper_name}_parameter_offsets")
+    offset_values = ", ".join(str(offset) for offset in plan.parameter_offsets)
+    lines = [
+        f"let {offsets_name}: [usize; {plan.repeat_count}] = "
+        f"[{offset_values}];",
+    ]
+    if plan.parameter_kind == "fixed":
+        parameter_ref = _emit_composed_parameter_ref(
+            plan.parameter_kind,
+            plan.parameter_size,
+            plan.parameter_offset,
+            (),
+            parameters_name=parameters_name,
+            scalar_type=scalar_type,
+            const_name=plan.const_name,
+            index_var="repeat_index",
+        )
+        lines.extend(
+            [
+                f"for (repeat_index, _) in {offsets_name}.iter().enumerate().rev() {{",
+                f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
+                "    if stage_index == 0 {",
+                "        if current_lambda_is_a {",
+                f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
+                "        } else {",
+                f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_b[..], lambda_a, stage_work);",
+                "        }",
+                "    } else {",
+                f"        let prev_start = (stage_index - 1) * {state_size};",
+                f"        let prev_end = prev_start + {state_size};",
+                "        if current_lambda_is_a {",
+                f"            {plan.vjp_helper_name}(&state_history[prev_start..prev_end], {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
+                "        } else {",
+                f"            {plan.vjp_helper_name}(&state_history[prev_start..prev_end], {parameter_ref}, &lambda_b[..], lambda_a, stage_work);",
+                "        }",
+                "    }",
+                "    current_lambda_is_a = !current_lambda_is_a;",
+                "}",
+            ]
+        )
+        return lines
+
     parameter_ref = _emit_composed_parameter_ref(
         plan.parameter_kind,
         plan.parameter_size,
@@ -289,26 +405,29 @@ def _emit_composed_gradient_reverse_repeat_block(
         parameters_name=parameters_name,
         scalar_type=scalar_type,
         const_name=plan.const_name,
-        index_var="repeat_index",
+        offset_expr="parameter_offset",
     )
-    return [
-        f"for repeat_index in (0..{plan.repeat_count}).rev() {{",
-        f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
-        "    if stage_index == 0 {",
-        "        if current_lambda_is_a {",
-        f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
-        "        } else {",
-        f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_b[..], lambda_a, stage_work);",
-        "        }",
-        "    } else {",
-        f"        let prev_start = (stage_index - 1) * {state_size};",
-        f"        let prev_end = prev_start + {state_size};",
-        "        if current_lambda_is_a {",
-        f"            {plan.vjp_helper_name}(&state_history[prev_start..prev_end], {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
-        "        } else {",
-        f"            {plan.vjp_helper_name}(&state_history[prev_start..prev_end], {parameter_ref}, &lambda_b[..], lambda_a, stage_work);",
-        "        }",
-        "    }",
-        "    current_lambda_is_a = !current_lambda_is_a;",
-        "}",
-    ]
+    lines.extend(
+        [
+            f"for (repeat_index, &parameter_offset) in {offsets_name}.iter().enumerate().rev() {{",
+            f"    let stage_index = {_compose_offset_expr(plan.stage_start_index, 'repeat_index')};",
+            "    if stage_index == 0 {",
+            "        if current_lambda_is_a {",
+            f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
+            "        } else {",
+            f"            {plan.vjp_helper_name}({input_name}, {parameter_ref}, &lambda_b[..], lambda_a, stage_work);",
+            "        }",
+            "    } else {",
+            f"        let prev_start = (stage_index - 1) * {state_size};",
+            f"        let prev_end = prev_start + {state_size};",
+            "        if current_lambda_is_a {",
+            f"            {plan.vjp_helper_name}(&state_history[prev_start..prev_end], {parameter_ref}, &lambda_a[..], lambda_b, stage_work);",
+            "        } else {",
+            f"            {plan.vjp_helper_name}(&state_history[prev_start..prev_end], {parameter_ref}, &lambda_b[..], lambda_a, stage_work);",
+            "        }",
+            "    }",
+            "    current_lambda_is_a = !current_lambda_is_a;",
+            "}",
+        ]
+    )
+    return lines
