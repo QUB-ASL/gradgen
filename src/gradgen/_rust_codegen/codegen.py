@@ -447,6 +447,7 @@ def generate_rust(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
+        header=resolved_config.header,
         workspace_size=workspace_size,
         workspace_assert_line=_ws_assert,
         workspace_return_line=_ws_return,

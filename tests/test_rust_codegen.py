@@ -1383,10 +1383,11 @@ mod single_shooting_multi_u_tests {{
             project = (
                 CodeGenerationBuilder()
                 .with_backend_config(
-                    RustBackendConfig().with_crate_name("deps_demo")
-                )
-                .with_additional_dependencies(
-                    ["serde", ("smallvec", "1.13")]
+                    RustBackendConfig()
+                    .with_crate_name("deps_demo")
+                    .with_additional_dependencies(
+                        ["serde", ("smallvec", "1.13")]
+                    )
                 )
                 .for_function(f)
                 .add_primal()
@@ -3429,6 +3430,43 @@ mod tests {{
                     )
                 raise
             self.assertEqual(completed.returncode, 0)
+
+    def test_no_std_project_inserts_custom_header_after_crate_attrs(
+        self,
+    ) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "header_kernel",
+            [x],
+            [x.sin()],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_header(
+                "use smallvec::{smallvec, SmallVec};\n\nfn helper() {}"
+            )
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(
+                f,
+                Path(tmpdir) / "header_kernel",
+                config=config,
+            )
+
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            header_text = (
+                "#![forbid(unsafe_code)]\n\n"
+                "use smallvec::{smallvec, SmallVec};"
+            )
+            self.assertTrue(
+                lib_text.startswith("#![no_std]\n#![forbid(unsafe_code)]")
+            )
+            self.assertIn(header_text, lib_text)
+            self.assertIn("fn helper() {}", lib_text)
 
     def test_invalid_backend_mode_is_rejected(self) -> None:
         x = SX.sym("x")

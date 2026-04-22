@@ -177,37 +177,6 @@ class CodeGenerationBuilder:
         """Return a copy applying ``max_effort`` simplification to generated kernels."""
         return replace(self, simplification=max_effort)
 
-    def with_additional_dependencies(
-        self,
-        dependencies: (
-            list[str | tuple[str, str | None]]
-            | tuple[str | tuple[str, str | None], ...]
-        ),
-    ) -> CodeGenerationBuilder:
-        """Return a copy with extra Cargo dependencies included.
-
-        Args:
-            dependencies: Additional dependencies to include in the generated
-                ``Cargo.toml``. Each item may be either a dependency name, in
-                which case the version defaults to ``"*"`` in Cargo syntax, or
-                a ``(name, version)`` pair.
-
-        Returns:
-            A copy of the builder with the dependency list stored in the
-            active backend config.
-        """
-        from .config import RustBackendConfig
-
-        resolved_config = self.config or RustBackendConfig()
-        if not hasattr(resolved_config, "with_additional_dependencies"):
-            raise TypeError(
-                "with_additional_dependencies requires RustBackendConfig"
-            )
-        return replace(
-            self,
-            config=resolved_config.with_additional_dependencies(dependencies),
-        )
-
     def add_primal(self,
                    *,
                    include_states: bool = False) \

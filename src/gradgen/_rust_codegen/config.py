@@ -29,6 +29,7 @@ class RustBackendConfig:
     scalar_type: RustScalarType = "f64"
     crate_name: str | None = None
     function_name: str | None = None
+    header: str | None = None
     emit_metadata_helpers: bool = True
     enable_python_interface: bool = False
     build_python_interface: bool = True
@@ -58,6 +59,19 @@ class RustBackendConfig:
         """Return a copy with a different generated Rust function name."""
         validate_rust_ident(function_name, label="function_name")
         return replace(self, function_name=function_name)
+
+    def with_header(self, header: str | None) -> RustBackendConfig:
+        """Return a copy with a custom Rust module header.
+
+        Args:
+            header: Extra Rust source to insert near the top of generated
+                ``src/lib.rs``. The text is written after crate attributes such
+                as ``#![no_std]`` and ``#![forbid(unsafe_code)]``.
+
+        Returns:
+            A copy of the config with the provided header text.
+        """
+        return replace(self, header=header)
 
     def with_emit_metadata_helpers(self,
                                    emit_metadata_helpers: bool) \

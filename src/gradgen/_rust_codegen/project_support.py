@@ -324,6 +324,8 @@ def _render_multi_function_lib(
     sections: list[str] = []
     seen_private_helpers: set[str] = set()
     seen_generated_module_sections: set[str] = set()
+    header = config.header.rstrip() if config.header else None
+    header_emitted = False
     if config.backend_mode == "no_std":
         sections.append("#![no_std]")
 
@@ -333,8 +335,30 @@ def _render_multi_function_lib(
             source = source[len("#![no_std]\n\n"):]
         elif source.startswith("#![no_std]\n"):
             source = source[len("#![no_std]\n"):]
-        for section in (part.rstrip()
-                        for part in source.split("\n\n") if part.strip()):
+        codegen_sections = [
+            part.rstrip()
+            for part in source.split("\n\n")
+            if part.strip()
+        ]
+        if header is not None and codegen_sections:
+            first_section = codegen_sections[0]
+            if first_section == header:
+                if header_emitted:
+                    codegen_sections = codegen_sections[1:]
+                else:
+                    header_emitted = True
+            elif first_section.endswith(header):
+                header_prefix = first_section[: -len(header)].rstrip()
+                if header_prefix.endswith("\n"):
+                    header_prefix = header_prefix[:-1].rstrip()
+                if header_emitted:
+                    codegen_sections[0] = header_prefix
+                else:
+                    codegen_sections[0] = header_prefix
+                    codegen_sections.insert(1, header)
+                    header_emitted = True
+
+        for section in codegen_sections:
             module_key = _generated_module_section_key(section)
             if module_key is not None:
                 if module_key in seen_generated_module_sections:

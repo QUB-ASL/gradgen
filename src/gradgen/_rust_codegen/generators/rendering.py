@@ -14,6 +14,7 @@ class KernelRenderContext:
     backend_mode: str
     scalar_type: str
     math_library: str | None
+    header: str | None
     emit_metadata_helpers: bool
 
 
@@ -23,11 +24,13 @@ def render_kernel_source(context: KernelRenderContext, /, **render_args) -> str:
     render_args.pop("backend_mode", None)
     render_args.pop("scalar_type", None)
     render_args.pop("math_library", None)
+    render_args.pop("header", None)
     render_args.pop("emit_metadata_helpers", None)
     return _get_template("lib.rs.j2").render(
         backend_mode=context.backend_mode,
         scalar_type=context.scalar_type,
         math_library=context.math_library,
+        header=context.header,
         emit_metadata_helpers=context.emit_metadata_helpers,
         **render_args,
     )
