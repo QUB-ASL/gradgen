@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Added
+
+- `CodeGenerationBuilder` can now attach extra Cargo dependencies to the
+  generated manifest, with optional versions written into the generated
+  `Cargo.toml`.
+
+
 ## 0.4.1 - 22-04-2026
 
 ### Added

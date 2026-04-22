@@ -184,7 +184,18 @@ class CodeGenerationBuilder:
             | tuple[str | tuple[str, str | None], ...]
         ),
     ) -> CodeGenerationBuilder:
-        """Return a copy with extra Cargo dependencies included."""
+        """Return a copy with extra Cargo dependencies included.
+
+        Args:
+            dependencies: Additional dependencies to include in the generated
+                ``Cargo.toml``. Each item may be either a dependency name, in
+                which case the version defaults to ``"*"`` in Cargo syntax, or
+                a ``(name, version)`` pair.
+
+        Returns:
+            A copy of the builder with the dependency list stored in the
+            active backend config.
+        """
         from .config import RustBackendConfig
 
         resolved_config = self.config or RustBackendConfig()

@@ -327,3 +327,27 @@ plan = f.cse(min_uses=2)
 where `min_uses` is the minimum number of times a symbolic 
 sub-expressions needs to be present in the overall symbolic 
 expression to be considered for elimination.
+
+## Dependencies 
+
+When generating code using `CodeGenerationBuilder` you can include additional 
+dependencies in the auto-generated `Cargo.toml`. This can be useful when 
+registering your [custom functions](/gradgen/docs/basics/custom) as we'll see later.
+
+Here is an example where we include the crates [`smallvec`](https://crates.io/crates/smallvec)
+v1.15 and the latest version of [`serde`](https://crates.io/crates/serde).
+
+```python
+builder = (
+    CodeGenerationBuilder()
+    .with_additional_dependencies([
+        "serde",
+        ("smallvec", "1.15"),
+    ])
+    .for_function(f)
+        .add_primal()
+        .done()
+)
+```
+
+If you omit a version, gradgen writes `*` in the generated `Cargo.toml` entry for that dependency.
