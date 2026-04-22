@@ -316,6 +316,61 @@ def _generated_module_section_key(section: str) -> str | None:
     return None
 
 
+def _split_module_sections(source: str) -> list[str]:
+    """Split generated Rust source into normalized top-level sections."""
+    if source.startswith("#![no_std]\n\n"):
+        source = source[len("#![no_std]\n\n"):]
+    elif source.startswith("#![no_std]\n"):
+        source = source[len("#![no_std]\n"):]
+    return [part.rstrip() for part in source.split("\n\n") if part.strip()]
+
+
+def _normalize_header_sections(
+    sections: list[str],
+    header_sections: tuple[str, ...],
+    *,
+    header_emitted: bool,
+) -> tuple[list[str], bool]:
+    """Remove or keep the configured custom header at the front."""
+    if not sections or not header_sections:
+        return sections, header_emitted
+
+    header_start = 0
+    if _generated_module_section_key(sections[0]) == "module_header":
+        header_start = 1
+    header_end = header_start + len(header_sections)
+    if tuple(sections[header_start:header_end]) != header_sections:
+        return sections, header_emitted
+    if header_emitted:
+        return (
+            sections[:header_start] + sections[header_end:],
+            True,
+        )
+    return sections, True
+
+
+def _should_include_module_section(
+    section: str,
+    *,
+    seen_private_helpers: set[str],
+    seen_generated_module_sections: set[str],
+) -> bool:
+    """Return whether a multi-function module section should be emitted."""
+    module_key = _generated_module_section_key(section)
+    if module_key is not None:
+        if module_key in seen_generated_module_sections:
+            return False
+        seen_generated_module_sections.add(module_key)
+
+    helper_key = _private_helper_section_key(section)
+    if helper_key is not None:
+        if helper_key in seen_private_helpers:
+            return False
+        seen_private_helpers.add(helper_key)
+
+    return True
+
+
 def _render_multi_function_lib(
     codegens: tuple[RustCodegenResult, ...],
     config: RustBackendConfig,
@@ -324,52 +379,28 @@ def _render_multi_function_lib(
     sections: list[str] = []
     seen_private_helpers: set[str] = set()
     seen_generated_module_sections: set[str] = set()
-    header = config.header.rstrip() if config.header else None
+    header_sections = tuple(
+        _split_module_sections(config.header)
+        if config.header else ()
+    )
     header_emitted = False
     if config.backend_mode == "no_std":
         sections.append("#![no_std]")
 
     for codegen in codegens:
-        source = codegen.source
-        if source.startswith("#![no_std]\n\n"):
-            source = source[len("#![no_std]\n\n"):]
-        elif source.startswith("#![no_std]\n"):
-            source = source[len("#![no_std]\n"):]
-        codegen_sections = [
-            part.rstrip()
-            for part in source.split("\n\n")
-            if part.strip()
-        ]
-        if header is not None and codegen_sections:
-            first_section = codegen_sections[0]
-            if first_section == header:
-                if header_emitted:
-                    codegen_sections = codegen_sections[1:]
-                else:
-                    header_emitted = True
-            elif first_section.endswith(header):
-                header_prefix = first_section[: -len(header)].rstrip()
-                if header_prefix.endswith("\n"):
-                    header_prefix = header_prefix[:-1].rstrip()
-                if header_emitted:
-                    codegen_sections[0] = header_prefix
-                else:
-                    codegen_sections[0] = header_prefix
-                    codegen_sections.insert(1, header)
-                    header_emitted = True
-
+        codegen_sections = _split_module_sections(codegen.source)
+        codegen_sections, header_emitted = _normalize_header_sections(
+            codegen_sections,
+            header_sections,
+            header_emitted=header_emitted,
+        )
         for section in codegen_sections:
-            module_key = _generated_module_section_key(section)
-            if module_key is not None:
-                if module_key in seen_generated_module_sections:
-                    continue
-                seen_generated_module_sections.add(module_key)
-            helper_key = _private_helper_section_key(section)
-            if helper_key is not None:
-                if helper_key in seen_private_helpers:
-                    continue
-                seen_private_helpers.add(helper_key)
-            sections.append(section)
+            if _should_include_module_section(
+                section,
+                seen_private_helpers=seen_private_helpers,
+                seen_generated_module_sections=seen_generated_module_sections,
+            ):
+                sections.append(section)
 
     rendered = "\n\n".join(section for section in sections if section)
     return rendered if rendered.endswith("\n") else f"{rendered}\n"
