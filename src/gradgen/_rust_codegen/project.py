@@ -68,7 +68,7 @@ def create_rust_project(
     dependency_lines = _render_cargo_dependency_lines(
         resolved_math_library,
         resolved_math_library_version,
-        resolved_config.additional_dependencies,
+        getattr(resolved_config, "additional_dependencies", ()),
     )
     codegen = generate_rust(
         function,

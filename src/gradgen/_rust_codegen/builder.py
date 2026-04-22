@@ -188,6 +188,10 @@ class CodeGenerationBuilder:
         from .config import RustBackendConfig
 
         resolved_config = self.config or RustBackendConfig()
+        if not hasattr(resolved_config, "with_additional_dependencies"):
+            raise TypeError(
+                "with_additional_dependencies requires RustBackendConfig"
+            )
         return replace(
             self,
             config=resolved_config.with_additional_dependencies(dependencies),
