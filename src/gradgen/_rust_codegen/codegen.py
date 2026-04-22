@@ -15,6 +15,7 @@ from .models import (
 )
 from .project_support import (
     _derive_python_function_name,
+    _render_cargo_dependency_lines,
     _render_metadata_json,
     _run_cargo_build,
     _try_run_cargo_fmt,
@@ -510,6 +511,11 @@ def create_multi_function_rust_project(
         if resolved_config.backend_mode == "no_std" else None
     resolved_math_library_version = "0.2" \
         if resolved_math_library == "libm" else None
+    dependency_lines = _render_cargo_dependency_lines(
+        resolved_math_library,
+        resolved_math_library_version,
+        resolved_config.additional_dependencies,
+    )
 
     project_dir = Path(path).expanduser().resolve()
     crate = sanitize_ident(resolved_config.crate_name or functions[0].name)
@@ -565,8 +571,7 @@ def create_multi_function_rust_project(
             crate_name=crate,
             backend_mode=resolved_config.backend_mode,
             scalar_type=resolved_config.scalar_type,
-            math_library=resolved_math_library,
-            math_library_version=resolved_math_library_version,
+            dependency_lines=dependency_lines,
         ),
         encoding="utf-8",
     )

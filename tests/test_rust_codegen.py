@@ -1367,6 +1367,38 @@ mod single_shooting_multi_u_tests {{
             self.assertIn('version = "0.1.0"', first_pyproject)
             self.assertIn('version = "0.2.0"', second_pyproject)
 
+    def test_builder_additional_dependencies_are_written_to_cargo_toml(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 1)
+        f = Function(
+            "energy",
+            [x],
+            [x[0] + 1.0],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = (
+                CodeGenerationBuilder()
+                .with_backend_config(
+                    RustBackendConfig().with_crate_name("deps_demo")
+                )
+                .with_additional_dependencies(
+                    ["serde", ("smallvec", "1.13")]
+                )
+                .for_function(f)
+                .add_primal()
+                .done()
+                .build(Path(tmpdir))
+            )
+
+            cargo_text = project.cargo_toml.read_text(encoding="utf-8")
+            self.assertIn("[dependencies]", cargo_text)
+            self.assertIn('serde = "*"', cargo_text)
+            self.assertIn('smallvec = "1.13"', cargo_text)
+
     def test_create_rust_project_can_build_generated_crate(self) -> None:
         x = SXVector.sym("x", 2)
         w = SXVector.sym("w", 1)

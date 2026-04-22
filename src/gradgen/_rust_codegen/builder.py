@@ -177,6 +177,22 @@ class CodeGenerationBuilder:
         """Return a copy applying ``max_effort`` simplification to generated kernels."""
         return replace(self, simplification=max_effort)
 
+    def with_additional_dependencies(
+        self,
+        dependencies: (
+            list[str | tuple[str, str | None]]
+            | tuple[str | tuple[str, str | None], ...]
+        ),
+    ) -> CodeGenerationBuilder:
+        """Return a copy with extra Cargo dependencies included."""
+        from .config import RustBackendConfig
+
+        resolved_config = self.config or RustBackendConfig()
+        return replace(
+            self,
+            config=resolved_config.with_additional_dependencies(dependencies),
+        )
+
     def add_primal(self,
                    *,
                    include_states: bool = False) \

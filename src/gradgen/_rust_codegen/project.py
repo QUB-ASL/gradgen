@@ -23,6 +23,7 @@ from .project_support import (
     _create_python_interface_project,
     _maybe_simplify_derivative_function,
     _render_metadata_json,
+    _render_cargo_dependency_lines,
     _run_cargo_build,
     _try_run_cargo_fmt,
 )
@@ -64,6 +65,11 @@ def create_rust_project(
     resolved_math_library_version = "0.2" \
         if resolved_math_library == "libm" \
         else None
+    dependency_lines = _render_cargo_dependency_lines(
+        resolved_math_library,
+        resolved_math_library_version,
+        resolved_config.additional_dependencies,
+    )
     codegen = generate_rust(
         function,
         config=resolved_config,
@@ -81,8 +87,7 @@ def create_rust_project(
             crate_name=crate,
             backend_mode=resolved_config.backend_mode,
             scalar_type=resolved_config.scalar_type,
-            math_library=resolved_math_library,
-            math_library_version=resolved_math_library_version,
+            dependency_lines=dependency_lines,
         ),
         encoding="utf-8",
     )

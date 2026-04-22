@@ -6,10 +6,9 @@ description = "Generated gradgen crate using {{ scalar_type }}"
 
 [lib]
 path = "src/lib.rs"
-{% if backend_mode == "no_std" %}
-
+{% if dependency_lines %}
 [dependencies]
-{% if math_library %}
-{{ math_library }} = "{{ math_library_version }}"
-{% endif %}
+{% for dependency_line in dependency_lines %}
+{{ dependency_line }}
+{% endfor %}
 {% endif %}

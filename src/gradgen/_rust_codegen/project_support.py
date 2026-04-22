@@ -156,6 +156,29 @@ def _run_cargo_build(project_dir: Path) -> None:
         ) from exc
 
 
+def _render_cargo_dependency_lines(
+    math_library: str | None,
+    math_library_version: str | None,
+    additional_dependencies: tuple[tuple[str, str | None], ...],
+) -> tuple[str, ...]:
+    """Return rendered Cargo dependency lines for a generated crate."""
+    lines: list[str] = []
+    seen: set[str] = set()
+
+    def add_dependency(name: str, version: str | None) -> None:
+        if name in seen:
+            raise ValueError(f"duplicate Cargo dependency {name!r}")
+        seen.add(name)
+        rendered_version = version if version is not None else "*"
+        lines.append(f'{name} = {json.dumps(rendered_version)}')
+
+    if math_library is not None:
+        add_dependency(math_library, math_library_version)
+    for dependency_name, dependency_version in additional_dependencies:
+        add_dependency(dependency_name, dependency_version)
+    return tuple(lines)
+
+
 def _derive_python_function_name(function_name: str,
                                  crate_name: str | None) -> str:
     """Derive the public Python name from a generated Rust symbol name."""
