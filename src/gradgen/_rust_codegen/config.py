@@ -66,7 +66,9 @@ class RustBackendConfig:
         Args:
             header: Extra Rust source to insert near the top of generated
                 ``src/lib.rs``. The text is written after crate attributes such
-                as ``#![no_std]`` and ``#![forbid(unsafe_code)]``.
+                as ``#![no_std]`` and ``#![forbid(unsafe_code)]``. The header
+                is rendered as a small Jinja2 template with variables such as
+                ``scalar_type``, ``backend_mode``, and ``math_library``.
 
         Returns:
             A copy of the config with the provided header text.

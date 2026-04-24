@@ -42,7 +42,7 @@ from .rendering import (
     _identify_direct_custom_output_marker,
     _reemit_direct_output_helper_call,
 )
-from .templates import _get_template
+from .templates import _get_template, _render_custom_rust_header
 from .validation import (
     resolve_backend_config as _resolve_backend_config,
     validate_backend_mode as _validate_backend_mode,
@@ -447,7 +447,13 @@ def generate_rust(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
-        header=resolved_config.header,
+        header=_render_custom_rust_header(
+            resolved_config.header,
+            backend_mode=resolved_config.backend_mode,
+            scalar_type=resolved_config.scalar_type,
+            math_library=resolved_math_library,
+            emit_metadata_helpers=resolved_config.emit_metadata_helpers,
+        ),
         workspace_size=workspace_size,
         workspace_assert_line=_ws_assert,
         workspace_return_line=_ws_return,

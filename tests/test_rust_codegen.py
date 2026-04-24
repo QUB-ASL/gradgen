@@ -3468,6 +3468,62 @@ mod tests {{
             self.assertIn(header_text, lib_text)
             self.assertIn("fn helper() {}", lib_text)
 
+    def test_project_renders_templated_custom_header(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "header_template_kernel",
+            [x],
+            [x * x],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_scalar_type("f32")
+            .with_header(
+                "/// Square\n"
+                "fn sq(x: {{ scalar_type }}) -> {{ scalar_type }} {\n"
+                "    x * x\n"
+                "}"
+            )
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(
+                f,
+                Path(tmpdir) / "header_template_kernel",
+                config=config,
+            )
+
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("fn sq(x: f32) -> f32", lib_text)
+            self.assertNotIn("{{ scalar_type }}", lib_text)
+
+    def test_project_rejects_invalid_templated_custom_header(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "invalid_header_template_kernel",
+            [x],
+            [x],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        config = RustBackendConfig().with_header(
+            "type Scalar = {{ missing_scalar_type }};"
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(
+                ValueError,
+                "failed to render the custom Rust header template",
+            ):
+                create_rust_project(
+                    f,
+                    Path(tmpdir) / "invalid_header_template_kernel",
+                    config=config,
+                )
+
     def test_invalid_backend_mode_is_rejected(self) -> None:
         x = SX.sym("x")
         f = Function("f", [x], [x], input_names=["x"], output_names=["y"])

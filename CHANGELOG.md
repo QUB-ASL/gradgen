@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `RustBackendConfig.with_header(...)` can now inject custom Rust code at the
   top of generated `lib.rs`, after crate attributes such as `#![no_std]` and
   `#![forbid(unsafe_code)]`.
+- `RustBackendConfig.with_header(...)` now treats the custom header 
+  as a small Jinja2 template, so expressions such as `{{ scalar_type }}`
+  are rendered before being inserted into generated Rust code.
 
 
 ## 0.4.1 - 22-04-2026

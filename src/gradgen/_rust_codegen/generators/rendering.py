@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..templates import _get_template
+from ..templates import _get_template, _render_custom_rust_header
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,6 +16,17 @@ class KernelRenderContext:
     math_library: str | None
     header: str | None
     emit_metadata_helpers: bool
+
+
+def render_custom_header(context: KernelRenderContext) -> str | None:
+    """Render the configured custom Rust header template."""
+    return _render_custom_rust_header(
+        context.header,
+        backend_mode=context.backend_mode,
+        scalar_type=context.scalar_type,
+        math_library=context.math_library,
+        emit_metadata_helpers=context.emit_metadata_helpers,
+    )
 
 
 def render_kernel_source(context: KernelRenderContext, /, **render_args) -> str:
@@ -30,7 +41,7 @@ def render_kernel_source(context: KernelRenderContext, /, **render_args) -> str:
         backend_mode=context.backend_mode,
         scalar_type=context.scalar_type,
         math_library=context.math_library,
-        header=context.header,
+        header=render_custom_header(context),
         emit_metadata_helpers=context.emit_metadata_helpers,
         **render_args,
     )

@@ -21,7 +21,7 @@ from .models import (
     RustPythonInterfaceProjectResult,
 )
 from .naming import sanitize_ident
-from .templates import _get_template
+from .templates import _get_template, _render_custom_rust_header
 from .validation import validate_unique_rust_names
 
 
@@ -379,9 +379,16 @@ def _render_multi_function_lib(
     sections: list[str] = []
     seen_private_helpers: set[str] = set()
     seen_generated_module_sections: set[str] = set()
+    rendered_header = _render_custom_rust_header(
+        config.header,
+        backend_mode=config.backend_mode,
+        scalar_type=config.scalar_type,
+        math_library="libm" if config.backend_mode == "no_std" else None,
+        emit_metadata_helpers=config.emit_metadata_helpers,
+    )
     header_sections = tuple(
-        _split_module_sections(config.header)
-        if config.header else ()
+        _split_module_sections(rendered_header)
+        if rendered_header else ()
     )
     header_emitted = False
     if config.backend_mode == "no_std":

@@ -161,3 +161,40 @@ class ProjectSupportTests(unittest.TestCase):
         )
         self.assertEqual(rendered.count("use smallvec::{smallvec, SmallVec};"), 1)
         self.assertEqual(rendered.count("fn helper() {}"), 1)
+
+    def test_render_multi_function_lib_deduplicates_templated_header(self) -> None:
+        header = "type Scalar = {{ scalar_type }};"
+        rendered_header = "type Scalar = f32;"
+        codegen_a = RustCodegenResult(
+            source=f"{rendered_header}\n\npub fn a() {{}}\n",
+            python_name="a",
+            function_name="a",
+            workspace_size=0,
+            input_names=(),
+            input_sizes=(),
+            output_names=(),
+            output_sizes=(),
+            backend_mode="std",
+            scalar_type="f32",
+            math_library=None,
+        )
+        codegen_b = RustCodegenResult(
+            source=f"{rendered_header}\n\npub fn b() {{}}\n",
+            python_name="b",
+            function_name="b",
+            workspace_size=0,
+            input_names=(),
+            input_sizes=(),
+            output_names=(),
+            output_sizes=(),
+            backend_mode="std",
+            scalar_type="f32",
+            math_library=None,
+        )
+
+        rendered = _render_multi_function_lib(
+            (codegen_a, codegen_b),
+            RustBackendConfig(scalar_type="f32", header=header),
+        )
+        self.assertEqual(rendered.count("type Scalar = f32;"), 1)
+        self.assertNotIn("{{ scalar_type }}", rendered)
