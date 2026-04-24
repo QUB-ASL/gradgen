@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## 0.4.1 - 22-04-2026
 
+[![PyPI](https://img.shields.io/badge/gradgen-v0.4.1-blue)](https://pypi.org/project/gradgen/0.4.1)
+[![PyPI](https://img.shields.io/badge/release-v0.4.1-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.4.1)
+
 ### Added
 
 - Added a new `demos/composed_chain` demo showing how to use
