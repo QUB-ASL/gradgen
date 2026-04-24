@@ -339,7 +339,7 @@ crate.
 Here is an example where we include the crates [`smallvec`](https://crates.io/crates/smallvec)
 v1.15 and the latest version of [`serde`](https://crates.io/crates/serde).
 
-```python
+```python {6-10}
 builder = (
     CodeGenerationBuilder()
     .with_backend_config(
@@ -373,7 +373,7 @@ The custom header is rendered as a small Jinja2 template before it is inserted
 into `src/lib.rs`. The most useful built-in variables are `scalar_type`,
 `backend_mode`, and `math_library`.
 
-```python
+```python {14}
 CUSTOM_HEADER = """
 /// Square
 fn sq(x: {{ scalar_type }}) -> {{ scalar_type }} {
