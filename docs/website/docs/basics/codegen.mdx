@@ -360,11 +360,40 @@ builder = (
 If you omit a version, gradgen writes `*` in the generated `Cargo.toml` entry for that dependency.
 
 Note that you can introduce a custom header into the auto-generated Rust code
-using `with_header`; this can be any custom Rust code you like. In the example 
-above we use it to introduce 
+using `with_header`; this can be any custom Rust code you like. In the example
+above we use it to introduce
 
 ```rust
 use smallvec::{smallvec, SmallVec};
 ```
 
 You can even introduce your own Rust functions.
+
+The custom header is rendered as a small Jinja2 template before it is inserted
+into `src/lib.rs`. The most useful built-in variables are `scalar_type`,
+`backend_mode`, and `math_library`.
+
+```python
+CUSTOM_HEADER = """
+/// Square
+fn sq(x: {{ scalar_type }}) -> {{ scalar_type }} {
+    x * x
+}
+"""
+
+builder = (
+    CodeGenerationBuilder()
+    .with_backend_config(
+        RustBackendConfig()
+        .with_backend_mode("no_std")
+        .with_scalar_type("f32")
+        .with_header(CUSTOM_HEADER)
+    )
+    .for_function(f)
+    .add_primal()
+    .done()
+)
+```
+
+In this example, gradgen renders the header with `scalar_type = "f32"` before
+writing it into the generated crate.
