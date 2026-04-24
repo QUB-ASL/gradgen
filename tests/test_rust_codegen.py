@@ -1367,6 +1367,39 @@ mod single_shooting_multi_u_tests {{
             self.assertIn('version = "0.1.0"', first_pyproject)
             self.assertIn('version = "0.2.0"', second_pyproject)
 
+    def test_builder_additional_dependencies_are_written_to_cargo_toml(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 1)
+        f = Function(
+            "energy",
+            [x],
+            [x[0] + 1.0],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = (
+                CodeGenerationBuilder()
+                .with_backend_config(
+                    RustBackendConfig()
+                    .with_crate_name("deps_demo")
+                    .with_additional_dependencies(
+                        ["serde", ("smallvec", "1.13")]
+                    )
+                )
+                .for_function(f)
+                .add_primal()
+                .done()
+                .build(Path(tmpdir))
+            )
+
+            cargo_text = project.cargo_toml.read_text(encoding="utf-8")
+            self.assertIn("[dependencies]", cargo_text)
+            self.assertIn('serde = "*"', cargo_text)
+            self.assertIn('smallvec = "1.13"', cargo_text)
+
     def test_create_rust_project_can_build_generated_crate(self) -> None:
         x = SXVector.sym("x", 2)
         w = SXVector.sym("w", 1)
@@ -3397,6 +3430,99 @@ mod tests {{
                     )
                 raise
             self.assertEqual(completed.returncode, 0)
+
+    def test_no_std_project_inserts_custom_header_after_crate_attrs(
+        self,
+    ) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "header_kernel",
+            [x],
+            [x.sin()],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_header(
+                "use smallvec::{smallvec, SmallVec};\n\nfn helper() {}"
+            )
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(
+                f,
+                Path(tmpdir) / "header_kernel",
+                config=config,
+            )
+
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            header_text = (
+                "#![forbid(unsafe_code)]\n\n"
+                "use smallvec::{smallvec, SmallVec};"
+            )
+            self.assertTrue(
+                lib_text.startswith("#![no_std]\n#![forbid(unsafe_code)]")
+            )
+            self.assertIn(header_text, lib_text)
+            self.assertIn("fn helper() {}", lib_text)
+
+    def test_project_renders_templated_custom_header(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "header_template_kernel",
+            [x],
+            [x * x],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        config = (
+            RustBackendConfig()
+            .with_backend_mode("no_std")
+            .with_scalar_type("f32")
+            .with_header(
+                "/// Square\n"
+                "fn sq(x: {{ scalar_type }}) -> {{ scalar_type }} {\n"
+                "    x * x\n"
+                "}"
+            )
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_rust_project(
+                f,
+                Path(tmpdir) / "header_template_kernel",
+                config=config,
+            )
+
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+            self.assertIn("fn sq(x: f32) -> f32", lib_text)
+            self.assertNotIn("{{ scalar_type }}", lib_text)
+
+    def test_project_rejects_invalid_templated_custom_header(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "invalid_header_template_kernel",
+            [x],
+            [x],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        config = RustBackendConfig().with_header(
+            "type Scalar = {{ missing_scalar_type }};"
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(
+                ValueError,
+                "failed to render the custom Rust header template",
+            ):
+                create_rust_project(
+                    f,
+                    Path(tmpdir) / "invalid_header_template_kernel",
+                    config=config,
+                )
 
     def test_invalid_backend_mode_is_rejected(self) -> None:
         x = SX.sym("x")

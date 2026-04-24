@@ -10,6 +10,7 @@ class RustBackendConfigTests(unittest.TestCase):
         self.assertEqual(config.scalar_type, "f64")
         self.assertIsNone(config.crate_name)
         self.assertIsNone(config.function_name)
+        self.assertIsNone(config.header)
         self.assertTrue(config.emit_metadata_helpers)
         self.assertFalse(config.enable_python_interface)
         self.assertTrue(config.build_python_interface)
@@ -25,3 +26,18 @@ class RustBackendConfigTests(unittest.TestCase):
             .with_build_crate(True)
         self.assertFalse(config.build_python_interface)
         self.assertTrue(config.build_crate)
+
+    def test_additional_dependencies_are_normalized(self) -> None:
+        config = RustBackendConfig().with_additional_dependencies(
+            ["serde", ("smallvec", "1.13")]
+        )
+        self.assertEqual(
+            config.additional_dependencies,
+            (("serde", None), ("smallvec", "1.13")),
+        )
+
+    def test_header_can_be_set(self) -> None:
+        config = RustBackendConfig().with_header(
+            "use smallvec::{smallvec};"
+        )
+        self.assertEqual(config.header, "use smallvec::{smallvec};")

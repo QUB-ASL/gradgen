@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Added
+
+- `RustBackendConfig.with_additional_dependencies(...)` can now attach extra
+  Cargo dependencies to the generated manifest, with optional versions
+  written into the generated `Cargo.toml`.
+- `RustBackendConfig.with_header(...)` can now inject custom Rust code at the
+  top of generated `lib.rs`, after crate attributes such as `#![no_std]` and
+  `#![forbid(unsafe_code)]`.
+- `RustBackendConfig.with_header(...)` now treats the custom header 
+  as a small Jinja2 template, so expressions such as `{{ scalar_type }}`
+  are rendered before being inserted into generated Rust code.
+
+
 ## 0.4.1 - 22-04-2026
 
 [![PyPI](https://img.shields.io/badge/gradgen-v0.4.1-blue)](https://pypi.org/project/gradgen/0.4.1)

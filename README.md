@@ -18,7 +18,7 @@
 
 ## Code generation example
 
-[See documentation](https://qub-asl.github.io/gradgen/docs/basics/codegen)
+[Read the docs](https://qub-asl.github.io/gradgen/docs/category/learn)
 
 Here is an example where we will define the function 
 
@@ -108,7 +108,7 @@ See this complete [tutorial](https://qub-asl.github.io/gradgen/docs/basics/ocp) 
 
 ## Where to go next?
 
-See the [demos](./demos) and this more complete [documentation](https://qub-asl.github.io/gradgen/docs) for details.
+See the [demos](./demos) and this more complete [documentation](https://qub-asl.github.io/gradgen/docs/category/learn) for details.
 
 ## Show us some love!
 

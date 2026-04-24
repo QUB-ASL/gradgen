@@ -327,3 +327,44 @@ plan = f.cse(min_uses=2)
 where `min_uses` is the minimum number of times a symbolic 
 sub-expressions needs to be present in the overall symbolic 
 expression to be considered for elimination.
+
+## Dependencies
+
+When generating code using `CodeGenerationBuilder`, include extra Cargo
+dependencies and an optional Rust header on the `RustBackendConfig` you pass
+into `.with_backend_config(...)`. This keeps the manifest entries and the
+custom `lib.rs` prologue tied to the backend configuration that produces the
+crate.
+
+Here is an example where we include the crates [`smallvec`](https://crates.io/crates/smallvec)
+v1.15 and the latest version of [`serde`](https://crates.io/crates/serde).
+
+```python
+builder = (
+    CodeGenerationBuilder()
+    .with_backend_config(
+        RustBackendConfig()
+        .with_crate_name("boom")
+        .with_header("use smallvec::{smallvec, SmallVec};")
+        .with_additional_dependencies([
+            ("serde", "*"),
+            ("smallvec", "1.15"),
+        ])
+    )
+    .for_function(f)
+        .add_primal()
+        .done()
+)
+```
+
+If you omit a version, gradgen writes `*` in the generated `Cargo.toml` entry for that dependency.
+
+Note that you can introduce a custom header into the auto-generated Rust code
+using `with_header`; this can be any custom Rust code you like. In the example 
+above we use it to introduce 
+
+```rust
+use smallvec::{smallvec, SmallVec};
+```
+
+You can even introduce your own Rust functions.

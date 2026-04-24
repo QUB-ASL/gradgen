@@ -79,6 +79,15 @@ def validate_rust_ident(name: str | None, *, label: str) -> None:
         raise ValueError(f"{label} must not be a Rust keyword")
 
 
+def validate_cargo_dependency_name(name: str) -> None:
+    """Validate a dependency name written into ``Cargo.toml``."""
+    if not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_-]*", name):
+        raise ValueError(
+            "Cargo dependency names must match the pattern "
+            "[A-Za-z0-9_][A-Za-z0-9_-]*"
+        )
+
+
 def validate_unique_rust_names(
     names: list[tuple[str, str]],
     *,

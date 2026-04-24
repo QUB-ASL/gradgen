@@ -103,6 +103,7 @@ def _generate_batched_primal_rust(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
+        header=resolved_config.header,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
     )
     name = sanitize_ident(resolved_config.function_name or batched.name)
@@ -307,6 +308,7 @@ def _generate_batched_jacobian_rust(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
+        header=resolved_config.header,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
     )
     name = sanitize_ident(
@@ -556,6 +558,7 @@ def _generate_reduced_primal_rust(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
+        header=resolved_config.header,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
     )
     name = sanitize_ident(resolved_config.function_name or reduced.name)

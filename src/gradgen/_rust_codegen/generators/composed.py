@@ -107,6 +107,7 @@ def _generate_composed_primal_rust(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
+        header=resolved_config.header,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
     )
     helper_simplification = composed.simplification
@@ -366,6 +367,7 @@ def _generate_composed_jacobian_rust(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
+        header=resolved_config.header,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
     )
     helper_simplification = composed.simplification
@@ -739,6 +741,7 @@ def _generate_composed_joint_rust(
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
         math_library=resolved_math_library,
+        header=resolved_config.header,
         emit_metadata_helpers=resolved_config.emit_metadata_helpers,
     )
     helper_simplification = composed.simplification

@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
+from collections.abc import Iterable
 
-from .naming import validate_rust_ident
+from .naming import (
+    validate_cargo_dependency_name,
+    validate_rust_ident,
+)
 from .validation import (
     validate_backend_mode,
     validate_crate_name,
@@ -14,6 +18,7 @@ from .validation import (
 
 RustBackendMode = str
 RustScalarType = str
+CargoDependency = tuple[str, str | None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,10 +29,12 @@ class RustBackendConfig:
     scalar_type: RustScalarType = "f64"
     crate_name: str | None = None
     function_name: str | None = None
+    header: str | None = None
     emit_metadata_helpers: bool = True
     enable_python_interface: bool = False
     build_python_interface: bool = True
     build_crate: bool = False
+    additional_dependencies: tuple[CargoDependency, ...] = ()
 
     def with_backend_mode(self,
                           backend_mode: RustBackendMode) \
@@ -52,6 +59,21 @@ class RustBackendConfig:
         """Return a copy with a different generated Rust function name."""
         validate_rust_ident(function_name, label="function_name")
         return replace(self, function_name=function_name)
+
+    def with_header(self, header: str | None) -> RustBackendConfig:
+        """Return a copy with a custom Rust module header.
+
+        Args:
+            header: Extra Rust source to insert near the top of generated
+                ``src/lib.rs``. The text is written after crate attributes such
+                as ``#![no_std]`` and ``#![forbid(unsafe_code)]``. The header
+                is rendered as a small Jinja2 template with variables such as
+                ``scalar_type``, ``backend_mode``, and ``math_library``.
+
+        Returns:
+            A copy of the config with the provided header text.
+        """
+        return replace(self, header=header)
 
     def with_emit_metadata_helpers(self,
                                    emit_metadata_helpers: bool) \
@@ -85,3 +107,33 @@ class RustBackendConfig:
         Return a copy with low-level crate compilation enabled or disabled.
         """
         return replace(self, build_crate=build_crate)
+
+    def with_additional_dependencies(
+        self,
+        dependencies: Iterable[str | CargoDependency],
+    ) -> RustBackendConfig:
+        """Return a copy with extra Cargo dependencies added.
+
+        Args:
+            dependencies: Additional dependencies to include in the generated
+                ``Cargo.toml``. Each item may be either a dependency name, in
+                which case the version defaults to ``"*"`` in Cargo syntax, or
+                a ``(name, version)`` pair.
+
+        Returns:
+            A copy of the config with the normalized dependency list.
+        """
+        normalized: list[CargoDependency] = []
+        for dependency in dependencies:
+            if isinstance(dependency, str):
+                name = dependency
+                version = None
+            else:
+                name, version = dependency
+            validate_cargo_dependency_name(name)
+            if version is not None and not isinstance(version, str):
+                raise TypeError(
+                    "Cargo dependency versions must be strings or None"
+                )
+            normalized.append((name, version))
+        return replace(self, additional_dependencies=tuple(normalized))
