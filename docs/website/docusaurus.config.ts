@@ -110,11 +110,7 @@ const config: Config = {
             {
               label: 'Getting started',
               to: '/docs/category/learn',
-            },
-            {
-              label: 'Demos',
-              to: '/docs/category/demos',
-            },
+            }            
           ],
         },
         {
