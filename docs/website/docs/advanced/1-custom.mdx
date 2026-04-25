@@ -1,5 +1,5 @@
 ---
-sidebar_position: 8
+sidebar_position: 1
 ---
 
 # Custom function
@@ -148,7 +148,7 @@ Custom functions can be used in code generation. To this end, the user
 needs to provide a Rust implementation of $f$ (and, optionally, its gradient
 and Hessian or Hessian-vector products).
 
-**See first:** [Rust code generation](./codegen)
+**See first:** [Rust code generation](/gradgen/docs/basics/codegen)
 
 ### Custom Rust implementation 
 
@@ -223,7 +223,7 @@ f = register_elementary_function(
 ### A code generation example
 
 To generate Rust code for our function (and its gradient) we first 
-need to construct a `Function` object (see [above](#registering-custom-functions)).
+need to construct a `Function` object (see [above](/gradgen/docs/advanced/custom#registering-custom-functions)).
 
 We can then generate a Rust crate as follows:
 
@@ -267,7 +267,7 @@ pub fn custom_energy_f_jf_x(
 ```
 
 The name is the function is the name of the crate, followed by 
-the name of the function we defined [earlier](#registering-custom-functions), 
+the name of the function we defined [earlier](/gradgen/docs/advanced/custom#registering-custom-functions), 
 followed `_f`, which means that the function itself it being 
 computed, followed by `_jf_x` meaning that its gradient is being
 computed too.
