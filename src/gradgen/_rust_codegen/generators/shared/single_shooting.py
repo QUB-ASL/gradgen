@@ -63,9 +63,11 @@ def _build_single_shooting_helpers(
 
     stage_cost_name = sanitize_ident(f"{helper_base_name}_stage_cost")
     terminal_cost_name = sanitize_ident(f"{helper_base_name}_terminal_cost")
+    stage_total_cost = problem.stage_total_cost_function()
+    terminal_total_cost = problem.terminal_total_cost_function()
     if include_cost:
         stage_cost_function = _shared._maybe_simplify_derivative_function(
-            problem.stage_cost,
+            stage_total_cost,
             simplification,
         )
         max_workspace = _append_generated_helper(
@@ -78,7 +80,7 @@ def _build_single_shooting_helpers(
         )
 
         terminal_cost_function = _shared._maybe_simplify_derivative_function(
-            problem.terminal_cost,
+            terminal_total_cost,
             simplification,
         )
         max_workspace = _append_generated_helper(
@@ -127,15 +129,15 @@ def _build_single_shooting_helpers(
                 simplification,
             ),
             _shared._maybe_simplify_derivative_function(
-                problem.stage_cost.gradient(0, name=stage_cost_grad_x_name),
+                stage_total_cost.gradient(0, name=stage_cost_grad_x_name),
                 simplification,
             ),
             _shared._maybe_simplify_derivative_function(
-                problem.stage_cost.gradient(1, name=stage_cost_grad_u_name),
+                stage_total_cost.gradient(1, name=stage_cost_grad_u_name),
                 simplification,
             ),
             _shared._maybe_simplify_derivative_function(
-                problem.terminal_cost.gradient(
+                terminal_total_cost.gradient(
                     0, name=terminal_cost_grad_x_name
                 ),
                 simplification,
@@ -187,19 +189,19 @@ def _build_single_shooting_helpers(
         )
         stage_cost_grad_x_function = (
             _shared._maybe_simplify_derivative_function(
-                problem.stage_cost.gradient(0, name=stage_cost_grad_x_name),
+                stage_total_cost.gradient(0, name=stage_cost_grad_x_name),
                 simplification,
             )
         )
         stage_cost_grad_u_function = (
             _shared._maybe_simplify_derivative_function(
-                problem.stage_cost.gradient(1, name=stage_cost_grad_u_name),
+                stage_total_cost.gradient(1, name=stage_cost_grad_u_name),
                 simplification,
             )
         )
         terminal_cost_grad_x_function = (
             _shared._maybe_simplify_derivative_function(
-                problem.terminal_cost.gradient(
+                terminal_total_cost.gradient(
                     0, name=terminal_cost_grad_x_name
                 ),
                 simplification,

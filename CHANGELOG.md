@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `RustBackendConfig.with_header(...)` now treats the custom header 
   as a small Jinja2 template, so expressions such as `{{ scalar_type }}`
   are rendered before being inserted into generated Rust code.
+- `SingleShootingProblem` now accepts vector-valued stage and terminal
+  residual penalties through `stage_penalty`, `terminal_penalty`, and a
+  scalar `penalty_weight`.
 
 
 ## 0.4.1 - 22-04-2026

@@ -1211,9 +1211,11 @@ mod integration_sympy_chain {{
         state = sp.Matrix([sx0, sx1])
         packed_states = [state[0], state[1]]
         total_cost = sp.Integer(0)
+        penalty_weight = sp.Rational(7, 3)
         for stage_index in range(3):
             u0 = u_symbols[2 * stage_index]
             u1 = u_symbols[(2 * stage_index) + 1]
+            q = sp.Matrix([state[0] + u0 - p0, state[1] - u1 + p1])
             total_cost += (
                 state[0] ** 2
                 + sp.Rational(3, 5) * state[1] ** 2
@@ -1221,6 +1223,7 @@ mod integration_sympy_chain {{
                 + sp.Rational(2, 5) * u1**2
                 + p0 * state[0] * u1
                 + p1 * u0 * state[1]
+                + penalty_weight * sp.Rational(1, 2) * (q.dot(q))
             )
             state = sp.Matrix(
                 [
@@ -1235,6 +1238,10 @@ mod integration_sympy_chain {{
             + sp.Rational(5, 4) * state[1] ** 2
             + p0 * state[0]
             + p1 * state[1]
+        )
+        q_terminal = sp.Matrix([state[0] - p0, state[1] + p1])
+        total_cost += penalty_weight * sp.Rational(1, 2) * (
+            q_terminal.dot(q_terminal)
         )
         gradient = sp.Matrix([sp.diff(total_cost, symbol) for symbol in u_symbols])
         sympy_states = sp.Matrix(packed_states)
@@ -1278,6 +1285,13 @@ mod integration_sympy_chain {{
             input_names=["x", "u", "p"],
             output_names=["ell"],
         )
+        stage_penalty = Function(
+            "stage_penalty",
+            [x, u, p],
+            [SXVector((x[0] + u[0] - p[0], x[1] - u[1] + p[1]))],
+            input_names=["x", "u", "p"],
+            output_names=["q"],
+        )
         terminal_cost = Function(
             "terminal_cost",
             [x, p],
@@ -1285,12 +1299,22 @@ mod integration_sympy_chain {{
             input_names=["x", "p"],
             output_names=["vf"],
         )
+        terminal_penalty = Function(
+            "terminal_penalty",
+            [x, p],
+            [SXVector((x[0] - p[0], x[1] + p[1]))],
+            input_names=["x", "p"],
+            output_names=["q_n"],
+        )
         problem = SingleShootingProblem(
             name="sympy_single_shooting",
             horizon=3,
             dynamics=dynamics,
             stage_cost=stage_cost,
             terminal_cost=terminal_cost,
+            stage_penalty=stage_penalty,
+            terminal_penalty=terminal_penalty,
+            penalty_weight=float(penalty_weight),
             initial_state_name="x0",
             control_sequence_name="u_seq",
             parameter_name="p",

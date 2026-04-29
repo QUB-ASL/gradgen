@@ -91,6 +91,70 @@ def _build_reference_problem(*, horizon: int = 3) -> SingleShootingProblem:
     )
 
 
+def _build_penalized_reference_problem(
+    *, horizon: int = 3
+) -> SingleShootingProblem:
+    x = SXVector.sym("x", 2)
+    u = SXVector.sym("u", 1)
+    p = SXVector.sym("p", 2)
+
+    dynamics = Function(
+        "penalty_dynamics",
+        [x, u, p],
+        [
+            SXVector(
+                (
+                    x[0] + p[0] * x[1] + u[0],
+                    x[1] + p[1] * u[0] - 0.5 * x[0],
+                )
+            )
+        ],
+        input_names=["x", "u", "p"],
+        output_names=["x_next"],
+    )
+    stage_cost = Function(
+        "penalty_stage_cost",
+        [x, u, p],
+        [x[0] * x[0] + 2.0 * x[1] * x[1] + 0.3 * u[0] * u[0]],
+        input_names=["x", "u", "p"],
+        output_names=["ell"],
+    )
+    stage_penalty = Function(
+        "stage_penalty",
+        [x, u, p],
+        [SXVector((x[0] + u[0] - p[0], 2.0 * x[1] - p[1]))],
+        input_names=["x", "u", "p"],
+        output_names=["q"],
+    )
+    terminal_cost = Function(
+        "penalty_terminal_cost",
+        [x, p],
+        [3.0 * x[0] * x[0] + 0.5 * x[1] * x[1]],
+        input_names=["x", "p"],
+        output_names=["vf"],
+    )
+    terminal_penalty = Function(
+        "terminal_penalty",
+        [x, p],
+        [SXVector((x[0] - p[0], x[1] + p[1]))],
+        input_names=["x", "p"],
+        output_names=["q_n"],
+    )
+    return SingleShootingProblem(
+        name="penalized_mpc_cost",
+        horizon=horizon,
+        dynamics=dynamics,
+        stage_cost=stage_cost,
+        terminal_cost=terminal_cost,
+        stage_penalty=stage_penalty,
+        terminal_penalty=terminal_penalty,
+        penalty_weight=4.0,
+        initial_state_name="x0",
+        control_sequence_name="U",
+        parameter_name="p",
+    )
+
+
 def _manual_rollout(x0: list[float],
                     U: list[float],
                     p: list[float],
@@ -114,6 +178,43 @@ def _manual_rollout(x0: list[float],
     total_cost += 3.0 * current[0] * current[0] \
         + 0.5 * current[1] * current[1] \
         + p[1] * current[0]
+    return total_cost, packed_states
+
+
+def _manual_penalized_rollout(x0: list[float],
+                              U: list[float],
+                              p: list[float],
+                              horizon: int,
+                              penalty_weight: float) \
+        -> tuple[float, list[float]]:
+    current = [float(x0[0]), float(x0[1])]
+    packed_states = [current[0], current[1]]
+    total_cost = 0.0
+
+    for stage_index in range(horizon):
+        u_t = float(U[stage_index])
+        q0 = current[0] + u_t - p[0]
+        q1 = 2.0 * current[1] - p[1]
+        total_cost += (
+            current[0] * current[0]
+            + 2.0 * current[1] * current[1]
+            + 0.3 * u_t * u_t
+            + 0.5 * penalty_weight * (q0 * q0 + q1 * q1)
+        )
+        next_state = [
+            current[0] + p[0] * current[1] + u_t,
+            current[1] + p[1] * u_t - 0.5 * current[0],
+        ]
+        current = next_state
+        packed_states.extend(current)
+
+    qn0 = current[0] - p[0]
+    qn1 = current[1] + p[1]
+    total_cost += (
+        3.0 * current[0] * current[0]
+        + 0.5 * current[1] * current[1]
+        + 0.5 * penalty_weight * (qn0 * qn0 + qn1 * qn1)
+    )
     return total_cost, packed_states
 
 
@@ -324,6 +425,46 @@ class SingleShootingProblemTests(unittest.TestCase):
         for actual_value, expected_value in zip(actual_hvp, expected_hvp):
             self.assertAlmostEqual(actual_value, expected_value, places=4)
 
+    def test_problem_includes_vector_penalty_terms(self) -> None:
+        problem = _build_penalized_reference_problem()
+        x0 = [1.0, -0.5]
+        U = [0.2, -0.1, 0.3]
+        p = [0.4, -1.2]
+
+        expected_cost, expected_states = _manual_penalized_rollout(
+            x0, U, p, problem.horizon, problem.penalty_weight)
+
+        cost_and_states = problem.to_function(include_states=True)
+        actual_cost, actual_states = cost_and_states(x0, U, p)
+
+        self.assertAlmostEqual(actual_cost, expected_cost, places=10)
+        self.assertEqual(tuple(expected_states), actual_states)
+
+    def test_problem_penalty_terms_participate_in_gradient(self) -> None:
+        problem = _build_penalized_reference_problem()
+        x0 = [1.0, -0.5]
+        U = [0.2, -0.1, 0.3]
+        p = [0.4, -1.2]
+
+        expected_gradient = []
+        for control_index in range(len(U)):
+            forward = list(U)
+            backward = list(U)
+            forward[control_index] += 1e-6
+            backward[control_index] -= 1e-6
+            forward_cost, _ = _manual_penalized_rollout(
+                x0, forward, p, problem.horizon, problem.penalty_weight)
+            backward_cost, _ = _manual_penalized_rollout(
+                x0, backward, p, problem.horizon, problem.penalty_weight)
+            expected_gradient.append(
+                (forward_cost - backward_cost) / (2.0e-6))
+
+        actual_gradient = problem.gradient().to_function()(x0, U, p)
+
+        for actual_value, expected_value in zip(
+                actual_gradient, expected_gradient):
+            self.assertAlmostEqual(actual_value, expected_value, places=5)
+
     def test_problem_expands_joint_cost_gradient_hvp_and_states(self) -> None:
         # This joint expansion should agree with independent finite-difference
         # references for both the gradient and the HVP while also preserving
@@ -479,6 +620,44 @@ class SingleShootingProblemTests(unittest.TestCase):
                 dynamics=dynamics,
                 stage_cost=stage_cost,
                 terminal_cost=bad_terminal_cost,
+            )
+
+    def test_validation_rejects_incomplete_penalty_configuration(self) \
+            -> None:
+        base = _build_reference_problem()
+
+        with self.assertRaises(ValueError):
+            SingleShootingProblem(
+                name="missing_terminal_penalty",
+                horizon=base.horizon,
+                dynamics=base.dynamics,
+                stage_cost=base.stage_cost,
+                terminal_cost=base.terminal_cost,
+                stage_penalty=Function(
+                    "q",
+                    base.stage_cost.inputs,
+                    [SXVector.sym("q_out", 1)],
+                ),
+                penalty_weight=1.0,
+            )
+
+        with self.assertRaises(ValueError):
+            SingleShootingProblem(
+                name="missing_penalty_weight",
+                horizon=base.horizon,
+                dynamics=base.dynamics,
+                stage_cost=base.stage_cost,
+                terminal_cost=base.terminal_cost,
+                stage_penalty=Function(
+                    "q",
+                    base.stage_cost.inputs,
+                    [SXVector.sym("q_out", 1)],
+                ),
+                terminal_penalty=Function(
+                    "q_n",
+                    base.terminal_cost.inputs,
+                    [SXVector.sym("q_n_out", 1)],
+                ),
             )
 
     def test_joint_bundle_requires_multiple_requested_outputs(self) -> None:
