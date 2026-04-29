@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `SingleShootingProblem` now accepts vector-valued stage and terminal
   residual penalties through `stage_penalty`, `terminal_penalty`, and a
   scalar `penalty_weight`.
+- Added a `demos/single_shooting_penalty` demo showing residual-penalty
+  single-shooting code generation and Rust runner usage.
 
 
 ## 0.4.1 - 22-04-2026

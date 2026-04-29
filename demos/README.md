@@ -15,6 +15,7 @@ This directory contains runnable end-to-end examples showing how to use
 - [composed_function](./composed_function/README.md): staged compositions with `ComposedFunction` and repeated stages via `repeat`
 - [composed_chain](./composed_chain/README.md): staged compositions with heterogeneous stages via `chain`
 - [single_shooting](./single_shooting/README.md): loop-based deterministic single-shooting OCP code generation
+- [single_shooting_penalty](./single_shooting_penalty/README.md): single-shooting OCP code generation with vector residual penalties
 - [python_interface](./python_interface/README.md): generate a Rust crate plus a separate PyO3 wrapper imported from Python
 
 ## Running all demos

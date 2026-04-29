@@ -1,10 +1,10 @@
 {
-  "crate_name": "single_shooting_kernel",
-  "created_at": "2026-04-29T12:20:00.065687Z",
+  "crate_name": "single_shooting_penalty_kernel",
+  "created_at": "2026-04-29T12:21:26.680636Z",
   "gradgen_version": "0.4.2a1",
   "functions": [
     {
-      "function_name": "single_shooting_kernel_mpc_cost_f_states",
+      "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_f_states",
       "workspace_size": 8,
       "input_names": [
         "x0",
@@ -26,7 +26,7 @@
       ]
     },
     {
-      "function_name": "single_shooting_kernel_mpc_cost_grad_states_u_seq",
+      "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq",
       "workspace_size": 14,
       "input_names": [
         "x0",
@@ -48,7 +48,7 @@
       ]
     },
     {
-      "function_name": "single_shooting_kernel_mpc_cost_hvp_states_u_seq",
+      "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq",
       "workspace_size": 32,
       "input_names": [
         "x0",
@@ -72,7 +72,7 @@
       ]
     },
     {
-      "function_name": "single_shooting_kernel_mpc_cost_f_grad_states_u_seq",
+      "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq",
       "workspace_size": 15,
       "input_names": [
         "x0",

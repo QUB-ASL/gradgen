@@ -47,6 +47,7 @@ jobs:
           cargo clippy --quiet --manifest-path demos/composed_function/composed_kernel/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/composed_chain/composed_chain_kernel/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/single_shooting/single_shooting_kernel/Cargo.toml -- -D warnings
+          cargo clippy --quiet --manifest-path demos/single_shooting_penalty/single_shooting_penalty_kernel/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/python_interface/foo_python/Cargo.toml -- -D warnings
 
       - name: Run demo runners
@@ -58,7 +59,8 @@ jobs:
           cargo run --manifest-path demos/vjp/runner/Cargo.toml
           cargo run --manifest-path demos/composed_function/runner/Cargo.toml
           cargo run --manifest-path demos/composed_chain/runner/Cargo.toml
-          cargo run --manifest-path demos/single_shooting/runner/Cargo.toml          
+          cargo run --manifest-path demos/single_shooting/runner/Cargo.toml
+          cargo run --manifest-path demos/single_shooting_penalty/runner/Cargo.toml
 
       - name: Clippy for demo runners
         run: |
@@ -70,3 +72,4 @@ jobs:
           cargo clippy --quiet --manifest-path demos/composed_function/runner/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/composed_chain/runner/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/single_shooting/runner/Cargo.toml -- -D warnings
+          cargo clippy --quiet --manifest-path demos/single_shooting_penalty/runner/Cargo.toml -- -D warnings
