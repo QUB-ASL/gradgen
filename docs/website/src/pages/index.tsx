@@ -35,7 +35,7 @@ function Hero(): ReactNode {
             <div className={styles.kicker}>
               Symbolic differentiation: Python to Rust</div>
             <Heading as="h1" className={styles.title}>
-              Generate Rust crates kernels from Python
+              Rust autodiff code generation
             </Heading>
             <p className={styles.subtitle}>{siteConfig.tagline}.</p>
             {/* <p className={styles.description}>
@@ -45,11 +45,11 @@ function Hero(): ReactNode {
 
             <div className={styles.buttons}>
               <Link className="button button--primary button--lg" to="/docs/intro">
-                Start reading
+                Learn more
               </Link>
-              <Link className="button button--secondary button--lg" to="/docs/category/demos">
+              {/* <Link className="button button--secondary button--lg" to="/docs/category/demos">
                 Browse demos
-              </Link>
+              </Link> */}
             </div>
 
             <div className={styles.metaRow}>
