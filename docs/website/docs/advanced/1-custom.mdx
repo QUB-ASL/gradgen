@@ -37,7 +37,9 @@ is often more efficient than computing the full Hessian.
 
 Let's look at a concrete example. Consider the function
 
-$$f(x, w) = 2^&#123;w_1&#125; x_1^2 + w_2 x_2^2 + \sin(x_1 x_2),$$
+```math
+f(x, w) = 2^{w_1} x_1^2 + w_2 x_2^2 + \sin(x_1 x_2),
+```
 
 with $x\in \mathbb R^2$ and $w\in \mathbb R^2$.
 
@@ -53,11 +55,13 @@ def eval_f(x, w):
 
 We can also determine the Jacobian of $f$, which is
 
-$$J_x f(x, w) = 
-\begin&#123;bmatrix&#125;
-2 \cdot 2^&#123;w_1&#125; x_1 + x_2 \cos(x_1 x_2) \\\\ 
+```math
+J_x f(x, w) = 
+\begin{bmatrix}
+2 \cdot 2^{w_1} x_1 + x_2 \cos(x_1 x_2) \\
 2 w_2 x_2 + x_1 \cos(x_1 x_2)
-\end&#123;bmatrix&#125;.$$
+\end{bmatrix}.
+```
 
 We can create a Python function for $J_x f$:
 
@@ -281,13 +285,17 @@ computed too.
 For a function $f:\mathbb R^n\times \mathbb R^p \to \mathbb R$ we may want
 to calculate Hessian-vector products, i.e. the mapping
 
-$$(x, w, v) \mapsto \nabla_x^2 f(x, w) \cdot v.$$
+```math
+(x, w, v) \mapsto \nabla_x^2 f(x, w) \cdot v.
+```
 
 This is often cheaper than building the full Hessian, especially when you only
 need second-order directional information. For the example above, the
 Hessian-vector product is
 
-$$\nabla_x^2 f(x, w) v = \begin&#123;bmatrix&#125; \left(2 \cdot 2^&#123;w_1&#125; - x_2^2 \sin(x_1 x_2)\right)v_1 + \left(\cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2)\right)v_2 \\\\ \left(\cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2)\right)v_1 + \left(2 w_2 - x_1^2 \sin(x_1 x_2)\right)v_2 \end&#123;bmatrix&#125;.$$
+```math
+\nabla_x^2 f(x, w) v = \begin{bmatrix} \left(2 \cdot 2^{w_1} - x_2^2 \sin(x_1 x_2)\right)v_1 + \left(\cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2)\right)v_2 \\\\ \left(\cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2)\right)v_1 + \left(2 w_2 - x_1^2 \sin(x_1 x_2)\right)v_2 \end{bmatrix}.
+```
 
 You can provide a Python callback for the product directly when registering
 the function:
@@ -343,24 +351,26 @@ custom_energy = register_elementary_function(
 
 The Hessian is the full matrix of second derivatives with respect to $x$, that is,
 
-$$\nabla_x^2 f(x, w) =
-\begin&#123;bmatrix&#125;
-\frac&#123;\partial^2 f&#125;&#123;\partial x_1^2&#125; & \cdots & \frac&#123;\partial^2 f&#125;&#123;\partial x_1 \partial x_n&#125; \\\\
+```math
+\nabla_x^2 f(x, w) =
+\begin{bmatrix}
+\frac{\partial^2 f}{\partial x_1^2} & \cdots & \frac{\partial^2 f}{\partial x_1 \partial x_n} \\\\
 \vdots & \ddots & \vdots \\\\
-\frac&#123;\partial^2 f&#125;&#123;\partial x_n \partial x_1&#125; & \cdots & \frac&#123;\partial^2 f&#125;&#123;\partial x_n^2&#125;
-\end&#123;bmatrix&#125;.$$
+\frac{\partial^2 f}{\partial x_n \partial x_1} & \cdots & \frac{\partial^2 f}{\partial x_n^2}
+\end{bmatrix}.
+```
 
 For the example above, this becomes
 
-$$
+```math
 \nabla_x^2 f(x, w) =
-\begin&#123;bmatrix&#125;
-2 \cdot 2^&#123;w_1&#125; - x_2^2 \sin(x_1 x_2) &
+\begin{bmatrix}
+2 \cdot 2^{w_1} - x_2^2 \sin(x_1 x_2) &
 \cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2) \\\\
 \cos(x_1 x_2) - x_1 x_2 \sin(x_1 x_2) &
 2 w_2 - x_1^2 \sin(x_1 x_2)
-\end&#123;bmatrix&#125;.
-$$
+\end{bmatrix}.
+```
 
 To provide a Hessian callback, return the matrix as rows. For a scalar input
 this can be a single scalar; for a vector input, a nested list or `SXVector`
