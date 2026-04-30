@@ -17,7 +17,9 @@ from gradgen import (  # noqa: E402
     SXVector,
     SingleShootingBundle,
     SingleShootingProblem,
+    maximum
 )
+import gradgen as gg
 
 
 def parse_args() -> argparse.Namespace:
@@ -100,17 +102,18 @@ stage_penalty = Function(
 terminal_cost = Function(
     "terminal_cost",
     [x, p],
-    [2.0 * x[0] * x[0] + x[1] * x[1]],
+    [0.0 * x[0]],
     input_names=["x", "p"],
     output_names=["vf"],
 )
 
 
-# q_N(x_N, p) softly tracks the terminal state toward the parameter vector.
+# q_N(x_N, p) is a terminal constraint residual. The residual uses a hinge
+# expression, but the total cost squares q_N, so max(0, z)^2 is differentiable.
 terminal_penalty = Function(
     "terminal_penalty",
     [x, p],
-    [SXVector((x[0] - p[0], x[1] - p[1]))],
+    [SXVector((maximum(0.0, x.norm2sq() - 1.0 - p[0]),))],
     input_names=["x", "p"],
     output_names=["q_n"],
 )

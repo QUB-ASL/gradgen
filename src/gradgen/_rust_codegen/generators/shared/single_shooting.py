@@ -318,7 +318,7 @@ def _append_generated_helper(
         config=helper_config,
         function_name=helper_name,
         function_index=0,
-        shared_helper_nodes=tuple(helper_function.nodes),
+        shared_helper_nodes=(),
         emit_crate_header=False,
         emit_docs=False,
         function_keyword="fn",

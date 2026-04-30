@@ -7,6 +7,9 @@ pub enum GradgenError {
     OutputTooSmall(&'static str),
 }
 
+fn norm2sq(values: &[f64]) -> f64 {
+    values.iter().map(|value| *value * *value).sum()
+}
 /// Metadata describing a generated Rust function.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct FunctionMetadata {
@@ -176,19 +179,13 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost(
     vf: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = x[0] * x[0];
-    work[0] *= 2.0_f64;
-    work[1] = x[1] * x[1];
+    work[0] = -p[0];
+    work[1] = norm2sq(x);
     work[0] += work[1];
-    work[1] = -p[0];
-    work[1] += x[0];
-    work[1] = work[1] * work[1];
-    work[2] = -p[1];
-    work[2] += x[1];
-    work[2] = work[2] * work[2];
-    work[1] += work[2];
-    work[1] *= 5.0_f64;
-    work[0] += work[1];
+    work[0] += -1.0_f64;
+    work[0] = 0.0_f64.max(work[0]);
+    work[0] = work[0] * work[0];
+    work[0] *= 5.0_f64;
     vf[0] = work[0];
 }
 
@@ -411,17 +408,20 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x(
     work: &mut [f64],
 ) {
     work[0] = -p[0];
-    work[0] += x[0];
-    work[0] *= 10.0_f64;
-    work[1] = 4.0_f64 * x[0];
+    work[1] = norm2sq(x);
     work[0] += work[1];
-    work[1] = -p[1];
-    work[1] += x[1];
-    work[1] *= 10.0_f64;
-    work[2] = 2.0_f64 * x[1];
-    work[1] += work[2];
-    vf[0] = work[0];
-    vf[1] = work[1];
+    work[0] += -1.0_f64;
+    work[1] = 0.0_f64.max(work[0]);
+    work[0] = -work[0];
+    work[0] = work[0].signum();
+    work[0] = -work[0];
+    work[0] += 1.0_f64;
+    work[0] *= 10.0_f64;
+    work[0] *= work[1];
+    work[1] = work[0] * x[0];
+    work[0] *= x[1];
+    vf[0] = work[1];
+    vf[1] = work[0];
 }
 
 /// Return metadata describing [`single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq`].
@@ -429,7 +429,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq_meta()
 {
     FunctionMetadata {
         function_name: "single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq",
-        workspace_size: 32,
+        workspace_size: 34,
         input_names: &["x0", "u_seq", "p", "v_u_seq"],
         input_sizes: &[2, 5, 2, 5],
         output_names: &["hvp_u_seq", "x_traj"],
@@ -461,7 +461,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq_meta()
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 32.
+///   while evaluating this kernel. Expected length: at least 34.
 pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
@@ -471,8 +471,8 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 32 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 32"));
+    if work.len() < 34 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 34"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -736,16 +736,41 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u_jvp(
 }
 
 fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x_jvp(
-    _x: &[f64],
-    _p: &[f64],
+    x: &[f64],
+    p: &[f64],
     tangent_x: &[f64],
     vf: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = 14.0_f64 * tangent_x[0];
-    work[1] = 12.0_f64 * tangent_x[1];
-    vf[0] = work[0];
-    vf[1] = work[1];
+    work[0] = -p[0];
+    work[1] = norm2sq(x);
+    work[0] += work[1];
+    work[0] += -1.0_f64;
+    work[1] = -work[0];
+    work[1] = work[1].signum();
+    work[1] = -work[1];
+    work[1] += 1.0_f64;
+    work[0] = 0.0_f64.max(work[0]);
+    work[0] *= work[1];
+    work[2] = work[0] * tangent_x[0];
+    work[2] *= 10.0_f64;
+    work[3] = tangent_x[0] * x[0];
+    work[3] *= 2.0_f64;
+    work[4] = tangent_x[1] * x[1];
+    work[4] *= 2.0_f64;
+    work[3] += work[4];
+    work[1] = work[1] * work[1];
+    work[1] *= work[3];
+    work[3] = work[1] * x[0];
+    work[3] *= 5.0_f64;
+    work[2] += work[3];
+    work[0] *= tangent_x[1];
+    work[0] *= 10.0_f64;
+    work[1] *= x[1];
+    work[1] *= 5.0_f64;
+    work[0] += work[1];
+    vf[0] = work[2];
+    vf[1] = work[0];
 }
 
 /// Return metadata describing [`single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq`].

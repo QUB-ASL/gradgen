@@ -23,6 +23,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   scalar `penalty_weight`.
 - Added a `demos/single_shooting_penalty` demo showing residual-penalty
   single-shooting code generation and Rust runner usage.
+- Automatic differentiation now supports `maximum` and `minimum` with a
+  piecewise derivative rule, allowing squared hinge residuals such as
+  `maximum(0, z) ** 2` in generated gradient and HVP kernels.
 
 
 ## 0.4.1 - 22-04-2026

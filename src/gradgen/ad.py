@@ -665,6 +665,40 @@ def _differentiate_abs(
     return (args[0] / expr) * tangents[0]
 
 
+def _differentiate_max(
+    expr: SX,
+    args: tuple[SX, ...],
+    tangents: tuple[SX, ...],
+) -> SX:
+    scale = SX.const(0.5)
+    selector = (args[0] - args[1]).signum()
+    return scale * (
+        (SX.const(1.0) + selector) * tangents[0]
+        + (SX.const(1.0) - selector) * tangents[1]
+    )
+
+
+def _differentiate_min(
+    expr: SX,
+    args: tuple[SX, ...],
+    tangents: tuple[SX, ...],
+) -> SX:
+    scale = SX.const(0.5)
+    selector = (args[0] - args[1]).signum()
+    return scale * (
+        (SX.const(1.0) - selector) * tangents[0]
+        + (SX.const(1.0) + selector) * tangents[1]
+    )
+
+
+def _differentiate_signum(
+    expr: SX,
+    args: tuple[SX, ...],
+    tangents: tuple[SX, ...],
+) -> SX:
+    return SX.const(0.0)
+
+
 _CUSTOM_DIFFERENTIATION_RULES: dict[str, DifferentiateRule] = {
     "custom_scalar": _differentiate_custom_scalar,
     "custom_scalar_jacobian": _differentiate_custom_scalar_jacobian,
@@ -706,6 +740,8 @@ _SIMPLE_DIFFERENTIATION_RULES: dict[str, DifferentiateRule] = {
     "hypot": lambda expr, args, tangents: (
         ((args[0] * tangents[0]) + (args[1] * tangents[1])) / expr
     ),
+    "max": _differentiate_max,
+    "min": _differentiate_min,
     "neg": _differentiate_neg,
     "sin": _differentiate_sin,
     "cos": _differentiate_cos,
@@ -728,6 +764,7 @@ _SIMPLE_DIFFERENTIATION_RULES: dict[str, DifferentiateRule] = {
     "erf": _differentiate_erf,
     "erfc": _differentiate_erfc,
     "abs": _differentiate_abs,
+    "signum": _differentiate_signum,
 }
 
 
@@ -1323,6 +1360,58 @@ def _propagate_reverse_abs(
     _accumulate_adjoint(adjoints, node.args[0], adjoint * (args[0] / expr))
 
 
+def _propagate_reverse_max(
+    node: SXNode,
+    expr: SX,
+    args: tuple[SX, ...],
+    adjoint: SX,
+    adjoints: dict[SXNode, SX],
+) -> None:
+    scale = SX.const(0.5)
+    selector = (args[0] - args[1]).signum()
+    _accumulate_adjoint(
+        adjoints,
+        node.args[0],
+        adjoint * scale * (SX.const(1.0) + selector),
+    )
+    _accumulate_adjoint(
+        adjoints,
+        node.args[1],
+        adjoint * scale * (SX.const(1.0) - selector),
+    )
+
+
+def _propagate_reverse_min(
+    node: SXNode,
+    expr: SX,
+    args: tuple[SX, ...],
+    adjoint: SX,
+    adjoints: dict[SXNode, SX],
+) -> None:
+    scale = SX.const(0.5)
+    selector = (args[0] - args[1]).signum()
+    _accumulate_adjoint(
+        adjoints,
+        node.args[0],
+        adjoint * scale * (SX.const(1.0) - selector),
+    )
+    _accumulate_adjoint(
+        adjoints,
+        node.args[1],
+        adjoint * scale * (SX.const(1.0) + selector),
+    )
+
+
+def _propagate_reverse_signum(
+    node: SXNode,
+    expr: SX,
+    args: tuple[SX, ...],
+    adjoint: SX,
+    adjoints: dict[SXNode, SX],
+) -> None:
+    return
+
+
 def _propagate_reverse_norm2(
     node: SXNode,
     expr: SX,
@@ -1451,19 +1540,20 @@ _REVERSE_DISPATCH: dict[str, ReverseRule] = {
     "norm_p_to_p": _propagate_reverse_norm_p_to_p,
     "norm_p": _propagate_reverse_norm_p,
     "abs": _propagate_reverse_abs,
+    "max": _propagate_reverse_max,
+    "min": _propagate_reverse_min,
+    "signum": _propagate_reverse_signum,
     "custom_scalar_hvp": _raise_reverse_unsupported,
     "custom_scalar_hessian": _raise_reverse_unsupported,
     "custom_vector_hvp_component": _raise_reverse_unsupported,
     "custom_vector_hessian_entry": _raise_reverse_unsupported,
     "reduce_max": _raise_reverse_unsupported,
     "reduce_min": _raise_reverse_unsupported,
-    "min": _raise_reverse_unsupported,
     "floor": _raise_reverse_unsupported,
     "ceil": _raise_reverse_unsupported,
     "round": _raise_reverse_unsupported,
     "trunc": _raise_reverse_unsupported,
     "fract": _raise_reverse_unsupported,
-    "signum": _raise_reverse_unsupported,
     "norm1": _raise_reverse_unsupported,
     "norm_inf": _raise_reverse_unsupported,
 }
@@ -1476,13 +1566,11 @@ _REVERSE_UNSUPPORTED_OPS = {
     "custom_vector_hessian_entry",
     "reduce_max",
     "reduce_min",
-    "min",
     "floor",
     "ceil",
     "round",
     "trunc",
     "fract",
-    "signum",
     "norm1",
     "norm_inf",
 }
