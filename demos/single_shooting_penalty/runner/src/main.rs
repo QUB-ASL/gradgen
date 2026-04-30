@@ -38,8 +38,9 @@ fn main() {
     let x0 = [1.0_f64, -0.5_f64];
     let controls = alternating_values(primal_metadata.input_sizes[1], 0.2, -0.1);
     let parameters = [0.4_f64, -1.2_f64];
+    let penalty_weight = [10.0_f64];
     let control_direction =
-        alternating_values(hvp_metadata.input_sizes[3], 0.5, -1.0);
+        alternating_values(hvp_metadata.input_sizes[4], 0.5, -1.0);
 
     let mut cost = vec![0.0_f64; primal_metadata.output_sizes[0]];
     let mut x_traj = vec![0.0_f64; primal_metadata.output_sizes[1]];
@@ -48,6 +49,7 @@ fn main() {
         &x0,
         &controls,
         &parameters,
+        &penalty_weight,
         &mut cost,
         &mut x_traj,
         &mut primal_work,
@@ -63,6 +65,7 @@ fn main() {
         &x0,
         &controls,
         &parameters,
+        &penalty_weight,
         &mut gradient,
         &mut gradient_states,
         &mut gradient_work,
@@ -77,6 +80,7 @@ fn main() {
         &x0,
         &controls,
         &parameters,
+        &penalty_weight,
         &control_direction,
         &mut hvp,
         &mut hvp_states,
@@ -93,6 +97,7 @@ fn main() {
         &x0,
         &controls,
         &parameters,
+        &penalty_weight,
         &mut joint_cost,
         &mut joint_gradient,
         &mut joint_states,

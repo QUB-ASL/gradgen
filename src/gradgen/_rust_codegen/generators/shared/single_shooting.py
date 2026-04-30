@@ -368,6 +368,20 @@ def _build_single_shooting_input_specs(
             size=problem.parameter_size,
         ),
     ]
+    if problem.has_runtime_penalty_weight:
+        penalty_weight_name = problem.penalty_weight_name or "c"
+        specs.append(
+            _ArgSpec(
+                raw_name=penalty_weight_name,
+                rust_name=sanitize_ident(penalty_weight_name),
+                rust_label=f'"{penalty_weight_name}"',
+                doc_description=(
+                    "scalar penalty weight multiplying squared residual "
+                    "norm terms"
+                ),
+                size=1,
+            )
+        )
     if include_hvp:
         specs.append(
             _ArgSpec(

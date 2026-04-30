@@ -4,7 +4,6 @@ PYTHON ?= python
 REPEATS ?= 5
 HORIZON ?= 5
 COUNT ?= 3
-PENALTY_WEIGHT ?= 10
 
 all: codegen custom_function multi_function vjp map_zip zip_3 reduce_map composed_function composed_chain single_shooting single_shooting_penalty python_interface
 
@@ -21,7 +20,7 @@ help:
 	@echo "  make composed_function REPEATS=$(REPEATS)"
 	@echo "  make composed_chain"
 	@echo "  make single_shooting HORIZON=$(HORIZON)"
-	@echo "  make single_shooting_penalty HORIZON=$(HORIZON) PENALTY_WEIGHT=$(PENALTY_WEIGHT)"
+	@echo "  make single_shooting_penalty HORIZON=$(HORIZON)"
 	@echo "  make python_interface"
 
 codegen:
@@ -55,7 +54,7 @@ single_shooting:
 	$(PYTHON) single_shooting/main.py --horizon $(HORIZON)
 
 single_shooting_penalty:
-	$(PYTHON) single_shooting_penalty/main.py --horizon $(HORIZON) --penalty-weight $(PENALTY_WEIGHT)
+	$(PYTHON) single_shooting_penalty/main.py --horizon $(HORIZON)
 
 python_interface:
 	$(PYTHON) python_interface/main.py

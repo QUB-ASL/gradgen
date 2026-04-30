@@ -13,10 +13,10 @@ cargo build
 
 ## Generated Functions
 
-- `single_shooting_penalty_kernel_penalized_mpc_cost_f_states`: workspace `8`, inputs `(2, 5, 2)`, outputs `(1, 12)`
-- `single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq`: workspace `14`, inputs `(2, 5, 2)`, outputs `(5, 12)`
-- `single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq`: workspace `34`, inputs `(2, 5, 2, 5)`, outputs `(5, 12)`
-- `single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq`: workspace `15`, inputs `(2, 5, 2)`, outputs `(1, 5, 12)`
+- `single_shooting_penalty_kernel_penalized_mpc_cost_f_states`: workspace `8`, inputs `(2, 5, 2, 1)`, outputs `(1, 12)`
+- `single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq`: workspace `14`, inputs `(2, 5, 2, 1)`, outputs `(5, 12)`
+- `single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq`: workspace `33`, inputs `(2, 5, 2, 1, 5)`, outputs `(5, 12)`
+- `single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq`: workspace `15`, inputs `(2, 5, 2, 1)`, outputs `(1, 5, 12)`
 
 The generated ABI uses input slices, output slices, and a mutable workspace slice.
 Each generated function also includes metadata helpers for workspace, input, and output sizes unless disabled in the backend configuration.

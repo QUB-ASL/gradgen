@@ -16,19 +16,18 @@ where:
 - `q(x, u, p)` is a vector-valued stage residual.
 - `V_f(x_N, p)` is the scalar terminal cost.
 - `q_N(x_N, p)` is a vector-valued terminal residual.
-- `c` is the scalar `penalty_weight` passed to `SingleShootingProblem`.
+- `c` is a scalar runtime input passed to the generated Rust kernels.
 
 Run the generator from the repository root with:
 
 ```bash
-python demos/single_shooting_penalty/main.py --horizon 5 --penalty-weight 10
+python demos/single_shooting_penalty/main.py --horizon 5
 ```
 
 or through the demos Makefile:
 
 ```bash
-make -C demos single_shooting_penalty PYTHON=../venv/bin/python \
-    PENALTY_WEIGHT=10
+make -C demos single_shooting_penalty PYTHON=../venv/bin/python
 ```
 
 The script generates:

@@ -92,7 +92,7 @@ def _build_reference_problem(*, horizon: int = 3) -> SingleShootingProblem:
 
 
 def _build_penalized_reference_problem(
-    *, horizon: int = 3
+    *, horizon: int = 3, symbolic_weight: bool = False
 ) -> SingleShootingProblem:
     x = SXVector.sym("x", 2)
     u = SXVector.sym("u", 1)
@@ -140,6 +140,7 @@ def _build_penalized_reference_problem(
         input_names=["x", "p"],
         output_names=["q_n"],
     )
+    penalty_weight = SX.sym("c") if symbolic_weight else 4.0
     return SingleShootingProblem(
         name="penalized_mpc_cost",
         horizon=horizon,
@@ -148,7 +149,7 @@ def _build_penalized_reference_problem(
         terminal_cost=terminal_cost,
         stage_penalty=stage_penalty,
         terminal_penalty=terminal_penalty,
-        penalty_weight=4.0,
+        penalty_weight=penalty_weight,
         initial_state_name="x0",
         control_sequence_name="U",
         parameter_name="p",
@@ -464,6 +465,34 @@ class SingleShootingProblemTests(unittest.TestCase):
         for actual_value, expected_value in zip(
                 actual_gradient, expected_gradient):
             self.assertAlmostEqual(actual_value, expected_value, places=5)
+
+    def test_symbolic_penalty_weight_is_runtime_input(self) -> None:
+        problem = _build_penalized_reference_problem(symbolic_weight=True)
+        x0 = [1.0, -0.5]
+        U = [0.2, -0.1, 0.3]
+        p = [0.4, -1.2]
+        c = 4.0
+
+        expected_cost, expected_states = _manual_penalized_rollout(
+            x0, U, p, problem.horizon, c)
+
+        cost_and_states = problem.to_function(include_states=True)
+        self.assertEqual(cost_and_states.input_names, ("x0", "U", "p", "c"))
+        actual_cost, actual_states = cost_and_states(x0, U, p, c)
+        self.assertAlmostEqual(actual_cost, expected_cost, places=10)
+        self.assertEqual(tuple(expected_states), actual_states)
+
+        gradient_function = problem.gradient().to_function()
+        self.assertEqual(
+            gradient_function.input_names,
+            ("x0", "U", "p", "c"),
+        )
+
+        hvp_function = problem.hvp().to_function()
+        self.assertEqual(
+            hvp_function.input_names,
+            ("x0", "U", "p", "c", "v_U"),
+        )
 
     def test_problem_expands_joint_cost_gradient_hvp_and_states(self) -> None:
         # This joint expansion should agree with independent finite-difference

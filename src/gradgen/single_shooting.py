@@ -364,9 +364,10 @@ class SingleShootingProblem:
             ``(x, u, p)`` and returning ``q(x, u, p)``.
         terminal_penalty: Optional vector-valued residual function accepting
             ``(x, p)`` and returning ``q_N(x, p)``.
-        penalty_weight: Optional scalar constant ``c`` multiplying both
-            squared residual norms. It must be provided when either penalty
-            residual is provided.
+        penalty_weight: Optional scalar ``c`` multiplying both squared
+            residual norms. Pass a numeric value to bake ``c`` into generated
+            code, or pass an ``SX`` symbol such as ``SX.sym("c")`` to expose
+            ``c`` as a runtime scalar input.
     """
 
     name: str
@@ -380,7 +381,7 @@ class SingleShootingProblem:
     simplification: int | str | None = None
     stage_penalty: Function | None = None
     terminal_penalty: Function | None = None
-    penalty_weight: float | None = None
+    penalty_weight: float | SX | None = None
 
     def __post_init__(self) -> None:
         """Validate stage and cost signatures."""
@@ -422,13 +423,30 @@ class SingleShootingProblem:
         return _single_shooting_arg_size(self.dynamics.inputs[2])
 
     @property
+    def has_runtime_penalty_weight(self) -> bool:
+        """Return whether ``c`` is exposed as a runtime scalar input."""
+        return isinstance(self.penalty_weight, SX)
+
+    @property
+    def penalty_weight_name(self) -> str | None:
+        """Return the runtime input name for symbolic ``c``."""
+        if isinstance(self.penalty_weight, SX):
+            return self.penalty_weight.name or "c"
+        return None
+
+    @property
     def input_names(self) -> tuple[str, ...]:
         """Return the exposed runtime input names."""
-        return (
+        names = [
             self.initial_state_name,
             self.control_sequence_name,
             self.parameter_name,
-        )
+        ]
+        if self.has_runtime_penalty_weight:
+            penalty_weight_name = self.penalty_weight_name
+            if penalty_weight_name is not None:
+                names.append(penalty_weight_name)
+        return tuple(names)
 
     @property
     def output_names(self) -> tuple[str, ...]:
@@ -520,7 +538,13 @@ class SingleShootingProblem:
         name: str | None = None,
     ) -> Function:
         """Expand the total-cost kernel into a symbolic ``Function``."""
-        x0, U, p = self._compiled_inputs()
+        compiled_inputs = self._compiled_inputs()
+        x0, U, p = compiled_inputs[:3]
+        penalty_weight = (
+            compiled_inputs[3]
+            if self.has_runtime_penalty_weight
+            else None
+        )
         current_state: FunctionArg = x0
         rollout_states: list[FunctionArg] = [current_state]
         total_cost = SX.const(0.0)
@@ -530,14 +554,16 @@ class SingleShootingProblem:
                 U, stage_index, self.control_size, self.dynamics.inputs[1]
             )
             total_cost = total_cost + self._stage_total_cost(
-                current_state, u_t, p
+                current_state, u_t, p, penalty_weight
             )
             current_state = _extract_single_output(
                 self.dynamics(current_state, u_t, p)
             )
             rollout_states.append(current_state)
 
-        total_cost = total_cost + self._terminal_total_cost(current_state, p)
+        total_cost = total_cost + self._terminal_total_cost(
+            current_state, p, penalty_weight
+        )
         outputs: list[FunctionArg] = [total_cost]
         output_names = ["cost"]
         if include_states:
@@ -546,7 +572,7 @@ class SingleShootingProblem:
 
         function = Function(
             name or self.name,
-            (x0, U, p),
+            compiled_inputs,
             outputs,
             input_names=self.input_names,
             output_names=tuple(output_names),
@@ -663,8 +689,8 @@ class SingleShootingProblem:
             output_names=tuple(output_names),
         )
 
-    def _compiled_inputs(self) -> tuple[FunctionArg, SXVector, FunctionArg]:
-        """Return symbolic runtime inputs for ``x0``, ``U``, and ``p``."""
+    def _compiled_inputs(self) -> tuple[FunctionArg, ...]:
+        """Return symbolic runtime inputs."""
         x0 = _make_symbolic_like(
             self.dynamics.inputs[0], self.initial_state_name
         )
@@ -672,15 +698,19 @@ class SingleShootingProblem:
         U = SXVector.sym(
             self.control_sequence_name, self.horizon * self.control_size
         )
+        if self.has_runtime_penalty_weight:
+            return x0, U, p, SX.sym(self.penalty_weight_name or "c")
         return x0, U, p
 
     def stage_total_cost_function(self) -> Function:
         """Return the scalar stage cost including residual penalties.
 
         The returned function has the same ``(x, u, p)`` signature as
-        :attr:`stage_cost`. When :attr:`stage_penalty` is present its output
-        is squared, summed, multiplied by ``penalty_weight / 2``, and added
-        to the base stage cost.
+        :attr:`stage_cost` when ``penalty_weight`` is numeric, and
+        ``(x, u, p, c)`` when ``penalty_weight`` is symbolic. When
+        :attr:`stage_penalty` is present its output is squared, summed,
+        multiplied by ``penalty_weight / 2``, and added to the base stage
+        cost.
 
         Returns:
             A scalar :class:`~gradgen.function.Function` for the effective
@@ -688,11 +718,17 @@ class SingleShootingProblem:
             code-generation paths.
         """
         x, u, p = self.stage_cost.inputs
+        penalty_weight = self._helper_penalty_weight_symbol()
+        inputs = (x, u, p)
+        input_names = self.stage_cost.input_names
+        if penalty_weight is not None:
+            inputs = (*inputs, penalty_weight)
+            input_names = (*input_names, self.penalty_weight_name or "c")
         return Function(
             f"{self.stage_cost.name}_with_penalty",
-            (x, u, p),
-            (self._stage_total_cost(x, u, p),),
-            input_names=self.stage_cost.input_names,
+            inputs,
+            (self._stage_total_cost(x, u, p, penalty_weight),),
+            input_names=input_names,
             output_names=self.stage_cost.output_names,
         )
 
@@ -700,9 +736,11 @@ class SingleShootingProblem:
         """Return the scalar terminal cost including residual penalties.
 
         The returned function has the same ``(x, p)`` signature as
-        :attr:`terminal_cost`. When :attr:`terminal_penalty` is present its
-        output is squared, summed, multiplied by ``penalty_weight / 2``, and
-        added to the base terminal cost.
+        :attr:`terminal_cost` when ``penalty_weight`` is numeric, and
+        ``(x, p, c)`` when ``penalty_weight`` is symbolic. When
+        :attr:`terminal_penalty` is present its output is squared, summed,
+        multiplied by ``penalty_weight / 2``, and added to the base terminal
+        cost.
 
         Returns:
             A scalar :class:`~gradgen.function.Function` for the effective
@@ -710,39 +748,72 @@ class SingleShootingProblem:
             code-generation paths.
         """
         x, p = self.terminal_cost.inputs
+        penalty_weight = self._helper_penalty_weight_symbol()
+        inputs = (x, p)
+        input_names = self.terminal_cost.input_names
+        if penalty_weight is not None:
+            inputs = (*inputs, penalty_weight)
+            input_names = (*input_names, self.penalty_weight_name or "c")
         return Function(
             f"{self.terminal_cost.name}_with_penalty",
-            (x, p),
-            (self._terminal_total_cost(x, p),),
-            input_names=self.terminal_cost.input_names,
+            inputs,
+            (self._terminal_total_cost(x, p, penalty_weight),),
+            input_names=input_names,
             output_names=self.terminal_cost.output_names,
         )
 
     def _stage_total_cost(
-        self, x: FunctionArg, u: FunctionArg, p: FunctionArg
+        self,
+        x: FunctionArg,
+        u: FunctionArg,
+        p: FunctionArg,
+        penalty_weight: SX | None = None,
     ) -> SX:
         """Return the symbolic stage cost including residual penalties."""
         cost = _extract_scalar_output(self.stage_cost(x, u, p))
         if self.stage_penalty is None:
             return cost
         return cost + self._weighted_squared_norm(
-            _extract_single_output(self.stage_penalty(x, u, p))
+            _extract_single_output(self.stage_penalty(x, u, p)),
+            penalty_weight,
         )
 
-    def _terminal_total_cost(self, x: FunctionArg, p: FunctionArg) -> SX:
+    def _terminal_total_cost(
+        self,
+        x: FunctionArg,
+        p: FunctionArg,
+        penalty_weight: SX | None = None,
+    ) -> SX:
         """Return the symbolic terminal cost including residual penalties."""
         cost = _extract_scalar_output(self.terminal_cost(x, p))
         if self.terminal_penalty is None:
             return cost
         return cost + self._weighted_squared_norm(
-            _extract_single_output(self.terminal_penalty(x, p))
+            _extract_single_output(self.terminal_penalty(x, p)),
+            penalty_weight,
         )
 
-    def _weighted_squared_norm(self, residual: FunctionArg) -> SX:
+    def _weighted_squared_norm(
+        self,
+        residual: FunctionArg,
+        penalty_weight: SX | None = None,
+    ) -> SX:
         """Return ``penalty_weight / 2 * ||residual||_2^2``."""
         if self.penalty_weight is None:
             raise ValueError("penalty_weight must be provided")
-        return (0.5 * float(self.penalty_weight)) * _squared_norm(residual)
+        if penalty_weight is not None:
+            weight = penalty_weight
+        elif isinstance(self.penalty_weight, SX):
+            weight = self.penalty_weight
+        else:
+            weight = SX.const(float(self.penalty_weight))
+        return (SX.const(0.5) * weight) * _squared_norm(residual)
+
+    def _helper_penalty_weight_symbol(self) -> SX | None:
+        """Return the helper input symbol for runtime penalty weights."""
+        if not self.has_runtime_penalty_weight:
+            return None
+        return SX.sym(self.penalty_weight_name or "c")
 
     def generate_rust(
         self,
@@ -976,7 +1047,7 @@ def _validate_single_shooting_terminal_cost(function: Function) -> None:
 def _validate_single_shooting_penalty_configuration(
     stage_penalty: Function | None,
     terminal_penalty: Function | None,
-    penalty_weight: float | None,
+    penalty_weight: float | SX | None,
 ) -> None:
     """Validate optional residual penalty fields are supplied together."""
     has_any_penalty = stage_penalty is not None or terminal_penalty is not None
@@ -989,6 +1060,8 @@ def _validate_single_shooting_penalty_configuration(
             "SingleShootingProblem penalties require stage_penalty, "
             "terminal_penalty, and penalty_weight"
         )
+    if isinstance(penalty_weight, SXVector):
+        raise TypeError("penalty_weight must be a scalar")
 
 
 def _validate_single_shooting_stage_penalty(function: Function) -> None:

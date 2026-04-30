@@ -32,8 +32,8 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states_meta() -> Func
     FunctionMetadata {
         function_name: "single_shooting_penalty_kernel_penalized_mpc_cost_f_states",
         workspace_size: 8,
-        input_names: &["x0", "u_seq", "p"],
-        input_sizes: &[2, 5, 2],
+        input_names: &["x0", "u_seq", "p", "c"],
+        input_sizes: &[2, 5, 2, 1],
         output_names: &["cost", "x_traj"],
         output_sizes: &[1, 12],
     }
@@ -53,6 +53,9 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states_meta() -> Func
 /// - `p`:
 ///   shared parameter slice used at every stage and terminal evaluation
 ///   Expected length: 2.
+/// - `c`:
+///   scalar penalty weight multiplying squared residual norm terms
+///   Expected length: 1.
 /// - `cost`:
 ///   scalar rollout cost
 ///   Expected length: 1.
@@ -65,6 +68,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states(
     x0: &[f64],
     u_seq: &[f64],
     p: &[f64],
+    c: &[f64],
     cost: &mut [f64],
     x_traj: &mut [f64],
     work: &mut [f64],
@@ -80,6 +84,9 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states(
     };
     if p.len() != 2 {
         return Err(GradgenError::InputTooSmall("p expected length 2"));
+    };
+    if c.len() != 1 {
+        return Err(GradgenError::InputTooSmall("c expected length 1"));
     };
     if cost.len() != 1 {
         return Err(GradgenError::OutputTooSmall("cost expected length 1"));
@@ -102,6 +109,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states(
             current_state,
             u_t,
             p,
+            c,
             scalar_buffer,
             stage_work,
         );
@@ -119,6 +127,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states(
     single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost(
         current_state,
         p,
+        c,
         scalar_buffer,
         stage_work,
     );
@@ -150,6 +159,7 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost(
     x: &[f64],
     u: &[f64],
     p: &[f64],
+    c: &[f64],
     ell: &mut [f64],
     work: &mut [f64],
 ) {
@@ -168,7 +178,8 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost(
     work[2] += x[1];
     work[2] = work[2] * work[2];
     work[1] += work[2];
-    work[1] *= 5.0_f64;
+    work[1] *= c[0];
+    work[1] *= 0.5_f64;
     work[0] += work[1];
     ell[0] = work[0];
 }
@@ -176,6 +187,7 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost(
 fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost(
     x: &[f64],
     p: &[f64],
+    c: &[f64],
     vf: &mut [f64],
     work: &mut [f64],
 ) {
@@ -185,7 +197,8 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost(
     work[0] += -1.0_f64;
     work[0] = 0.0_f64.max(work[0]);
     work[0] = work[0] * work[0];
-    work[0] *= 5.0_f64;
+    work[0] *= 0.5_f64;
+    work[0] *= c[0];
     vf[0] = work[0];
 }
 
@@ -195,8 +208,8 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq_meta(
     FunctionMetadata {
         function_name: "single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq",
         workspace_size: 14,
-        input_names: &["x0", "u_seq", "p"],
-        input_sizes: &[2, 5, 2],
+        input_names: &["x0", "u_seq", "p", "c"],
+        input_sizes: &[2, 5, 2, 1],
         output_names: &["gradient_u_seq", "x_traj"],
         output_sizes: &[5, 12],
     }
@@ -216,6 +229,9 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq_meta(
 /// - `p`:
 ///   shared parameter slice used at every stage and terminal evaluation
 ///   Expected length: 2.
+/// - `c`:
+///   scalar penalty weight multiplying squared residual norm terms
+///   Expected length: 1.
 /// - `gradient_u_seq`:
 ///   packed gradient with respect to the control sequence
 ///   Expected length: 5.
@@ -228,6 +244,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
     p: &[f64],
+    c: &[f64],
     gradient_u_seq: &mut [f64],
     x_traj: &mut [f64],
     work: &mut [f64],
@@ -243,6 +260,9 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq(
     };
     if p.len() != 2 {
         return Err(GradgenError::InputTooSmall("p expected length 2"));
+    };
+    if c.len() != 1 {
+        return Err(GradgenError::InputTooSmall("c expected length 1"));
     };
     if gradient_u_seq.len() != 5 {
         return Err(GradgenError::OutputTooSmall(
@@ -280,6 +300,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq(
     single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x(
         current_state,
         p,
+        c,
         lambda_current,
         stage_work,
     );
@@ -288,7 +309,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq(
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         let grad_u_t = &mut gradient_u_seq[stage_index..(stage_index + 1)];
         single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
-            x_t, u_t, p, grad_u_t, stage_work,
+            x_t, u_t, p, c, grad_u_t, stage_work,
         );
         single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u(
             x_t,
@@ -303,6 +324,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq(
             x_t,
             u_t,
             p,
+            c,
             lambda_next,
             stage_work,
         );
@@ -321,7 +343,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq(
     let u_t = &u_seq[0..1];
     let grad_u_t = &mut gradient_u_seq[0..1];
     single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
-        x0, u_t, p, grad_u_t, stage_work,
+        x0, u_t, p, c, grad_u_t, stage_work,
     );
     single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u(
         x0,
@@ -368,18 +390,19 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x(
     x: &[f64],
     u: &[f64],
     p: &[f64],
+    c: &[f64],
     ell: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = u[0] + x[0];
-    work[1] = -p[0];
-    work[0] += work[1];
-    work[0] *= 10.0_f64;
-    work[1] = 2.0_f64 * x[0];
+    work[0] = 2.0_f64 * x[0];
+    work[1] = u[0] + x[0];
+    work[2] = -p[0];
+    work[1] += work[2];
+    work[1] *= c[0];
     work[0] += work[1];
     work[1] = -p[1];
     work[1] += x[1];
-    work[1] *= 10.0_f64;
+    work[1] *= c[0];
     work[1] += x[1];
     ell[0] = work[0];
     ell[1] = work[1];
@@ -389,6 +412,7 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
     x: &[f64],
     u: &[f64],
     p: &[f64],
+    c: &[f64],
     ell: &mut [f64],
     work: &mut [f64],
 ) {
@@ -396,7 +420,7 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
     work[1] = u[0] + x[0];
     work[2] = -p[0];
     work[1] += work[2];
-    work[1] *= 10.0_f64;
+    work[1] *= c[0];
     work[0] += work[1];
     ell[0] = work[0];
 }
@@ -404,6 +428,7 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
 fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x(
     x: &[f64],
     p: &[f64],
+    c: &[f64],
     vf: &mut [f64],
     work: &mut [f64],
 ) {
@@ -411,13 +436,13 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x(
     work[1] = norm2sq(x);
     work[0] += work[1];
     work[0] += -1.0_f64;
-    work[1] = 0.0_f64.max(work[0]);
-    work[0] = -work[0];
-    work[0] = work[0].signum();
-    work[0] = -work[0];
-    work[0] += 1.0_f64;
-    work[0] *= 10.0_f64;
+    work[1] = -work[0];
+    work[1] = work[1].signum();
+    work[1] = -work[1];
+    work[1] += 1.0_f64;
+    work[0] = 0.0_f64.max(work[0]);
     work[0] *= work[1];
+    work[0] *= c[0];
     work[1] = work[0] * x[0];
     work[0] *= x[1];
     vf[0] = work[1];
@@ -429,9 +454,9 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq_meta()
 {
     FunctionMetadata {
         function_name: "single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq",
-        workspace_size: 34,
-        input_names: &["x0", "u_seq", "p", "v_u_seq"],
-        input_sizes: &[2, 5, 2, 5],
+        workspace_size: 33,
+        input_names: &["x0", "u_seq", "p", "c", "v_u_seq"],
+        input_sizes: &[2, 5, 2, 1, 5],
         output_names: &["hvp_u_seq", "x_traj"],
         output_sizes: &[5, 12],
     }
@@ -451,6 +476,9 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq_meta()
 /// - `p`:
 ///   shared parameter slice used at every stage and terminal evaluation
 ///   Expected length: 2.
+/// - `c`:
+///   scalar penalty weight multiplying squared residual norm terms
+///   Expected length: 1.
 /// - `v_u_seq`:
 ///   packed control-direction vector for the single-shooting HVP
 ///   Expected length: 5.
@@ -461,18 +489,20 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq_meta()
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 34.
+///   while evaluating this kernel. Expected length: at least 33.
+#[allow(clippy::too_many_arguments)]
 pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
     p: &[f64],
+    c: &[f64],
     v_u_seq: &[f64],
     hvp_u_seq: &mut [f64],
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 34 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 34"));
+    if work.len() < 33 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 33"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -482,6 +512,9 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
     };
     if p.len() != 2 {
         return Err(GradgenError::InputTooSmall("p expected length 2"));
+    };
+    if c.len() != 1 {
+        return Err(GradgenError::InputTooSmall("c expected length 1"));
     };
     if v_u_seq.len() != 5 {
         return Err(GradgenError::InputTooSmall("v_u_seq expected length 5"));
@@ -538,12 +571,14 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
     single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x(
         current_state,
         p,
+        c,
         lambda_current,
         stage_work,
     );
     single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x_jvp(
         current_state,
         p,
+        c,
         current_tangent,
         mu_current,
         stage_work,
@@ -558,6 +593,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
             x_t,
             u_t,
             p,
+            c,
             tangent_x_t,
             v_u_t,
             hvp_u_t,
@@ -579,6 +615,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
             x_t,
             u_t,
             p,
+            c,
             lambda_next,
             stage_work,
         );
@@ -596,6 +633,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
             x_t,
             u_t,
             p,
+            c,
             tangent_x_t,
             v_u_t,
             mu_next,
@@ -625,6 +663,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
         x0,
         u_t,
         p,
+        c,
         next_tangent,
         v_u_t,
         hvp_u_t,
@@ -703,34 +742,43 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u_jvp(
     vjp_u[0] = work[0];
 }
 
+#[allow(clippy::too_many_arguments)]
 fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x_jvp(
     _x: &[f64],
     _u: &[f64],
     _p: &[f64],
+    c: &[f64],
     tangent_x: &[f64],
     tangent_u: &[f64],
     ell: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = 10.0_f64 * tangent_u[0];
-    work[1] = 12.0_f64 * tangent_x[0];
+    work[0] = 2.0_f64 * tangent_x[0];
+    work[1] = c[0] * tangent_x[0];
     work[0] += work[1];
-    work[1] = 11.0_f64 * tangent_x[1];
+    work[1] = c[0] * tangent_u[0];
+    work[0] += work[1];
+    work[1] = c[0] * tangent_x[1];
+    work[1] += tangent_x[1];
     ell[0] = work[0];
     ell[1] = work[1];
 }
 
+#[allow(clippy::too_many_arguments)]
 fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u_jvp(
     _x: &[f64],
     _u: &[f64],
     _p: &[f64],
+    c: &[f64],
     tangent_x: &[f64],
     tangent_u: &[f64],
     ell: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = 10.0_f64 * tangent_x[0];
-    work[1] = 10.2_f64 * tangent_u[0];
+    work[0] = 0.2_f64 * tangent_u[0];
+    work[1] = c[0] * tangent_x[0];
+    work[0] += work[1];
+    work[1] = c[0] * tangent_u[0];
     work[0] += work[1];
     ell[0] = work[0];
 }
@@ -738,36 +786,37 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u_jvp(
 fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x_jvp(
     x: &[f64],
     p: &[f64],
+    c: &[f64],
     tangent_x: &[f64],
     vf: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = -p[0];
-    work[1] = norm2sq(x);
+    work[0] = tangent_x[0] * x[0];
+    work[0] *= 2.0_f64;
+    work[1] = tangent_x[1] * x[1];
+    work[1] *= 2.0_f64;
     work[0] += work[1];
-    work[0] += -1.0_f64;
-    work[1] = -work[0];
-    work[1] = work[1].signum();
-    work[1] = -work[1];
-    work[1] += 1.0_f64;
-    work[0] = 0.0_f64.max(work[0]);
-    work[0] *= work[1];
-    work[2] = work[0] * tangent_x[0];
-    work[2] *= 10.0_f64;
-    work[3] = tangent_x[0] * x[0];
-    work[3] *= 2.0_f64;
-    work[4] = tangent_x[1] * x[1];
-    work[4] *= 2.0_f64;
-    work[3] += work[4];
-    work[1] = work[1] * work[1];
-    work[1] *= work[3];
-    work[3] = work[1] * x[0];
-    work[3] *= 5.0_f64;
+    work[1] = -p[0];
+    work[2] = norm2sq(x);
+    work[1] += work[2];
+    work[1] += -1.0_f64;
+    work[2] = -work[1];
+    work[2] = work[2].signum();
+    work[2] = -work[2];
+    work[2] += 1.0_f64;
+    work[3] = work[2] * work[2];
+    work[0] *= work[3];
+    work[0] *= c[0];
+    work[3] = work[0] * x[0];
+    work[3] *= 0.5_f64;
+    work[1] = 0.0_f64.max(work[1]);
+    work[1] *= work[2];
+    work[1] *= c[0];
+    work[2] = work[1] * tangent_x[0];
     work[2] += work[3];
-    work[0] *= tangent_x[1];
-    work[0] *= 10.0_f64;
-    work[1] *= x[1];
-    work[1] *= 5.0_f64;
+    work[0] *= x[1];
+    work[0] *= 0.5_f64;
+    work[1] *= tangent_x[1];
     work[0] += work[1];
     vf[0] = work[2];
     vf[1] = work[0];
@@ -779,8 +828,8 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq_met
     FunctionMetadata {
         function_name: "single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq",
         workspace_size: 15,
-        input_names: &["x0", "u_seq", "p"],
-        input_sizes: &[2, 5, 2],
+        input_names: &["x0", "u_seq", "p", "c"],
+        input_sizes: &[2, 5, 2, 1],
         output_names: &["cost", "gradient_u_seq", "x_traj"],
         output_sizes: &[1, 5, 12],
     }
@@ -800,6 +849,9 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq_met
 /// - `p`:
 ///   shared parameter slice used at every stage and terminal evaluation
 ///   Expected length: 2.
+/// - `c`:
+///   scalar penalty weight multiplying squared residual norm terms
+///   Expected length: 1.
 /// - `cost`:
 ///   scalar rollout cost
 ///   Expected length: 1.
@@ -811,10 +863,12 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq_met
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 15.
+#[allow(clippy::too_many_arguments)]
 pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
     p: &[f64],
+    c: &[f64],
     cost: &mut [f64],
     gradient_u_seq: &mut [f64],
     x_traj: &mut [f64],
@@ -831,6 +885,9 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
     };
     if p.len() != 2 {
         return Err(GradgenError::InputTooSmall("p expected length 2"));
+    };
+    if c.len() != 1 {
+        return Err(GradgenError::InputTooSmall("c expected length 1"));
     };
     if cost.len() != 1 {
         return Err(GradgenError::OutputTooSmall("cost expected length 1"));
@@ -863,6 +920,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
             current_state,
             u_t,
             p,
+            c,
             scalar_buffer,
             stage_work,
         );
@@ -880,6 +938,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
     single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost(
         current_state,
         p,
+        c,
         scalar_buffer,
         stage_work,
     );
@@ -888,6 +947,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
     single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x(
         current_state,
         p,
+        c,
         lambda_current,
         stage_work,
     );
@@ -896,7 +956,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         let grad_u_t = &mut gradient_u_seq[stage_index..(stage_index + 1)];
         single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
-            x_t, u_t, p, grad_u_t, stage_work,
+            x_t, u_t, p, c, grad_u_t, stage_work,
         );
         single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u(
             x_t,
@@ -911,6 +971,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
             x_t,
             u_t,
             p,
+            c,
             lambda_next,
             stage_work,
         );
@@ -929,7 +990,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
     let u_t = &u_seq[0..1];
     let grad_u_t = &mut gradient_u_seq[0..1];
     single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
-        x0, u_t, p, grad_u_t, stage_work,
+        x0, u_t, p, c, grad_u_t, stage_work,
     );
     single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u(
         x0,

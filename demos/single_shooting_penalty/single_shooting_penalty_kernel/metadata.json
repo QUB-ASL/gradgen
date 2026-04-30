@@ -1,6 +1,6 @@
 {
   "crate_name": "single_shooting_penalty_kernel",
-  "created_at": "2026-04-30T07:25:14.588162Z",
+  "created_at": "2026-04-30T11:50:16.049865Z",
   "gradgen_version": "0.4.2a1",
   "functions": [
     {
@@ -9,12 +9,14 @@
       "input_names": [
         "x0",
         "u_seq",
-        "p"
+        "p",
+        "c"
       ],
       "input_sizes": [
         2,
         5,
-        2
+        2,
+        1
       ],
       "output_names": [
         "cost",
@@ -31,12 +33,14 @@
       "input_names": [
         "x0",
         "u_seq",
-        "p"
+        "p",
+        "c"
       ],
       "input_sizes": [
         2,
         5,
-        2
+        2,
+        1
       ],
       "output_names": [
         "gradient_u_seq",
@@ -49,17 +53,19 @@
     },
     {
       "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq",
-      "workspace_size": 34,
+      "workspace_size": 33,
       "input_names": [
         "x0",
         "u_seq",
         "p",
+        "c",
         "v_u_seq"
       ],
       "input_sizes": [
         2,
         5,
         2,
+        1,
         5
       ],
       "output_names": [
@@ -77,12 +83,14 @@
       "input_names": [
         "x0",
         "u_seq",
-        "p"
+        "p",
+        "c"
       ],
       "input_sizes": [
         2,
         5,
-        2
+        2,
+        1
       ],
       "output_names": [
         "cost",

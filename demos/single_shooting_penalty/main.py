@@ -14,16 +14,16 @@ from gradgen import (  # noqa: E402
     CodeGenerationBuilder,
     Function,
     RustBackendConfig,
+    SX,
     SXVector,
     SingleShootingBundle,
     SingleShootingProblem,
-    maximum
+    maximum,
 )
-import gradgen as gg
 
 
 def parse_args() -> argparse.Namespace:
-    """Parse the horizon and residual-penalty weight."""
+    """Parse the user-configurable horizon length."""
     parser = argparse.ArgumentParser(
         description=(
             "Generate a single-shooting OCP demo with vector residual "
@@ -35,12 +35,6 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=5,
         help="Prediction horizon length used in the generated kernel.",
-    )
-    parser.add_argument(
-        "--penalty-weight",
-        type=float,
-        default=10.0,
-        help="Scalar constant c multiplying 0.5 * ||q||^2 terms.",
     )
     args = parser.parse_args()
     if args.horizon <= 0:
@@ -56,11 +50,12 @@ args = parse_args()
 #   sum_k ell(x_k, u_k, p) + c/2 * ||q(x_k, u_k, p)||_2^2
 #   + V_f(x_N, p) + c/2 * ||q_N(x_N, p)||_2^2.
 #
-# The residual functions q and q_N are vector-valued, while c is the scalar
-# penalty_weight supplied to SingleShootingProblem.
+# The residual functions q and q_N are vector-valued, while c is a scalar
+# runtime input supplied to the generated Rust kernels.
 x = SXVector.sym("x", 2)
 u = SXVector.sym("u", 1)
 p = SXVector.sym("p", 2)
+c = SX.sym("c")
 
 
 dynamics = Function(
@@ -130,7 +125,7 @@ problem = SingleShootingProblem(
     parameter_name="p",
     stage_penalty=stage_penalty,
     terminal_penalty=terminal_penalty,
-    penalty_weight=args.penalty_weight,
+    penalty_weight=c,
 )
 
 backend_config = (
