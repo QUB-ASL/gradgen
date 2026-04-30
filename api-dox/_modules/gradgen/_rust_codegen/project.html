@@ -189,7 +189,7 @@
     <span class="k">if</span> <span class="n">stale_pyproject</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
         <span class="n">stale_pyproject</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
     <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">build_crate</span><span class="p">:</span>
-        <span class="n">_run_cargo_build</span><span class="p">(</span><span class="n">project_dir</span><span class="p">,</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">build_profile</span><span class="p">)</span>
+        <span class="n">_run_cargo_build</span><span class="p">(</span><span class="n">project_dir</span><span class="p">)</span>
     <span class="n">python_interface</span> <span class="o">=</span> <span class="kc">None</span>
     <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">enable_python_interface</span><span class="p">:</span>
         <span class="n">python_interface</span> <span class="o">=</span> <span class="n">_create_python_interface_project</span><span class="p">(</span>
