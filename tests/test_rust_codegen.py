@@ -1425,7 +1425,8 @@ mod single_shooting_multi_u_tests {{
 
             self.assertIsNotNone(project)
             run_cargo_build.assert_called_once_with(
-                Path(tmpdir).resolve() / "energy_kernel"
+                Path(tmpdir).resolve() / "energy_kernel",
+                "release",
             )
 
     def test_create_rust_project_raises_when_cargo_missing_for_build(
@@ -1568,7 +1569,40 @@ mod single_shooting_multi_u_tests {{
         ):
             builder.build(Path(tmpdir) / "my_crates")
             run_cargo_build.assert_called_once_with(
-                Path(tmpdir).resolve() / "my_crates" / "abc"
+                Path(tmpdir).resolve() / "my_crates" / "abc",
+                "release",
+            )
+
+    def test_builder_build_can_override_build_profile(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"]
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("abc")
+                .with_build_crate(True)
+                .with_build_profile("dev")
+            )
+            .for_function(f)
+            .add_primal()
+            .done()
+        )
+
+        with (
+            TemporaryDirectory() as tmpdir,
+            patch.object(
+                rust_codegen_module,
+                "_run_cargo_build",
+            ) as run_cargo_build,
+        ):
+            builder.build(Path(tmpdir) / "my_crates")
+            run_cargo_build.assert_called_once_with(
+                Path(tmpdir).resolve() / "my_crates" / "abc",
+                "dev",
             )
 
     def test_python_interface_is_importable(self) -> None:

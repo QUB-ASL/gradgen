@@ -6,6 +6,7 @@ from gradgen._rust_codegen.project_support import (
     _derive_python_function_name,
     _gradgen_version,
     _metadata_created_at,
+    _cargo_build_command,
     _next_python_interface_version,
     _maybe_simplify_derivative_function,
     _private_helper_section_key,
@@ -33,6 +34,17 @@ class ProjectSupportTests(unittest.TestCase):
 
     def test_gradgen_version_is_available(self) -> None:
         self.assertIsInstance(_gradgen_version(), str)
+
+    def test_cargo_build_command_uses_requested_profile(self) -> None:
+        self.assertEqual(
+            _cargo_build_command("release"),
+            ["cargo", "build", "--release"],
+        )
+        self.assertEqual(_cargo_build_command("dev"), ["cargo", "build"])
+
+    def test_cargo_build_command_rejects_unsupported_profile(self) -> None:
+        with self.assertRaises(ValueError):
+            _cargo_build_command("fast")
 
     def test_maybe_simplify_derivative_function_returns_original_when_disabled(self) -> None:
         x = SXVector.sym("x", 1)

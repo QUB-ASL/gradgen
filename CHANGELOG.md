@@ -165,10 +165,14 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   while `.build()` defaults to `./<crate_name>`.
 - Generated low-level Rust crates now start with `#![forbid(unsafe_code)]`,
   while the separate PyO3 wrapper crate keeps its existing build settings.
-- Added `RustBackendConfig().with_build_crate()` to run `cargo build` on
-  the generated low-level Rust crate after it is written to disk. The default
-  remains off, and generation raises an informative error if `cargo` is not
-  available when this option is enabled.
+- Added `RustBackendConfig().with_build_crate()` to compile the generated
+  low-level Rust crate after it is written to disk. The default remains off,
+  and generation raises an informative error if `cargo` is not available when
+  this option is enabled.
+- Added `RustBackendConfig().with_build_profile(...)` so automatic crate builds
+  can target either the `release` or `dev` Cargo profile. When
+  `with_build_crate()` is enabled, Gradgen now builds with the `release`
+  profile by default.
 - Kept backward compatibility for the older callback-based
   `for_function(function, lambda b: ...)` form.
 - Updated the tests, demos, README examples, and demo documentation to use the

@@ -607,7 +607,7 @@ def create_multi_function_rust_project(
     if stale_pyproject.exists():
         stale_pyproject.unlink()
     if resolved_config.build_crate:
-        _run_cargo_build(project_dir)
+        _run_cargo_build(project_dir, resolved_config.build_profile)
     python_interface = None
     if resolved_config.enable_python_interface:
         python_interface = _create_python_interface_project(

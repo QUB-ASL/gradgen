@@ -130,14 +130,36 @@ def _next_python_interface_version(wrapper_project_dir: Path) -> str:
     return f"{major}.{minor + 1}.0"
 
 
-def _run_cargo_build(project_dir: Path) -> None:
+def _cargo_build_command(build_profile: str) -> list[str]:
+    """Return the Cargo build command for the requested profile.
+
+    Args:
+        build_profile: Cargo profile name. Supported values are ``"dev"``
+            and ``"release"``.
+
+    Returns:
+        The Cargo command to execute.
+
+    Raises:
+        ValueError: If ``build_profile`` is not a supported Cargo profile.
+    """
+    if build_profile == "release":
+        return ["cargo", "build", "--release"]
+    if build_profile == "dev":
+        return ["cargo", "build"]
+    raise ValueError(
+        "build_profile must be either 'dev' or 'release'"
+    )
+
+
+def _run_cargo_build(project_dir: Path, build_profile: str) -> None:
     """Compile a generated Rust crate with Cargo."""
     if shutil.which("cargo") is None:
         raise RuntimeError(
             "cargo is required to build the generated Rust crate")
     try:
         subprocess.run(
-            ["cargo", "build"],
+            _cargo_build_command(build_profile),
             cwd=project_dir,
             check=True,
             capture_output=True,
@@ -151,7 +173,8 @@ def _run_cargo_build(project_dir: Path) -> None:
         stdout = (exc.stdout or "").strip()
         details = stderr or stdout
         raise RuntimeError(
-            "failed to build the generated Rust crate"
+            f"failed to build the generated Rust crate with profile "
+            f"{build_profile!r}"
             + (f": {details}" if details else "")
         ) from exc
 
