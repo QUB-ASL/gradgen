@@ -1,3 +1,4 @@
+#![no_std]
 #![forbid(unsafe_code)]
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,7 +196,7 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost(
     work[1] = norm2sq(x);
     work[0] += work[1];
     work[0] += -1.0_f64;
-    work[0] = 0.0_f64.max(work[0]);
+    work[0] = libm::fmax(0.0_f64, work[0]);
     work[0] = work[0] * work[0];
     work[0] *= 0.5_f64;
     work[0] *= c[0];
@@ -437,10 +438,16 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x(
     work[0] += work[1];
     work[0] += -1.0_f64;
     work[1] = -work[0];
-    work[1] = work[1].signum();
+    work[1] = if work[1] > 0.0_f64 {
+        1.0_f64
+    } else if work[1] < 0.0_f64 {
+        -1.0_f64
+    } else {
+        0.0_f64
+    };
     work[1] = -work[1];
     work[1] += 1.0_f64;
-    work[0] = 0.0_f64.max(work[0]);
+    work[0] = libm::fmax(0.0_f64, work[0]);
     work[0] *= work[1];
     work[0] *= c[0];
     work[1] = work[0] * x[0];
@@ -801,7 +808,13 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x_jvp(
     work[1] += work[2];
     work[1] += -1.0_f64;
     work[2] = -work[1];
-    work[2] = work[2].signum();
+    work[2] = if work[2] > 0.0_f64 {
+        1.0_f64
+    } else if work[2] < 0.0_f64 {
+        -1.0_f64
+    } else {
+        0.0_f64
+    };
     work[2] = -work[2];
     work[2] += 1.0_f64;
     work[3] = work[2] * work[2];
@@ -809,7 +822,7 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x_jvp(
     work[0] *= c[0];
     work[3] = work[0] * x[0];
     work[3] *= 0.5_f64;
-    work[1] = 0.0_f64.max(work[1]);
+    work[1] = libm::fmax(0.0_f64, work[1]);
     work[1] *= work[2];
     work[1] *= c[0];
     work[2] = work[1] * tangent_x[0];

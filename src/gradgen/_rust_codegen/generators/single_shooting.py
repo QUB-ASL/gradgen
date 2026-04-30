@@ -163,6 +163,7 @@ def _generate_single_shooting_driver_rust(
     function_index: int = 0,
 ) -> RustCodegenResult:
     """Generate a loop-based single-shooting Rust kernel."""
+    problem._require_complete()
     if not (include_cost or include_gradient or include_hvp):
         raise ValueError(
             "single-shooting kernels must compute cost, gradient, or hvp"
@@ -252,7 +253,7 @@ def _build_single_shooting_driver_result(
 
     state_size = problem.state_size
     control_size = problem.control_size
-    horizon = problem.horizon
+    horizon = problem._horizon()
     need_history = include_gradient or include_hvp
     need_adjoint = include_gradient or include_hvp
 

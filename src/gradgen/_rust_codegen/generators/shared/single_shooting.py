@@ -25,11 +25,12 @@ def _build_single_shooting_helpers(
     helper_sources: list[str] = []
     helper_nodes: list[SXNode] = []
     max_workspace = 0
+    dynamics = problem._dynamics()
 
     dynamics_name = sanitize_ident(f"{helper_base_name}_dynamics")
     dynamics_jvp_name: str | None = None
     dynamics_function = _shared._maybe_simplify_derivative_function(
-        problem.dynamics,
+        dynamics,
         simplification,
     )
     max_workspace = _append_generated_helper(
@@ -45,7 +46,7 @@ def _build_single_shooting_helpers(
         dynamics_jvp_name = sanitize_ident(f"{helper_base_name}_dynamics_jvp")
         dynamics_jvp_function = _shared._maybe_simplify_derivative_function(
             _build_directional_derivative_function(
-                problem.dynamics,
+                dynamics,
                 active_indices=(0, 1),
                 tangent_names=("tangent_x", "tangent_u"),
                 name=dynamics_jvp_name,
@@ -121,11 +122,11 @@ def _build_single_shooting_helpers(
 
         helper_functions = (
             _shared._maybe_simplify_derivative_function(
-                problem.dynamics.vjp(wrt_index=0, name=dynamics_vjp_x_name),
+                dynamics.vjp(wrt_index=0, name=dynamics_vjp_x_name),
                 simplification,
             ),
             _shared._maybe_simplify_derivative_function(
-                problem.dynamics.vjp(wrt_index=1, name=dynamics_vjp_u_name),
+                dynamics.vjp(wrt_index=1, name=dynamics_vjp_u_name),
                 simplification,
             ),
             _shared._maybe_simplify_derivative_function(
@@ -180,11 +181,11 @@ def _build_single_shooting_helpers(
         )
 
         dynamics_vjp_x_function = _shared._maybe_simplify_derivative_function(
-            problem.dynamics.vjp(wrt_index=0, name=dynamics_vjp_x_name),
+            dynamics.vjp(wrt_index=0, name=dynamics_vjp_x_name),
             simplification,
         )
         dynamics_vjp_u_function = _shared._maybe_simplify_derivative_function(
-            problem.dynamics.vjp(wrt_index=1, name=dynamics_vjp_u_name),
+            dynamics.vjp(wrt_index=1, name=dynamics_vjp_u_name),
             simplification,
         )
         stage_cost_grad_x_function = (
@@ -337,6 +338,15 @@ def _build_single_shooting_input_specs(
     *,
     include_hvp: bool,
 ) -> tuple[_ArgSpec, ...]:
+    horizon = (
+        problem._horizon()
+        if hasattr(problem, "_horizon")
+        else problem.horizon
+    )
+    has_runtime_penalty_weight = getattr(
+        problem, "has_runtime_penalty_weight", False
+    )
+    penalty_weight_name = getattr(problem, "penalty_weight_name", None)
     specs = [
         _ArgSpec(
             raw_name=problem.initial_state_name,
@@ -355,7 +365,7 @@ def _build_single_shooting_input_specs(
                 "packed control-sequence slice laid out stage-major "
                 "over the horizon"
             ),
-            size=problem.horizon * problem.control_size,
+            size=horizon * problem.control_size,
         ),
         _ArgSpec(
             raw_name=problem.parameter_name,
@@ -368,8 +378,8 @@ def _build_single_shooting_input_specs(
             size=problem.parameter_size,
         ),
     ]
-    if problem.has_runtime_penalty_weight:
-        penalty_weight_name = problem.penalty_weight_name or "c"
+    if has_runtime_penalty_weight:
+        penalty_weight_name = penalty_weight_name or "c"
         specs.append(
             _ArgSpec(
                 raw_name=penalty_weight_name,
@@ -392,7 +402,7 @@ def _build_single_shooting_input_specs(
                     "packed control-direction vector for the "
                     "single-shooting HVP"
                 ),
-                size=problem.horizon * problem.control_size,
+                size=horizon * problem.control_size,
             )
         )
     return tuple(specs)
@@ -406,6 +416,11 @@ def _build_single_shooting_output_specs(
     include_hvp: bool,
     include_states: bool,
 ) -> tuple[_ArgSpec, ...]:
+    horizon = (
+        problem._horizon()
+        if hasattr(problem, "_horizon")
+        else problem.horizon
+    )
     specs: list[_ArgSpec] = []
     if include_cost:
         specs.append(
@@ -428,7 +443,7 @@ def _build_single_shooting_output_specs(
                 doc_description=(
                     "packed gradient with respect to the control sequence"
                 ),
-                size=problem.horizon * problem.control_size,
+                size=horizon * problem.control_size,
             )
         )
     if include_hvp:
@@ -443,7 +458,7 @@ def _build_single_shooting_output_specs(
                     "packed Hessian-vector product with respect to the "
                     "control sequence"
                 ),
-                size=problem.horizon * problem.control_size,
+                size=horizon * problem.control_size,
             )
         )
     if include_states:
@@ -453,7 +468,7 @@ def _build_single_shooting_output_specs(
                 rust_name="x_traj",
                 rust_label='"x_traj"',
                 doc_description="packed rollout state trajectory",
-                size=(problem.horizon + 1) * problem.state_size,
+                size=(horizon + 1) * problem.state_size,
             )
         )
     return tuple(specs)

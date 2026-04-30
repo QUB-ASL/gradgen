@@ -108,29 +108,32 @@ terminal_cost = Function(
 terminal_penalty = Function(
     "terminal_penalty",
     [x, p],
-    [SXVector((maximum(0.0, x.norm2sq() - 1.0 - p[0]),))],
+    [maximum(0.0, x.norm2sq() - 1.0 - p[0])],
     input_names=["x", "p"],
     output_names=["q_n"],
 )
 
 
-problem = SingleShootingProblem(
-    name="penalized_mpc_cost",
-    horizon=args.horizon,
-    dynamics=dynamics,
-    stage_cost=stage_cost,
-    terminal_cost=terminal_cost,
-    initial_state_name="x0",
-    control_sequence_name="u_seq",
-    parameter_name="p",
-    stage_penalty=stage_penalty,
-    terminal_penalty=terminal_penalty,
-    penalty_weight=c,
+problem = (
+    SingleShootingProblem("penalized_mpc_cost")
+    .with_horizon(args.horizon)
+    .with_dynamics(dynamics)
+    .with_costs(stage_cost, terminal_cost)
+    .with_penalties(stage_penalty, terminal_penalty, c)
+    .with_input_names(
+        initial_state_name="x0",
+        control_sequence_name="u_seq",
+        parameter_name="p",
+    )
 )
+
+pf = problem.to_function()
+val = pf(x0=[1., 2.], u_seq=[0.1, 0.2, 0.3, 0.4, 0.5], p=[-0.1, 0.5], c=1000)
+print(f"val = {val}")
 
 backend_config = (
     RustBackendConfig()
-    .with_backend_mode("std")
+    .with_backend_mode("no_std")
     .with_scalar_type("f64")
     .with_crate_name("single_shooting_penalty_kernel")
 )

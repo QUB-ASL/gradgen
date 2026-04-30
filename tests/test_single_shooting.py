@@ -494,6 +494,56 @@ class SingleShootingProblemTests(unittest.TestCase):
             ("x0", "U", "p", "c", "v_U"),
         )
 
+    def test_builder_style_configuration_matches_constructor(self) -> None:
+        reference = _build_reference_problem()
+        problem = (
+            SingleShootingProblem("mpc_cost")
+            .with_horizon(reference.horizon)
+            .with_dynamics(reference.dynamics)
+            .with_costs(reference.stage_cost, reference.terminal_cost)
+            .with_input_names(
+                initial_state_name="x0",
+                control_sequence_name="U",
+                parameter_name="p",
+            )
+        )
+        x0 = [1.0, -0.5]
+        U = [0.2, -0.1, 0.3]
+        p = [0.4, -1.2]
+
+        self.assertEqual(problem.input_names, reference.input_names)
+        self.assertAlmostEqual(
+            problem.to_function()(x0, U, p),
+            reference.to_function()(x0, U, p),
+            places=10,
+        )
+
+    def test_builder_style_configuration_accepts_penalties(self) -> None:
+        reference = _build_penalized_reference_problem(symbolic_weight=True)
+        problem = (
+            SingleShootingProblem("penalized_mpc_cost")
+            .with_horizon(reference.horizon)
+            .with_dynamics(reference.dynamics)
+            .with_stage_cost(reference.stage_cost)
+            .with_terminal_cost(reference.terminal_cost)
+            .with_penalties(
+                reference.stage_penalty,
+                reference.terminal_penalty,
+                SX.sym("c"),
+            )
+            .with_input_names(
+                initial_state_name="x0",
+                control_sequence_name="U",
+                parameter_name="p",
+            )
+        )
+
+        self.assertEqual(problem.input_names, ("x0", "U", "p", "c"))
+
+    def test_incomplete_builder_problem_errors_before_expansion(self) -> None:
+        with self.assertRaisesRegex(ValueError, "horizon, dynamics"):
+            SingleShootingProblem("incomplete").to_function()
+
     def test_problem_expands_joint_cost_gradient_hvp_and_states(self) -> None:
         # This joint expansion should agree with independent finite-difference
         # references for both the gradient and the HVP while also preserving

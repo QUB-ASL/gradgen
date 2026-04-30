@@ -22,6 +22,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   residual penalties through `stage_penalty`, `terminal_penalty`, and a
   scalar `penalty_weight`. Passing an `SX` symbol such as `SX.sym("c")`
   exposes the penalty weight as a runtime input to generated kernels.
+- Added builder-style configuration methods to `SingleShootingProblem`, such
+  as `.with_horizon(...)`, `.with_dynamics(...)`, `.with_costs(...)`, and
+  `.with_penalties(...)`.
 - Added a `demos/single_shooting_penalty` demo showing residual-penalty
   single-shooting code generation and Rust runner usage.
 - Automatic differentiation now supports `maximum` and `minimum` with a
