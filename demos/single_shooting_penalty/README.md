@@ -34,7 +34,12 @@ The script generates:
 
 - `single_shooting_penalty_kernel/`: the Rust crate containing primal,
   gradient, HVP, and joint single-shooting kernels.
+- `single_shooting_penalty_kernel_python/`: the PyO3 wrapper crate used for
+  `import single_shooting_penalty_kernel` from Python.
 - `runner/`: a small Rust binary that calls the generated kernels.
+
+At the end of generation, `main.py` imports the generated Python module and
+calls the joint cost, gradient, and rollout-states kernel from Python.
 
 After generating the crate, run the binary demo with:
 

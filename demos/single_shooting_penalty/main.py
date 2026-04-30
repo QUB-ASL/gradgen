@@ -128,7 +128,12 @@ problem = (
 )
 
 pf = problem.to_function()
-val = pf(x0=[1., 2.], u_seq=[0.1, 0.2, 0.3, 0.4, 0.5], p=[-0.1, 0.5], c=1000)
+sample_x0 = [1.0, 2.0]
+sample_u_seq = [0.1, 0.2, 0.3, 0.4, 0.5]
+sample_p = [-0.1, 0.5]
+sample_c = 1000.0
+
+val = pf(x0=sample_x0, u_seq=sample_u_seq, p=sample_p, c=sample_c)
 print(f"val = {val}")
 
 backend_config = (
@@ -136,6 +141,7 @@ backend_config = (
     .with_backend_mode("no_std")
     .with_scalar_type("f64")
     .with_crate_name("single_shooting_penalty_kernel")
+    .with_enable_python_interface()
 )
 
 print("Building residual-penalty single-shooting project...")
@@ -162,3 +168,22 @@ print("Generated Rust crate:", project.project_dir)
 print("Generated Rust functions:")
 for codegen in project.codegens:
     print(" -", codegen.function_name)
+
+if project.python_interface is not None:
+    print("Generated Python wrapper crate:", project.python_interface.project_dir)
+
+import single_shooting_penalty_kernel  # noqa: E402
+
+workspace = single_shooting_penalty_kernel.workspace_for_function(
+    "penalized_mpc_cost_f_grad_states_u_seq",
+)
+python_result = (
+    single_shooting_penalty_kernel.penalized_mpc_cost_f_grad_states_u_seq(
+        sample_x0,
+        sample_u_seq,
+        sample_p,
+        sample_c,
+        workspace,
+    )
+)
+print("Python wrapper result:", python_result)

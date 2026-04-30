@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `.with_penalties(...)`.
 - Added a `demos/single_shooting_penalty` demo showing residual-penalty
   single-shooting code generation and Rust runner usage.
+- The `demos/single_shooting_penalty` demo now also generates and calls its
+  Python wrapper module.
 - Automatic differentiation now supports `maximum` and `minimum` with a
   piecewise derivative rule, allowing squared hinge residuals such as
   `maximum(0, z) ** 2` in generated gradient and HVP kernels.
