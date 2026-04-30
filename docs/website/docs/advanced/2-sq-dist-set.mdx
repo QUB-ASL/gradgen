@@ -108,10 +108,16 @@ dg_val = dg([1., 1.00])
 
 ## Common convex sets
 
+Gradgen provides factory-type constructors for the most common convex sets.
+
 ### Norm balls
 
-Gradgen provides factory constructors for the most common convex sets.
-For example, a Euclidean ball centered at the origin with radius 1 can be
+A norm-ball centered at a point $x_0$ and with radius $r>0$ is the set 
+```math
+B = \{x\in\mathbb{R}^n: \|x - x_0\| \leq r\}.
+```
+
+A Euclidean ball centered at the origin with radius 1 can be
 written as
 
 ```python
@@ -123,7 +129,7 @@ distance = SquaredDistanceToSet.euclidean_ball(
 )
 ```
 
-An infinity-norm ball uses the same calling pattern:
+Similary, we can construct infinity-norm balls:
 
 ```python
 distance = SquaredDistanceToSet.infinity_ball(
@@ -133,8 +139,16 @@ distance = SquaredDistanceToSet.infinity_ball(
 )
 ```
 
-For axis-aligned rectangles, the bounds may include ``-inf`` on the lower
-side and ``+inf`` on the upper side:
+### Rectangles
+
+We call a rectangle a set of the form 
+```math
+C = \{x\in\mathbb{R}^n: x_{\rm min} \leq x \leq x_{\rm max}\},
+```
+where some of the elements of $x_{\min}$ are allowed to be $-\infty$
+and some elements of $x_{\rm max}$ can be $+\infty$. 
+For example, we can define $C = \{x\in\mathbb{R}^2: x_1 \geq -1, x_2 \leq 2\}$
+as follows
 
 ```python
 distance = SquaredDistanceToSet.rectangle(
@@ -143,7 +157,3 @@ distance = SquaredDistanceToSet.rectangle(
     xmax=(float("inf"), 2.0),
 )
 ```
-
-### Hyperplanes
-
-### Halfspaces
