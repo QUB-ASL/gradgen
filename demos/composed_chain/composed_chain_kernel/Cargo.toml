@@ -6,6 +6,5 @@ description = "Generated gradgen crate using f64"
 
 [lib]
 path = "src/lib.rs"
-
 [dependencies]
 libm = "0.2"

@@ -163,6 +163,7 @@ def _generate_single_shooting_driver_rust(
     function_index: int = 0,
 ) -> RustCodegenResult:
     """Generate a loop-based single-shooting Rust kernel."""
+    problem._require_complete()
     if not (include_cost or include_gradient or include_hvp):
         raise ValueError(
             "single-shooting kernels must compute cost, gradient, or hvp"
@@ -252,7 +253,7 @@ def _build_single_shooting_driver_result(
 
     state_size = problem.state_size
     control_size = problem.control_size
-    horizon = problem.horizon
+    horizon = problem._horizon()
     need_history = include_gradient or include_hvp
     need_adjoint = include_gradient or include_hvp
 
@@ -277,7 +278,13 @@ def _build_single_shooting_driver_result(
     x0_name = input_specs[0].rust_name
     U_name = input_specs[1].rust_name
     p_name = input_specs[2].rust_name
-    v_U_name = input_specs[3].rust_name if include_hvp else None
+    c_name = (
+        input_specs[3].rust_name
+        if problem.has_runtime_penalty_weight
+        else None
+    )
+    v_U_name = input_specs[-1].rust_name if include_hvp else None
+    runtime_weight_arg = f", {c_name}" if c_name is not None else ""
     cost_output_name = output_names.get("cost")
     gradient_output_name = output_names.get(
         f"gradient_{problem.control_sequence_name}"
@@ -399,7 +406,7 @@ def _build_single_shooting_driver_result(
     if include_cost:
         for_lines.extend(
             [
-                f"    {helpers.stage_cost_name}(current_state, u_t, {p_name}, scalar_buffer, stage_work);",
+                f"    {helpers.stage_cost_name}(current_state, u_t, {p_name}{runtime_weight_arg}, scalar_buffer, stage_work);",
                 "    total_cost += scalar_buffer[0];",
             ]
         )
@@ -438,7 +445,7 @@ def _build_single_shooting_driver_result(
 
     if include_cost:
         computation_lines.append(
-            f"{helpers.terminal_cost_name}(current_state, {p_name}, scalar_buffer, stage_work);"
+            f"{helpers.terminal_cost_name}(current_state, {p_name}{runtime_weight_arg}, scalar_buffer, stage_work);"
         )
         computation_lines.append("total_cost += scalar_buffer[0];")
         if cost_output_name is not None:
@@ -446,11 +453,11 @@ def _build_single_shooting_driver_result(
 
     if need_adjoint:
         computation_lines.append(
-            f"{helpers.terminal_cost_grad_x_name}(current_state, {p_name}, lambda_current, stage_work);"
+            f"{helpers.terminal_cost_grad_x_name}(current_state, {p_name}{runtime_weight_arg}, lambda_current, stage_work);"
         )
     if include_hvp:
         computation_lines.append(
-            f"{helpers.terminal_cost_grad_x_jvp_name}(current_state, {p_name}, current_tangent, mu_current, stage_work);"
+            f"{helpers.terminal_cost_grad_x_jvp_name}(current_state, {p_name}{runtime_weight_arg}, current_tangent, mu_current, stage_work);"
         )
     if need_adjoint:
         computation_lines.extend(
@@ -471,7 +478,7 @@ def _build_single_shooting_driver_result(
             computation_lines.extend(
                 [
                     f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
-                    f"    {helpers.stage_cost_grad_u_name}(x_t, u_t, {p_name}, grad_u_t, stage_work);",
+                    f"    {helpers.stage_cost_grad_u_name}(x_t, u_t, {p_name}{runtime_weight_arg}, grad_u_t, stage_work);",
                     f"    {helpers.dynamics_vjp_u_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
                 ]
             )
@@ -484,7 +491,7 @@ def _build_single_shooting_driver_result(
             computation_lines.extend(
                 [
                     f"    let hvp_u_t = &mut {hvp_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
-                    f"    {helpers.stage_cost_grad_u_jvp_name}(x_t, u_t, {p_name}, tangent_x_t, v_u_t, hvp_u_t, stage_work);",
+                    f"    {helpers.stage_cost_grad_u_jvp_name}(x_t, u_t, {p_name}{runtime_weight_arg}, tangent_x_t, v_u_t, hvp_u_t, stage_work);",
                     f"    {helpers.dynamics_vjp_u_jvp_name}(x_t, u_t, {p_name}, &lambda_current[..], tangent_x_t, v_u_t, &mu_current[..], temp_control, stage_work);",
                 ]
             )
@@ -495,7 +502,7 @@ def _build_single_shooting_driver_result(
             )
         computation_lines.extend(
             [
-                f"    {helpers.stage_cost_grad_x_name}(x_t, u_t, {p_name}, lambda_next, stage_work);",
+                f"    {helpers.stage_cost_grad_x_name}(x_t, u_t, {p_name}{runtime_weight_arg}, lambda_next, stage_work);",
                 f"    {helpers.dynamics_vjp_x_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_state, stage_work);",
             ]
         )
@@ -507,7 +514,7 @@ def _build_single_shooting_driver_result(
         if include_hvp:
             computation_lines.extend(
                 [
-                    f"    {helpers.stage_cost_grad_x_jvp_name}(x_t, u_t, {p_name}, tangent_x_t, v_u_t, mu_next, stage_work);",
+                    f"    {helpers.stage_cost_grad_x_jvp_name}(x_t, u_t, {p_name}{runtime_weight_arg}, tangent_x_t, v_u_t, mu_next, stage_work);",
                     f"    {helpers.dynamics_vjp_x_jvp_name}(x_t, u_t, {p_name}, &lambda_current[..], tangent_x_t, v_u_t, &mu_current[..], temp_state, stage_work);",
                 ]
             )
@@ -531,7 +538,7 @@ def _build_single_shooting_driver_result(
             computation_lines.extend(
                 [
                     f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
-                    f"{helpers.stage_cost_grad_u_name}({x0_name}, u_t, {p_name}, grad_u_t, stage_work);",
+                    f"{helpers.stage_cost_grad_u_name}({x0_name}, u_t, {p_name}{runtime_weight_arg}, grad_u_t, stage_work);",
                     f"{helpers.dynamics_vjp_u_name}({x0_name}, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
                 ]
             )
@@ -550,7 +557,7 @@ def _build_single_shooting_driver_result(
                     f"next_tangent.fill({_format_float(0.0, resolved_config.scalar_type)});",
                     f"let v_u_t = {_emit_single_shooting_control_slice(v_U_name, '0', control_size)};",
                     f"let hvp_u_t = &mut {hvp_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
-                    f"{helpers.stage_cost_grad_u_jvp_name}({x0_name}, u_t, {p_name}, next_tangent, v_u_t, hvp_u_t, stage_work);",
+                    f"{helpers.stage_cost_grad_u_jvp_name}({x0_name}, u_t, {p_name}{runtime_weight_arg}, next_tangent, v_u_t, hvp_u_t, stage_work);",
                     f"{helpers.dynamics_vjp_u_jvp_name}({x0_name}, u_t, {p_name}, &lambda_current[..], next_tangent, v_u_t, &mu_current[..], temp_control, stage_work);",
                 ]
             )

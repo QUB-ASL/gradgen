@@ -19,7 +19,7 @@ use `Function` you can end up with thousands of lines of generated code.
 
 :::
 
-## Problem statement
+## Single shooting optimal control 
 
 We can the discrete-time dynamical system 
 $$x_{k+1} = f(x_k, u_k, p),$$
@@ -115,15 +115,16 @@ We can now construct an instance of `SingleShootingProblem`
 [![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1QFMP-ZF3ZN3swWuab6v5neOmS0n_yKQ2?usp=sharing)
 
 ```python
-problem = SingleShootingProblem(
-    name="mpc_cost",
-    horizon=N,
-    dynamics=dynamics,
-    stage_cost=stage_cost,
-    terminal_cost=terminal_cost,
-    initial_state_name="x0",
-    control_sequence_name="u_seq",
-    parameter_name="p",
+problem = (
+    SingleShootingProblem("mpc_cost")
+    .with_horizon(N)
+    .with_dynamics(dynamics)
+    .with_costs(stage_cost, terminal_cost)
+    .with_input_names(
+        initial_state_name="x0",
+        control_sequence_name="u_seq",
+        parameter_name="p",
+    )
 )
 ```
 
@@ -224,3 +225,84 @@ for stage_index in (1..5).rev() {
 ```
 
 </details>
+
+
+### As a function
+
+The single-shooting optimal control problem (`problem`) can be 
+cast as a [`Function`](/gradgen/docs/basics/functions) using `.to_function()`:
+
+```python
+problem_function = problem.to_function()
+```
+
+We can then call this function as follows (the arguments of the function 
+are `x0`, `u_seq`, and `p`)[^1]
+
+```python
+val = problem_function(x0=[1., 2.],
+                       u_seq=[0.1, 0.2, 0.3, 0.4, 0.5],
+                       p=[-0.1, 0.5])
+```
+
+
+
+## Quadratic penalty functions
+
+Consider an optimal control problem where the total cost function 
+with horizon $N$ involves quadratic penalty terms, that is, it 
+has the formm
+
+$$V_N(x_0, u_{\mathrm{seq}}, p, c) = \sum_{t=0}^{N-1} \ell(x_t, u_t, p) + \tfrac{c}{2}\Vert q(x_t, u_t, p) \Vert_2^2 + V_f(x_N, p) + \tfrac{c}{2}\Vert q_N(x_N, p)\Vert_2^2,$$
+
+where $c > 0$ is the penalty parameter.
+
+If $c$ is large enough, then $q(x_t, u_t, p) \approx 0$ for all $t$, 
+and $q_N(x_N, p) \approx 0$. This way we can impose *soft constraints* at every stage.
+The formulation is also used within the quadratic penalty method.
+
+<details>
+
+Internally gradgen compiles the stage cost function 
+$\tilde{\ell}(x, u, p, c) = \ell(x, u, p) + \tfrac{c}{2}\Vert q(x, u, p) \Vert_2^2$ and the terminal cost function $\tilde{V}_f(x, p, c) = V_f(x, p) + \tfrac{c}{2}\Vert q_N(x, p)\Vert_2^2$.
+
+</details>
+
+### Example
+
+As an example, suppose we have the stage penalty function $q:\mathbb{R}^2\times \mathbb{R} \times \mathbb{R}^2 \to \mathbb{R}^2$ given by
+$$q(x, u, p) = \begin{bmatrix}
+x_1 + u - p_1 \\\\ x_2 - p_2
+\end{bmatrix},$$
+and the terminal penalty function $q_N:\mathbb{R}^2\times \mathbb{R}^2 \to \mathbb{R}$ given by
+$$q_N(x, p) = \max\\{0, \Vert x \Vert_2^2 - 1 - p_1\\}$$
+The terminal penalty, $q_N$, can be used to enforce 
+the constraint $\Vert x \Vert_2^2 - 1 - p_1 \leq 0$.
+
+```python
+# Stage penalty
+stage_penalty = Function(
+    "stage_penalty",
+    [x, u, p],
+    [SXVector((x[0] + u[0] - p[0], x[1] - p[1]))],
+    input_names=["x", "u", "p"],
+    output_names=["q"],
+)
+
+# Terminal penalty
+terminal_penalty = Function(
+    "terminal_penalty",
+    [x, p],
+    [SXVector((maximum(0.0, x.norm2sq() - 1.0 - p[0]),))],
+    input_names=["x", "p"],
+    output_names=["q_n"],
+)
+```
+
+
+## ALM-type constraints
+
+Coming up. Stay tuned.
+
+
+[^1]: these have been defined using `with_input_names` (see [here](/gradgen/docs/basics/ocp#single-shooting-total-cost-function)). Use `problem_function.input_names` to get the input names.

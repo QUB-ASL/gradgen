@@ -55,6 +55,20 @@ class ForwardADTests(unittest.TestCase):
         quotient = derivative(x / x, x)
         self.assertEqual(quotient.op, "div")
 
+    def test_forward_derivative_supports_squared_hinge(self) -> None:
+        x = SX.sym("x")
+        hinge = SX.const(0.0).maximum(x)
+        f = hinge * hinge
+        derivative_function = Function(
+            "squared_hinge_derivative",
+            [x],
+            [derivative(f, x)],
+        )
+
+        self.assertEqual(derivative_function(-1.0), 0.0)
+        self.assertEqual(derivative_function(0.0), 0.0)
+        self.assertEqual(derivative_function(1.0), 2.0)
+
     def test_forward_rules_for_unary_ops_match_numeric_evaluation(self) -> None:
         x = SX.sym("x")
         expr = x.sin() + x.cos() + x.exp() + x.log() + x.sqrt()
@@ -322,9 +336,16 @@ class ReverseADTests(unittest.TestCase):
     def test_ad_rejects_nonsmooth_elementary_math(self) -> None:
         x = SX.sym("x")
 
-        for expr in (x.floor(), x.ceil(), x.round(), x.trunc(), x.fract(), x.signum()):
+        for expr in (x.floor(), x.ceil(), x.round(), x.trunc(), x.fract()):
             with self.assertRaises(ValueError):
                 _ = derivative(expr, x)
+
+    def test_signum_derivative_is_zero_away_from_kinks(self) -> None:
+        x = SX.sym("x")
+        df = Function("df_signum", [x], [derivative(x.signum(), x)])
+
+        self.assertEqual(df(-1.0), 0.0)
+        self.assertEqual(df(1.0), 0.0)
 
     def test_abs_derivative_matches_sign_away_from_zero(self) -> None:
         x = SX.sym("x")
@@ -490,6 +511,15 @@ class ReverseADTests(unittest.TestCase):
         self.assertEqual(hvp.name, "f_hvp_i0")
         self.assertEqual(hvp.input_names, ("i0", "v_i0"))
         self.assertEqual(hvp([3.0, 4.0], [1.0, 2.0]), (4.0, 5.0))
+
+    def test_hvp_supports_squared_hinge(self) -> None:
+        x = SX.sym("x")
+        hinge = x.maximum(0.0)
+        f = Function("squared_hinge", [x], [hinge * hinge])
+        hvp = f.hvp(0)
+
+        self.assertEqual(hvp(-2.0, 5.0), 0.0)
+        self.assertEqual(hvp(3.0, 5.0), 10.0)
 
     def test_function_hvp_requires_single_scalar_output(self) -> None:
         x = SXVector.sym("x", 2)

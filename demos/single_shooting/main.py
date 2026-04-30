@@ -81,15 +81,16 @@ terminal_cost = Function(
 )
 
 
-problem = SingleShootingProblem(
-    name="mpc_cost",
-    horizon=args.horizon,
-    dynamics=dynamics,
-    stage_cost=stage_cost,
-    terminal_cost=terminal_cost,
-    initial_state_name="x0",
-    control_sequence_name="u_seq",
-    parameter_name="p",
+problem = (
+    SingleShootingProblem("mpc_cost")
+    .with_horizon(args.horizon)
+    .with_dynamics(dynamics)
+    .with_costs(stage_cost, terminal_cost)
+    .with_input_names(
+        initial_state_name="x0",
+        control_sequence_name="u_seq",
+        parameter_name="p",
+    )
 )
 
 backend_config = (

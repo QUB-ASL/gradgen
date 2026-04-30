@@ -1,7 +1,7 @@
 {
   "crate_name": "single_shooting_kernel",
-  "created_at": "2026-04-10T16:20:14.873028Z",
-  "gradgen_version": "0.4.0",
+  "created_at": "2026-04-30T12:08:46.889560Z",
+  "gradgen_version": "0.4.2a1",
   "functions": [
     {
       "function_name": "single_shooting_kernel_mpc_cost_f_states",

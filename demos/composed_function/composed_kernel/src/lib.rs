@@ -76,9 +76,7 @@ pub fn composed_kernel_composed_demo_f(
     let (current_state, next_state) = state_buffers.split_at_mut(2);
     current_state.copy_from_slice(x);
     let composed_kernel_composed_demo_repeat_0_g_parameter_offsets: [usize; 5] = [0, 2, 4, 6, 8];
-    for repeat_index in 0..5 {
-        let parameter_offset =
-            composed_kernel_composed_demo_repeat_0_g_parameter_offsets[repeat_index];
+    for &parameter_offset in composed_kernel_composed_demo_repeat_0_g_parameter_offsets.iter() {
         composed_kernel_composed_demo_repeat_0_g(
             current_state,
             &parameters[parameter_offset..parameter_offset + 2],
@@ -159,9 +157,11 @@ pub fn composed_kernel_composed_demo_grad_x(
     let (lambda_a, lambda_b) = lambda_buffers.split_at_mut(2);
     current_state.copy_from_slice(x);
     let composed_kernel_composed_demo_repeat_0_g_parameter_offsets: [usize; 5] = [0, 2, 4, 6, 8];
-    for repeat_index in 0..5 {
-        let parameter_offset =
-            composed_kernel_composed_demo_repeat_0_g_parameter_offsets[repeat_index];
+    for (repeat_index, &parameter_offset) in
+        composed_kernel_composed_demo_repeat_0_g_parameter_offsets
+            .iter()
+            .enumerate()
+    {
         let stage_index = repeat_index;
         let stage_start = stage_index * 2;
         let stage_end = stage_start + 2;
@@ -183,9 +183,12 @@ pub fn composed_kernel_composed_demo_grad_x(
         let mut current_lambda_is_a = true;
         let composed_kernel_composed_demo_repeat_0_g_parameter_offsets: [usize; 5] =
             [0, 2, 4, 6, 8];
-        for repeat_index in (0..5).rev() {
-            let parameter_offset =
-                composed_kernel_composed_demo_repeat_0_g_parameter_offsets[repeat_index];
+        for (repeat_index, &parameter_offset) in
+            composed_kernel_composed_demo_repeat_0_g_parameter_offsets
+                .iter()
+                .enumerate()
+                .rev()
+        {
             let stage_index = repeat_index;
             if stage_index == 0 {
                 if current_lambda_is_a {

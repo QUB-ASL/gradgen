@@ -337,52 +337,274 @@ class SingleShootingJointFunction:
 
 @dataclass(frozen=True, slots=True)
 class SingleShootingProblem:
-    """Deterministic single-shooting optimal-control problem."""
+    """Deterministic single-shooting optimal-control problem.
+
+    The problem represents a fixed-horizon rollout with dynamics
+    ``x_next = f(x, u, p)`` and total cost
+    ``sum_k ell(x_k, u_k, p) + V_f(x_N, p)``. Optional vector-valued
+    penalty residuals may be supplied to augment this cost as
+    ``c / 2 * ||q(x_k, u_k, p)||_2^2`` at each stage and
+    ``c / 2 * ||q_N(x_N, p)||_2^2`` at the terminal state.
+
+    Args:
+        name: Name used for expanded functions and generated kernels.
+        horizon: Optional positive rollout horizon. It may be supplied in the
+            constructor or later with :meth:`with_horizon`.
+        dynamics: Optional function accepting ``(x, u, p)`` and returning the
+            next state with the same shape as ``x``. It may be supplied in the
+            constructor or later with :meth:`with_dynamics`.
+        stage_cost: Optional scalar function accepting ``(x, u, p)`` and
+            returning ``ell(x, u, p)``. It may be supplied in the constructor
+            or later with :meth:`with_stage_cost`.
+        terminal_cost: Optional scalar function accepting ``(x, p)`` and
+            returning ``V_f(x, p)``. It may be supplied in the constructor or
+            later with :meth:`with_terminal_cost`.
+        initial_state_name: Runtime input name for the initial state.
+        control_sequence_name: Runtime input name for the packed controls.
+        parameter_name: Runtime input name for the shared parameters.
+        simplification: Optional simplification effort applied to expanded
+            functions and derivative helper kernels.
+        stage_penalty: Optional vector-valued residual function accepting
+            ``(x, u, p)`` and returning ``q(x, u, p)``.
+        terminal_penalty: Optional vector-valued residual function accepting
+            ``(x, p)`` and returning ``q_N(x, p)``.
+        penalty_weight: Optional scalar ``c`` multiplying both squared
+            residual norms. Pass a numeric value to bake ``c`` into generated
+            code, or pass an ``SX`` symbol such as ``SX.sym("c")`` to expose
+            ``c`` as a runtime scalar input.
+    """
 
     name: str
-    horizon: int
-    dynamics: Function
-    stage_cost: Function
-    terminal_cost: Function
+    horizon: int | None = None
+    dynamics: Function | None = None
+    stage_cost: Function | None = None
+    terminal_cost: Function | None = None
     initial_state_name: str = "x0"
     control_sequence_name: str = "U"
     parameter_name: str = "p"
     simplification: int | str | None = None
+    stage_penalty: Function | None = None
+    terminal_penalty: Function | None = None
+    penalty_weight: float | SX | None = None
 
     def __post_init__(self) -> None:
         """Validate stage and cost signatures."""
-        if self.horizon <= 0:
+        if self.horizon is not None and self.horizon <= 0:
             raise ValueError("horizon must be a positive integer")
-        _validate_single_shooting_dynamics(self.dynamics)
-        _validate_single_shooting_stage_cost(self.stage_cost)
-        _validate_single_shooting_terminal_cost(self.terminal_cost)
-        _validate_single_shooting_shapes(
-            self.dynamics, self.stage_cost, self.terminal_cost
+        if self.dynamics is not None:
+            _validate_single_shooting_dynamics(self.dynamics)
+        if self.stage_cost is not None:
+            _validate_single_shooting_stage_cost(self.stage_cost)
+        if self.terminal_cost is not None:
+            _validate_single_shooting_terminal_cost(self.terminal_cost)
+        if self._has_complete_core():
+            _validate_single_shooting_penalty_configuration(
+                self.stage_penalty,
+                self.terminal_penalty,
+                self.penalty_weight,
+            )
+        if self.stage_penalty is not None:
+            _validate_single_shooting_stage_penalty(self.stage_penalty)
+        if self.terminal_penalty is not None:
+            _validate_single_shooting_terminal_penalty(
+                self.terminal_penalty
+            )
+        if self._has_complete_core():
+            _validate_single_shooting_shapes(
+                self._dynamics(),
+                self._stage_cost(),
+                self._terminal_cost(),
+                self.stage_penalty,
+                self.terminal_penalty,
+            )
+
+    def with_horizon(self, horizon: int) -> SingleShootingProblem:
+        """Return a copy configured with a positive rollout horizon.
+
+        Args:
+            horizon: Number of control intervals in the single-shooting
+                rollout. It must be a positive integer.
+
+        Returns:
+            A new :class:`SingleShootingProblem` with the requested horizon.
+        """
+        return replace(self, horizon=horizon)
+
+    def with_dynamics(self, dynamics: Function) -> SingleShootingProblem:
+        """Return a copy configured with the dynamics function.
+
+        Args:
+            dynamics: Function accepting ``(x, u, p)`` and returning the next
+                state with the same shape as ``x``.
+
+        Returns:
+            A new :class:`SingleShootingProblem` using ``dynamics``.
+        """
+        return replace(self, dynamics=dynamics)
+
+    def with_stage_cost(self, stage_cost: Function) -> SingleShootingProblem:
+        """Return a copy configured with the scalar stage cost.
+
+        Args:
+            stage_cost: Function accepting ``(x, u, p)`` and returning one
+                scalar output.
+
+        Returns:
+            A new :class:`SingleShootingProblem` using ``stage_cost``.
+        """
+        return replace(self, stage_cost=stage_cost)
+
+    def with_terminal_cost(
+        self, terminal_cost: Function
+    ) -> SingleShootingProblem:
+        """Return a copy configured with the scalar terminal cost.
+
+        Args:
+            terminal_cost: Function accepting ``(x, p)`` and returning one
+                scalar output.
+
+        Returns:
+            A new :class:`SingleShootingProblem` using ``terminal_cost``.
+        """
+        return replace(self, terminal_cost=terminal_cost)
+
+    def with_costs(
+        self,
+        stage_cost: Function,
+        terminal_cost: Function,
+    ) -> SingleShootingProblem:
+        """Return a copy configured with stage and terminal costs.
+
+        Args:
+            stage_cost: Scalar stage cost accepting ``(x, u, p)``.
+            terminal_cost: Scalar terminal cost accepting ``(x, p)``.
+
+        Returns:
+            A new :class:`SingleShootingProblem` using both costs.
+        """
+        return replace(
+            self,
+            stage_cost=stage_cost,
+            terminal_cost=terminal_cost,
         )
+
+    def with_penalties(
+        self,
+        stage_penalty: Function,
+        terminal_penalty: Function,
+        penalty_weight: float | SX,
+    ) -> SingleShootingProblem:
+        """Return a copy configured with residual penalties.
+
+        Args:
+            stage_penalty: Vector or scalar residual accepting ``(x, u, p)``.
+            terminal_penalty: Vector or scalar residual accepting ``(x, p)``.
+            penalty_weight: Numeric penalty weight, or an ``SX`` symbol such
+                as ``SX.sym("c")`` to expose the weight as a runtime input.
+
+        Returns:
+            A new :class:`SingleShootingProblem` with residual penalties.
+        """
+        if penalty_weight is None:
+            raise ValueError("penalty_weight must be provided")
+        return replace(
+            self,
+            stage_penalty=stage_penalty,
+            terminal_penalty=terminal_penalty,
+            penalty_weight=penalty_weight,
+        )
+
+    def with_input_names(
+        self,
+        *,
+        initial_state_name: str | None = None,
+        control_sequence_name: str | None = None,
+        parameter_name: str | None = None,
+    ) -> SingleShootingProblem:
+        """Return a copy with customized generated input names.
+
+        Args:
+            initial_state_name: Optional runtime input name for the initial
+                state.
+            control_sequence_name: Optional runtime input name for the packed
+                control sequence.
+            parameter_name: Optional runtime input name for shared
+                parameters.
+
+        Returns:
+            A new :class:`SingleShootingProblem` with updated input names.
+        """
+        return replace(
+            self,
+            initial_state_name=(
+                self.initial_state_name
+                if initial_state_name is None else initial_state_name
+            ),
+            control_sequence_name=(
+                self.control_sequence_name
+                if control_sequence_name is None else control_sequence_name
+            ),
+            parameter_name=(
+                self.parameter_name if parameter_name is None
+                else parameter_name
+            ),
+        )
+
+    def with_simplification(
+        self, simplification: int | str | None
+    ) -> SingleShootingProblem:
+        """Return a copy with the requested simplification effort.
+
+        Args:
+            simplification: Simplification effort used for expanded functions
+                and derivative helper kernels.
+
+        Returns:
+            A new :class:`SingleShootingProblem` with the simplification
+            setting.
+        """
+        return replace(self, simplification=simplification)
 
     @property
     def state_size(self) -> int:
         """Return the state dimension."""
-        return _single_shooting_arg_size(self.dynamics.inputs[0])
+        return _single_shooting_arg_size(self._dynamics().inputs[0])
 
     @property
     def control_size(self) -> int:
         """Return the per-stage control dimension."""
-        return _single_shooting_arg_size(self.dynamics.inputs[1])
+        return _single_shooting_arg_size(self._dynamics().inputs[1])
 
     @property
     def parameter_size(self) -> int:
         """Return the shared parameter-vector dimension."""
-        return _single_shooting_arg_size(self.dynamics.inputs[2])
+        return _single_shooting_arg_size(self._dynamics().inputs[2])
+
+    @property
+    def has_runtime_penalty_weight(self) -> bool:
+        """Return whether ``c`` is exposed as a runtime scalar input."""
+        return isinstance(self.penalty_weight, SX)
+
+    @property
+    def penalty_weight_name(self) -> str | None:
+        """Return the runtime input name for symbolic ``c``."""
+        if isinstance(self.penalty_weight, SX):
+            return self.penalty_weight.name or "c"
+        return None
 
     @property
     def input_names(self) -> tuple[str, ...]:
         """Return the exposed runtime input names."""
-        return (
+        names = [
             self.initial_state_name,
             self.control_sequence_name,
             self.parameter_name,
-        )
+        ]
+        if self.has_runtime_penalty_weight:
+            penalty_weight_name = self.penalty_weight_name
+            if penalty_weight_name is not None:
+                names.append(penalty_weight_name)
+        return tuple(names)
 
     @property
     def output_names(self) -> tuple[str, ...]:
@@ -404,6 +626,57 @@ class SingleShootingProblem:
         """Return dependency nodes for shared helper discovery."""
         return self.to_function().nodes
 
+    def _has_complete_core(self) -> bool:
+        """Return whether the required problem definition is present."""
+        return (
+            self.horizon is not None
+            and self.dynamics is not None
+            and self.stage_cost is not None
+            and self.terminal_cost is not None
+        )
+
+    def _require_complete(self) -> None:
+        """Raise a helpful error when a builder-style problem is incomplete."""
+        missing: list[str] = []
+        if self.horizon is None:
+            missing.append("horizon")
+        if self.dynamics is None:
+            missing.append("dynamics")
+        if self.stage_cost is None:
+            missing.append("stage_cost")
+        if self.terminal_cost is None:
+            missing.append("terminal_cost")
+        if missing:
+            joined = ", ".join(missing)
+            raise ValueError(
+                "SingleShootingProblem is incomplete; configure "
+                f"{joined} before expanding or generating code"
+            )
+
+    def _dynamics(self) -> Function:
+        """Return configured dynamics after checking completeness."""
+        self._require_complete()
+        assert self.dynamics is not None
+        return self.dynamics
+
+    def _stage_cost(self) -> Function:
+        """Return configured stage cost after checking completeness."""
+        self._require_complete()
+        assert self.stage_cost is not None
+        return self.stage_cost
+
+    def _terminal_cost(self) -> Function:
+        """Return configured terminal cost after checking completeness."""
+        self._require_complete()
+        assert self.terminal_cost is not None
+        return self.terminal_cost
+
+    def _horizon(self) -> int:
+        """Return configured horizon after checking completeness."""
+        self._require_complete()
+        assert self.horizon is not None
+        return self.horizon
+
     def primal(
         self,
         *,
@@ -411,6 +684,7 @@ class SingleShootingProblem:
         name: str | None = None,
     ) -> SingleShootingProblem | SingleShootingPrimalFunction:
         """Return a staged primal kernel source."""
+        self._require_complete()
         if not include_states and name is None:
             return self
         return SingleShootingPrimalFunction(
@@ -428,6 +702,7 @@ class SingleShootingProblem:
         name: str | None = None,
     ) -> SingleShootingGradientFunction:
         """Return a staged gradient kernel source."""
+        self._require_complete()
         return SingleShootingGradientFunction(
             problem=self,
             name=name or f"{self.name}_gradient_{self.control_sequence_name}",
@@ -442,6 +717,7 @@ class SingleShootingProblem:
         name: str | None = None,
     ) -> SingleShootingHvpFunction:
         """Return a staged Hessian-vector-product kernel source."""
+        self._require_complete()
         return SingleShootingHvpFunction(
             problem=self,
             name=name or f"{self.name}_hvp_{self.control_sequence_name}",
@@ -456,6 +732,7 @@ class SingleShootingProblem:
         name: str | None = None,
     ) -> SingleShootingJointFunction:
         """Return a staged joint kernel source."""
+        self._require_complete()
         _validate_single_shooting_bundle(bundle)
         return SingleShootingJointFunction(
             problem=self,
@@ -474,25 +751,34 @@ class SingleShootingProblem:
         name: str | None = None,
     ) -> Function:
         """Expand the total-cost kernel into a symbolic ``Function``."""
-        x0, U, p = self._compiled_inputs()
+        self._require_complete()
+        dynamics = self._dynamics()
+        horizon = self._horizon()
+        compiled_inputs = self._compiled_inputs()
+        x0, U, p = compiled_inputs[:3]
+        penalty_weight = (
+            compiled_inputs[3]
+            if self.has_runtime_penalty_weight
+            else None
+        )
         current_state: FunctionArg = x0
         rollout_states: list[FunctionArg] = [current_state]
         total_cost = SX.const(0.0)
 
-        for stage_index in range(self.horizon):
+        for stage_index in range(horizon):
             u_t = _slice_packed_sequence(
-                U, stage_index, self.control_size, self.dynamics.inputs[1]
+                U, stage_index, self.control_size, dynamics.inputs[1]
             )
-            total_cost = total_cost + _extract_scalar_output(
-                self.stage_cost(current_state, u_t, p)
+            total_cost = total_cost + self._stage_total_cost(
+                current_state, u_t, p, penalty_weight
             )
             current_state = _extract_single_output(
-                self.dynamics(current_state, u_t, p)
+                dynamics(current_state, u_t, p)
             )
             rollout_states.append(current_state)
 
-        total_cost = total_cost + _extract_scalar_output(
-            self.terminal_cost(current_state, p)
+        total_cost = total_cost + self._terminal_total_cost(
+            current_state, p, penalty_weight
         )
         outputs: list[FunctionArg] = [total_cost]
         output_names = ["cost"]
@@ -502,7 +788,7 @@ class SingleShootingProblem:
 
         function = Function(
             name or self.name,
-            (x0, U, p),
+            compiled_inputs,
             outputs,
             input_names=self.input_names,
             output_names=tuple(output_names),
@@ -619,16 +905,135 @@ class SingleShootingProblem:
             output_names=tuple(output_names),
         )
 
-    def _compiled_inputs(self) -> tuple[FunctionArg, SXVector, FunctionArg]:
-        """Return symbolic runtime inputs for ``x0``, ``U``, and ``p``."""
+    def _compiled_inputs(self) -> tuple[FunctionArg, ...]:
+        """Return symbolic runtime inputs."""
+        dynamics = self._dynamics()
+        horizon = self._horizon()
         x0 = _make_symbolic_like(
-            self.dynamics.inputs[0], self.initial_state_name
+            dynamics.inputs[0], self.initial_state_name
         )
-        p = _make_symbolic_like(self.dynamics.inputs[2], self.parameter_name)
+        p = _make_symbolic_like(dynamics.inputs[2], self.parameter_name)
         U = SXVector.sym(
-            self.control_sequence_name, self.horizon * self.control_size
+            self.control_sequence_name, horizon * self.control_size
         )
+        if self.has_runtime_penalty_weight:
+            return x0, U, p, SX.sym(self.penalty_weight_name or "c")
         return x0, U, p
+
+    def stage_total_cost_function(self) -> Function:
+        """Return the scalar stage cost including residual penalties.
+
+        The returned function has the same ``(x, u, p)`` signature as
+        :attr:`stage_cost` when ``penalty_weight`` is numeric, and
+        ``(x, u, p, c)`` when ``penalty_weight`` is symbolic. When
+        :attr:`stage_penalty` is present its output is squared, summed,
+        multiplied by ``penalty_weight / 2``, and added to the base stage
+        cost.
+
+        Returns:
+            A scalar :class:`~gradgen.function.Function` for the effective
+            stage contribution used by primal, gradient, HVP, and Rust
+            code-generation paths.
+        """
+        stage_cost = self._stage_cost()
+        x, u, p = stage_cost.inputs
+        penalty_weight = self._helper_penalty_weight_symbol()
+        inputs = (x, u, p)
+        input_names = stage_cost.input_names
+        if penalty_weight is not None:
+            inputs = (*inputs, penalty_weight)
+            input_names = (*input_names, self.penalty_weight_name or "c")
+        return Function(
+            f"{stage_cost.name}_with_penalty",
+            inputs,
+            (self._stage_total_cost(x, u, p, penalty_weight),),
+            input_names=input_names,
+            output_names=stage_cost.output_names,
+        )
+
+    def terminal_total_cost_function(self) -> Function:
+        """Return the scalar terminal cost including residual penalties.
+
+        The returned function has the same ``(x, p)`` signature as
+        :attr:`terminal_cost` when ``penalty_weight`` is numeric, and
+        ``(x, p, c)`` when ``penalty_weight`` is symbolic. When
+        :attr:`terminal_penalty` is present its output is squared, summed,
+        multiplied by ``penalty_weight / 2``, and added to the base terminal
+        cost.
+
+        Returns:
+            A scalar :class:`~gradgen.function.Function` for the effective
+            terminal contribution used by primal, gradient, HVP, and Rust
+            code-generation paths.
+        """
+        terminal_cost = self._terminal_cost()
+        x, p = terminal_cost.inputs
+        penalty_weight = self._helper_penalty_weight_symbol()
+        inputs = (x, p)
+        input_names = terminal_cost.input_names
+        if penalty_weight is not None:
+            inputs = (*inputs, penalty_weight)
+            input_names = (*input_names, self.penalty_weight_name or "c")
+        return Function(
+            f"{terminal_cost.name}_with_penalty",
+            inputs,
+            (self._terminal_total_cost(x, p, penalty_weight),),
+            input_names=input_names,
+            output_names=terminal_cost.output_names,
+        )
+
+    def _stage_total_cost(
+        self,
+        x: FunctionArg,
+        u: FunctionArg,
+        p: FunctionArg,
+        penalty_weight: SX | None = None,
+    ) -> SX:
+        """Return the symbolic stage cost including residual penalties."""
+        cost = _extract_scalar_output(self._stage_cost()(x, u, p))
+        if self.stage_penalty is None:
+            return cost
+        return cost + self._weighted_squared_norm(
+            _extract_single_output(self.stage_penalty(x, u, p)),
+            penalty_weight,
+        )
+
+    def _terminal_total_cost(
+        self,
+        x: FunctionArg,
+        p: FunctionArg,
+        penalty_weight: SX | None = None,
+    ) -> SX:
+        """Return the symbolic terminal cost including residual penalties."""
+        cost = _extract_scalar_output(self._terminal_cost()(x, p))
+        if self.terminal_penalty is None:
+            return cost
+        return cost + self._weighted_squared_norm(
+            _extract_single_output(self.terminal_penalty(x, p)),
+            penalty_weight,
+        )
+
+    def _weighted_squared_norm(
+        self,
+        residual: FunctionArg,
+        penalty_weight: SX | None = None,
+    ) -> SX:
+        """Return ``penalty_weight / 2 * ||residual||_2^2``."""
+        if self.penalty_weight is None:
+            raise ValueError("penalty_weight must be provided")
+        if penalty_weight is not None:
+            weight = penalty_weight
+        elif isinstance(self.penalty_weight, SX):
+            weight = self.penalty_weight
+        else:
+            weight = SX.const(float(self.penalty_weight))
+        return (SX.const(0.5) * weight) * _squared_norm(residual)
+
+    def _helper_penalty_weight_symbol(self) -> SX | None:
+        """Return the helper input symbol for runtime penalty weights."""
+        if not self.has_runtime_penalty_weight:
+            return None
+        return SX.sym(self.penalty_weight_name or "c")
 
     def generate_rust(
         self,
@@ -639,6 +1044,7 @@ class SingleShootingProblem:
         scalar_type: str = "f64",
     ):
         """Generate compact Rust for the primal total-cost kernel."""
+        self._require_complete()
         return _generate_rust(
             self,
             config=config,
@@ -658,6 +1064,7 @@ class SingleShootingProblem:
         scalar_type: str = "f64",
     ):
         """Create a Rust crate containing the total-cost kernel."""
+        self._require_complete()
         return _create_rust_project(
             self,
             path,
@@ -724,6 +1131,16 @@ def _extract_scalar_output(value: object) -> SX:
             "single-shooting cost functions must return scalar outputs"
         )
     return output
+
+
+def _squared_norm(value: FunctionArg) -> SX:
+    """Return the sum of squares for a scalar or vector symbolic value."""
+    if isinstance(value, SX):
+        return value * value
+    total = SX.const(0.0)
+    for element in value.elements:
+        total = total + element * element
+    return total
 
 
 def _flatten_rollout_states(states: list[FunctionArg]) -> SXVector:
@@ -849,10 +1266,68 @@ def _validate_single_shooting_terminal_cost(function: Function) -> None:
         )
 
 
+def _validate_single_shooting_penalty_configuration(
+    stage_penalty: Function | None,
+    terminal_penalty: Function | None,
+    penalty_weight: float | SX | None,
+) -> None:
+    """Validate optional residual penalty fields are supplied together."""
+    has_any_penalty = stage_penalty is not None or terminal_penalty is not None
+    if has_any_penalty and (
+        stage_penalty is None
+        or terminal_penalty is None
+        or penalty_weight is None
+    ):
+        raise ValueError(
+            "SingleShootingProblem penalties require stage_penalty, "
+            "terminal_penalty, and penalty_weight"
+        )
+    if isinstance(penalty_weight, SXVector):
+        raise TypeError("penalty_weight must be a scalar")
+
+
+def _validate_single_shooting_stage_penalty(function: Function) -> None:
+    """Validate the stage residual signature."""
+    if len(function.inputs) != 3:
+        raise ValueError(
+            "SingleShootingProblem stage_penalty must accept (x, u, p)"
+        )
+    if len(function.outputs) != 1:
+        raise ValueError(
+            "SingleShootingProblem stage_penalty must return exactly one "
+            "residual output"
+        )
+    if not isinstance(function.outputs[0], (SX, SXVector)):
+        raise ValueError(
+            "SingleShootingProblem stage_penalty must return a scalar or "
+            "vector symbolic residual"
+        )
+
+
+def _validate_single_shooting_terminal_penalty(function: Function) -> None:
+    """Validate the terminal residual signature."""
+    if len(function.inputs) != 2:
+        raise ValueError(
+            "SingleShootingProblem terminal_penalty must accept (x, p)"
+        )
+    if len(function.outputs) != 1:
+        raise ValueError(
+            "SingleShootingProblem terminal_penalty must return exactly one "
+            "residual output"
+        )
+    if not isinstance(function.outputs[0], (SX, SXVector)):
+        raise ValueError(
+            "SingleShootingProblem terminal_penalty must return a scalar or "
+            "vector symbolic residual"
+        )
+
+
 def _validate_single_shooting_shapes(
     dynamics: Function,
     stage_cost: Function,
     terminal_cost: Function,
+    stage_penalty: Function | None = None,
+    terminal_penalty: Function | None = None,
 ) -> None:
     """Validate stage functions agree on state, control, and parameters."""
     if not _same_single_shooting_shape(
@@ -886,3 +1361,40 @@ def _validate_single_shooting_shapes(
         raise ValueError(
             "terminal_cost p input must have the same shape as dynamics p"
         )
+    if stage_penalty is not None:
+        if not _same_single_shooting_shape(
+            dynamics.inputs[0], stage_penalty.inputs[0]
+        ):
+            raise ValueError(
+                "stage_penalty x input must have the same shape as "
+                "dynamics x"
+            )
+        if not _same_single_shooting_shape(
+            dynamics.inputs[1], stage_penalty.inputs[1]
+        ):
+            raise ValueError(
+                "stage_penalty u input must have the same shape as "
+                "dynamics u"
+            )
+        if not _same_single_shooting_shape(
+            dynamics.inputs[2], stage_penalty.inputs[2]
+        ):
+            raise ValueError(
+                "stage_penalty p input must have the same shape as "
+                "dynamics p"
+            )
+    if terminal_penalty is not None:
+        if not _same_single_shooting_shape(
+            dynamics.outputs[0], terminal_penalty.inputs[0]
+        ):
+            raise ValueError(
+                "terminal_penalty x input must have the same shape as the "
+                "dynamics state"
+            )
+        if not _same_single_shooting_shape(
+            dynamics.inputs[2], terminal_penalty.inputs[1]
+        ):
+            raise ValueError(
+                "terminal_penalty p input must have the same shape as "
+                "dynamics p"
+            )
