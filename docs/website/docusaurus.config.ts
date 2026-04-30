@@ -93,6 +93,11 @@ const config: Config = {
           position: 'left',
           label: 'Documentation',
         },
+        {
+          href: 'https://qub-asl.github.io/gradgen/api-dox/',
+          label: 'API',
+          position: 'left',
+        },
         {to: '/blog', label: 'Blog', position: 'left'},
         {
           href: 'https://github.com/QUB-ASL/gradgen',

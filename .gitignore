@@ -37,3 +37,8 @@ tmp_*
 
 # Coverage
 htmlcov/
+
+# Sphinx API docs
+docs/sphinx/build/
+docs/sphinx/source/api/
+docs/website/static/api-dox/
