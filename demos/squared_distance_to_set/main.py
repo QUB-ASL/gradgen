@@ -56,6 +56,8 @@ f = Function(
 grad_x = f.gradient(0, name="distance_energy_grad_x")
 
 sample_x = [1.5, -3.0]
+print("distance([1.0, 100.0]) =", distance([1.0, 100.0]))
+print("distance.jacobian()([1.0, 100.0]) =", distance.jacobian()([1.0, 100.0]))
 print("symbolic expr =", distance(x))
 print("f(x) =", f(sample_x))
 print("grad_x f(x) =", grad_x(sample_x))

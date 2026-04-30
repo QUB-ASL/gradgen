@@ -64,6 +64,7 @@ class SquaredDistanceToSet:
     _rust_sq_distance: str | None = None
     _rust_projection: str | None = None
     _input_dimension: int | None = None
+    _function_cache: Function | None = None
 
     def __post_init__(self) -> None:
         """Validate constructor arguments."""
@@ -84,6 +85,7 @@ class SquaredDistanceToSet:
         Returns:
             ``self`` to support fluent configuration.
         """
+        self._invalidate_function_cache()
         self._sq_distance = callback
         return self
 
@@ -106,6 +108,7 @@ class SquaredDistanceToSet:
             output_kind="scalar",
             label="sq_distance function",
         )
+        self._invalidate_function_cache()
         self._sq_distance_function = function
         self._update_input_dimension_from_function(function)
         return self
@@ -125,6 +128,7 @@ class SquaredDistanceToSet:
         Returns:
             ``self`` to support fluent configuration.
         """
+        self._invalidate_function_cache()
         self._projection = callback
         return self
 
@@ -147,6 +151,7 @@ class SquaredDistanceToSet:
             output_kind="vector",
             label="projection function",
         )
+        self._invalidate_function_cache()
         self._projection_function = function
         self._update_input_dimension_from_function(function)
         return self
@@ -161,6 +166,7 @@ class SquaredDistanceToSet:
         Returns:
             ``self`` to support fluent configuration.
         """
+        self._invalidate_function_cache()
         self._rust_sq_distance = snippet
         return self
 
@@ -174,32 +180,117 @@ class SquaredDistanceToSet:
         Returns:
             ``self`` to support fluent configuration.
         """
+        self._invalidate_function_cache()
         self._rust_projection = snippet
         return self
 
-    def __call__(self, value: SXVector) -> SX:
-        """Build a symbolic call to the configured primitive.
+    def __call__(
+        self,
+        value: SXVector | tuple[object, ...] | list[object],
+    ) -> SX | float | tuple[float, ...] | SXVector | tuple[object, ...]:
+        """Evaluate the configured distance as a function-like object.
 
         Args:
-            value: Symbolic vector at which the half-squared distance should
-                be evaluated.
+            value: Symbolic vector or numeric vector-like value at which the
+                half-squared distance should be evaluated.
 
         Returns:
-            An ``SX`` scalar representing the configured primitive applied to
-            ``value``.
+            The evaluated half-squared distance, using the same calling
+            conventions as :class:`gradgen.function.Function`.
 
         Raises:
-            TypeError: If ``value`` is not an ``SXVector``.
-            ValueError: If mandatory callbacks are missing or the primitive is
-                reused with a different input dimension.
+            TypeError: If ``value`` is not vector-like.
+            ValueError: If mandatory callbacks are missing or the primitive
+                is reused with a different input dimension.
         """
-        if not isinstance(value, SXVector):
-            raise TypeError("SquaredDistanceToSet expects an SXVector input")
-        symbolic_expr = self._build_symbolic_expr(value)
-        if symbolic_expr is not None:
-            return symbolic_expr
-        spec = self._ensure_registered(len(value))
-        return spec(value)
+        vector_value = _coerce_vector_like(value)
+        self._validate_input_dimension(len(vector_value), allow_unset=True)
+        return self.to_function()(value)
+
+    def to_function(self, name: str | None = None) -> Function:
+        """Return a symbolic function view of the configured distance.
+
+        Args:
+            name: Optional symbolic function name. When omitted, the
+                configured primitive name is used.
+
+        Returns:
+            A :class:`~gradgen.function.Function` representing the configured
+            half-squared distance as a scalar-valued symbolic function.
+
+        Raises:
+            ValueError: If the input dimension is not known yet.
+        """
+        if name is None and self._function_cache is not None:
+            return self._function_cache
+
+        if self._input_dimension is None:
+            raise ValueError(
+                "SquaredDistanceToSet needs an input dimension before it can "
+                "be materialized; call it once or configure a symbolic "
+                "helper function first"
+            )
+
+        x = SXVector.sym("x", self._input_dimension)
+        symbolic_expr = self._build_symbolic_expr(x)
+        if symbolic_expr is None:
+            spec = self._ensure_registered(self._input_dimension)
+            symbolic_expr = spec(x)
+
+        function = Function(
+            name or self.name,
+            [x],
+            [symbolic_expr],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        if name is None:
+            self._function_cache = function
+        return function
+
+    def gradient(
+        self,
+        wrt_index: int = 0,
+        name: str | None = None,
+    ) -> Function:
+        """Return the gradient of the materialized distance function.
+
+        Args:
+            wrt_index: Index of the input block to differentiate with
+                respect to.
+            name: Optional name for the returned symbolic function.
+
+        Returns:
+            A :class:`~gradgen.function.Function` representing the gradient
+            with respect to the selected input block.
+        """
+        return self.to_function().gradient(wrt_index=wrt_index, name=name)
+
+    def jacobian(
+        self,
+        wrt_index: int = 0,
+        name: str | None = None,
+    ) -> Function:
+        """Return the Jacobian of the materialized distance function.
+
+        Args:
+            wrt_index: Index of the input block to differentiate with
+                respect to.
+            name: Optional name for the returned symbolic function.
+
+        Returns:
+            A :class:`~gradgen.function.Function` representing the Jacobian
+            block with respect to the selected input block.
+        """
+        return self.to_function().jacobian(wrt_index=wrt_index, name=name)
+
+    def __getattr__(self, name: str) -> object:
+        """Delegate remaining function-like attributes to ``to_function()``.
+
+        This keeps the wrapper aligned with :class:`gradgen.function.Function`
+        without reimplementing the full surface area manually.
+        """
+        return getattr(self.to_function(), name)
 
     def _ensure_registered(self, input_dimension: int) -> RegisteredElementaryFunction:
         """Register the backing custom primitive on first use."""
@@ -261,6 +352,10 @@ class SquaredDistanceToSet:
             return 0.5 * delta.norm2sq()
 
         return None
+
+    def _invalidate_function_cache(self) -> None:
+        """Forget any cached symbolic :class:`Function` view."""
+        self._function_cache = None
 
     def _build_gradient_callback(self) -> Callable[[object], tuple[object, ...]]:
         """Return a callback computing ``x - projection(x)``."""
@@ -333,6 +428,7 @@ class SquaredDistanceToSet:
         """Validate the configured vector input dimension."""
         if self._input_dimension is None:
             if allow_unset:
+                self._input_dimension = input_dimension
                 return
             self._input_dimension = input_dimension
             return

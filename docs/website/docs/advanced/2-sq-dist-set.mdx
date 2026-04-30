@@ -24,7 +24,7 @@ optimization problems. Here we will see how to define such functions.
 Gradgen also offers a easy constructors for common sets $C$ such as 
 norm-balls.
 
-## Custom 
+## Custom sets
 
 The user needs to specify the squared distance-to-set function 
 and the projection operator. For simple sets, such as norm-balls,
@@ -33,7 +33,76 @@ rectangles, etc, see the section on [common convex sets](/gradgen/docs/advanced/
 As an example, suppose $C = \{x\in\mathbb{R}^2: x_2 = 0\}$.
 Then,
 ```math
-\operatorname{dist}_{C}^{2}(x) = 
+\operatorname{dist}_{C}^{2}(x) = x_2^2,
+```
+and 
+```math
+\Pi_{C}^{2}(x) = (x_1, 0).
+```
+Firsly, we need to define the above functions as instances of [`Function`](/gradgen/docs/basics/functions)
+
+```python
+# Symbol
+x = SXVector.sym("x", 2)
+
+# Projection function
+projection = Function(
+    "projection",
+    [x],
+    [SXVector((x[0], SX.const(0.0)))],
+    input_names=["x"],
+    output_names=["p"],
+)
+
+# Squared distance-to-set function
+sq_distance = Function(
+    "sq_distance",
+    [x],
+    [0.5 * x[1] * x[1]],
+    input_names=["x"],
+    output_names=["d"],
+)
+```
+
+Then, we need to bundle the above functions in a `SquaredDistanceToSet` 
+as follows
+
+```python
+distance = (
+    SquaredDistanceToSet(name="dist_to_axis")
+    .with_projection_function(projection)
+    .with_sq_distance_function(sq_distance)
+)
+```
+
+This object can be used as a function. For example, we can do
+
+```python
+distance_value = distance([1., 100.])
+```
+
+We can also define the gradient of the distance function 
+and call it as a function 
+
+```python
+grad_dist = distance.gradient()
+grad_dist_val = grad_dist([1., 1.00])
+```
+
+We can also use the `distance` in other functions (we can compose 
+it with other functions). For example, we can define the function 
+$g(x) = \mathrm{dist}_C^2(x / \|x\|^2)$ and compute its derivative:
+
+```python
+g = Function(
+    "magic",
+    [x],
+    [distance(x / x.norm2sq())],
+    input_names=["x"],
+    output_names=["g"],
+)
+dg = g.gradient()
+dg_val = dg([1., 1.00])
 ```
 
 

@@ -5,9 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased (target: 0.5.0, coming soon)
+## Unreleased
 
 ### Added
+
+- Added builder-style configuration methods to `SingleShootingProblem`, such
+  as `.with_horizon(...)`, `.with_dynamics(...)`, `.with_costs(...)`, and
+  `.with_penalties(...)`.
+- Added a `demos/single_shooting_penalty` demo showing residual-penalty
+  single-shooting code generation and Rust runner usage. The `demos/single_shooting_penalty` demo also generates and calls its
+  Python wrapper module.
+- Automatic differentiation now supports `maximum` and `minimum` with a
+  piecewise derivative rule, allowing squared hinge residuals such as
+  `maximum(0, z) ** 2` in generated gradient and HVP kernels.
+- Added `SquaredDistanceToSet`, a projection-backed primitive for modeling
+  half-squared distances to closed convex sets and generating their gradient
+  kernels from the projection map. Made `SquaredDistanceToSet` behave more like a regular symbolic function by adding `to_function()`, `jacobian()`, and direct numeric evaluation support, and taught the Rust builder to accept function-like wrappers that lower to `Function`.
+- Added a Sphinx-based API documentation pipeline that publishes generated
+  docstring reference pages to `gh-pages/api-dox/` alongside the Docusaurus
+  website. Note: to update the sphinx website, just push a commit with message
+  starting with `[docit]`. To re-deploy the entire website, run `docs/website/publish.sh --build-api-dox`.
+- Added `RustBackendConfig().with_build_crate()` to compile the generated
+  low-level Rust crate after it is written to disk. The default remains off,
+  and generation raises an informative error if `cargo` is not available when
+  this option is enabled.
+- Added `RustBackendConfig().with_build_profile(...)` so automatic crate builds
+  can target either the `release` or `debug` Cargo profile. When
+  `with_build_crate()` is enabled, Gradgen now builds with the `release`
+  profile by default.
+
+### Changed
 
 - `RustBackendConfig.with_additional_dependencies(...)` can now attach extra
   Cargo dependencies to the generated manifest, with optional versions
@@ -22,24 +49,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   residual penalties through `stage_penalty`, `terminal_penalty`, and a
   scalar `penalty_weight`. Passing an `SX` symbol such as `SX.sym("c")`
   exposes the penalty weight as a runtime input to generated kernels.
-- Added builder-style configuration methods to `SingleShootingProblem`, such
-  as `.with_horizon(...)`, `.with_dynamics(...)`, `.with_costs(...)`, and
-  `.with_penalties(...)`.
-- Added a `demos/single_shooting_penalty` demo showing residual-penalty
-  single-shooting code generation and Rust runner usage.
-- The `demos/single_shooting_penalty` demo now also generates and calls its
-  Python wrapper module.
-- Automatic differentiation now supports `maximum` and `minimum` with a
-  piecewise derivative rule, allowing squared hinge residuals such as
-  `maximum(0, z) ** 2` in generated gradient and HVP kernels.
-- Added `SquaredDistanceToSet`, a projection-backed primitive for modeling
-  half-squared distances to closed convex sets and generating their gradient
-  kernels from the projection map.
-- Added a Sphinx-based API documentation pipeline that publishes generated
-  docstring reference pages to `gh-pages/api-dox/` alongside the Docusaurus
-  website. Note: to update the sphinx website, just push a commit with message
-  starting with `[docit]`. To re-deploy the entire website, run `docs/website/publish.sh --build-api-dox`.
-
 
 ## 0.4.1 - 22-04-2026
 
@@ -165,14 +174,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   while `.build()` defaults to `./<crate_name>`.
 - Generated low-level Rust crates now start with `#![forbid(unsafe_code)]`,
   while the separate PyO3 wrapper crate keeps its existing build settings.
-- Added `RustBackendConfig().with_build_crate()` to compile the generated
-  low-level Rust crate after it is written to disk. The default remains off,
-  and generation raises an informative error if `cargo` is not available when
-  this option is enabled.
-- Added `RustBackendConfig().with_build_profile(...)` so automatic crate builds
-  can target either the `release` or `debug` Cargo profile. When
-  `with_build_crate()` is enabled, Gradgen now builds with the `release`
-  profile by default.
 - Kept backward compatibility for the older callback-based
   `for_function(function, lambda b: ...)` form.
 - Updated the tests, demos, README examples, and demo documentation to use the

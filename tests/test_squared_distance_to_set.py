@@ -4,6 +4,32 @@ from gradgen import Function, SX, SXVector, SquaredDistanceToSet
 
 
 class SquaredDistanceToSetTests(unittest.TestCase):
+    def test_squared_distance_behaves_like_a_function(self) -> None:
+        x = SXVector.sym("x", 2)
+        projection = Function(
+            "proj_axis",
+            [x],
+            [SXVector((x[0], SX.const(0.0)))],
+            input_names=["x"],
+            output_names=["p"],
+        )
+        sq_distance = Function(
+            "sqdist_axis",
+            [x],
+            [0.5 * x[1] * x[1]],
+            input_names=["x"],
+            output_names=["d"],
+        )
+        distance = (
+            SquaredDistanceToSet(name="dist_to_axis_functional")
+            .with_projection_function(projection)
+            .with_sq_distance_function(sq_distance)
+        )
+
+        self.assertEqual(distance([1.0, 100.0]), 5000.0)
+        self.assertEqual(distance.to_function()([1.0, 100.0]), 5000.0)
+        self.assertEqual(distance.jacobian()([1.0, 100.0]), (0.0, 100.0))
+
     def test_squared_distance_supports_symbolic_functions_without_rust_snippets(
         self,
     ) -> None:

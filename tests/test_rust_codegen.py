@@ -26,6 +26,7 @@ from gradgen import (
     SXVector,
     SingleShootingBundle,
     SingleShootingProblem,
+    SquaredDistanceToSet,
     bilinear_form,
     clear_registered_elementary_functions,
     create_multi_function_rust_project,
@@ -1603,6 +1604,43 @@ mod single_shooting_multi_u_tests {{
             run_cargo_build.assert_called_once_with(
                 Path(tmpdir).resolve() / "my_crates" / "abc",
                 "debug",
+            )
+
+    def test_builder_accepts_squared_distance_to_set(self) -> None:
+        x = SXVector.sym("x", 2)
+        projection = Function(
+            "proj_axis",
+            [x],
+            [SXVector((x[0], SX.const(0.0)))],
+            input_names=["x"],
+            output_names=["p"],
+        )
+        sq_distance = Function(
+            "sqdist_axis",
+            [x],
+            [0.5 * x[1] * x[1]],
+            input_names=["x"],
+            output_names=["d"],
+        )
+        distance = (
+            SquaredDistanceToSet(name="dist_to_axis_codegen")
+            .with_projection_function(projection)
+            .with_sq_distance_function(sq_distance)
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("abc"))
+            .for_function(distance)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "my_crates")
+            self.assertEqual(
+                project.project_dir,
+                Path(tmpdir).resolve() / "my_crates" / "abc",
             )
 
     def test_python_interface_is_importable(self) -> None:
