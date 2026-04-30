@@ -41,6 +41,11 @@ cp -R docs/sphinx/build/html/. "$api_build_dir"
 git config --global user.name "github-actions"
 git config --global user.email "actions@github.com"
 
+if [ -n "${GITHUB_TOKEN:-}" ]; then
+    git remote set-url origin \
+        "https://x-access-token:${GITHUB_TOKEN}@github.com/QUB-ASL/gradgen.git"
+fi
+
 git fetch origin gh-pages
 git worktree add "$pages_dir" origin/gh-pages
 
