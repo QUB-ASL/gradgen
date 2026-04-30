@@ -241,7 +241,9 @@ mod integration_sympy_vector {{
                 """
 fn dist_to_axis_sympy(
     x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
 ) -> {{ scalar_type }} {
+    let _ = w;
     0.5_{{ scalar_type }} * x[1] * x[1]
 }
 """

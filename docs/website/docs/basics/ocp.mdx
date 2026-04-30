@@ -22,26 +22,28 @@ use `Function` you can end up with thousands of lines of generated code.
 ## Single shooting optimal control 
 
 We can the discrete-time dynamical system 
-$$x_{k+1} = f(x_k, u_k, p),$$
-where $x_k \in \mathbb{R}^{n_x}$ is the state, $u_k\in \mathbb{R}^{n_u}$ is the input,
-and $p \in \mathbb{R}^{n_p}$ is a parameter vector. 
+$$x_\{k+1\} = f(x_k, u_k, p),$$
+where $x_k \in \mathbb\{R\}^\{n_x\}$ is the state,
+$u_k\in \mathbb\{R\}^\{n_u\}$ is the input,
+and $p \in \mathbb\{R\}^\{n_p\}$ is a parameter vector. 
 We have a stage cost function 
-$\ell: \mathbb{R}^{n_x} \times \mathbb{R}^{n_u} \to \mathbb{R}$
+$\ell: \mathbb\{R\}^\{n_x\} \times \mathbb\{R\}^\{n_u\} \to \mathbb\{R\}$
 and a terminal cost function, 
-$V_f: \mathbb{R}^{n_x} \times \mathbb{R}^{n_p} \to \mathbb{R}$. 
+$V_f: \mathbb\{R\}^\{n_x\} \times \mathbb\{R\}^\{n_p\} \to \mathbb\{R\}$. 
 
 For a horizon $N$ we denote the sequence of control actions as 
-$u_{\mathrm{seq}} = (u_0, \ldots, u_{N-1})$.
+$u_\{\mathrm\{seq\}\} = (u_0, \ldots, u_\{N-1\})$.
 
 The total cost function with horizon $N$ is
 
-$$V_N(x_0, u_{\mathrm{seq}}, p) = \sum_{t=0}^{N-1} \ell(x_t, u_t, p) + V_f(x_N, p),$$
+$$V_N(x_0, u_\{\mathrm\{seq\}\}, p) =
+\sum_\{t=0\}^\{N-1\} \ell(x_t, u_t, p) + V_f(x_N, p),$$
 
-where note that $x_t = x_t(x_0, u_0, \ldots, u_{t-1})$, so $x_t$ is a 
-function of $x_0$ and $u_{\mathrm{seq}}$.
+where note that $x_t = x_t(x_0, u_0, \ldots, u_\{t-1\})$, so $x_t$ is a 
+function of $x_0$ and $u_\{\mathrm\{seq\}\}$.
 
 The objective is to generated code for $V_N$, its gradient with respect
-to $u_{\mathrm{seq}}$, as well as Hessian-vector products.
+to $u_\{\mathrm\{seq\}\}$, as well as Hessian-vector products.
 
 The computation of the gradient and Hessian-vector products is particularly 
 useful for solving optimal control problems numerically.
@@ -52,10 +54,10 @@ useful for solving optimal control problems numerically.
 
 As an example, consider a dynamical system with $n_x = 2$, 
 $n_u=1$, and $n_p = 2$. The system dynamics is 
-$$f(x, u, p) = \begin{bmatrix}
+$$f(x, u, p) = \begin\{bmatrix\}
 x_1 + p_1 x_2 + u \\\\
 x_2 + p_2  u - 0.5 x_2
-\end{bmatrix}.$$
+\end\{bmatrix\}.$$
 Let us create the necessary symbols and let us define the system dynamics
 
 [![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1QFMP-ZF3ZN3swWuab6v5neOmS0n_yKQ2?usp=sharing)
@@ -197,7 +199,9 @@ also structured code.
 
 <summary>Generated gradient</summary>
 
-This is how the generated code for $\nabla V_N(u_{{\rm seq}}, p)$ looks like (excerpt from auto-generated code):
+This is how the generated code for
+$\nabla V_N(u_\{\{\rm seq\}\}, p)$ looks like
+(excerpt from auto-generated code):
 
 ```rust
 // Forward pass
@@ -253,7 +257,10 @@ Consider an optimal control problem where the total cost function
 with horizon $N$ involves quadratic penalty terms, that is, it 
 has the formm
 
-$$V_N(x_0, u_{\mathrm{seq}}, p, c) = \sum_{t=0}^{N-1} \ell(x_t, u_t, p) + \tfrac{c}{2}\Vert q(x_t, u_t, p) \Vert_2^2 + V_f(x_N, p) + \tfrac{c}{2}\Vert q_N(x_N, p)\Vert_2^2,$$
+$$V_N(x_0, u_\{\mathrm\{seq\}\}, p, c) =
+\sum_\{t=0\}^\{N-1\} \ell(x_t, u_t, p)
++ \tfrac\{c\}\{2\}\Vert q(x_t, u_t, p) \Vert_2^2 + V_f(x_N, p)
++ \tfrac\{c\}\{2\}\Vert q_N(x_N, p)\Vert_2^2,$$
 
 where $c > 0$ is the penalty parameter.
 
@@ -264,18 +271,25 @@ The formulation is also used within the quadratic penalty method.
 <details>
 
 Internally gradgen compiles the stage cost function 
-$\tilde{\ell}(x, u, p, c) = \ell(x, u, p) + \tfrac{c}{2}\Vert q(x, u, p) \Vert_2^2$ and the terminal cost function $\tilde{V}_f(x, p, c) = V_f(x, p) + \tfrac{c}{2}\Vert q_N(x, p)\Vert_2^2$.
+$\tilde\{\ell\}(x, u, p, c) = \ell(x, u, p)
++ \tfrac\{c\}\{2\}\Vert q(x, u, p) \Vert_2^2$
+and the terminal cost function
+$\tilde\{V\}_f(x, p, c) = V_f(x, p)
++ \tfrac\{c\}\{2\}\Vert q_N(x, p)\Vert_2^2$.
 
 </details>
 
 ### Example
 
-As an example, suppose we have the stage penalty function $q:\mathbb{R}^2\times \mathbb{R} \times \mathbb{R}^2 \to \mathbb{R}^2$ given by
-$$q(x, u, p) = \begin{bmatrix}
+As an example, suppose we have the stage penalty function
+$q:\mathbb\{R\}^2\times \mathbb\{R\} \times \mathbb\{R\}^2 \to \mathbb\{R\}^2$
+given by
+$$q(x, u, p) = \begin\{bmatrix\}
 x_1 + u - p_1 \\\\ x_2 - p_2
-\end{bmatrix},$$
-and the terminal penalty function $q_N:\mathbb{R}^2\times \mathbb{R}^2 \to \mathbb{R}$ given by
-$$q_N(x, p) = \max\\{0, \Vert x \Vert_2^2 - 1 - p_1\\}$$
+\end\{bmatrix\},$$
+and the terminal penalty function
+$q_N:\mathbb\{R\}^2\times \mathbb\{R\}^2 \to \mathbb\{R\}$ given by
+$$q_N(x, p) = \max\\\{0, \Vert x \Vert_2^2 - 1 - p_1\\\}$$
 The terminal penalty, $q_N$, can be used to enforce 
 the constraint $\Vert x \Vert_2^2 - 1 - p_1 \leq 0$.
 

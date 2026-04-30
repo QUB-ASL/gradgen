@@ -18,12 +18,13 @@ f = Function("f", [x, y], [x + y, x * y])
 
 where for `f` we have specified that it is a function of the input 
 variables `x` and `y` and returns two outputs. Mathematically, it is 
-the function $f:\mathbb{R} \times \mathbb{R} \to \mathbb{R}$ with
+the function
+$f:\mathbb\{R\} \times \mathbb\{R\} \to \mathbb\{R\}$ with
 
 $$f(x, y) = 
-\begin{bmatrix}
+\begin\{bmatrix\}
 x + y \\\\ xy
-\end{bmatrix}.$$
+\end\{bmatrix\}.$$
 
 The function `f` can be called with numerical arguments
 
@@ -47,7 +48,7 @@ and the result is a tuple of `SX`.
 ## Vector inputs
 
 We can also define functions that take vector inputs. For example,
-we can define the function $g:\mathbb{R}^2 \to \mathbb{R}$ given by 
+we can define the function $g:\mathbb\{R\}^2 \to \mathbb\{R\}$ given by 
 $g(x) = \Vert x \Vert_2$ as follows
 
 ```python
@@ -60,8 +61,8 @@ print(g([3.0, 4.0]))  # returns 5.
 ```
 
 Or, we can define the function 
-$h:\mathbb{R}^3 \times \mathbb{R} \to \mathbb{R}$
-given by $h(x, a) = a\Vert x \Vert_{1}$ as follows
+$h:\mathbb\{R\}^3 \times \mathbb\{R\} \to \mathbb\{R\}$
+given by $h(x, a) = a\Vert x \Vert_\{1\}$ as follows
 
 ```python
 from gradgen import Function, SXVector, SX
@@ -80,17 +81,20 @@ print(h0)
 ## Composition of functions
 
 Functions can be composed in a very natural manner. 
-Suppose we have a function $f:\mathbb{R}^2 \times \mathbb{R} \to \mathbb{R}$
+Suppose we have a function
+$f:\mathbb\{R\}^2 \times \mathbb\{R\} \to \mathbb\{R\}$
 given by 
 
-$$f(x, a) = \Vert (a^2 + 1) x \Vert_{\infty},$$
+$$f(x, a) = \Vert (a^2 + 1) x \Vert_\{\infty\},$$
 
-and we have the function $g: \mathbb{R}^2 \to \mathbb{R}^2$ given by 
+and we have the function
+$g: \mathbb\{R\}^2 \to \mathbb\{R\}^2$ given by 
 
-$$g(x) = \frac{x}{\Vert x \Vert_2^2}.$$
+$$g(x) = \frac\{x\}\{\Vert x \Vert_2^2\}.$$
 
 We can then define the function 
-$h:\mathbb{R}^2 \times \mathbb{R} \to \mathbb{R}$ given by $h(x, a) = f(g(x), a)$. 
+$h:\mathbb\{R\}^2 \times \mathbb\{R\} \to \mathbb\{R\}$
+given by $h(x, a) = f(g(x), a)$. 
 This can be defined as follows
 
 ```python 
@@ -110,7 +114,7 @@ h = Function("h", [x, a], [f(g(x), a)]) # h(x, a) = f(g(x), a)
 
 We can call a function with named input arguments. For example,
 suppose we have the function $f(x, y) = x\Vert y \Vert$,
-where $x\in\mathbb{R}$ and $y\in\mathbb{R}^2$ defined as follows:
+where $x\in\mathbb\{R\}$ and $y\in\mathbb\{R\}^2$ defined as follows:
 
 ```python
 x = SX.sym("x")

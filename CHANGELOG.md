@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Automatic differentiation now supports `maximum` and `minimum` with a
   piecewise derivative rule, allowing squared hinge residuals such as
   `maximum(0, z) ** 2` in generated gradient and HVP kernels.
+- Added `SquaredDistanceToSet`, a projection-backed primitive for modeling
+  half-squared distances to closed convex sets and generating their gradient
+  kernels from the projection map.
 - Added a Sphinx-based API documentation pipeline that publishes generated
   docstring reference pages to `gh-pages/api-dox/` alongside the Docusaurus
   website. Note: to update the sphinx website, just push a commit with message

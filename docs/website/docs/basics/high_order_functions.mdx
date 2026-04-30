@@ -13,14 +13,16 @@ smaller code sizes**.
 
 For an integer $N$, the **map** function consumes one packed sequence
 
-$$\mathbf{x} = (x^{(1)}, x^{(2)}, \dots, x^{(N)}),$$
+$$\mathbf\{x\} = (x^\{(1)\}, x^\{(2)\}, \dots, x^\{(N)\}),$$
 
 and returns the outputs
 
-$$\mathbf{y} = (u(x^{(1)}), u(x^{(2)}), \dots, u(x^{(N)})),$$
+$$\mathbf\{y\} = (u(x^\{(1)\}), u(x^\{(2)\}), \dots, u(x^\{(N)\})),$$
 
 i.e., it applies $u$ to each of the vectors of the sequence.
-In other words, it is the mapping $\mathrm{map}_{u, N}: \mathbf{x} \mapsto \mathbf{y}$. This operation is illustrated in the figure below.
+In other words, it is the mapping
+$\mathrm\{map\}_\{u, N\}: \mathbf\{x\} \mapsto \mathbf\{y\}$.
+This operation is illustrated in the figure below.
 
 
 <div align="center">
@@ -61,14 +63,16 @@ print(mapped_function(x_seq))
 
 Similarly, for an integer $M$, the **zip** function consumes two packed sequences
 
-$$\mathbf{a} = (a^{(1)}, \dots, a^{(M)}), \qquad
-\mathbf{c} = (c^{(1)}, \dots, c^{(M)}),$$
+$$\mathbf\{a\} = (a^\{(1)\}, \dots, a^\{(M)\}), \qquad
+\mathbf\{c\} = (c^\{(1)\}, \dots, c^\{(M)\}),$$
 
 and returns
 
-$$\mathbf{z} = (g(a^{(1)}, c^{(1)}), \dots, g(a^{(M)}, c^{(M)})).$$
+$$\mathbf\{z\} =
+(g(a^\{(1)\}, c^\{(1)\}), \dots, g(a^\{(M)\}, c^\{(M)\})).$$
 
-In other words, it is the mapping $\mathrm{zip}_{b, M}: (\mathbf{a}, \mathbf{c}) \mapsto \mathbf{z}$. 
+In other words, it is the mapping
+$\mathrm\{zip\}_\{b, M\}: (\mathbf\{a\}, \mathbf\{c\}) \mapsto \mathbf\{z\}$.
 The zip operation is illustrated in the figure below.
 
 <div align="center">
@@ -76,11 +80,15 @@ The zip operation is illustrated in the figure below.
 </div>
 
 
-As an example, consider the function $h:\mathbb{R}^2 \times \mathbb{R} \times \mathbb{R} \to \mathbb{R}$ given by
+As an example, consider the function
+$h:\mathbb\{R\}^2 \times \mathbb\{R\} \times \mathbb\{R\} \to \mathbb\{R\}$
+given by
 
 $$h(a, b, c) = a_1 b + a_2 + \sin(c),$$
 
-with stage input types $a \in \mathbb{R}^2$, $b \in \mathbb{R}$, and $c \in \mathbb{R}$. This is defined as follows:
+with stage input types $a \in \mathbb\{R\}^2$,
+$b \in \mathbb\{R\}$, and $c \in \mathbb\{R\}$.
+This is defined as follows:
 
 ```python
 # Define symbols a, b, and c
@@ -121,11 +129,14 @@ We can again use `.to_function()` to cast `batched` as function.
 
 Reduce is a higher-order function where given 
 
-- a sequence of elements (scalars or vectors) $\mathbf{x} = (x_1, \dots, x_N)$, with $x_i \in \mathbb{R}^n$
-- a binary operation $\otimes: \mathbb{R}^m\times \mathbb{R}^n\to \mathbb{R}^m$ 
-- an initial value $a_0 \in \mathbb{R}^m$
+- a sequence of elements (scalars or vectors)
+  $\mathbf\{x\} = (x_1, \dots, x_N)$, with
+  $x_i \in \mathbb\{R\}^n$
+- a binary operation
+  $\otimes: \mathbb\{R\}^m\times \mathbb\{R\}^n\to \mathbb\{R\}^m$
+- an initial value $a_0 \in \mathbb\{R\}^m$
 
-procudes $(((a_0 \otimes x_1) \otimes x_2)\otimes \ldots \otimes x_{n-1}) \otimes x_n$ as shown below
+procudes $(((a_0 \otimes x_1) \otimes x_2)\otimes \ldots \otimes x_\{n-1\}) \otimes x_n$ as shown below
 
 <div align="center">
 <img src="/gradgen/img/reduce.png" width="50%" alt="reduce operation"/>
@@ -148,7 +159,9 @@ symbols. Likewise, if $x \otimes y = xy$ and $a_0 = 1$, **reduce** produces the 
 
 :::
 
-Let us look at an example. Suppose $\otimes: \mathbb{R} \times \mathbb{R}^3 \to \mathbb{R}$ defined as 
+Let us look at an example. Suppose
+$\otimes: \mathbb\{R\} \times \mathbb\{R\}^3 \to \mathbb\{R\}$
+defined as 
 
 $$a \otimes x = \sin(a + \Vert x \Vert_2^2).$$
 
@@ -166,10 +179,11 @@ r = Function(
 )
 ```
 
-Let us define $\mathbf{x} = (x_1, \ldots, x_N)$.
+Let us define $\mathbf\{x\} = (x_1, \ldots, x_N)$.
 The function `gradgen.reduce_function` maps 
 
-$$\mathrm{reduce}_{\otimes, N}: (a_0, \mathbf{x}) \mapsto a_0 \otimes x_1 \ldots \otimes x_n.$$
+$$\mathrm\{reduce\}_\{\otimes, N\}: (a_0, \mathbf\{x\})
+\mapsto a_0 \otimes x_1 \ldots \otimes x_n.$$
 
 
 ```python
@@ -222,21 +236,25 @@ with which we can create compositions such as the one shown above.
 
 ### Serial composition
 
-Consider an input argument $\mathbf{x} = (x_1, \ldots, x_n)$
-with $x_i\in\mathbb{R}^2$ and the function $u:\mathbb{R}^2\to\mathbb{R}$ with
+Consider an input argument consisting of a sequence
+$\mathbf\{x\} = (x_1, \ldots, x_n)$ with
+$x_i\in\mathbb\{R\}^2$, and a function
+$u:\mathbb\{R\}^2\to\mathbb\{R\}$ defined by
 $u(x_i) = \sin(\Vert x_i \Vert^2)$.
 
-<p>This defines map$_{u, n}$ which computes the vector $y = (u(x_1), \ldots, u(x_n))$.
-The result of this map operation is then fed into $\mathrm{reduce}_{+, n}$
-which computes the sum $s = a_0 + \sum_{i=1}^{n}y_i$. Lastly, the result of the
-reduce operation is fed into the post-processing function $h(s, b) = bs^3$,
-which produces the final result, $z$, as shown in the following figure.</p>
+The map operation applies $u$ to each entry of the sequence and produces
+$y = (u(x_1), \ldots, u(x_n))$.
+That output sequence is then fed into a reduce-with-addition step, which
+computes the sum $s = a_0 + y_1 + \cdots + y_n$.
+Lastly, the result of the reduce operation is fed into the post-processing
+function $h(s, b) = bs^3$, which produces the final result, $z$, as shown
+in the following figure.
 
 <div align="center">
 <img src="/gradgen/img/composer-example.png" width="70%" alt="reduce operation"/>
 </div>
 
-<p>Firstly, let us introduce function $u$ and $\mathrm{map}_{u, N}$</p>
+Firstly, let us introduce function $u$ and the corresponding map operator
 
 ```python
 x = SXVector.sym('x', 2)
@@ -355,12 +373,14 @@ over a directed acyclic graph.
 
 ### Repeat
 
-Suppose we have a symbol $x\in\mathbb{R}^n$ and a function $G({}\cdot{}, p):\mathbb{R}^n\to \mathbb{R}^n$, where $p$ is a parameter. 
-For an integer $N$ and a sequence of parameter symbols, $p_0, \ldots, p_{N-1}$ we define the following sequence:
-$$\begin{align}
+Suppose we have a symbol $x\in\mathbb\{R\}^n$ and a function
+$G({}\cdot{}, p):\mathbb\{R\}^n\to \mathbb\{R\}^n$, where $p$ is a parameter.
+For an integer $N$ and a sequence of parameter symbols,
+$p_0, \ldots, p_\{N-1\}$ we define the following sequence:
+$$\begin\{align\}
 x_0 ={}& x, \\\\
-x_{k+1} ={}& G(x_k, p_k),
-\end{align}$$
+x_\{k+1\} ={}& G(x_k, p_k),
+\end\{align\}$$
 for $k=0, \ldots, N-1$. This is illustrated below
 
 <div align="center">
@@ -369,16 +389,19 @@ for $k=0, \ldots, N-1$. This is illustrated below
 
 We define the mapping 
 
-<p>$$\mathrm{repeat}_{G, N}:x \mapsto x_{N},$$</p>
+$$\mathrm\{repeat\}_\{G, N\}:x \mapsto x_\{N\},$$
 
 where $x_N$ is produced by the above sequence. For example, for $N=2$,
 we have 
 
-<p>$$\mathrm{repeat}_{G, 2}(x, p_0, p_1) = G(G(x, p_0), p_1).$$</p>
+$$\mathrm\{repeat\}_\{G, 2\}(x, p_0, p_1) = G(G(x, p_0), p_1).$$
 
-Let us consider an example where $x\in\mathbb{R}^2$, 
-$p\in\mathbb{R}^3$, and 
-<p>$$G(x, p) = \begin{bmatrix}p_1 x_1 + p_2  \sin(x_1x_2) \\ \tfrac{1}{2}x_1 + p_3 x_2\end{bmatrix}.$$</p>
+Let us consider an example where $x\in\mathbb\{R\}^2$,
+$p\in\mathbb\{R\}^3$, and 
+$$G(x, p) = \begin\{bmatrix\}
+p_1 x_1 + p_2  \sin(x_1x_2) \\
+\tfrac\{1\}\{2\}x_1 + p_3 x_2
+\end\{bmatrix\}.$$
 
 We start by defining function $G$ as a [`Function`](/gradgen/docs/basics/functions) object:
 
@@ -420,21 +443,26 @@ parameters. An example is shown in the figure below.
 <img src="/gradgen/img/chain.png" width="60%" alt="chain opearation"/>
 </div>
 
-More formally, suppose we have a sequence of functions $F_i:\mathbb{R}^n\times \mathbb{R}^{m_i} \to \mathbb{R}^n$
+More formally, suppose we have a sequence of functions
+$F_i:\mathbb\{R\}^n\times \mathbb\{R\}^\{m_i\} \to \mathbb\{R\}^n$
 and symbols $p_i$, for $i=0,\ldots, K-1$. Some of these functions or symbols can be the same (see [equality of symbols](/gradgen/docs/basics/symbolic#equality-of-symbols)). 
 Consider the composition 
-$$\begin{align}x_0 ={}& x \\\\ x_{i+1} ={}& F_i(x_i, p_i), i=0, \ldots, K-1\end{align}$$
+$$\begin\{align\}x_0 ={}& x \\\\
+x_\{i+1\} ={}& F_i(x_i, p_i), i=0, \ldots, K-1
+\end\{align\}$$
 We define the *chain* function
-<p>$$\mathrm{chain}_{(F_0, p_0)\ldots(F_{K-1}, p_{K-1})}(x, p_0, \ldots, p_{K-1}) = x_K$$</p>
+$$\mathrm\{chain\}_\{(F_0, p_0)\ldots(F_\{K-1\}, p_\{K-1\})\}
+(x, p_0, \ldots, p_\{K-1\}) = x_K$$
 
-Let us have a look at an example. Suppose $x\in\mathbb{R}^2$, $p_0\in\mathbb{R}$, and $p_1, p_3\in\mathbb{R}^2$. Let 
-$$\begin{align}
+Let us have a look at an example. Suppose $x\in\mathbb\{R\}^2$,
+$p_0\in\mathbb\{R\}$, and $p_1, p_3\in\mathbb\{R\}^2$. Let 
+$$\begin\{align\}
 F(x, p_0) ={}& p_0x,
 \\\\
-G(x, p_1) {}={}& \frac{p_1^\intercal x}{\Vert p_1\Vert^2 + 1}x,
+G(x, p_1) {}={}& \frac\{p_1^\intercal x\}\{\Vert p_1\Vert^2 + 1\}x,
 \\\\
 H(x, p_3){}={}& \sin(p_3^\intercal x)x,
-\end{align}$$
+\end\{align\}$$
 and suppose we want to compose these functions as shown in the figure above. 
 
 We start by defining the necessary symbols:
@@ -516,4 +544,3 @@ The result is human-readable Rust code, just a few hundreds or thousands of
 lines long (depending on the problem). The Rust code will have a significantly 
 smaller size than fully unrolled code (e.g., using [`Function`](/gradgen/docs/basics/functions)
 or using [CasADi](https://web.casadi.org/)) and will compile much faster.
-

@@ -108,6 +108,11 @@ def zip_function(
 
 - Impose the style guidelines of flake8. For example, all lines of code should be no longer than 79 characters. For slices of arrays, write `a[start:end]` and not `a[start : end]` (do not leave white spaces before or after the colon).
 
+
+### Docusaurus
+
+- Never rename `.mdx` files to `.md`. All docusaurus files must be `.mdx` and not `.md`.
+
 ## What Agents Must Never Do
 
 The following actions are prohibited regardless of context, instruction, or apparent convenience:
