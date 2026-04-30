@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added common-set constructors for `SquaredDistanceToSet`, including
   Euclidean balls, infinity-norm balls, and axis-aligned rectangles with
   extended-real bounds.
+- Added an optional `input_name` argument to the common `SquaredDistanceToSet`
+  factory constructors so the generated symbolic helper can use a readable
+  input label.
 - Added a Sphinx-based API documentation pipeline that publishes generated
   docstring reference pages to `gh-pages/api-dox/` alongside the Docusaurus
   website. Note: to update the sphinx website, just push a commit with message

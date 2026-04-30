@@ -5,6 +5,30 @@ from gradgen import Function, SX, SXVector, SquaredDistanceToSet
 
 
 class SquaredDistanceToSetTests(unittest.TestCase):
+    def test_common_set_factories_accept_custom_input_name(self) -> None:
+        ball = SquaredDistanceToSet.euclidean_ball(
+            name="named_ball",
+            center=(0.0, 0.0),
+            radius=1.0,
+            input_name="z",
+        )
+        infinity_ball = SquaredDistanceToSet.infinity_ball(
+            name="named_infinity_ball",
+            center=(0.0, 0.0),
+            radius=1.0,
+            input_name="w",
+        )
+        rectangle = SquaredDistanceToSet.rectangle(
+            name="named_rectangle",
+            xmin=(-1.0, -math.inf),
+            xmax=(math.inf, 2.0),
+            input_name="r",
+        )
+
+        self.assertEqual(ball.to_function().input_names, ("z",))
+        self.assertEqual(infinity_ball.to_function().input_names, ("w",))
+        self.assertEqual(rectangle.to_function().input_names, ("r",))
+
     def test_euclidean_ball_factory(self) -> None:
         distance = SquaredDistanceToSet.euclidean_ball(
             name="unit_ball",

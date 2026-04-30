@@ -2,9 +2,9 @@ r"""Helpers for projection-backed half-squared distance primitives."""
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass
 from collections.abc import Sequence
+import math
+from dataclasses import dataclass, field
 from typing import Callable
 
 from ._custom_elementary import (
@@ -66,12 +66,17 @@ class SquaredDistanceToSet:
     _rust_sq_distance: str | None = None
     _rust_projection: str | None = None
     _input_dimension: int | None = None
+    _input_name: str = field(default="x", repr=False)
     _function_cache: Function | None = None
 
     def __post_init__(self) -> None:
         """Validate constructor arguments."""
         if not self.name or not self.name.isidentifier():
             raise ValueError("name must be a valid identifier")
+        self._input_name = _coerce_symbol_name(
+            self._input_name,
+            label="input_name",
+        )
 
     def with_sq_distance(
         self,
@@ -193,6 +198,7 @@ class SquaredDistanceToSet:
         name: str,
         center: Sequence[object],
         radius: float | int,
+        input_name: str | None = None,
     ) -> SquaredDistanceToSet:
         """Construct a half-squared distance to a Euclidean ball.
 
@@ -200,6 +206,8 @@ class SquaredDistanceToSet:
             name: Public identifier for the constructed distance object.
             center: Ball center as a sequence of scalar values.
             radius: Ball radius. The radius must be strictly positive.
+            input_name: Optional symbolic input name used by the generated
+                internal function. When omitted, ``"x"`` is used.
 
         Returns:
             A :class:`SquaredDistanceToSet` configured for the Euclidean
@@ -214,7 +222,11 @@ class SquaredDistanceToSet:
             raise ValueError("center must not be empty")
 
         radius_value = _coerce_positive_radius(radius)
-        x = SXVector.sym("x", len(normalized_center))
+        resolved_input_name = _coerce_symbol_name(
+            "x" if input_name is None else input_name,
+            label="input_name",
+        )
+        x = SXVector.sym(resolved_input_name, len(normalized_center))
         center_vector = SXVector(
             tuple(SX.const(value) for value in normalized_center)
         )
@@ -225,10 +237,13 @@ class SquaredDistanceToSet:
             f"{name}_projection",
             [x],
             [center_vector + delta * scale],
-            input_names=["x"],
+            input_names=[resolved_input_name],
             output_names=["p"],
         )
-        return cls(name=name).with_projection_function(projection)
+        return cls(
+            name=name,
+            _input_name=resolved_input_name,
+        ).with_projection_function(projection)
 
     @classmethod
     def infinity_ball(
@@ -237,6 +252,7 @@ class SquaredDistanceToSet:
         name: str,
         center: Sequence[object],
         radius: float | int,
+        input_name: str | None = None,
     ) -> SquaredDistanceToSet:
         """Construct a half-squared distance to an infinity-norm ball.
 
@@ -244,6 +260,8 @@ class SquaredDistanceToSet:
             name: Public identifier for the constructed distance object.
             center: Ball center as a sequence of scalar values.
             radius: Ball radius. The radius must be strictly positive.
+            input_name: Optional symbolic input name used by the generated
+                internal function. When omitted, ``"x"`` is used.
 
         Returns:
             A :class:`SquaredDistanceToSet` configured for the infinity ball
@@ -258,7 +276,11 @@ class SquaredDistanceToSet:
             raise ValueError("center must not be empty")
 
         radius_value = _coerce_positive_radius(radius)
-        x = SXVector.sym("x", len(normalized_center))
+        resolved_input_name = _coerce_symbol_name(
+            "x" if input_name is None else input_name,
+            label="input_name",
+        )
+        x = SXVector.sym(resolved_input_name, len(normalized_center))
         center_vector = SXVector(
             tuple(SX.const(value) for value in normalized_center)
         )
@@ -287,10 +309,13 @@ class SquaredDistanceToSet:
                     )
                 )
             ],
-            input_names=["x"],
+            input_names=[resolved_input_name],
             output_names=["p"],
         )
-        return cls(name=name).with_projection_function(projection)
+        return cls(
+            name=name,
+            _input_name=resolved_input_name,
+        ).with_projection_function(projection)
 
     @classmethod
     def rectangle(
@@ -299,6 +324,7 @@ class SquaredDistanceToSet:
         name: str,
         xmin: Sequence[object],
         xmax: Sequence[object],
+        input_name: str | None = None,
     ) -> SquaredDistanceToSet:
         """Construct a half-squared distance to a rectangle.
 
@@ -308,6 +334,8 @@ class SquaredDistanceToSet:
                 be ``-inf``.
             xmax: Upper bounds for each coordinate. Individual entries may
                 be ``+inf``.
+            input_name: Optional symbolic input name used by the generated
+                internal function. When omitted, ``"x"`` is used.
 
         Returns:
             A :class:`SquaredDistanceToSet` configured for the rectangle
@@ -329,7 +357,11 @@ class SquaredDistanceToSet:
         if not normalized_xmin:
             raise ValueError("rectangle bounds must not be empty")
 
-        x = SXVector.sym("x", len(normalized_xmin))
+        resolved_input_name = _coerce_symbol_name(
+            "x" if input_name is None else input_name,
+            label="input_name",
+        )
+        x = SXVector.sym(resolved_input_name, len(normalized_xmin))
         projected_entries: list[SX] = []
         for x_i, xmin_i, xmax_i in zip(
             x, normalized_xmin, normalized_xmax, strict=True
@@ -347,10 +379,13 @@ class SquaredDistanceToSet:
             f"{name}_projection",
             [x],
             [SXVector(tuple(projected_entries))],
-            input_names=["x"],
+            input_names=[resolved_input_name],
             output_names=["p"],
         )
-        return cls(name=name).with_projection_function(projection)
+        return cls(
+            name=name,
+            _input_name=resolved_input_name,
+        ).with_projection_function(projection)
 
     def __call__(
         self,
@@ -399,7 +434,7 @@ class SquaredDistanceToSet:
                 "helper function first"
             )
 
-        x = SXVector.sym("x", self._input_dimension)
+        x = SXVector.sym(self._input_name, self._input_dimension)
         symbolic_expr = self._build_symbolic_expr(x)
         if symbolic_expr is None:
             spec = self._ensure_registered(self._input_dimension)
@@ -409,7 +444,7 @@ class SquaredDistanceToSet:
             name or self.name,
             [x],
             [symbolic_expr],
-            input_names=["x"],
+            input_names=[self._input_name],
             output_names=["y"],
         )
         if name is None:
@@ -703,3 +738,10 @@ def _coerce_positive_radius(radius: float | int) -> float:
     if not math.isfinite(numeric) or numeric <= 0.0:
         raise ValueError("radius must be strictly positive and finite")
     return numeric
+
+
+def _coerce_symbol_name(value: object, *, label: str) -> str:
+    """Return a validated symbol name."""
+    if not isinstance(value, str) or not value or not value.isidentifier():
+        raise ValueError(f"{label} must be a valid identifier")
+    return value
