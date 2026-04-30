@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased
+## Unreleased (target: 0.5.0, coming soon)
 
 ### Added
 
@@ -32,7 +32,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `maximum(0, z) ** 2` in generated gradient and HVP kernels.
 - Added a Sphinx-based API documentation pipeline that publishes generated
   docstring reference pages to `gh-pages/api-dox/` alongside the Docusaurus
-  website.
+  website. Note: to update the sphinx website, just push a commit with message
+  starting with `[docit]`. To re-deploy the entire website, run `docs/website/publish.sh --build-api-dox`.
 
 
 ## 0.4.1 - 22-04-2026
