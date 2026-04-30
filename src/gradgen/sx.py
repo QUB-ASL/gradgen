@@ -1629,7 +1629,11 @@ class SXVector:
 
 
 def _format_custom_repr(expr: SX) -> str | None:
-    """Return a readable repr for registered custom primitive nodes."""
+    """Return a readable repr for registered custom primitive nodes.
+
+    Custom primitives carry a registered name that is more helpful in logs
+    and interactive sessions than the raw internal opcode alone.
+    """
     if not expr.op.startswith("custom_") or expr.node.name is None:
         return None
 
@@ -1641,7 +1645,11 @@ def _format_custom_repr(expr: SX) -> str | None:
 
 
 def _format_custom_vector_repr(expr: SX) -> str:
-    """Return a repr for a vector-input custom primitive call."""
+    """Return a repr for a vector-input custom primitive call.
+
+    The representation prefers a compact vector argument when the input is a
+    plain symbolic sequence such as ``x_0, x_1, ...``.
+    """
     try:
         from ._custom_elementary import get_registered_elementary_function
 
@@ -1663,7 +1671,11 @@ def _format_custom_vector_repr(expr: SX) -> str:
 
 
 def _format_vector_argument_repr(args: tuple[SX, ...]) -> str:
-    """Return a compact repr for vector-input arguments when possible."""
+    """Return a compact repr for vector-input arguments when possible.
+
+    Symbolic vectors with a regular ``name_index`` pattern are collapsed into
+    an ``SXVector.sym(...)`` style representation.
+    """
     if not args:
         return "SXVector.sym('', 0)"
 
@@ -1674,7 +1686,11 @@ def _format_vector_argument_repr(args: tuple[SX, ...]) -> str:
 
 
 def _format_symbol_sequence_repr(args: tuple[SX, ...]) -> str | None:
-    """Collapse ``x_0, x_1, ...`` style arguments into ``SXVector.sym``."""
+    """Collapse ``x_0, x_1, ...`` style arguments into ``SXVector.sym``.
+
+    When the argument sequence does not match that simple symbolic pattern,
+    the helper returns ``None`` so callers can fall back to a longer repr.
+    """
     base_name: str | None = None
     metadata: dict[str, Hashable] | None = None
 
