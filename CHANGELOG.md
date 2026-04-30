@@ -170,7 +170,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   and generation raises an informative error if `cargo` is not available when
   this option is enabled.
 - Added `RustBackendConfig().with_build_profile(...)` so automatic crate builds
-  can target either the `release` or `dev` Cargo profile. When
+  can target either the `release` or `debug` Cargo profile. When
   `with_build_crate()` is enabled, Gradgen now builds with the `release`
   profile by default.
 - Kept backward compatibility for the older callback-based

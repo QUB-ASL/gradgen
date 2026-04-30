@@ -40,7 +40,7 @@ class ProjectSupportTests(unittest.TestCase):
             _cargo_build_command("release"),
             ["cargo", "build", "--release"],
         )
-        self.assertEqual(_cargo_build_command("dev"), ["cargo", "build"])
+        self.assertEqual(_cargo_build_command("debug"), ["cargo", "build"])
 
     def test_cargo_build_command_rejects_unsupported_profile(self) -> None:
         with self.assertRaises(ValueError):

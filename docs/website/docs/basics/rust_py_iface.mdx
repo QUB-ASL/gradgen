@@ -68,7 +68,7 @@ That step is optional and defaults to off. When it is enabled, Gradgen runs
 `cargo build --release` for the generated low-level crate by default and
 raises an informative error if `cargo` is not installed. If you want a faster
 debug-style build during development, use
-`RustBackendConfig().with_build_profile("dev")`.
+`RustBackendConfig().with_build_profile("debug")`.
 
 You can now use this as a **python module**. You can then do
 

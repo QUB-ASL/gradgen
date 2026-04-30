@@ -124,14 +124,14 @@ class RustBackendConfig:
 
         Args:
             build_profile: Cargo profile used when ``build_crate`` is enabled.
-                Supported values are ``"dev"`` and ``"release"``.
+                Supported values are ``"debug"`` and ``"release"``.
 
         Returns:
             A copy of the config with the requested build profile.
         """
-        if build_profile not in {"dev", "release"}:
+        if build_profile not in {"debug", "release"}:
             raise ValueError(
-                "build_profile must be either 'dev' or 'release'"
+                "build_profile must be either 'debug' or 'release'"
             )
         return replace(self, build_profile=build_profile)
 

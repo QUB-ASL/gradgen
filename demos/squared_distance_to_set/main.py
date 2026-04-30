@@ -63,10 +63,10 @@ print("grad_x f(x) =", grad_x(sample_x))
 project = (
     CodeGenerationBuilder()
     .with_backend_config(
-        RustBackendConfig()
+    RustBackendConfig()
         .with_crate_name("squared_distance_to_set_kernel")
         .with_backend_mode("no_std")
-        .with_build_profile("dev") # release | dev
+        .with_build_profile("debug") # release | debug
         .with_scalar_type("f64")
     )
     .for_function(f)

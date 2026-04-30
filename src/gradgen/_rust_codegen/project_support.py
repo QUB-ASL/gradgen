@@ -134,7 +134,7 @@ def _cargo_build_command(build_profile: str) -> list[str]:
     """Return the Cargo build command for the requested profile.
 
     Args:
-        build_profile: Cargo profile name. Supported values are ``"dev"``
+        build_profile: Cargo profile name. Supported values are ``"debug"``
             and ``"release"``.
 
     Returns:
@@ -145,10 +145,10 @@ def _cargo_build_command(build_profile: str) -> list[str]:
     """
     if build_profile == "release":
         return ["cargo", "build", "--release"]
-    if build_profile == "dev":
+    if build_profile == "debug":
         return ["cargo", "build"]
     raise ValueError(
-        "build_profile must be either 'dev' or 'release'"
+        "build_profile must be either 'debug' or 'release'"
     )
 
 

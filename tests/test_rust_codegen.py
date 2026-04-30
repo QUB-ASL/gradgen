@@ -1585,7 +1585,7 @@ mod single_shooting_multi_u_tests {{
                 RustBackendConfig()
                 .with_crate_name("abc")
                 .with_build_crate(True)
-                .with_build_profile("dev")
+                .with_build_profile("debug")
             )
             .for_function(f)
             .add_primal()
@@ -1602,7 +1602,7 @@ mod single_shooting_multi_u_tests {{
             builder.build(Path(tmpdir) / "my_crates")
             run_cargo_build.assert_called_once_with(
                 Path(tmpdir).resolve() / "my_crates" / "abc",
-                "dev",
+                "debug",
             )
 
     def test_python_interface_is_importable(self) -> None:

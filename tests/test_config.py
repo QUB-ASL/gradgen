@@ -25,10 +25,10 @@ class RustBackendConfigTests(unittest.TestCase):
         config = RustBackendConfig() \
             .with_build_python_interface(False) \
             .with_build_crate(True) \
-            .with_build_profile("dev")
+            .with_build_profile("debug")
         self.assertFalse(config.build_python_interface)
         self.assertTrue(config.build_crate)
-        self.assertEqual(config.build_profile, "dev")
+        self.assertEqual(config.build_profile, "debug")
 
     def test_build_profile_must_be_supported(self) -> None:
         with self.assertRaises(ValueError):
