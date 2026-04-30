@@ -1,5 +1,5 @@
 <div align="center">    
- <img alt="cgapp logo" src="https://i.postimg.cc/G3M2szz5/Logo-Makr-4z-HKa0.png" width="224px"/><br/>    
+ <a href="https://qub-asl.github.io/gradgen/"><img alt="cgapp logo" src="https://i.postimg.cc/G3M2szz5/Logo-Makr-4z-HKa0.png" width="224px"/></a><br/>    
     
     
 <!-- ![PyPI - Downloads](https://img.shields.io/pypi/dm/gradgen?color=blue&style=flat-square)  -->
