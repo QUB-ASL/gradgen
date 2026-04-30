@@ -1,0 +1,739 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen._rust_codegen.codegen &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">gradgen</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gradgen._rust_codegen.codegen</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gradgen._rust_codegen.codegen</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Rust code generation orchestration for symbolic functions.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">replace</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">logging</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.</span><span class="w"> </span><span class="kn">import</span> <span class="n">sanitize_ident</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">RustBackendConfig</span><span class="p">,</span> <span class="n">RustBackendMode</span><span class="p">,</span> <span class="n">RustScalarType</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">RustCodegenResult</span><span class="p">,</span>
+    <span class="n">RustMultiFunctionProjectResult</span><span class="p">,</span>
+    <span class="n">_ArgSpec</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.project_support</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_derive_python_function_name</span><span class="p">,</span>
+    <span class="n">_render_cargo_dependency_lines</span><span class="p">,</span>
+    <span class="n">_render_metadata_json</span><span class="p">,</span>
+    <span class="n">_run_cargo_build</span><span class="p">,</span>
+    <span class="n">_try_run_cargo_fmt</span><span class="p">,</span>
+    <span class="n">_render_multi_function_lib</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.project</span><span class="w"> </span><span class="kn">import</span> <span class="n">_create_python_interface_project</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.rendering</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">_allocate_workspace_slots</span><span class="p">,</span>
+    <span class="n">_arg_size</span><span class="p">,</span>
+    <span class="n">_build_shared_helper_lines</span><span class="p">,</span>
+    <span class="n">_collect_reachable_nodes</span><span class="p">,</span>
+    <span class="n">_collect_suppressed_custom_wrappers</span><span class="p">,</span>
+    <span class="n">_describe_input_arg</span><span class="p">,</span>
+    <span class="n">_describe_output_arg</span><span class="p">,</span>
+    <span class="n">_emit_custom_vector_output_helper_call</span><span class="p">,</span>
+    <span class="n">_emit_exact_length_assert</span><span class="p">,</span>
+    <span class="n">_emit_expr_ref</span><span class="p">,</span>
+    <span class="n">_emit_matvec_output_helper_call</span><span class="p">,</span>
+    <span class="n">_emit_min_length_assert</span><span class="p">,</span>
+    <span class="n">_emit_node_expr</span><span class="p">,</span>
+    <span class="n">_emit_workspace_assignment</span><span class="p">,</span>
+    <span class="n">_flatten_arg</span><span class="p">,</span>
+    <span class="n">_format_rust_string_literal</span><span class="p">,</span>
+    <span class="n">_identify_direct_custom_output_marker</span><span class="p">,</span>
+    <span class="n">_reemit_direct_output_helper_call</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.templates</span><span class="w"> </span><span class="kn">import</span> <span class="n">_get_template</span><span class="p">,</span> <span class="n">_render_custom_rust_header</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.validation</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">resolve_backend_config</span> <span class="k">as</span> <span class="n">_resolve_backend_config</span><span class="p">,</span>
+    <span class="n">validate_backend_mode</span> <span class="k">as</span> <span class="n">_validate_backend_mode</span><span class="p">,</span>
+    <span class="n">validate_generated_argument_names</span> <span class="k">as</span> <span class="n">_validate_generated_argument_names</span><span class="p">,</span>
+    <span class="n">validate_scalar_type</span> <span class="k">as</span> <span class="n">_validate_scalar_type</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..function</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..map_zip</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ReducedFunction</span><span class="p">,</span>
+    <span class="n">BatchedFunction</span><span class="p">,</span>
+    <span class="n">BatchedJacobianFunction</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..single_shooting</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">SingleShootingGradientFunction</span><span class="p">,</span>
+    <span class="n">SingleShootingHvpFunction</span><span class="p">,</span>
+    <span class="n">SingleShootingJointFunction</span><span class="p">,</span>
+    <span class="n">SingleShootingPrimalFunction</span><span class="p">,</span>
+    <span class="n">SingleShootingProblem</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..sx</span><span class="w"> </span><span class="kn">import</span> <span class="n">SX</span><span class="p">,</span> <span class="n">SXNode</span>
+
+<span class="n">SET_TUPLE_STR</span> <span class="o">=</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span>
+
+<span class="n">_LOGGER</span> <span class="o">=</span> <span class="n">logging</span><span class="o">.</span><span class="n">getLogger</span><span class="p">(</span><span class="vm">__name__</span><span class="p">)</span>
+
+
+<div class="viewcode-block" id="generate_rust">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.generate_rust">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">RustBackendConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">backend_mode</span><span class="p">:</span> <span class="n">RustBackendMode</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+    <span class="n">scalar_type</span><span class="p">:</span> <span class="n">RustScalarType</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="n">math_library</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">function_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+    <span class="n">shared_helper_nodes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SXNode</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">shared_helper_suppressed_custom_wrappers</span><span class="p">:</span> <span class="n">SET_TUPLE_STR</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">emit_crate_header</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">emit_docs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">function_keyword</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;pub fn&quot;</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustCodegenResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate Rust source code for primal function evaluation.&quot;&quot;&quot;</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..composer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FunctionComposition</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..composed_function</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">ComposedFunction</span><span class="p">,</span>
+        <span class="n">ComposedGradientFunction</span><span class="p">,</span>
+        <span class="n">ComposedJacobianFunction</span><span class="p">,</span>
+        <span class="n">ComposedJointFunction</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">.generators</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+        <span class="n">_generate_composed_gradient_rust</span><span class="p">,</span>
+        <span class="n">_generate_composed_jacobian_rust</span><span class="p">,</span>
+        <span class="n">_generate_composed_joint_rust</span><span class="p">,</span>
+        <span class="n">_generate_composed_primal_rust</span><span class="p">,</span>
+        <span class="n">_generate_reduced_primal_rust</span><span class="p">,</span>
+        <span class="n">_generate_single_shooting_gradient_rust</span><span class="p">,</span>
+        <span class="n">_generate_single_shooting_hvp_rust</span><span class="p">,</span>
+        <span class="n">_generate_single_shooting_joint_rust</span><span class="p">,</span>
+        <span class="n">_generate_single_shooting_primal_rust</span><span class="p">,</span>
+        <span class="n">_generate_batched_jacobian_rust</span><span class="p">,</span>
+        <span class="n">_generate_batched_primal_rust</span><span class="p">,</span>
+    <span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">FunctionComposition</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">function</span><span class="o">.</span><span class="n">generate_rust</span><span class="p">(</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">ComposedFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_composed_primal_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">ComposedGradientFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_composed_gradient_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">ComposedJacobianFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_composed_jacobian_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">ComposedJointFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_composed_joint_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">BatchedFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_batched_primal_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">BatchedJacobianFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_batched_jacobian_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">ReducedFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_reduced_primal_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">SingleShootingProblem</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_single_shooting_primal_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">SingleShootingPrimalFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_single_shooting_primal_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="o">.</span><span class="n">problem</span><span class="p">,</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">include_states</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">SingleShootingGradientFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_single_shooting_gradient_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">SingleShootingHvpFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_single_shooting_hvp_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">SingleShootingJointFunction</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_generate_single_shooting_joint_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">resolved_config</span> <span class="o">=</span> <span class="n">_resolve_backend_config</span><span class="p">(</span>
+        <span class="n">config</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="n">math_library</span><span class="o">=</span><span class="n">math_library</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">_validate_backend_mode</span><span class="p">(</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">)</span>
+    <span class="n">_validate_scalar_type</span><span class="p">(</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span> <span class="o">==</span> <span class="s2">&quot;std&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">math_library</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;math_library is only supported for no_std backend mode&quot;</span><span class="p">)</span>
+        <span class="n">resolved_math_library</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">resolved_math_library</span> <span class="o">=</span> <span class="n">math_library</span> <span class="ow">or</span> <span class="s2">&quot;libm&quot;</span>
+
+    <span class="n">name</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">function_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="n">input_sizes</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">_arg_size</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span>
+    <span class="n">output_sizes</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">_arg_size</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span>
+    <span class="n">input_specs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">_ArgSpec</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">reachable_nodes</span> <span class="o">=</span> <span class="n">_collect_reachable_nodes</span><span class="p">(</span>
+        <span class="nb">tuple</span><span class="p">(</span><span class="n">scalar</span> <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">function</span><span class="o">.</span><span class="n">outputs</span>
+              <span class="k">for</span> <span class="n">scalar</span> <span class="ow">in</span> <span class="n">_flatten_arg</span><span class="p">(</span><span class="n">arg</span><span class="p">)))</span>
+    <span class="n">public_function</span> <span class="o">=</span> <span class="n">function_keyword</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;pub&quot;</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">raw_name</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">input_arg</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+            <span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span> <span class="n">input_sizes</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">):</span>
+        <span class="n">rust_name</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">raw_name</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">public_function</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span>
+                <span class="n">scalar</span><span class="o">.</span><span class="n">node</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">reachable_nodes</span>
+                <span class="k">for</span> <span class="n">scalar</span> <span class="ow">in</span> <span class="n">_flatten_arg</span><span class="p">(</span><span class="n">input_arg</span><span class="p">)):</span>
+            <span class="n">rust_name</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;_</span><span class="si">{</span><span class="n">raw_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="n">input_specs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">_ArgSpec</span><span class="p">(</span>
+                <span class="n">raw_name</span><span class="o">=</span><span class="n">raw_name</span><span class="p">,</span>
+                <span class="n">rust_name</span><span class="o">=</span><span class="n">rust_name</span><span class="p">,</span>
+                <span class="n">rust_label</span><span class="o">=</span><span class="n">_format_rust_string_literal</span><span class="p">(</span><span class="n">raw_name</span><span class="p">),</span>
+                <span class="n">doc_description</span><span class="o">=</span><span class="n">_describe_input_arg</span><span class="p">(</span><span class="n">raw_name</span><span class="p">),</span>
+                <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="n">input_specs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">input_specs</span><span class="p">)</span>
+    <span class="n">output_specs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">_ArgSpec</span><span class="p">(</span>
+            <span class="n">raw_name</span><span class="o">=</span><span class="n">raw_name</span><span class="p">,</span>
+            <span class="n">rust_name</span><span class="o">=</span><span class="n">sanitize_ident</span><span class="p">(</span><span class="n">raw_name</span><span class="p">),</span>
+            <span class="n">rust_label</span><span class="o">=</span><span class="n">_format_rust_string_literal</span><span class="p">(</span><span class="n">raw_name</span><span class="p">),</span>
+            <span class="n">doc_description</span><span class="o">=</span><span class="n">_describe_output_arg</span><span class="p">(</span><span class="n">raw_name</span><span class="p">),</span>
+            <span class="n">size</span><span class="o">=</span><span class="n">size</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">raw_name</span><span class="p">,</span> <span class="n">size</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">output_names</span><span class="p">,</span> <span class="n">output_sizes</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="n">_validate_generated_argument_names</span><span class="p">(</span><span class="n">input_specs</span><span class="p">,</span> <span class="n">output_specs</span><span class="p">)</span>
+
+    <span class="n">scalar_bindings</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">SXNode</span><span class="p">,</span> <span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">input_assert_lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">input_return_lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">output_assert_lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">output_return_lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">output_write_lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">computation_lines</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">suppressed_custom_wrappers</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">input_spec</span><span class="p">,</span> <span class="n">input_arg</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">input_specs</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">):</span>
+        <span class="n">_assert</span><span class="p">,</span> <span class="n">_in_return</span><span class="p">,</span> <span class="n">_out_return</span> <span class="o">=</span> <span class="n">_emit_exact_length_assert</span><span class="p">(</span>
+            <span class="n">input_spec</span><span class="o">.</span><span class="n">rust_name</span><span class="p">,</span>
+            <span class="n">input_spec</span><span class="o">.</span><span class="n">raw_name</span><span class="p">,</span>
+            <span class="n">input_spec</span><span class="o">.</span><span class="n">size</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">input_assert_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_assert</span><span class="p">)</span>
+        <span class="n">input_return_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_in_return</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">scalar_index</span><span class="p">,</span> <span class="n">scalar</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">_flatten_arg</span><span class="p">(</span><span class="n">input_arg</span><span class="p">)):</span>
+            <span class="n">scalar_bindings</span><span class="p">[</span><span class="n">scalar</span><span class="o">.</span><span class="n">node</span><span class="p">]</span> <span class="o">=</span> \
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">input_spec</span><span class="o">.</span><span class="n">rust_name</span><span class="si">}</span><span class="s2">[</span><span class="si">{</span><span class="n">scalar_index</span><span class="si">}</span><span class="s2">]&quot;</span>
+
+    <span class="n">direct_output_helpers</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">materialized_output_refs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SX</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">output_spec</span><span class="p">,</span> <span class="n">output_arg</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">output_specs</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
+        <span class="n">custom_helper_call</span> <span class="o">=</span> <span class="n">_emit_custom_vector_output_helper_call</span><span class="p">(</span>
+            <span class="n">output_arg</span><span class="p">,</span>
+            <span class="n">output_spec</span><span class="o">.</span><span class="n">rust_name</span><span class="p">,</span>
+            <span class="n">scalar_bindings</span><span class="p">,</span>
+            <span class="p">{},</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">resolved_math_library</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">custom_helper_call</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">direct_output_helpers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">custom_helper_call</span><span class="p">)</span>
+            <span class="n">marker</span> <span class="o">=</span> <span class="n">_identify_direct_custom_output_marker</span><span class="p">(</span>
+                <span class="n">output_arg</span><span class="p">,</span>
+                <span class="n">scalar_bindings</span><span class="p">,</span>
+                <span class="p">{},</span>
+                <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+                <span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+                <span class="n">resolved_math_library</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">marker</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">suppressed_custom_wrappers</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">marker</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="n">matvec_helper_call</span> <span class="o">=</span> <span class="n">_emit_matvec_output_helper_call</span><span class="p">(</span>
+            <span class="n">output_arg</span><span class="p">,</span>
+            <span class="n">output_spec</span><span class="o">.</span><span class="n">rust_name</span><span class="p">,</span>
+            <span class="n">scalar_bindings</span><span class="p">,</span>
+            <span class="p">{},</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">resolved_math_library</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">matvec_helper_call</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">direct_output_helpers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">matvec_helper_call</span><span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="n">direct_output_helpers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="kc">None</span><span class="p">)</span>
+        <span class="n">materialized_output_refs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_flatten_arg</span><span class="p">(</span><span class="n">output_arg</span><span class="p">))</span>
+
+    <span class="n">workspace_map</span><span class="p">,</span> <span class="n">workspace_size</span> <span class="o">=</span> <span class="n">_allocate_workspace_slots</span><span class="p">(</span>
+        <span class="n">function</span><span class="p">,</span>
+        <span class="n">output_refs</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">materialized_output_refs</span><span class="p">),</span>
+    <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">node</span><span class="p">,</span> <span class="n">work_index</span> <span class="ow">in</span> <span class="n">workspace_map</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">rhs</span> <span class="o">=</span> <span class="n">_emit_node_expr</span><span class="p">(</span>
+            <span class="n">SX</span><span class="p">(</span><span class="n">node</span><span class="p">),</span>
+            <span class="n">scalar_bindings</span><span class="p">,</span>
+            <span class="n">workspace_map</span><span class="p">,</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">resolved_math_library</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">computation_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">_emit_workspace_assignment</span><span class="p">(</span>
+                <span class="n">node</span><span class="p">,</span>
+                <span class="n">work_index</span><span class="p">,</span>
+                <span class="n">rhs</span><span class="p">,</span>
+                <span class="n">scalar_bindings</span><span class="p">,</span>
+                <span class="n">workspace_map</span><span class="p">,</span>
+                <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+                <span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+                <span class="n">resolved_math_library</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">output_spec</span><span class="p">,</span> <span class="n">output_arg</span><span class="p">,</span> <span class="n">direct_helper_call</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+            <span class="n">output_specs</span><span class="p">,</span> <span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">,</span> <span class="n">direct_output_helpers</span><span class="p">):</span>
+        <span class="n">_assert</span><span class="p">,</span> <span class="n">_in_return</span><span class="p">,</span> <span class="n">_out_return</span> <span class="o">=</span> <span class="n">_emit_exact_length_assert</span><span class="p">(</span>
+            <span class="n">output_spec</span><span class="o">.</span><span class="n">rust_name</span><span class="p">,</span>
+            <span class="n">output_spec</span><span class="o">.</span><span class="n">raw_name</span><span class="p">,</span>
+            <span class="n">output_spec</span><span class="o">.</span><span class="n">size</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">output_assert_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_assert</span><span class="p">)</span>
+        <span class="n">output_return_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_out_return</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">direct_helper_call</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">output_write_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_reemit_direct_output_helper_call</span><span class="p">(</span>
+                    <span class="n">direct_helper_call</span><span class="p">,</span>
+                    <span class="n">output_arg</span><span class="p">,</span>
+                    <span class="n">output_spec</span><span class="o">.</span><span class="n">rust_name</span><span class="p">,</span>
+                    <span class="n">scalar_bindings</span><span class="p">,</span>
+                    <span class="n">workspace_map</span><span class="p">,</span>
+                    <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+                    <span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+                    <span class="n">resolved_math_library</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">for</span> <span class="n">scalar_index</span><span class="p">,</span> <span class="n">scalar</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">_flatten_arg</span><span class="p">(</span><span class="n">output_arg</span><span class="p">)):</span>
+            <span class="n">output_ref</span> <span class="o">=</span> <span class="n">_emit_expr_ref</span><span class="p">(</span>
+                <span class="n">scalar</span><span class="p">,</span>
+                <span class="n">scalar_bindings</span><span class="p">,</span>
+                <span class="n">workspace_map</span><span class="p">,</span>
+                <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+                <span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+                <span class="n">resolved_math_library</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="n">output_write_lines</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">output_spec</span><span class="o">.</span><span class="n">rust_name</span><span class="si">}</span><span class="s2">[</span><span class="si">{</span><span class="n">scalar_index</span><span class="si">}</span><span class="s2">] = </span><span class="si">{</span><span class="n">output_ref</span><span class="si">}</span><span class="s2">;&quot;</span>
+            <span class="p">)</span>
+
+    <span class="n">workspace_name</span> <span class="o">=</span> <span class="s2">&quot;work&quot;</span> <span class="k">if</span> <span class="n">workspace_map</span> <span class="k">else</span> <span class="s2">&quot;_work&quot;</span>
+
+    <span class="n">parameters</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="p">[</span>
+            <span class="o">*</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">spec</span><span class="o">.</span><span class="n">rust_name</span><span class="si">}</span><span class="s2">: &amp;[</span><span class="si">{</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="si">}</span><span class="s2">]&quot;</span>
+              <span class="k">for</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">input_specs</span><span class="p">],</span>
+            <span class="o">*</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">spec</span><span class="o">.</span><span class="n">rust_name</span><span class="si">}</span><span class="s2">: &amp;mut [</span><span class="si">{</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="si">}</span><span class="s2">]&quot;</span>
+              <span class="k">for</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">output_specs</span><span class="p">],</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">workspace_name</span><span class="si">}</span><span class="s2">: &amp;mut [</span><span class="si">{</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="si">}</span><span class="s2">]&quot;</span><span class="p">,</span>
+        <span class="p">]</span>
+    <span class="p">)</span>
+
+    <span class="c1"># workspace assertion emits both legacy assert and Result-returning form</span>
+    <span class="k">if</span> <span class="n">workspace_size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">_ws_assert</span><span class="p">,</span> <span class="n">_ws_return</span> <span class="o">=</span> <span class="n">_emit_min_length_assert</span><span class="p">(</span>
+            <span class="s2">&quot;work&quot;</span><span class="p">,</span> <span class="s2">&quot;work&quot;</span><span class="p">,</span> <span class="n">workspace_size</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">_ws_assert</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">_ws_return</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">source</span> <span class="o">=</span> <span class="n">_get_template</span><span class="p">(</span><span class="s2">&quot;lib.rs.j2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">render</span><span class="p">(</span>
+        <span class="n">function_name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+        <span class="n">function_label</span><span class="o">=</span><span class="n">_format_rust_string_literal</span><span class="p">(</span><span class="n">name</span><span class="p">),</span>
+        <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
+        <span class="n">upper_name</span><span class="o">=</span><span class="n">name</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span>
+        <span class="n">emit_crate_header</span><span class="o">=</span><span class="n">emit_crate_header</span><span class="p">,</span>
+        <span class="n">emit_docs</span><span class="o">=</span><span class="n">emit_docs</span><span class="p">,</span>
+        <span class="n">function_keyword</span><span class="o">=</span><span class="n">function_keyword</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="n">math_library</span><span class="o">=</span><span class="n">resolved_math_library</span><span class="p">,</span>
+        <span class="n">header</span><span class="o">=</span><span class="n">_render_custom_rust_header</span><span class="p">(</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">header</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">resolved_math_library</span><span class="p">,</span>
+            <span class="n">emit_metadata_helpers</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">emit_metadata_helpers</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">workspace_size</span><span class="o">=</span><span class="n">workspace_size</span><span class="p">,</span>
+        <span class="n">workspace_assert_line</span><span class="o">=</span><span class="n">_ws_assert</span><span class="p">,</span>
+        <span class="n">workspace_return_line</span><span class="o">=</span><span class="n">_ws_return</span><span class="p">,</span>
+        <span class="n">emit_metadata_helpers</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">emit_metadata_helpers</span><span class="p">,</span>
+        <span class="n">input_specs</span><span class="o">=</span><span class="n">input_specs</span><span class="p">,</span>
+        <span class="n">output_specs</span><span class="o">=</span><span class="n">output_specs</span><span class="p">,</span>
+        <span class="n">function_parameter_count</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">input_specs</span><span class="p">)</span> <span class="o">+</span> <span class="nb">len</span><span class="p">(</span><span class="n">output_specs</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">parameters</span><span class="o">=</span><span class="n">parameters</span><span class="p">,</span>
+        <span class="n">input_assert_lines</span><span class="o">=</span><span class="n">input_assert_lines</span><span class="p">,</span>
+        <span class="n">input_return_lines</span><span class="o">=</span><span class="n">input_return_lines</span><span class="p">,</span>
+        <span class="n">output_assert_lines</span><span class="o">=</span><span class="n">output_assert_lines</span><span class="p">,</span>
+        <span class="n">output_return_lines</span><span class="o">=</span><span class="n">output_return_lines</span><span class="p">,</span>
+        <span class="n">computation_lines</span><span class="o">=</span><span class="n">computation_lines</span><span class="p">,</span>
+        <span class="n">output_write_lines</span><span class="o">=</span><span class="n">output_write_lines</span><span class="p">,</span>
+        <span class="n">shared_helper_lines</span><span class="o">=</span><span class="n">_build_shared_helper_lines</span><span class="p">(</span>
+            <span class="n">function</span><span class="o">.</span><span class="n">nodes</span>
+            <span class="k">if</span> <span class="n">shared_helper_nodes</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">shared_helper_nodes</span><span class="p">,</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">resolved_math_library</span><span class="p">,</span>
+            <span class="n">suppressed_custom_wrappers</span><span class="o">=</span><span class="p">(</span>
+                <span class="n">suppressed_custom_wrappers</span>
+                <span class="k">if</span> <span class="n">shared_helper_nodes</span> <span class="ow">is</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="p">(</span><span class="n">shared_helper_suppressed_custom_wrappers</span> <span class="ow">or</span> <span class="nb">set</span><span class="p">())</span>
+            <span class="p">),</span>
+        <span class="p">),</span>
+    <span class="p">)</span><span class="o">.</span><span class="n">rstrip</span><span class="p">()</span>
+
+    <span class="n">codegen</span> <span class="o">=</span> <span class="n">RustCodegenResult</span><span class="p">(</span>
+        <span class="n">source</span><span class="o">=</span><span class="n">source</span> <span class="k">if</span> <span class="n">source</span><span class="o">.</span><span class="n">endswith</span><span class="p">(</span><span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">)</span> <span class="k">else</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">source</span><span class="si">}</span><span class="se">\n</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="n">python_name</span><span class="o">=</span><span class="n">_derive_python_function_name</span><span class="p">(</span>
+            <span class="n">name</span><span class="p">,</span>
+            <span class="n">resolved_config</span><span class="o">.</span><span class="n">crate_name</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">function_name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+        <span class="n">workspace_size</span><span class="o">=</span><span class="n">workspace_size</span><span class="p">,</span>
+        <span class="n">input_names</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">raw_name</span> <span class="k">for</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">input_specs</span><span class="p">),</span>
+        <span class="n">input_sizes</span><span class="o">=</span><span class="n">input_sizes</span><span class="p">,</span>
+        <span class="n">output_names</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">spec</span><span class="o">.</span><span class="n">raw_name</span> <span class="k">for</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">output_specs</span><span class="p">),</span>
+        <span class="n">output_sizes</span><span class="o">=</span><span class="n">output_sizes</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="n">math_library</span><span class="o">=</span><span class="n">resolved_math_library</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">codegen</span></div>
+
+
+
+<div class="viewcode-block" id="create_multi_function_rust_project">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.create_multi_function_rust_project">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_multi_function_rust_project</span><span class="p">(</span>
+    <span class="n">functions</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">RustBackendConfig</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustMultiFunctionProjectResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a single Rust crate containing multiple generated kernels.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">functions</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;at least one function must be generated&quot;</span><span class="p">)</span>
+
+    <span class="n">resolved_config</span> <span class="o">=</span> <span class="n">config</span> <span class="ow">or</span> <span class="n">RustBackendConfig</span><span class="p">()</span>
+    <span class="n">_validate_backend_mode</span><span class="p">(</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">)</span>
+    <span class="n">_validate_scalar_type</span><span class="p">(</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">)</span>
+    <span class="n">resolved_math_library</span> <span class="o">=</span> <span class="s2">&quot;libm&quot;</span> \
+        <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span> <span class="o">==</span> <span class="s2">&quot;no_std&quot;</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">resolved_math_library_version</span> <span class="o">=</span> <span class="s2">&quot;0.2&quot;</span> \
+        <span class="k">if</span> <span class="n">resolved_math_library</span> <span class="o">==</span> <span class="s2">&quot;libm&quot;</span> <span class="k">else</span> <span class="kc">None</span>
+    <span class="n">dependency_lines</span> <span class="o">=</span> <span class="n">_render_cargo_dependency_lines</span><span class="p">(</span>
+        <span class="n">resolved_math_library</span><span class="p">,</span>
+        <span class="n">resolved_math_library_version</span><span class="p">,</span>
+        <span class="nb">getattr</span><span class="p">(</span><span class="n">resolved_config</span><span class="p">,</span> <span class="s2">&quot;additional_dependencies&quot;</span><span class="p">,</span> <span class="p">()),</span>
+    <span class="p">)</span>
+
+    <span class="n">project_dir</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+    <span class="n">crate</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">crate_name</span> <span class="ow">or</span> <span class="n">functions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+
+    <span class="n">src_dir</span> <span class="o">=</span> <span class="n">project_dir</span> <span class="o">/</span> <span class="s2">&quot;src&quot;</span>
+    <span class="n">cargo_toml</span> <span class="o">=</span> <span class="n">project_dir</span> <span class="o">/</span> <span class="s2">&quot;Cargo.toml&quot;</span>
+    <span class="n">readme</span> <span class="o">=</span> <span class="n">project_dir</span> <span class="o">/</span> <span class="s2">&quot;README.md&quot;</span>
+    <span class="n">metadata_json</span> <span class="o">=</span> <span class="n">project_dir</span> <span class="o">/</span> <span class="s2">&quot;metadata.json&quot;</span>
+    <span class="n">lib_rs</span> <span class="o">=</span> <span class="n">src_dir</span> <span class="o">/</span> <span class="s2">&quot;lib.rs&quot;</span>
+
+    <span class="n">src_dir</span><span class="o">.</span><span class="n">mkdir</span><span class="p">(</span><span class="n">parents</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">exist_ok</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+    <span class="n">generation_config</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="n">replace</span><span class="p">(</span><span class="n">resolved_config</span><span class="p">,</span> <span class="n">enable_python_interface</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">enable_python_interface</span>
+        <span class="k">else</span> <span class="n">resolved_config</span>
+    <span class="p">)</span>
+    <span class="n">shared_helper_nodes</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">node</span>
+        <span class="k">for</span> <span class="n">generated_function</span> <span class="ow">in</span> <span class="n">functions</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">generated_function</span><span class="p">,</span> <span class="n">Function</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">generated_function</span><span class="o">.</span><span class="n">nodes</span>
+    <span class="p">)</span>
+
+    <span class="n">codegens</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+        <span class="n">generate_rust</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">generation_config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">function_index</span><span class="o">=</span><span class="n">index</span><span class="p">,</span>
+            <span class="n">shared_helper_nodes</span><span class="o">=</span><span class="n">shared_helper_nodes</span> <span class="k">if</span> <span class="n">index</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="p">(),</span>
+            <span class="n">shared_helper_suppressed_custom_wrappers</span><span class="o">=</span><span class="p">(</span>
+                <span class="p">{</span>
+                    <span class="n">marker</span>
+                    <span class="k">for</span> <span class="n">generated_function</span> <span class="ow">in</span> <span class="n">functions</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">generated_function</span><span class="p">,</span> <span class="n">Function</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">marker</span> <span class="ow">in</span> <span class="n">_collect_suppressed_custom_wrappers</span><span class="p">(</span>
+                        <span class="n">generated_function</span><span class="p">,</span>
+                        <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+                        <span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+                        <span class="s2">&quot;libm&quot;</span>
+                        <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span> <span class="o">==</span> <span class="s2">&quot;no_std&quot;</span> <span class="k">else</span> <span class="kc">None</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="p">}</span>
+                <span class="k">if</span> <span class="n">index</span> <span class="o">==</span> <span class="mi">0</span>
+                <span class="k">else</span> <span class="nb">set</span><span class="p">()</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">function</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">functions</span><span class="p">)</span>
+    <span class="p">)</span>
+
+    <span class="n">cargo_toml</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span>
+        <span class="n">_get_template</span><span class="p">(</span><span class="s2">&quot;Cargo.toml.j2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">render</span><span class="p">(</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">dependency_lines</span><span class="o">=</span><span class="n">dependency_lines</span><span class="p">,</span>
+        <span class="p">),</span>
+        <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">readme</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span>
+        <span class="n">_get_template</span><span class="p">(</span><span class="s2">&quot;rust_multi_project_README.md.j2&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">render</span><span class="p">(</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
+            <span class="n">math_library</span><span class="o">=</span><span class="n">resolved_math_library</span><span class="p">,</span>
+            <span class="n">codegens</span><span class="o">=</span><span class="n">codegens</span><span class="p">,</span>
+            <span class="n">enable_python_interface</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">enable_python_interface</span><span class="p">,</span>
+            <span class="n">python_interface_project_name</span><span class="o">=</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">crate</span><span class="si">}</span><span class="s2">_python&quot;</span>
+                <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">enable_python_interface</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+        <span class="p">),</span>
+        <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">metadata_json</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span>
+        <span class="n">_render_metadata_json</span><span class="p">(</span><span class="n">crate</span><span class="p">,</span> <span class="n">codegens</span><span class="p">),</span>
+        <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">lib_source</span> <span class="o">=</span> <span class="n">_render_multi_function_lib</span><span class="p">(</span><span class="n">codegens</span><span class="p">,</span> <span class="n">resolved_config</span><span class="p">)</span>
+    <span class="n">lib_rs</span><span class="o">.</span><span class="n">write_text</span><span class="p">(</span><span class="n">lib_source</span><span class="p">,</span> <span class="n">encoding</span><span class="o">=</span><span class="s2">&quot;utf-8&quot;</span><span class="p">)</span>
+    <span class="n">stale_pyproject</span> <span class="o">=</span> <span class="n">project_dir</span> <span class="o">/</span> <span class="s2">&quot;pyproject.toml&quot;</span>
+    <span class="k">if</span> <span class="n">stale_pyproject</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+        <span class="n">stale_pyproject</span><span class="o">.</span><span class="n">unlink</span><span class="p">()</span>
+    <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">build_crate</span><span class="p">:</span>
+        <span class="n">_run_cargo_build</span><span class="p">(</span><span class="n">project_dir</span><span class="p">)</span>
+    <span class="n">python_interface</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">enable_python_interface</span><span class="p">:</span>
+        <span class="n">python_interface</span> <span class="o">=</span> <span class="n">_create_python_interface_project</span><span class="p">(</span>
+            <span class="n">low_level_project_dir</span><span class="o">=</span><span class="n">project_dir</span><span class="p">,</span>
+            <span class="n">low_level_crate_name</span><span class="o">=</span><span class="n">crate</span><span class="p">,</span>
+            <span class="n">codegens</span><span class="o">=</span><span class="n">codegens</span><span class="p">,</span>
+            <span class="n">build_python_interface</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">build_python_interface</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="n">_try_run_cargo_fmt</span><span class="p">(</span><span class="n">project_dir</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">RustMultiFunctionProjectResult</span><span class="p">(</span>
+        <span class="n">project_dir</span><span class="o">=</span><span class="n">project_dir</span><span class="p">,</span>
+        <span class="n">cargo_toml</span><span class="o">=</span><span class="n">cargo_toml</span><span class="p">,</span>
+        <span class="n">readme</span><span class="o">=</span><span class="n">readme</span><span class="p">,</span>
+        <span class="n">metadata_json</span><span class="o">=</span><span class="n">metadata_json</span><span class="p">,</span>
+        <span class="n">lib_rs</span><span class="o">=</span><span class="n">lib_rs</span><span class="p">,</span>
+        <span class="n">codegens</span><span class="o">=</span><span class="n">codegens</span><span class="p">,</span>
+        <span class="n">python_interface</span><span class="o">=</span><span class="n">python_interface</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="n">__all__</span> <span class="o">=</span> <span class="p">[</span><span class="n">name</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">globals</span><span class="p">()</span> <span class="k">if</span> <span class="ow">not</span> <span class="n">name</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="s2">&quot;__&quot;</span><span class="p">)]</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

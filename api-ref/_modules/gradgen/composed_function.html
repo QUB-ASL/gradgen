@@ -1,0 +1,1168 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen.composed_function &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/modules.html">gradgen</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gradgen.composed_function</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gradgen.composed_function</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Staged function composition with packed-parameter support.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">replace</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">re</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.function</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._staged</span><span class="w"> </span><span class="kn">import</span> <span class="n">_create_rust_project</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._staged</span><span class="w"> </span><span class="kn">import</span> <span class="n">_generate_rust</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._staged</span><span class="w"> </span><span class="kn">import</span> <span class="n">_simplify_function</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sx</span><span class="w"> </span><span class="kn">import</span> <span class="n">SX</span><span class="p">,</span> <span class="n">SXVector</span>
+
+<span class="n">FunctionArg</span> <span class="o">=</span> <span class="n">SX</span> <span class="o">|</span> <span class="n">SXVector</span>
+<span class="n">StageValue</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">SX</span> <span class="o">|</span> <span class="n">SXVector</span> <span class="o">|</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">object</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span>
+<span class="p">)</span>
+<span class="n">ChainItem</span> <span class="o">=</span> <span class="n">Function</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Function</span><span class="p">,</span> <span class="n">StageValue</span><span class="p">]</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_PackedParameter</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One bound stage-parameter declaration.&quot;&quot;&quot;</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">size</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">formal</span><span class="p">:</span> <span class="n">FunctionArg</span>
+    <span class="n">values</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">binding_key</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">slot_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">symbolic_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the packed runtime scalar count for this parameter.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;symbolic&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">size</span>
+        <span class="k">return</span> <span class="mi">0</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_SingleStage</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One explicit stage application.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span><span class="p">:</span> <span class="n">Function</span>
+    <span class="n">parameter</span><span class="p">:</span> <span class="n">_PackedParameter</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stage_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the number of concrete stage applications.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="mi">1</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">symbolic_parameter_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the number of packed symbolic parameter scalars.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter</span><span class="o">.</span><span class="n">symbolic_size</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_RepeatStage</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One repeated stage application block.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span><span class="p">:</span> <span class="n">Function</span>
+    <span class="n">parameters</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_PackedParameter</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stage_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the number of concrete stage applications.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">symbolic_parameter_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the number of packed symbolic parameter scalars.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">symbolic_size</span> <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span>
+
+
+<span class="n">StageStep</span> <span class="o">=</span> <span class="n">_SingleStage</span> <span class="o">|</span> <span class="n">_RepeatStage</span>
+
+
+<div class="viewcode-block" id="ComposedGradientFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedGradientFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ComposedGradientFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Derivative kernel for a finished ``ComposedFunction``.</span>
+
+<span class="sd">    The expanded derivative is the Jacobian of the composed rollout with</span>
+<span class="sd">    respect to the state input.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">composed</span><span class="p">:</span> <span class="n">ComposedFunction</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ComposedGradientFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedGradientFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged derivative into a regular symbolic ``Function``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A symbolic function whose output is the flattened Jacobian of the</span>
+<span class="sd">            finished rollout with respect to the state input.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">gradient</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">jacobian</span><span class="p">(</span>
+            <span class="mi">0</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">gradient</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for shared-helper discovery.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+<div class="viewcode-block" id="ComposedGradientFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedGradientFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged derivative kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedGradientFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedGradientFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged derivative kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ComposedJacobianFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedJacobianFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ComposedJacobianFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Jacobian kernel for a finished ``ComposedFunction``.&quot;&quot;&quot;</span>
+
+    <span class="n">composed</span><span class="p">:</span> <span class="n">ComposedFunction</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ComposedJacobianFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedJacobianFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged Jacobian into a regular symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="n">packed_parameters</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">parameter_name</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">parameter_size</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">parameter_size</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">jacobian</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_symbolic_jacobian</span><span class="p">(</span><span class="n">packed_parameters</span><span class="p">)</span>
+        <span class="n">output_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;jacobian_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">output_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="n">function</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">_compiled_inputs</span><span class="p">(</span><span class="n">packed_parameters</span><span class="p">),</span>
+            <span class="p">[</span><span class="n">jacobian</span><span class="p">],</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="p">(</span><span class="n">output_name</span><span class="p">,),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for shared-helper discovery.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+<div class="viewcode-block" id="ComposedJacobianFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedJacobianFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged Jacobian kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedJacobianFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedJacobianFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged Jacobian kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_symbolic_jacobian</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">packed_parameters</span><span class="p">:</span> <span class="n">SXVector</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SXVector</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build the flattened Jacobian using staged symbolic backprop.&quot;&quot;&quot;</span>
+        <span class="n">state_size</span> <span class="o">=</span> <span class="n">_arg_size</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">state_input</span><span class="p">)</span>
+
+        <span class="n">state</span><span class="p">:</span> <span class="n">FunctionArg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">state_input</span>
+        <span class="n">parameter_offset</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">slot_offsets</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">applications</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="n">Function</span><span class="p">,</span> <span class="n">FunctionArg</span><span class="p">,</span> <span class="n">FunctionArg</span><span class="p">]]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">steps</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="n">_SingleStage</span><span class="p">):</span>
+                <span class="n">parameter_arg</span><span class="p">,</span> <span class="n">parameter_offset</span> <span class="o">=</span> <span class="n">_resolve_compiled_parameter</span><span class="p">(</span>
+                    <span class="n">step</span><span class="o">.</span><span class="n">parameter</span><span class="p">,</span>
+                    <span class="n">packed_parameters</span><span class="p">,</span>
+                    <span class="n">parameter_offset</span><span class="p">,</span>
+                    <span class="n">slot_offsets</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">applications</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">step</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">parameter_arg</span><span class="p">))</span>
+                <span class="n">state</span> <span class="o">=</span> <span class="n">_coerce_single_output</span><span class="p">(</span>
+                    <span class="n">step</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">parameter_arg</span><span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">step</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+                <span class="n">parameter_arg</span><span class="p">,</span> <span class="n">parameter_offset</span> <span class="o">=</span> <span class="n">_resolve_compiled_parameter</span><span class="p">(</span>
+                    <span class="n">parameter</span><span class="p">,</span>
+                    <span class="n">packed_parameters</span><span class="p">,</span>
+                    <span class="n">parameter_offset</span><span class="p">,</span>
+                    <span class="n">slot_offsets</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">applications</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">step</span><span class="o">.</span><span class="n">function</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">parameter_arg</span><span class="p">))</span>
+                <span class="n">state</span> <span class="o">=</span> <span class="n">_coerce_single_output</span><span class="p">(</span>
+                    <span class="n">step</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">parameter_arg</span><span class="p">)</span>
+                <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">parameter_offset</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">parameter_size</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                <span class="s2">&quot;packed parameter offsets did not consume the expected size&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">rows</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SX</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">row_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">state_size</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">state_size</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="n">current_lambda</span><span class="p">:</span> <span class="n">FunctionArg</span> <span class="o">=</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">current_lambda</span> <span class="o">=</span> <span class="n">SXVector</span><span class="p">(</span>
+                    <span class="nb">tuple</span><span class="p">(</span>
+                        <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span> <span class="k">if</span> <span class="n">index</span> <span class="o">==</span> <span class="n">row_index</span> <span class="k">else</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+                        <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">state_size</span><span class="p">)</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+
+            <span class="k">for</span> <span class="n">function</span><span class="p">,</span> <span class="n">state_arg</span><span class="p">,</span> <span class="n">parameter_arg</span> <span class="ow">in</span> <span class="nb">reversed</span><span class="p">(</span><span class="n">applications</span><span class="p">):</span>
+                <span class="n">current_lambda</span> <span class="o">=</span> <span class="n">_coerce_single_output</span><span class="p">(</span>
+                    <span class="n">function</span><span class="o">.</span><span class="n">vjp</span><span class="p">(</span><span class="n">wrt_index</span><span class="o">=</span><span class="mi">0</span><span class="p">)(</span>
+                        <span class="n">state_arg</span><span class="p">,</span>
+                        <span class="n">parameter_arg</span><span class="p">,</span>
+                        <span class="n">current_lambda</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+
+            <span class="n">rows</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_flatten_symbolic_arg</span><span class="p">(</span><span class="n">current_lambda</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">SXVector</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">rows</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="ComposedJointFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedJointFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ComposedJointFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint kernel for a finished ``ComposedFunction``.&quot;&quot;&quot;</span>
+
+    <span class="n">composed</span><span class="p">:</span> <span class="n">ComposedFunction</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">components</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">wrt_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="ComposedJointFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedJointFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged joint kernel into a regular symbolic function.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">_require_finished</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">wrt_index</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;ComposedFunction joint kernels only support wrt_index=0&quot;</span>
+            <span class="p">)</span>
+        <span class="n">resolved_components</span> <span class="o">=</span> <span class="n">_resolve_composed_joint_components</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">components</span>
+        <span class="p">)</span>
+        <span class="n">packed_parameters</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">parameter_name</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">parameter_size</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">parameter_size</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">primal_function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span>
+        <span class="n">jacobian_function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">jacobian</span><span class="p">()</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">output_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">resolved_components</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">component</span> <span class="o">==</span> <span class="s2">&quot;f&quot;</span><span class="p">:</span>
+                <span class="n">outputs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">primal_function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span>
+                <span class="n">output_names</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">primal_function</span><span class="o">.</span><span class="n">output_names</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="k">if</span> <span class="n">component</span> <span class="o">==</span> <span class="s2">&quot;jf&quot;</span><span class="p">:</span>
+                <span class="n">outputs</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">jacobian_function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span>
+                <span class="n">output_names</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">jacobian_function</span><span class="o">.</span><span class="n">output_names</span><span class="p">)</span>
+                <span class="k">continue</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;unexpected composed joint component </span><span class="si">{</span><span class="n">component</span><span class="si">!r}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">function</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">_compiled_inputs</span><span class="p">(</span><span class="n">packed_parameters</span><span class="p">),</span>
+            <span class="n">outputs</span><span class="p">,</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">composed</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">output_names</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for shared-helper discovery.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+<div class="viewcode-block" id="ComposedJointFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedJointFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged joint kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedJointFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedJointFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged joint kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ComposedFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ComposedFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Staged composition of vector state transforms.</span>
+
+<span class="sd">    A ``ComposedFunction`` represents a chain such as</span>
+
+<span class="sd">    ``x -&gt; G1(x, p1) -&gt; G2(..., p2) -&gt; ... -&gt; GN(...)``</span>
+
+<span class="sd">    while keeping the stage structure available for Rust code generation.</span>
+<span class="sd">    Symbolic stage parameters are packed into one additional runtime input</span>
+<span class="sd">    slice named ``parameter_name``.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">state_input</span><span class="p">:</span> <span class="n">FunctionArg</span>
+    <span class="n">input_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">parameter_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;parameters&quot;</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">steps</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">StageStep</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">finished</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate and normalize constructor inputs.&quot;&quot;&quot;</span>
+        <span class="n">_validate_state_input</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state_input</span><span class="p">)</span>
+        <span class="nb">object</span><span class="o">.</span><span class="fm">__setattr__</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="s2">&quot;input_name&quot;</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_name</span> <span class="ow">or</span> <span class="n">_infer_input_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state_input</span><span class="p">,</span> <span class="s2">&quot;x&quot;</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">parameter_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the packed runtime parameter length.&quot;&quot;&quot;</span>
+        <span class="n">seen_slots</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+        <span class="n">size</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">steps</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="n">_SingleStage</span><span class="p">):</span>
+                <span class="n">parameters</span> <span class="o">=</span> <span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">parameter</span><span class="p">,)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">parameters</span> <span class="o">=</span> <span class="n">step</span><span class="o">.</span><span class="n">parameters</span>
+            <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">parameters</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">kind</span> <span class="o">!=</span> <span class="s2">&quot;symbolic&quot;</span><span class="p">:</span>
+                    <span class="k">continue</span>
+                <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">slot_index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">slot_index</span> <span class="ow">in</span> <span class="n">seen_slots</span><span class="p">:</span>
+                        <span class="k">continue</span>
+                    <span class="n">seen_slots</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">slot_index</span><span class="p">)</span>
+                <span class="n">size</span> <span class="o">+=</span> <span class="n">parameter</span><span class="o">.</span><span class="n">size</span>
+        <span class="k">return</span> <span class="n">size</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stage_count</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the total number of concrete stage applications.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">stage_count</span> <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">steps</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inputs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the compiled symbolic inputs for this composition.&quot;&quot;&quot;</span>
+        <span class="n">compiled</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiled_inputs</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">compiled</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the compiled symbolic outputs for this composition.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">outputs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for shared-helper discovery.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">input_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the compiled symbolic input names.&quot;&quot;&quot;</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_name</span><span class="p">,)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter_size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">names</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">names</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the compiled symbolic output names.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_finished</span><span class="p">()</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;y&quot;</span><span class="p">,)</span>
+
+<div class="viewcode-block" id="ComposedFunction.then">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.then">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">then</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">p</span><span class="p">:</span> <span class="n">StageValue</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposedFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Append one explicit state-transform stage.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_not_finished</span><span class="p">()</span>
+        <span class="n">_validate_stage_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_input</span><span class="p">)</span>
+        <span class="n">parameter</span> <span class="o">=</span> <span class="n">_normalize_stage_parameter</span><span class="p">(</span>
+            <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">p</span><span class="p">,</span> <span class="n">role</span><span class="o">=</span><span class="s2">&quot;stage&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">steps</span><span class="p">,</span> <span class="n">_SingleStage</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">parameter</span><span class="p">))</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedFunction.chain">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.chain">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">chain</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stages</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">ChainItem</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">ComposedFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Append a heterogeneous list of stages.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_not_finished</span><span class="p">()</span>
+        <span class="n">steps</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">steps</span><span class="p">)</span>
+        <span class="n">slot_indices</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="n">parameter</span><span class="o">.</span><span class="n">slot_index</span>
+            <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="n">steps</span>
+            <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="p">(</span>
+                <span class="p">(</span><span class="n">step</span><span class="o">.</span><span class="n">parameter</span><span class="p">,)</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="n">_SingleStage</span><span class="p">)</span>
+                <span class="k">else</span> <span class="n">step</span><span class="o">.</span><span class="n">parameters</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">slot_index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">]</span>
+        <span class="n">next_slot_index</span> <span class="o">=</span> <span class="p">(</span><span class="nb">max</span><span class="p">(</span><span class="n">slot_indices</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="k">if</span> <span class="n">slot_indices</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="n">alias_slots</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">stages</span><span class="p">:</span>
+            <span class="n">function</span><span class="p">,</span> <span class="n">parameter_value</span> <span class="o">=</span> <span class="n">_parse_chain_item</span><span class="p">(</span><span class="n">item</span><span class="p">)</span>
+            <span class="n">_validate_stage_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_input</span><span class="p">)</span>
+            <span class="n">parameter</span> <span class="o">=</span> <span class="n">_normalize_stage_parameter</span><span class="p">(</span>
+                <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span>
+                <span class="n">parameter_value</span><span class="p">,</span>
+                <span class="n">role</span><span class="o">=</span><span class="s2">&quot;stage&quot;</span><span class="p">,</span>
+                <span class="n">share_aliases</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;symbolic&quot;</span><span class="p">:</span>
+                <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">binding_key</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">slot_index</span> <span class="o">=</span> <span class="n">alias_slots</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">binding_key</span><span class="p">)</span>
+                    <span class="k">if</span> <span class="n">slot_index</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">slot_index</span> <span class="o">=</span> <span class="n">next_slot_index</span>
+                        <span class="n">alias_slots</span><span class="p">[</span><span class="n">parameter</span><span class="o">.</span><span class="n">binding_key</span><span class="p">]</span> <span class="o">=</span> <span class="n">slot_index</span>
+                        <span class="n">next_slot_index</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="k">else</span><span class="p">:</span>
+                    <span class="n">slot_index</span> <span class="o">=</span> <span class="n">next_slot_index</span>
+                    <span class="n">next_slot_index</span> <span class="o">+=</span> <span class="mi">1</span>
+                <span class="n">parameter</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">parameter</span><span class="p">,</span> <span class="n">slot_index</span><span class="o">=</span><span class="n">slot_index</span><span class="p">)</span>
+            <span class="n">_append_chained_stage</span><span class="p">(</span><span class="n">steps</span><span class="p">,</span> <span class="n">function</span><span class="p">,</span> <span class="n">parameter</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">steps</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="ComposedFunction.repeat">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.repeat">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">repeat</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">params</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">StageValue</span><span class="p">]</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposedFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Append repeated applications of the same state-transform stage.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_not_finished</span><span class="p">()</span>
+        <span class="n">_validate_stage_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_input</span><span class="p">)</span>
+        <span class="n">normalized</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">_normalize_stage_parameter</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">value</span><span class="p">,</span> <span class="n">role</span><span class="o">=</span><span class="s2">&quot;stage&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">params</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">normalized</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;repeat requires at least one parameter set&quot;</span><span class="p">)</span>
+        <span class="n">kinds</span> <span class="o">=</span> <span class="p">{</span><span class="n">parameter</span><span class="o">.</span><span class="n">kind</span> <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">normalized</span><span class="p">}</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">kinds</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;repeat currently requires all parameter sets to &quot;</span>
+                <span class="s2">&quot;be either fixed or symbolic&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span> <span class="n">steps</span><span class="o">=</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">steps</span><span class="p">,</span> <span class="n">_RepeatStage</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">normalized</span><span class="p">))</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedFunction.finish">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.finish">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">finish</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposedFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Finalize the staged composition without adding another stage.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A finished copy of the staged composition. The expanded function</span>
+<span class="sd">            evaluates the repeated stage sequence and returns the final</span>
+<span class="sd">            state.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_not_finished</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">steps</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;finish requires at least one stage before finalizing&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">finished</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand the staged composition into a symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_finished</span><span class="p">()</span>
+        <span class="n">packed_parameters</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parameter_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter_size</span><span class="p">)</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter_size</span> <span class="o">&gt;</span> <span class="mi">0</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">compiled_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_symbolic_output</span><span class="p">(</span><span class="n">packed_parameters</span><span class="p">)</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_compiled_inputs</span><span class="p">(</span><span class="n">packed_parameters</span><span class="p">))</span>
+        <span class="n">function</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="p">,</span>
+            <span class="p">[</span><span class="n">compiled_output</span><span class="p">],</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">output_names</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedFunction.gradient">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.gradient">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposedGradientFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a staged derivative kernel with respect to the state input.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_finished</span><span class="p">()</span>
+        <span class="n">gradient_name</span> <span class="o">=</span> <span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_gradient_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">input_name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">return</span> <span class="n">ComposedGradientFunction</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">gradient_name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedFunction.jacobian">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.jacobian">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">jacobian</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposedJacobianFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a staged Jacobian kernel with respect to the state input.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_finished</span><span class="p">()</span>
+        <span class="n">jacobian_name</span> <span class="o">=</span> <span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_jacobian_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">input_name</span><span class="si">}</span><span class="s2">&quot;</span>
+        <span class="k">return</span> <span class="n">ComposedJacobianFunction</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">jacobian_name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedFunction.joint">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.joint">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">joint</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">components</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+        <span class="n">wrt_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">simplify_joint</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ComposedJointFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a staged joint kernel for supported composed components.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_finished</span><span class="p">()</span>
+        <span class="n">resolved_components</span> <span class="o">=</span> <span class="n">_resolve_composed_joint_components</span><span class="p">(</span><span class="n">components</span><span class="p">)</span>
+        <span class="n">joint_name</span> <span class="o">=</span> <span class="n">name</span> <span class="ow">or</span> <span class="n">_composed_joint_function_name</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_name</span><span class="p">,</span>
+            <span class="n">resolved_components</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">ComposedJointFunction</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">joint_name</span><span class="p">,</span>
+            <span class="n">resolved_components</span><span class="p">,</span>
+            <span class="n">wrt_index</span><span class="o">=</span><span class="n">wrt_index</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="o">=</span><span class="n">simplify_joint</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged primal kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ComposedFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.composed_function.ComposedFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged primal kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Evaluate or symbolically call the expanded composition.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()(</span><span class="o">*</span><span class="n">args</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compiled_inputs</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">packed_parameters</span><span class="p">:</span> <span class="n">SXVector</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the symbolic inputs used by the compiled expansion.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">packed_parameters</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter_size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">packed_parameters</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parameter_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter_size</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">packed_parameters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state_input</span><span class="p">,)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">state_input</span><span class="p">,</span> <span class="n">packed_parameters</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_symbolic_output</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">packed_parameters</span><span class="p">:</span> <span class="n">SXVector</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionArg</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build the final symbolic state using a packed parameter vector.&quot;&quot;&quot;</span>
+        <span class="n">parameter_offset</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">slot_offsets</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">FunctionArg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">state_input</span>
+
+        <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">steps</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">step</span><span class="p">,</span> <span class="n">_SingleStage</span><span class="p">):</span>
+                <span class="n">parameter_arg</span><span class="p">,</span> <span class="n">parameter_offset</span> <span class="o">=</span> <span class="n">_resolve_compiled_parameter</span><span class="p">(</span>
+                    <span class="n">step</span><span class="o">.</span><span class="n">parameter</span><span class="p">,</span>
+                    <span class="n">packed_parameters</span><span class="p">,</span>
+                    <span class="n">parameter_offset</span><span class="p">,</span>
+                    <span class="n">slot_offsets</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">state</span> <span class="o">=</span> <span class="n">_coerce_single_output</span><span class="p">(</span>
+                    <span class="n">step</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">parameter_arg</span><span class="p">)</span>
+                <span class="p">)</span>
+                <span class="k">continue</span>
+
+            <span class="k">for</span> <span class="n">parameter</span> <span class="ow">in</span> <span class="n">step</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+                <span class="n">parameter_arg</span><span class="p">,</span> <span class="n">parameter_offset</span> <span class="o">=</span> <span class="n">_resolve_compiled_parameter</span><span class="p">(</span>
+                    <span class="n">parameter</span><span class="p">,</span>
+                    <span class="n">packed_parameters</span><span class="p">,</span>
+                    <span class="n">parameter_offset</span><span class="p">,</span>
+                    <span class="n">slot_offsets</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="n">state</span> <span class="o">=</span> <span class="n">_coerce_single_output</span><span class="p">(</span>
+                    <span class="n">step</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">parameter_arg</span><span class="p">)</span>
+                <span class="p">)</span>
+        <span class="k">if</span> <span class="n">parameter_offset</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter_size</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">AssertionError</span><span class="p">(</span>
+                <span class="s2">&quot;packed parameter offsets did not consume the expected size&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">state</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_require_finished</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise when the composition has not been finalized yet.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">finished</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;ComposedFunction is not finished; call finish() first&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_ensure_not_finished</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Reject stage edits after the composition is finalized.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">finished</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;ComposedFunction is already finished&quot;</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_state_input</span><span class="p">(</span><span class="n">state_input</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate the symbolic state input used by a composition.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">state_input</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">state_input</span><span class="o">.</span><span class="n">op</span> <span class="o">!=</span> <span class="s2">&quot;symbol&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;ComposedFunction state_input must be a symbolic variable&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span>
+    <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">state_input</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">element</span><span class="p">,</span> <span class="n">SX</span><span class="p">)</span> <span class="ow">or</span> <span class="n">element</span><span class="o">.</span><span class="n">op</span> <span class="o">!=</span> <span class="s2">&quot;symbol&quot;</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;ComposedFunction state_input must contain &quot;</span>
+                <span class="s2">&quot;symbolic variables only&quot;</span>
+            <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_infer_input_name</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span> <span class="n">fallback</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Infer a user-facing input name from symbolic leaves.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">name</span> <span class="ow">or</span> <span class="n">fallback</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">value</span><span class="o">.</span><span class="n">elements</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">fallback</span>
+    <span class="n">match</span> <span class="o">=</span> <span class="n">re</span><span class="o">.</span><span class="n">fullmatch</span><span class="p">(</span><span class="sa">r</span><span class="s2">&quot;(.+)_\d+&quot;</span><span class="p">,</span> <span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">match</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">fallback</span>
+    <span class="n">prefix</span> <span class="o">=</span> <span class="n">match</span><span class="o">.</span><span class="n">group</span><span class="p">(</span><span class="mi">1</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">((</span><span class="n">element</span><span class="o">.</span><span class="n">name</span> <span class="ow">or</span> <span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">startswith</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}</span><span class="s2">_&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">prefix</span>
+    <span class="k">return</span> <span class="n">fallback</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_stage_function</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span> <span class="n">state_input</span><span class="p">:</span> <span class="n">FunctionArg</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate one state-transform stage.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;stage functions must take exactly &quot;</span> <span class="s2">&quot;two inputs: (state, p)&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;stage functions must produce exactly one output&quot;</span><span class="p">)</span>
+    <span class="n">_validate_matching_shape</span><span class="p">(</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">state_input</span><span class="p">,</span> <span class="s2">&quot;stage state input&quot;</span>
+    <span class="p">)</span>
+    <span class="n">_validate_matching_shape</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">state_input</span><span class="p">,</span> <span class="s2">&quot;stage output&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_matching_shape</span><span class="p">(</span>
+    <span class="n">actual</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span> <span class="n">expected</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span> <span class="n">label</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Ensure two symbolic values share the same scalar/vector shape.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">actual</span><span class="p">,</span> <span class="n">SX</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">expected</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> must match the composed state shape exactly&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">_arg_size</span><span class="p">(</span><span class="n">actual</span><span class="p">)</span> <span class="o">!=</span> <span class="n">_arg_size</span><span class="p">(</span><span class="n">expected</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> must match the composed state dimension exactly&quot;</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_stage_parameter</span><span class="p">(</span>
+    <span class="n">formal</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span>
+    <span class="n">value</span><span class="p">:</span> <span class="n">StageValue</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">share_aliases</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">_PackedParameter</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize one stage parameter binding.&quot;&quot;&quot;</span>
+    <span class="n">size</span> <span class="o">=</span> <span class="n">_arg_size</span><span class="p">(</span><span class="n">formal</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">value</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">size</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2"> parameter value is required&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_PackedParameter</span><span class="p">(</span><span class="s2">&quot;fixed&quot;</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="n">formal</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="n">SX</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">)):</span>
+        <span class="n">_validate_matching_shape</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">formal</span><span class="p">,</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2"> parameter&quot;</span><span class="p">)</span>
+        <span class="n">binding_key</span> <span class="o">=</span> <span class="n">_stage_parameter_binding_key</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">if</span> <span class="n">share_aliases</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">_PackedParameter</span><span class="p">(</span><span class="s2">&quot;symbolic&quot;</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">formal</span><span class="p">,</span> <span class="n">binding_key</span><span class="o">=</span><span class="n">binding_key</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">formal</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="n">numeric</span> <span class="o">=</span> <span class="n">_coerce_numeric_scalar</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_PackedParameter</span><span class="p">(</span><span class="s2">&quot;fixed&quot;</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">formal</span><span class="p">,</span> <span class="p">(</span><span class="n">numeric</span><span class="p">,))</span>
+
+    <span class="n">numeric_values</span> <span class="o">=</span> <span class="n">_coerce_numeric_vector</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">role</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">_PackedParameter</span><span class="p">(</span><span class="s2">&quot;fixed&quot;</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="n">formal</span><span class="p">,</span> <span class="n">numeric_values</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce_numeric_scalar</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">StageValue</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Coerce a numeric scalar parameter.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">))</span>
+        <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span>
+        <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="nb">float</span><span class="p">(</span><span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2"> scalar parameters must be numeric&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce_numeric_vector</span><span class="p">(</span>
+    <span class="n">value</span><span class="p">:</span> <span class="n">StageValue</span><span class="p">,</span> <span class="n">expected_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">role</span><span class="p">:</span> <span class="nb">str</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Coerce a numeric vector parameter.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2"> vector parameters must be numeric sequences&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="n">expected_size</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2"> parameter length must match the &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;declared stage parameter size&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">))</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">value</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">role</span><span class="si">}</span><span class="s2"> vector parameters must contain only numeric values&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_stage_parameter_binding_key</span><span class="p">(</span>
+    <span class="n">value</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a stable alias key for a symbolic stage parameter.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">value</span><span class="o">.</span><span class="n">op</span> <span class="o">!=</span> <span class="s2">&quot;symbol&quot;</span> <span class="ow">or</span> <span class="n">value</span><span class="o">.</span><span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">name</span>
+
+    <span class="n">names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">value</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">element</span><span class="o">.</span><span class="n">op</span> <span class="o">!=</span> <span class="s2">&quot;symbol&quot;</span> <span class="ow">or</span> <span class="n">element</span><span class="o">.</span><span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">element</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_parse_chain_item</span><span class="p">(</span><span class="n">item</span><span class="p">:</span> <span class="n">ChainItem</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">Function</span><span class="p">,</span> <span class="n">StageValue</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize one ``chain([...])`` entry.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">Function</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">item</span><span class="p">,</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)</span>
+        <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">Function</span><span class="p">)</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="n">item</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">item</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+        <span class="s2">&quot;chain entries must be Function instances or &quot;</span>
+        <span class="s2">&quot;(Function, parameter) tuples&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_append_chained_stage</span><span class="p">(</span>
+    <span class="n">steps</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">StageStep</span><span class="p">],</span> <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span> <span class="n">parameter</span><span class="p">:</span> <span class="n">_PackedParameter</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Append one normalized chain stage, merging adjacent repeats.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">steps</span><span class="p">:</span>
+        <span class="n">steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_SingleStage</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">parameter</span><span class="p">))</span>
+        <span class="k">return</span>
+
+    <span class="n">last</span> <span class="o">=</span> <span class="n">steps</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">last</span><span class="p">,</span> <span class="n">_SingleStage</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">last</span><span class="o">.</span><span class="n">function</span> <span class="o">==</span> <span class="n">function</span> <span class="ow">and</span> <span class="n">last</span><span class="o">.</span><span class="n">parameter</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">parameter</span><span class="o">.</span><span class="n">kind</span><span class="p">:</span>
+            <span class="n">steps</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">_RepeatStage</span><span class="p">(</span>
+                <span class="n">function</span><span class="p">,</span>
+                <span class="p">(</span><span class="n">last</span><span class="o">.</span><span class="n">parameter</span><span class="p">,</span> <span class="n">parameter</span><span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">return</span>
+        <span class="n">steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_SingleStage</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">parameter</span><span class="p">))</span>
+        <span class="k">return</span>
+
+    <span class="k">if</span> <span class="n">last</span><span class="o">.</span><span class="n">function</span> <span class="o">==</span> <span class="n">function</span> <span class="ow">and</span> <span class="n">last</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="n">parameter</span><span class="o">.</span><span class="n">kind</span><span class="p">:</span>
+        <span class="n">steps</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="o">=</span> <span class="n">_RepeatStage</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="p">(</span><span class="o">*</span><span class="n">last</span><span class="o">.</span><span class="n">parameters</span><span class="p">,</span> <span class="n">parameter</span><span class="p">))</span>
+        <span class="k">return</span>
+
+    <span class="n">steps</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_SingleStage</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">parameter</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_compiled_parameter</span><span class="p">(</span>
+    <span class="n">parameter</span><span class="p">:</span> <span class="n">_PackedParameter</span><span class="p">,</span>
+    <span class="n">packed_parameters</span><span class="p">:</span> <span class="n">SXVector</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">offset</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">slot_offsets</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the symbolic argument bound to one stage parameter.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;fixed&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">_parameter_arg_from_numeric_values</span><span class="p">(</span>
+                <span class="n">parameter</span><span class="o">.</span><span class="n">formal</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">values</span>
+            <span class="p">),</span>
+            <span class="n">offset</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">packed_parameters</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;symbolic stage parameters require a packed parameter input&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">slot_index</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">slot_offset</span> <span class="o">=</span> <span class="n">slot_offsets</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">slot_index</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">slot_offset</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">offset</span> <span class="o">=</span> <span class="n">slot_offset</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">slot_offsets</span><span class="p">[</span><span class="n">parameter</span><span class="o">.</span><span class="n">slot_index</span><span class="p">]</span> <span class="o">=</span> <span class="n">offset</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">formal</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">packed_parameters</span><span class="p">[</span><span class="n">offset</span><span class="p">],</span> <span class="n">offset</span> <span class="o">+</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="p">(</span>
+        <span class="n">packed_parameters</span><span class="p">[</span><span class="n">offset</span><span class="p">:</span> <span class="n">offset</span> <span class="o">+</span> <span class="n">parameter</span><span class="o">.</span><span class="n">size</span><span class="p">],</span>
+        <span class="n">offset</span> <span class="o">+</span> <span class="n">parameter</span><span class="o">.</span><span class="n">size</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_parameter_arg_from_numeric_values</span><span class="p">(</span>
+    <span class="n">formal</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span> <span class="n">values</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionArg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a symbolic constant argument matching one stage parameter.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">formal</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="k">if</span> <span class="n">values</span> <span class="k">else</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">SXVector</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce_single_output</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionArg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize a one-output ``Function`` call result.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="n">SX</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="n">value</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+        <span class="s2">&quot;stage functions must evaluate to a single SX or SXVector output&quot;</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_flatten_symbolic_arg</span><span class="p">(</span><span class="n">arg</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SX</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return scalar leaves from a symbolic scalar or vector argument.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">arg</span><span class="p">,)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_composed_joint_components</span><span class="p">(</span>
+    <span class="n">components</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate joint components supported by ``ComposedFunction``.&quot;&quot;&quot;</span>
+    <span class="n">resolved</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">components</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">resolved</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;joint functions require at least one component&quot;</span><span class="p">)</span>
+    <span class="n">allowed</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;f&quot;</span><span class="p">,</span> <span class="s2">&quot;jf&quot;</span><span class="p">}</span>
+    <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">component</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">allowed</span> <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">resolved</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;ComposedFunction joint kernels currently support only &#39;f&#39; and &quot;</span>
+            <span class="s2">&quot;&#39;jf&#39; components&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="nb">set</span><span class="p">(</span><span class="n">resolved</span><span class="p">))</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolved</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;joint components must be unique&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">resolved</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_composed_joint_function_name</span><span class="p">(</span>
+    <span class="n">base_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">input_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">components</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build the default name for a composed joint kernel.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">base_name</span><span class="si">}</span><span class="s2">_joint_</span><span class="si">{</span><span class="s1">&#39;_&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">components</span><span class="p">)</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">input_name</span><span class="si">}</span><span class="s2">&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_arg_size</span><span class="p">(</span><span class="n">arg</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the scalar length of a scalar or vector argument.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

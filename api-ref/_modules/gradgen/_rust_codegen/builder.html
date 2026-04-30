@@ -1,0 +1,1488 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen._rust_codegen.builder &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">gradgen</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gradgen._rust_codegen.builder</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gradgen._rust_codegen.builder</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Builder API for creating multi-kernel Rust crates.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">replace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">Protocol</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..composed_function</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">ComposedFunction</span><span class="p">,</span>
+    <span class="n">ComposedGradientFunction</span><span class="p">,</span>
+    <span class="n">ComposedJacobianFunction</span><span class="p">,</span>
+    <span class="n">ComposedJointFunction</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..function</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..map_zip</span><span class="w"> </span><span class="kn">import</span> <span class="n">BatchedFunction</span><span class="p">,</span> <span class="n">BatchedJacobianFunction</span><span class="p">,</span> <span class="n">ReducedFunction</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">..single_shooting</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">SingleShootingBundle</span><span class="p">,</span>
+    <span class="n">SingleShootingGradientFunction</span><span class="p">,</span>
+    <span class="n">SingleShootingHvpFunction</span><span class="p">,</span>
+    <span class="n">SingleShootingJointFunction</span><span class="p">,</span>
+    <span class="n">SingleShootingPrimalFunction</span><span class="p">,</span>
+    <span class="n">SingleShootingProblem</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.naming</span><span class="w"> </span><span class="kn">import</span> <span class="n">sanitize_ident</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..composer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FunctionComposition</span>
+
+
+<span class="n">BuilderSource</span> <span class="o">=</span> <span class="p">(</span>
+    <span class="n">Function</span>
+    <span class="o">|</span> <span class="n">ComposedFunction</span>
+    <span class="o">|</span> <span class="n">ComposedGradientFunction</span>
+    <span class="o">|</span> <span class="n">ComposedJacobianFunction</span>
+    <span class="o">|</span> <span class="n">ComposedJointFunction</span>
+    <span class="o">|</span> <span class="n">BatchedFunction</span>
+    <span class="o">|</span> <span class="n">BatchedJacobianFunction</span>
+    <span class="o">|</span> <span class="n">ReducedFunction</span>
+    <span class="o">|</span> <span class="n">SingleShootingProblem</span>
+    <span class="o">|</span> <span class="n">SingleShootingPrimalFunction</span>
+    <span class="o">|</span> <span class="n">SingleShootingGradientFunction</span>
+    <span class="o">|</span> <span class="n">SingleShootingHvpFunction</span>
+    <span class="o">|</span> <span class="n">SingleShootingJointFunction</span>
+<span class="p">)</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">RustBuilderConfigLike</span><span class="p">(</span><span class="n">Protocol</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Protocol describing the config surface used by the builder.&quot;&quot;&quot;</span>
+
+    <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_crate_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustBuilderConfigLike</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with an updated crate name.&quot;&quot;&quot;</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_BuilderRequest</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A requested generated kernel kind.&quot;&quot;&quot;</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">components</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">wrt_targets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">bundle</span><span class="p">:</span> <span class="n">FunctionBundle</span> <span class="o">|</span> <span class="n">SingleShootingBundle</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_BundleItem</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One artifact entry inside a ``FunctionBundle``.&quot;&quot;&quot;</span>
+
+    <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">wrt_indices</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="FunctionBundle">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.FunctionBundle">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FunctionBundle</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Fluent description of artifacts to compute together in one joint kernel.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">items</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BundleItem</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+
+<div class="viewcode-block" id="FunctionBundle.add_f">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.FunctionBundle.add_f">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_f</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include the primal outputs.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_item</span><span class="p">(</span><span class="s2">&quot;f&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FunctionBundle.add_gradient">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.FunctionBundle.add_gradient">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_gradient</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">wrt</span><span class="p">:</span> <span class="nb">int</span>
+        <span class="o">|</span> <span class="nb">str</span>
+        <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]</span>
+        <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include gradient blocks for one or more selected inputs.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            wrt: One or more input selectors. Each selector may be either</span>
+<span class="sd">                a zero-based input index or the declared name of an input</span>
+<span class="sd">                block. When multiple selectors are provided, the bundle keeps</span>
+<span class="sd">                one gradient block per selected input block.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new :class:`FunctionBundle` with the requested gradient blocks</span>
+<span class="sd">            appended.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; bundle = FunctionBundle().add_gradient(wrt=[&quot;x&quot;, &quot;p&quot;])</span>
+<span class="sd">            &gt;&gt;&gt; [(item.kind, item.wrt_indices) for item in bundle.items]</span>
+<span class="sd">            [(&#39;grad&#39;, (&#39;x&#39;, &#39;p&#39;))]</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">_BundleItem</span><span class="p">(</span><span class="s2">&quot;grad&quot;</span><span class="p">,</span> <span class="n">_normalize_wrt_targets</span><span class="p">(</span><span class="n">wrt</span><span class="p">))</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">item</span> <span class="o">==</span> <span class="n">candidate</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="o">=</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">,</span> <span class="n">candidate</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="FunctionBundle.add_jf">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.FunctionBundle.add_jf">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_jf</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+               <span class="o">*</span><span class="p">,</span>
+               <span class="n">wrt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> \
+            <span class="o">-&gt;</span> <span class="n">FunctionBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include Jacobian blocks for one or more input indices.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_item</span><span class="p">(</span><span class="s2">&quot;jf&quot;</span><span class="p">,</span> <span class="n">wrt</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FunctionBundle.add_hessian">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.FunctionBundle.add_hessian">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_hessian</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">wrt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> \
+            <span class="o">-&gt;</span> <span class="n">FunctionBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include Hessian blocks for one or more input indices.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_item</span><span class="p">(</span><span class="s2">&quot;hessian&quot;</span><span class="p">,</span> <span class="n">wrt</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="FunctionBundle.add_hvp">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.FunctionBundle.add_hvp">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_hvp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">wrt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> \
+            <span class="o">-&gt;</span> <span class="n">FunctionBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include Hessian-vector-product blocks for one or more input indices.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_item</span><span class="p">(</span><span class="s2">&quot;hvp&quot;</span><span class="p">,</span> <span class="n">wrt</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_add_item</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">wrt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionBundle</span><span class="p">:</span>
+        <span class="n">wrt_indices</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">wrt</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_normalize_wrt_indices</span><span class="p">(</span><span class="n">wrt</span><span class="p">)</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">_BundleItem</span><span class="p">(</span><span class="n">kind</span><span class="p">,</span> <span class="n">wrt_indices</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">item</span> <span class="o">==</span> <span class="n">candidate</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">items</span><span class="o">=</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">items</span><span class="p">,</span> <span class="n">candidate</span><span class="p">))</span></div>
+
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+           <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_BuilderFunctionSpec</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;One source function plus the kernels requested for it.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span><span class="p">:</span> <span class="n">BuilderSource</span>
+    <span class="n">requests</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderRequest</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+           <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Fluent builder for a generated Rust crate with one or more functions.&quot;&quot;&quot;</span>
+
+    <span class="n">function</span><span class="p">:</span> <span class="n">BuilderSource</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">RustBuilderConfigLike</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">requests</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderRequest</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">functions</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderFunctionSpec</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+
+<div class="viewcode-block" id="CodeGenerationBuilder.with_backend_config">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.with_backend_config">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_backend_config</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                            <span class="n">config</span><span class="p">:</span> <span class="n">RustBuilderConfigLike</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy using ``config`` for generated Rust code.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.with_simplification">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.with_simplification">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_simplification</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                            <span class="n">max_effort</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy applying ``max_effort`` simplification to generated kernels.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">max_effort</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.add_primal">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.add_primal">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_primal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                   <span class="o">*</span><span class="p">,</span>
+                   <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include the primal function in the generated crate.&quot;&quot;&quot;</span>
+        <span class="n">components</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;states&quot;</span><span class="p">,)</span> <span class="k">if</span> <span class="n">include_states</span> <span class="k">else</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;primal&quot;</span><span class="p">,</span> <span class="n">components</span><span class="o">=</span><span class="n">components</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.add_gradient">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.add_gradient">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_gradient</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">wrt</span><span class="p">:</span> <span class="nb">int</span>
+        <span class="o">|</span> <span class="nb">str</span>
+        <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]</span>
+        <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+        <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include gradient kernels for selected input blocks.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            wrt: Optional selector for the input blocks with respect to which</span>
+<span class="sd">                gradients should be generated. Each selector may be either a</span>
+<span class="sd">                zero-based input index or the declared name of an input block.</span>
+<span class="sd">                When omitted, gradients are generated for every input block,</span>
+<span class="sd">                matching the previous behavior.</span>
+<span class="sd">            include_states: When ``True``, include rollout-state outputs for</span>
+<span class="sd">                single-shooting sources that support them.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new builder with the gradient request appended.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; builder = CodeGenerationBuilder(f).add_gradient(wrt=[&quot;x&quot;, &quot;p&quot;])</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">components</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;states&quot;</span><span class="p">,)</span> <span class="k">if</span> <span class="n">include_states</span> <span class="k">else</span> <span class="p">()</span>
+        <span class="n">wrt_targets</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">wrt</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_normalize_wrt_targets</span><span class="p">(</span><span class="n">wrt</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span>
+            <span class="s2">&quot;gradient&quot;</span><span class="p">,</span>
+            <span class="n">components</span><span class="o">=</span><span class="n">components</span><span class="p">,</span>
+            <span class="n">wrt_targets</span><span class="o">=</span><span class="n">wrt_targets</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.add_jacobian">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.add_jacobian">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_jacobian</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include Jacobian kernels for all input blocks.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;jacobian&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.add_vjp">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.add_vjp">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_vjp</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include runtime-seeded vector-Jacobian-product kernels for input blocks.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;vjp&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.add_joint">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.add_joint">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_joint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bundle</span><span class="p">:</span> <span class="n">FunctionBundle</span> <span class="o">|</span> <span class="n">SingleShootingBundle</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include kernels that compute bundled artifacts together.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;joint&quot;</span><span class="p">,</span> <span class="n">bundle</span><span class="o">=</span><span class="n">bundle</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.add_hessian">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.add_hessian">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_hessian</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include Hessian kernels for scalar-output functions.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;hessian&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.add_hvp">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.add_hvp">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_hvp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include Hessian-vector product kernels for scalar-output functions.&quot;&quot;&quot;</span>
+        <span class="n">components</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;states&quot;</span><span class="p">,)</span> <span class="k">if</span> <span class="n">include_states</span> <span class="k">else</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;hvp&quot;</span><span class="p">,</span> <span class="n">components</span><span class="o">=</span><span class="n">components</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.for_function">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.for_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">for_function</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">function</span><span class="p">:</span> <span class="n">BuilderSource</span><span class="p">,</span>
+        <span class="n">configure</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">CodeGenerationBuilder</span><span class="p">],</span> <span class="n">CodeGenerationBuilder</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span> <span class="o">|</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Start configuring kernels for ``function`` or apply a legacy callback.&quot;&quot;&quot;</span>
+        <span class="n">scoped_builder</span> <span class="o">=</span> <span class="n">FunctionCodegenBuilder</span><span class="p">(</span><span class="n">parent</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="o">=</span><span class="n">function</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">configure</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">scoped_builder</span>
+        <span class="n">configured_builder</span> <span class="o">=</span> <span class="n">configure</span><span class="p">(</span>
+            <span class="n">CodeGenerationBuilder</span><span class="p">(</span><span class="n">function</span><span class="o">=</span><span class="n">function</span><span class="p">,</span> <span class="n">config</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_append_builder_function_spec</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">_BuilderFunctionSpec</span><span class="p">(</span>
+                <span class="n">function</span><span class="o">=</span><span class="n">_require_builder_function</span><span class="p">(</span><span class="n">configured_builder</span><span class="p">),</span>
+                <span class="n">requests</span><span class="o">=</span><span class="n">configured_builder</span><span class="o">.</span><span class="n">requests</span><span class="p">,</span>
+                <span class="n">simplification</span><span class="o">=</span><span class="n">configured_builder</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="CodeGenerationBuilder.build">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.CodeGenerationBuilder.build">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">build</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">=</span> <span class="s2">&quot;.&quot;</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate a single Rust crate inside ``path``.</span>
+
+<span class="sd">        The argument is treated as the parent directory that will contain the</span>
+<span class="sd">        generated crate. The crate directory itself is named from</span>
+<span class="sd">        ``with_crate_name(...)`` when provided, or otherwise from the first</span>
+<span class="sd">        generated source function.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.codegen</span><span class="w"> </span><span class="kn">import</span> <span class="n">create_multi_function_rust_project</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">RustBackendConfig</span>
+
+        <span class="n">resolved_config</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span> <span class="ow">or</span> <span class="n">RustBackendConfig</span><span class="p">()</span>
+        <span class="n">raw_path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span><span class="o">.</span><span class="n">expanduser</span><span class="p">()</span>
+        <span class="k">if</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">crate_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">crate_name</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">crate_name</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">raw_path</span> <span class="o">!=</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">):</span>
+                <span class="n">crate_name</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">raw_path</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+                <span class="n">resolved_config</span> <span class="o">=</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">with_crate_name</span><span class="p">(</span><span class="n">crate_name</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">crate_name</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">functions</span> <span class="o">=</span> <span class="n">resolve_builder_function_specs</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_resolved_function_specs</span><span class="p">(),</span>
+            <span class="n">resolved_config</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">crate_name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">crate_name</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">functions</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+            <span class="n">resolved_config</span> <span class="o">=</span> <span class="n">resolved_config</span><span class="o">.</span><span class="n">with_crate_name</span><span class="p">(</span><span class="n">crate_name</span><span class="p">)</span>
+            <span class="n">functions</span> <span class="o">=</span> <span class="n">resolve_builder_function_specs</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_resolved_function_specs</span><span class="p">(),</span>
+                <span class="n">resolved_config</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">raw_path</span> <span class="o">==</span> <span class="n">Path</span><span class="p">(</span><span class="s2">&quot;.&quot;</span><span class="p">):</span>
+            <span class="n">project_dir</span> <span class="o">=</span> <span class="n">raw_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span> <span class="o">/</span> <span class="n">crate_name</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">resolved_path</span> <span class="o">=</span> <span class="n">raw_path</span><span class="o">.</span><span class="n">resolve</span><span class="p">()</span>
+            <span class="n">project_dir</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">resolved_path</span>
+                <span class="k">if</span> <span class="n">resolved_path</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">crate_name</span>
+                <span class="k">else</span> <span class="n">resolved_path</span> <span class="o">/</span> <span class="n">crate_name</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">create_multi_function_rust_project</span><span class="p">(</span>
+            <span class="n">functions</span><span class="p">,</span>
+            <span class="n">project_dir</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">resolved_config</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_add_request</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">components</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+        <span class="n">wrt_targets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">bundle</span><span class="p">:</span> <span class="n">FunctionBundle</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;no source function is selected; initialize CodeGenerationBuilder(function) &quot;</span>
+                <span class="s2">&quot;or use for_function(...)&quot;</span>
+            <span class="p">)</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">_BuilderRequest</span><span class="p">(</span><span class="n">kind</span><span class="p">,</span> <span class="n">components</span><span class="p">,</span> <span class="n">wrt_targets</span><span class="p">,</span> <span class="n">bundle</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">request</span> <span class="o">==</span> <span class="n">candidate</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">requests</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">requests</span><span class="o">=</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">requests</span><span class="p">,</span> <span class="n">candidate</span><span class="p">))</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_resolved_function_specs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderFunctionSpec</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return all source-function entries tracked by the builder.&quot;&quot;&quot;</span>
+        <span class="n">root_specs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderFunctionSpec</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">requests</span><span class="p">:</span>
+            <span class="n">root_specs</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="n">_BuilderFunctionSpec</span><span class="p">(</span>
+                    <span class="n">function</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span>
+                    <span class="n">requests</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">requests</span><span class="p">,</span>
+                    <span class="n">simplification</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+        <span class="n">specs</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">root_specs</span><span class="p">,</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">functions</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">specs</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;no kernels were requested; call add_primal() or another add_* method first&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">specs</span></div>
+
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Scoped builder used to configure kernels for one source function.&quot;&quot;&quot;</span>
+
+    <span class="n">parent</span><span class="p">:</span> <span class="n">CodeGenerationBuilder</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">BuilderSource</span>
+    <span class="n">requests</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderRequest</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_simplification</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">max_effort</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy applying ``max_effort`` simplification to this function.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">max_effort</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_primal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include the primal function in the generated crate.&quot;&quot;&quot;</span>
+        <span class="n">components</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;states&quot;</span><span class="p">,)</span> <span class="k">if</span> <span class="n">include_states</span> <span class="k">else</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;primal&quot;</span><span class="p">,</span> <span class="n">components</span><span class="o">=</span><span class="n">components</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_gradient</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">wrt</span><span class="p">:</span> <span class="nb">int</span>
+        <span class="o">|</span> <span class="nb">str</span>
+        <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]</span>
+        <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+        <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include gradient kernels for selected input blocks.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            wrt: Optional selector for the input blocks with respect to which</span>
+<span class="sd">                gradients should be generated. Each selector may be either a</span>
+<span class="sd">                zero-based input index or the declared name of an input block.</span>
+<span class="sd">                When omitted, gradients are generated for every input block,</span>
+<span class="sd">                matching the previous behavior.</span>
+<span class="sd">            include_states: When ``True``, include rollout-state outputs for</span>
+<span class="sd">                single-shooting sources that support them.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new scoped builder with the gradient request appended.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">components</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;states&quot;</span><span class="p">,)</span> <span class="k">if</span> <span class="n">include_states</span> <span class="k">else</span> <span class="p">()</span>
+        <span class="n">wrt_targets</span> <span class="o">=</span> <span class="kc">None</span> <span class="k">if</span> <span class="n">wrt</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">_normalize_wrt_targets</span><span class="p">(</span><span class="n">wrt</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span>
+            <span class="s2">&quot;gradient&quot;</span><span class="p">,</span>
+            <span class="n">components</span><span class="o">=</span><span class="n">components</span><span class="p">,</span>
+            <span class="n">wrt_targets</span><span class="o">=</span><span class="n">wrt_targets</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_jacobian</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include Jacobian kernels for all input blocks.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;jacobian&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_vjp</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include runtime-seeded vector-Jacobian-product kernels for input blocks.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;vjp&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_joint</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">bundle</span><span class="p">:</span> <span class="n">FunctionBundle</span> <span class="o">|</span> <span class="n">SingleShootingBundle</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include kernels that compute bundled artifacts together.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;joint&quot;</span><span class="p">,</span> <span class="n">bundle</span><span class="o">=</span><span class="n">bundle</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_hessian</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include Hessian kernels for scalar-output functions.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;hessian&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_hvp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include Hessian-vector product kernels for scalar-output functions.&quot;&quot;&quot;</span>
+        <span class="n">components</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;states&quot;</span><span class="p">,)</span> <span class="k">if</span> <span class="n">include_states</span> <span class="k">else</span> <span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_add_request</span><span class="p">(</span><span class="s2">&quot;hvp&quot;</span><span class="p">,</span> <span class="n">components</span><span class="o">=</span><span class="n">components</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">done</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Commit this scoped function configuration back to the parent builder.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">requests</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;no kernels were requested for this function; call add_primal() or another add_* method first&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_append_builder_function_spec</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parent</span><span class="p">,</span>
+            <span class="n">_BuilderFunctionSpec</span><span class="p">(</span>
+                <span class="n">function</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">,</span>
+                <span class="n">requests</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">requests</span><span class="p">,</span>
+                <span class="n">simplification</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_add_request</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">kind</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">components</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+        <span class="n">wrt_targets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">bundle</span><span class="p">:</span> <span class="n">FunctionBundle</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionCodegenBuilder</span><span class="p">:</span>
+        <span class="n">candidate</span> <span class="o">=</span> <span class="n">_BuilderRequest</span><span class="p">(</span><span class="n">kind</span><span class="p">,</span> <span class="n">components</span><span class="p">,</span> <span class="n">wrt_targets</span><span class="p">,</span> <span class="n">bundle</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">request</span> <span class="o">==</span> <span class="n">candidate</span> <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">requests</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">requests</span><span class="o">=</span><span class="p">(</span><span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">requests</span><span class="p">,</span> <span class="n">candidate</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_append_builder_function_spec</span><span class="p">(</span>
+    <span class="n">builder</span><span class="p">:</span> <span class="n">CodeGenerationBuilder</span><span class="p">,</span>
+    <span class="n">spec</span><span class="p">:</span> <span class="n">_BuilderFunctionSpec</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CodeGenerationBuilder</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return ``builder`` with one resolved function specification appended.&quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="n">builder</span><span class="p">,</span> <span class="n">functions</span><span class="o">=</span><span class="p">(</span><span class="o">*</span><span class="n">builder</span><span class="o">.</span><span class="n">functions</span><span class="p">,</span> <span class="n">spec</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_require_builder_function</span><span class="p">(</span><span class="n">builder</span><span class="p">:</span> <span class="n">CodeGenerationBuilder</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BuilderSource</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the selected source function or raise for misconfigured callback builders.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">builder</span><span class="o">.</span><span class="n">function</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;configured function builder must target a function&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">builder</span><span class="o">.</span><span class="n">function</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">resolve_builder_function_specs</span><span class="p">(</span>
+    <span class="n">specs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderFunctionSpec</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">RustBuilderConfigLike</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Expand builder function specs into concrete symbolic functions.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">specs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">and</span> <span class="n">config</span><span class="o">.</span><span class="n">function_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;RustBackendConfig.function_name is only supported when the builder targets &quot;</span>
+            <span class="s2">&quot;a single source function&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">include_base_name</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">Function</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">spec</span> <span class="ow">in</span> <span class="n">specs</span><span class="p">:</span>
+        <span class="n">base_name</span> <span class="o">=</span> <span class="n">config</span><span class="o">.</span><span class="n">function_name</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">specs</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">resolved</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">_resolve_builder_functions</span><span class="p">(</span>
+                <span class="n">spec</span><span class="o">.</span><span class="n">function</span><span class="p">,</span>
+                <span class="n">config</span><span class="p">,</span>
+                <span class="n">spec</span><span class="o">.</span><span class="n">requests</span><span class="p">,</span>
+                <span class="n">spec</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+                <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                <span class="n">function_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_builder_functions</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">BuilderSource</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">RustBuilderConfigLike</span><span class="p">,</span>
+    <span class="n">requests</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderRequest</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">include_base_name</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Expand builder requests into concrete symbolic functions.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;no kernels were requested; call add_primal() or another &quot;</span>
+            <span class="s2">&quot;add_* method first&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="n">function</span><span class="p">,</span>
+        <span class="p">(</span><span class="n">ComposedFunction</span><span class="p">,</span> <span class="n">ComposedGradientFunction</span><span class="p">,</span> <span class="n">ComposedJacobianFunction</span><span class="p">),</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="n">_resolve_builder_composed_sources</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="p">,</span>
+            <span class="n">requests</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="p">,</span>
+            <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">..composer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FunctionComposition</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">FunctionComposition</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_resolve_builder_function_composition_sources</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="p">,</span>
+            <span class="n">requests</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="p">,</span>
+            <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="n">function</span><span class="p">,</span>
+        <span class="p">(</span><span class="n">BatchedFunction</span><span class="p">,</span> <span class="n">BatchedJacobianFunction</span><span class="p">,</span> <span class="n">ReducedFunction</span><span class="p">),</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="n">_resolve_builder_batched_sources</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="p">,</span>
+            <span class="n">requests</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="p">,</span>
+            <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="n">function</span><span class="p">,</span>
+        <span class="p">(</span>
+            <span class="n">SingleShootingProblem</span><span class="p">,</span>
+            <span class="n">SingleShootingPrimalFunction</span><span class="p">,</span>
+            <span class="n">SingleShootingGradientFunction</span><span class="p">,</span>
+            <span class="n">SingleShootingHvpFunction</span><span class="p">,</span>
+            <span class="n">SingleShootingJointFunction</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">):</span>
+        <span class="k">return</span> <span class="n">_resolve_builder_single_shooting_sources</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">config</span><span class="p">,</span>
+            <span class="n">requests</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="p">,</span>
+            <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="n">base_function</span> <span class="o">=</span> <span class="n">_apply_builder_base_name</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">function_name</span><span class="p">)</span>
+    <span class="n">crate_prefix</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">crate_name</span> <span class="ow">or</span> <span class="n">base_function</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="n">resolved</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">_resolve_builder_base_function_request</span><span class="p">(</span>
+                <span class="n">base_function</span><span class="p">,</span>
+                <span class="n">request</span><span class="p">,</span>
+                <span class="n">crate_prefix</span><span class="o">=</span><span class="n">crate_prefix</span><span class="p">,</span>
+                <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">,</span>
+                <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_builder_base_function_request</span><span class="p">(</span>
+    <span class="n">base_function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="n">request</span><span class="p">:</span> <span class="n">_BuilderRequest</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">crate_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_base_name</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Expand one builder request for a plain symbolic function.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;primal&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;include_states is only supported for &quot;</span>
+                <span class="s2">&quot;SingleShootingProblem sources&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">_rename_generated_function</span><span class="p">(</span>
+                <span class="n">_maybe_simplify_generated_function</span><span class="p">(</span>
+                    <span class="n">base_function</span><span class="p">,</span>
+                    <span class="n">simplification</span><span class="p">,</span>
+                <span class="p">),</span>
+                <span class="n">_builder_function_name</span><span class="p">(</span>
+                    <span class="n">crate_prefix</span><span class="p">,</span>
+                    <span class="s2">&quot;f&quot;</span><span class="p">,</span>
+                    <span class="n">base_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;gradient&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;include_states is only supported for &quot;</span>
+                <span class="s2">&quot;SingleShootingProblem sources&quot;</span>
+            <span class="p">)</span>
+        <span class="n">indices</span> <span class="o">=</span> <span class="n">_resolve_wrt_targets_to_indices</span><span class="p">(</span>
+            <span class="n">request</span><span class="o">.</span><span class="n">wrt_targets</span><span class="p">,</span>
+            <span class="n">base_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">_rename_generated_function</span><span class="p">(</span>
+                <span class="n">_maybe_simplify_generated_function</span><span class="p">(</span>
+                    <span class="n">base_function</span><span class="o">.</span><span class="n">gradient</span><span class="p">(</span><span class="n">index</span><span class="p">),</span>
+                    <span class="n">simplification</span><span class="p">,</span>
+                <span class="p">),</span>
+                <span class="n">_builder_function_name</span><span class="p">(</span>
+                    <span class="n">crate_prefix</span><span class="p">,</span>
+                    <span class="s2">&quot;grad&quot;</span><span class="p">,</span>
+                    <span class="n">base_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="n">input_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                    <span class="n">include_input_name</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="n">indices</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;jacobian&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">_rename_generated_function</span><span class="p">(</span>
+                <span class="n">_maybe_simplify_generated_function</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">simplification</span><span class="p">),</span>
+                <span class="n">_builder_function_name</span><span class="p">(</span>
+                    <span class="n">crate_prefix</span><span class="p">,</span>
+                    <span class="s2">&quot;jf&quot;</span><span class="p">,</span>
+                    <span class="n">base_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="n">input_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                    <span class="n">include_input_name</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">jacobian_blocks</span><span class="p">())</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;vjp&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">_rename_generated_function</span><span class="p">(</span>
+                <span class="n">_maybe_simplify_generated_function</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">simplification</span><span class="p">),</span>
+                <span class="n">_builder_function_name</span><span class="p">(</span>
+                    <span class="n">crate_prefix</span><span class="p">,</span>
+                    <span class="s2">&quot;vjp&quot;</span><span class="p">,</span>
+                    <span class="n">base_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="n">input_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                    <span class="n">include_input_name</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">vjp_blocks</span><span class="p">())</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;joint&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">bundle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;joint builder requests require a FunctionBundle&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">_rename_generated_function</span><span class="p">(</span>
+                <span class="n">_maybe_simplify_generated_function</span><span class="p">(</span>
+                    <span class="n">_build_function_bundle_component</span><span class="p">(</span>
+                        <span class="n">base_function</span><span class="p">,</span>
+                        <span class="n">index</span><span class="p">,</span>
+                        <span class="n">components</span><span class="p">,</span>
+                    <span class="p">),</span>
+                    <span class="n">simplification</span><span class="p">,</span>
+                <span class="p">),</span>
+                <span class="n">_builder_function_name</span><span class="p">(</span>
+                    <span class="n">crate_prefix</span><span class="p">,</span>
+                    <span class="o">*</span><span class="n">_builder_joint_labels</span><span class="p">(</span><span class="n">components</span><span class="p">),</span>
+                    <span class="n">base_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="n">input_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                    <span class="n">include_input_name</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">components</span> <span class="ow">in</span> <span class="n">_resolve_function_bundle</span><span class="p">(</span>
+                <span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">inputs</span><span class="p">),</span>
+                <span class="n">base_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;hessian&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">_rename_generated_function</span><span class="p">(</span>
+                <span class="n">_maybe_simplify_generated_function</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">simplification</span><span class="p">),</span>
+                <span class="n">_builder_function_name</span><span class="p">(</span>
+                    <span class="n">crate_prefix</span><span class="p">,</span>
+                    <span class="s2">&quot;hessian&quot;</span><span class="p">,</span>
+                    <span class="n">base_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="n">input_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                    <span class="n">include_input_name</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">hessian_blocks</span><span class="p">())</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;hvp&quot;</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;include_states is only supported for &quot;</span>
+                <span class="s2">&quot;SingleShootingProblem sources&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">_rename_generated_function</span><span class="p">(</span>
+                <span class="n">_maybe_simplify_generated_function</span><span class="p">(</span><span class="n">block</span><span class="p">,</span> <span class="n">simplification</span><span class="p">),</span>
+                <span class="n">_builder_function_name</span><span class="p">(</span>
+                    <span class="n">crate_prefix</span><span class="p">,</span>
+                    <span class="s2">&quot;hvp&quot;</span><span class="p">,</span>
+                    <span class="n">base_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                    <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="n">input_name</span><span class="o">=</span><span class="n">base_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="n">index</span><span class="p">],</span>
+                    <span class="n">include_input_name</span><span class="o">=</span><span class="nb">len</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">block</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">base_function</span><span class="o">.</span><span class="n">hvp_blocks</span><span class="p">())</span>
+        <span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unsupported builder request kind </span><span class="si">{</span><span class="n">request</span><span class="o">.</span><span class="n">kind</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_builder_composed_sources</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">ComposedFunction</span> <span class="o">|</span> <span class="n">ComposedGradientFunction</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">RustBuilderConfigLike</span><span class="p">,</span>
+    <span class="n">requests</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderRequest</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">include_base_name</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Expand builder requests for staged composed sources.&quot;&quot;&quot;</span>
+    <span class="n">crate_prefix</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">crate_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="n">base_name</span> <span class="o">=</span> <span class="n">function_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;primal&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;include_states is only supported for SingleShootingProblem sources&quot;</span><span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">replace</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">),</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="s2">&quot;f&quot;</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;gradient&quot;</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">ComposedFunction</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;include_states is only supported for &quot;</span>
+                    <span class="s2">&quot;SingleShootingProblem sources&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">wrt_targets</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">indices</span> <span class="o">=</span> <span class="n">_resolve_wrt_targets_to_indices</span><span class="p">(</span>
+                    <span class="n">request</span><span class="o">.</span><span class="n">wrt_targets</span><span class="p">,</span>
+                    <span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">indices</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;ComposedFunction gradients can only be requested &quot;</span>
+                        <span class="s2">&quot;with respect to the stage input&quot;</span>
+                    <span class="p">)</span>
+            <span class="n">simplified_function</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">simplified_function</span><span class="o">.</span><span class="n">gradient</span><span class="p">(),</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="s2">&quot;grad&quot;</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                        <span class="n">input_name</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">input_name</span><span class="p">,</span>
+                        <span class="n">include_input_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;jacobian&quot;</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">ComposedFunction</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;include_states is only supported for &quot;</span>
+                    <span class="s2">&quot;SingleShootingProblem sources&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">wrt_targets</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">indices</span> <span class="o">=</span> <span class="n">_resolve_wrt_targets_to_indices</span><span class="p">(</span>
+                    <span class="n">request</span><span class="o">.</span><span class="n">wrt_targets</span><span class="p">,</span>
+                    <span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">indices</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;ComposedFunction Jacobians can only be requested &quot;</span>
+                        <span class="s2">&quot;with respect to the stage input&quot;</span>
+                    <span class="p">)</span>
+            <span class="n">simplified_function</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">simplified_function</span><span class="o">.</span><span class="n">jacobian</span><span class="p">(),</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="s2">&quot;jf&quot;</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                        <span class="n">input_name</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">input_name</span><span class="p">,</span>
+                        <span class="n">include_input_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;joint&quot;</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">ComposedFunction</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;include_states is only supported for &quot;</span>
+                    <span class="s2">&quot;SingleShootingProblem sources&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">bundle</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;joint builder requests require a FunctionBundle&quot;</span><span class="p">)</span>
+            <span class="n">resolved_bundle</span> <span class="o">=</span> <span class="n">_resolve_function_bundle</span><span class="p">(</span>
+                <span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="p">,</span>
+                <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">),</span>
+                <span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">resolved_bundle</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;ComposedFunction joint bundles can only target the &quot;</span>
+                    <span class="s2">&quot;stage input&quot;</span>
+                <span class="p">)</span>
+            <span class="n">index</span><span class="p">,</span> <span class="n">components</span> <span class="o">=</span> <span class="n">resolved_bundle</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">index</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;ComposedFunction joint bundles can only target the &quot;</span>
+                    <span class="s2">&quot;stage input&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="n">component</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;f&quot;</span><span class="p">,</span> <span class="s2">&quot;jf&quot;</span><span class="p">}</span> <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">components</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;ComposedFunction joint bundles currently support only &quot;</span>
+                    <span class="s2">&quot;&#39;f&#39; and &#39;jf&#39; components&quot;</span>
+                <span class="p">)</span>
+            <span class="n">simplified_function</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">simplified_function</span><span class="o">.</span><span class="n">joint</span><span class="p">(</span><span class="n">components</span><span class="p">,</span> <span class="n">wrt_index</span><span class="o">=</span><span class="n">index</span><span class="p">),</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="o">*</span><span class="n">_builder_joint_labels</span><span class="p">(</span><span class="n">components</span><span class="p">),</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                        <span class="n">input_name</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">input_name</span><span class="p">,</span>
+                        <span class="n">include_input_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;staged composed sources currently support only add_primal(), &quot;</span>
+            <span class="s2">&quot;add_gradient(), add_jacobian(), and add_joint() in &quot;</span>
+            <span class="s2">&quot;CodeGenerationBuilder&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_builder_function_composition_sources</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">FunctionComposition</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">RustBuilderConfigLike</span><span class="p">,</span>
+    <span class="n">requests</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderRequest</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">include_base_name</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Expand builder requests for staged composer pipelines.&quot;&quot;&quot;</span>
+    <span class="n">crate_prefix</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">crate_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="n">base_name</span> <span class="o">=</span> <span class="n">function_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;primal&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;include_states is not supported for composer pipelines&quot;</span>
+                <span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">function</span><span class="p">,</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="s2">&quot;f&quot;</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+
+        <span class="n">symbolic_function</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">to_function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">base_name</span><span class="p">)</span>
+        <span class="n">resolved</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span>
+            <span class="n">_resolve_builder_base_function_request</span><span class="p">(</span>
+                <span class="n">symbolic_function</span><span class="p">,</span>
+                <span class="n">request</span><span class="p">,</span>
+                <span class="n">crate_prefix</span><span class="o">=</span><span class="n">crate_prefix</span><span class="p">,</span>
+                <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">,</span>
+                <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_builder_batched_sources</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">BatchedFunction</span> <span class="o">|</span> <span class="n">BatchedJacobianFunction</span> <span class="o">|</span> <span class="n">ReducedFunction</span><span class="p">,</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">RustBuilderConfigLike</span><span class="p">,</span>
+    <span class="n">requests</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderRequest</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">include_base_name</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Expand builder requests for staged map/zip/reduce sources.&quot;&quot;&quot;</span>
+    <span class="n">crate_prefix</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">crate_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="n">base_name</span> <span class="o">=</span> <span class="n">function_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">BatchedJacobianFunction</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">!=</span> <span class="s2">&quot;primal&quot;</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;explicit staged Jacobian map/zip sources in CodeGenerationBuilder &quot;</span>
+                    <span class="s2">&quot;currently support only add_primal()&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;include_states is not supported for map/zip/reduce sources&quot;</span><span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">replace</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">),</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="s2">&quot;f&quot;</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+    <span class="n">simplified_function</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;primal&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;include_states is not supported for map/zip/reduce sources&quot;</span><span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">simplified_function</span><span class="p">,</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="s2">&quot;f&quot;</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;jacobian&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;include_states is not supported for map/zip/reduce sources&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">simplified_function</span><span class="p">,</span> <span class="n">BatchedFunction</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;add_jacobian() is only supported for map/zip sources&quot;</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">input_index</span><span class="p">,</span> <span class="n">input_name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">simplified_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">):</span>
+                <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">_rename_builder_source</span><span class="p">(</span>
+                        <span class="n">simplified_function</span><span class="o">.</span><span class="n">jacobian</span><span class="p">(</span><span class="n">input_index</span><span class="p">),</span>
+                        <span class="n">_builder_function_name</span><span class="p">(</span>
+                            <span class="n">crate_prefix</span><span class="p">,</span>
+                            <span class="s2">&quot;jf&quot;</span><span class="p">,</span>
+                            <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                            <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                            <span class="n">input_name</span><span class="o">=</span><span class="n">input_name</span><span class="p">,</span>
+                            <span class="n">include_input_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="p">),</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;map/zip/reduce sources currently support only add_primal(), and add_jacobian() only for map/zip&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_builder_single_shooting_sources</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="p">(</span>
+        <span class="n">SingleShootingProblem</span>
+        <span class="o">|</span> <span class="n">SingleShootingPrimalFunction</span>
+        <span class="o">|</span> <span class="n">SingleShootingGradientFunction</span>
+        <span class="o">|</span> <span class="n">SingleShootingJointFunction</span>
+    <span class="p">),</span>
+    <span class="n">config</span><span class="p">:</span> <span class="n">RustBuilderConfigLike</span><span class="p">,</span>
+    <span class="n">requests</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">_BuilderRequest</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">include_base_name</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Expand builder requests for single-shooting sources.&quot;&quot;&quot;</span>
+    <span class="n">crate_prefix</span> <span class="o">=</span> <span class="n">sanitize_ident</span><span class="p">(</span><span class="n">config</span><span class="o">.</span><span class="n">crate_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+    <span class="n">base_name</span> <span class="o">=</span> <span class="n">function_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span>
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">BuilderSource</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span>
+        <span class="n">function</span><span class="p">,</span>
+        <span class="p">(</span>
+            <span class="n">SingleShootingPrimalFunction</span><span class="p">,</span>
+            <span class="n">SingleShootingGradientFunction</span><span class="p">,</span>
+            <span class="n">SingleShootingHvpFunction</span><span class="p">,</span>
+            <span class="n">SingleShootingJointFunction</span><span class="p">,</span>
+        <span class="p">),</span>
+    <span class="p">):</span>
+        <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">!=</span> <span class="s2">&quot;primal&quot;</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;explicit single-shooting staged sources in CodeGenerationBuilder &quot;</span>
+                    <span class="s2">&quot;currently support only add_primal()&quot;</span>
+                <span class="p">)</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;include_states is configured on the single-shooting staged source itself&quot;</span><span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">replace</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">),</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="s2">&quot;f&quot;</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+    <span class="n">simplified_problem</span> <span class="o">=</span> <span class="n">replace</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">request</span> <span class="ow">in</span> <span class="n">requests</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;primal&quot;</span><span class="p">:</span>
+            <span class="n">include_states</span> <span class="o">=</span> <span class="s2">&quot;states&quot;</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span>
+            <span class="n">labels</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;f&quot;</span><span class="p">,</span> <span class="s2">&quot;states&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">include_states</span> <span class="k">else</span> <span class="p">(</span><span class="s2">&quot;f&quot;</span><span class="p">,)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">simplified_problem</span><span class="o">.</span><span class="n">primal</span><span class="p">(</span><span class="n">include_states</span><span class="o">=</span><span class="n">include_states</span><span class="p">),</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="o">*</span><span class="n">labels</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;gradient&quot;</span><span class="p">:</span>
+            <span class="n">include_states</span> <span class="o">=</span> <span class="s2">&quot;states&quot;</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">wrt_targets</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">indices</span> <span class="o">=</span> <span class="n">_resolve_wrt_targets_to_indices</span><span class="p">(</span>
+                    <span class="n">request</span><span class="o">.</span><span class="n">wrt_targets</span><span class="p">,</span>
+                    <span class="n">simplified_problem</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">indices</span> <span class="o">!=</span> <span class="p">(</span><span class="mi">1</span><span class="p">,):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;single-shooting gradients can only be requested &quot;</span>
+                        <span class="s2">&quot;with respect to the control sequence&quot;</span>
+                    <span class="p">)</span>
+            <span class="n">gradient_source</span> <span class="o">=</span> <span class="n">simplified_problem</span><span class="o">.</span><span class="n">gradient</span><span class="p">(</span><span class="n">include_states</span><span class="o">=</span><span class="n">include_states</span><span class="p">)</span>
+            <span class="n">labels</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;grad&quot;</span><span class="p">,</span> <span class="s2">&quot;states&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">include_states</span> <span class="k">else</span> <span class="p">(</span><span class="s2">&quot;grad&quot;</span><span class="p">,)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">gradient_source</span><span class="p">,</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="o">*</span><span class="n">labels</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                        <span class="n">input_name</span><span class="o">=</span><span class="n">simplified_problem</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="p">,</span>
+                        <span class="n">include_input_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;hvp&quot;</span><span class="p">:</span>
+            <span class="n">include_states</span> <span class="o">=</span> <span class="s2">&quot;states&quot;</span> <span class="ow">in</span> <span class="n">request</span><span class="o">.</span><span class="n">components</span>
+            <span class="n">hvp_source</span> <span class="o">=</span> <span class="n">simplified_problem</span><span class="o">.</span><span class="n">hvp</span><span class="p">(</span><span class="n">include_states</span><span class="o">=</span><span class="n">include_states</span><span class="p">)</span>
+            <span class="n">labels</span> <span class="o">=</span> <span class="p">(</span><span class="s2">&quot;hvp&quot;</span><span class="p">,</span> <span class="s2">&quot;states&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">include_states</span> <span class="k">else</span> <span class="p">(</span><span class="s2">&quot;hvp&quot;</span><span class="p">,)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">hvp_source</span><span class="p">,</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="o">*</span><span class="n">labels</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                        <span class="n">input_name</span><span class="o">=</span><span class="n">simplified_problem</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="p">,</span>
+                        <span class="n">include_input_name</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;joint&quot;</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">bundle</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="p">,</span> <span class="n">SingleShootingBundle</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;joint single-shooting requests require a SingleShootingBundle&quot;</span>
+                <span class="p">)</span>
+            <span class="n">labels</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="o">.</span><span class="n">include_cost</span><span class="p">:</span>
+                <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;f&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="o">.</span><span class="n">include_gradient</span><span class="p">:</span>
+                <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;grad&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="o">.</span><span class="n">include_hvp</span><span class="p">:</span>
+                <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;hvp&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="o">.</span><span class="n">include_states</span><span class="p">:</span>
+                <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;states&quot;</span><span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="n">_rename_builder_source</span><span class="p">(</span>
+                    <span class="n">simplified_problem</span><span class="o">.</span><span class="n">joint</span><span class="p">(</span><span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="p">),</span>
+                    <span class="n">_builder_function_name</span><span class="p">(</span>
+                        <span class="n">crate_prefix</span><span class="p">,</span>
+                        <span class="o">*</span><span class="n">labels</span><span class="p">,</span>
+                        <span class="n">base_name</span><span class="o">=</span><span class="n">base_name</span><span class="p">,</span>
+                        <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+                        <span class="n">input_name</span><span class="o">=</span><span class="n">simplified_problem</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="p">,</span>
+                        <span class="n">include_input_name</span><span class="o">=</span><span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="o">.</span><span class="n">include_gradient</span> <span class="ow">or</span> <span class="n">request</span><span class="o">.</span><span class="n">bundle</span><span class="o">.</span><span class="n">include_hvp</span><span class="p">,</span>
+                    <span class="p">),</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="k">continue</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;single-shooting sources currently support only add_primal(), &quot;</span>
+            <span class="s2">&quot;add_gradient(), add_hvp(), and add_joint()&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_apply_builder_base_name</span><span class="p">(</span><span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span> <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">function_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">function_name</span> <span class="o">==</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">function</span>
+    <span class="k">return</span> <span class="n">Function</span><span class="p">(</span>
+        <span class="n">function_name</span><span class="p">,</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">,</span>
+        <span class="n">input_names</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+        <span class="n">output_names</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">output_names</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rename_generated_function</span><span class="p">(</span><span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">name</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">function</span>
+    <span class="k">return</span> <span class="n">Function</span><span class="p">(</span>
+        <span class="n">name</span><span class="p">,</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">,</span>
+        <span class="n">input_names</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+        <span class="n">output_names</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">output_names</span><span class="p">,</span>
+    <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_rename_builder_source</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">BuilderSource</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BuilderSource</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a source object with an updated generated Rust function name.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">function</span><span class="o">.</span><span class="n">name</span> <span class="o">==</span> <span class="n">name</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">function</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">Function</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_rename_generated_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_builder_joint_labels</span><span class="p">(</span><span class="n">components</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+    <span class="n">mapping</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">&quot;f&quot;</span><span class="p">:</span> <span class="s2">&quot;f&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;grad&quot;</span><span class="p">:</span> <span class="s2">&quot;grad&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;jf&quot;</span><span class="p">:</span> <span class="s2">&quot;jf&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;hessian&quot;</span><span class="p">:</span> <span class="s2">&quot;hessian&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;hvp&quot;</span><span class="p">:</span> <span class="s2">&quot;hvp&quot;</span><span class="p">,</span>
+    <span class="p">}</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">mapping</span><span class="p">[</span><span class="n">component</span><span class="p">]</span> <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">components</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_builder_function_name</span><span class="p">(</span>
+    <span class="n">crate_prefix</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="o">*</span><span class="n">labels</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">base_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_base_name</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="n">input_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">include_input_name</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+    <span class="n">parts</span> <span class="o">=</span> <span class="p">[</span><span class="n">crate_prefix</span><span class="p">]</span>
+    <span class="k">if</span> <span class="n">include_base_name</span> <span class="ow">and</span> <span class="n">base_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sanitize_ident</span><span class="p">(</span><span class="n">base_name</span><span class="p">))</span>
+    <span class="n">parts</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">include_input_name</span> <span class="ow">and</span> <span class="n">input_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">parts</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">sanitize_ident</span><span class="p">(</span><span class="n">input_name</span><span class="p">))</span>
+    <span class="k">return</span> <span class="s2">&quot;_&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">parts</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_wrt_indices</span><span class="p">(</span><span class="n">wrt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">wrt</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">wrt</span><span class="p">,)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">wrt</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_wrt_targets</span><span class="p">(</span>
+    <span class="n">wrt</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">wrt</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">str</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">wrt</span><span class="p">,)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">wrt</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_wrt_targets_to_indices</span><span class="p">(</span>
+    <span class="n">wrt_targets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">input_names</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="n">wrt_targets</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">input_names</span><span class="p">)))</span>
+
+    <span class="n">input_name_to_index</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="n">name</span><span class="p">:</span> <span class="n">index</span> <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">input_names</span><span class="p">)</span>
+    <span class="p">}</span>
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+    <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">wrt_targets</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">target</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">input_name_to_index</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;unknown wrt input name </span><span class="si">{</span><span class="n">target</span><span class="si">!r}</span><span class="s2">&quot;</span><span class="p">)</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">input_name_to_index</span><span class="p">[</span><span class="n">target</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">index</span> <span class="o">=</span> <span class="n">target</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="nb">len</span><span class="p">(</span><span class="n">input_names</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;wrt_index is out of range&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">index</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+            <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+            <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">index</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_resolve_function_bundle</span><span class="p">(</span>
+    <span class="n">bundle</span><span class="p">:</span> <span class="n">FunctionBundle</span><span class="p">,</span>
+    <span class="n">input_count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">input_names</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]],</span> <span class="o">...</span><span class="p">]:</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">bundle</span><span class="o">.</span><span class="n">items</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;FunctionBundle must contain at least one item&quot;</span><span class="p">)</span>
+
+    <span class="n">has_primal</span> <span class="o">=</span> <span class="nb">any</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;f&quot;</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">bundle</span><span class="o">.</span><span class="n">items</span><span class="p">)</span>
+    <span class="n">grouped</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]]</span> <span class="o">=</span> <span class="p">{}</span>
+    <span class="n">input_name_to_index</span> <span class="o">=</span> <span class="p">{</span><span class="n">name</span><span class="p">:</span> <span class="n">index</span> <span class="k">for</span> <span class="n">index</span><span class="p">,</span> <span class="n">name</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">input_names</span><span class="p">)}</span>
+
+    <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">bundle</span><span class="o">.</span><span class="n">items</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">kind</span> <span class="o">==</span> <span class="s2">&quot;f&quot;</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">wrt_indices</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;FunctionBundle item </span><span class="si">{</span><span class="n">item</span><span class="o">.</span><span class="n">kind</span><span class="si">!r}</span><span class="s2"> requires a wrt &quot;</span>
+                <span class="s2">&quot;specification&quot;</span>
+            <span class="p">)</span>
+        <span class="k">for</span> <span class="n">target</span> <span class="ow">in</span> <span class="n">item</span><span class="o">.</span><span class="n">wrt_indices</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">target</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">target</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">input_name_to_index</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;unknown wrt input name </span><span class="si">{</span><span class="n">target</span><span class="si">!r}</span><span class="s2">&quot;</span>
+                    <span class="p">)</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">input_name_to_index</span><span class="p">[</span><span class="n">target</span><span class="p">]</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">index</span> <span class="o">=</span> <span class="n">target</span>
+                <span class="k">if</span> <span class="ow">not</span> <span class="mi">0</span> <span class="o">&lt;=</span> <span class="n">index</span> <span class="o">&lt;</span> <span class="n">input_count</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;wrt_index is out of range&quot;</span><span class="p">)</span>
+            <span class="n">grouped</span><span class="o">.</span><span class="n">setdefault</span><span class="p">(</span><span class="n">index</span><span class="p">,</span> <span class="p">[])</span>
+            <span class="k">if</span> <span class="n">has_primal</span> <span class="ow">and</span> <span class="s2">&quot;f&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">grouped</span><span class="p">[</span><span class="n">index</span><span class="p">]:</span>
+                <span class="n">grouped</span><span class="p">[</span><span class="n">index</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;f&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">item</span><span class="o">.</span><span class="n">kind</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">grouped</span><span class="p">[</span><span class="n">index</span><span class="p">]:</span>
+                <span class="n">grouped</span><span class="p">[</span><span class="n">index</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">item</span><span class="o">.</span><span class="n">kind</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">grouped</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;FunctionBundle must include at least one derivative-producing &quot;</span>
+            <span class="s2">&quot;item&quot;</span>
+        <span class="p">)</span>
+
+    <span class="n">resolved</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]]]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">grouped</span><span class="p">):</span>
+        <span class="n">components</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">grouped</span><span class="p">[</span><span class="n">index</span><span class="p">])</span>
+        <span class="n">resolved</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">index</span><span class="p">,</span> <span class="n">components</span><span class="p">))</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">resolved</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_build_function_bundle_component</span><span class="p">(</span>
+    <span class="n">base_function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="n">wrt_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">components</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">components</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="n">component</span> <span class="o">=</span> <span class="n">components</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">component</span> <span class="o">==</span> <span class="s2">&quot;f&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">base_function</span>
+        <span class="k">if</span> <span class="n">component</span> <span class="o">==</span> <span class="s2">&quot;grad&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">base_function</span><span class="o">.</span><span class="n">gradient</span><span class="p">(</span><span class="n">wrt_index</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">component</span> <span class="o">==</span> <span class="s2">&quot;jf&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">base_function</span><span class="o">.</span><span class="n">jacobian</span><span class="p">(</span><span class="n">wrt_index</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">component</span> <span class="o">==</span> <span class="s2">&quot;hessian&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">base_function</span><span class="o">.</span><span class="n">hessian</span><span class="p">(</span><span class="n">wrt_index</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">component</span> <span class="o">==</span> <span class="s2">&quot;hvp&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">base_function</span><span class="o">.</span><span class="n">hvp</span><span class="p">(</span><span class="n">wrt_index</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">base_function</span><span class="o">.</span><span class="n">joint</span><span class="p">(</span><span class="n">components</span><span class="p">,</span> <span class="n">wrt_index</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_maybe_simplify_generated_function</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">simplification</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">function</span>
+    <span class="k">return</span> <span class="n">function</span><span class="o">.</span><span class="n">simplify</span><span class="p">(</span><span class="n">max_effort</span><span class="o">=</span><span class="n">simplification</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

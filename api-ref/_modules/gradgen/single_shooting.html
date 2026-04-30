@@ -1,0 +1,1618 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen.single_shooting &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/modules.html">gradgen</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gradgen.single_shooting</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gradgen.single_shooting</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Loop-structured single-shooting optimal-control abstractions.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">replace</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.function</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._staged</span><span class="w"> </span><span class="kn">import</span> <span class="n">_create_rust_project</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._staged</span><span class="w"> </span><span class="kn">import</span> <span class="n">_generate_rust</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._staged</span><span class="w"> </span><span class="kn">import</span> <span class="n">_simplify_function</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sx</span><span class="w"> </span><span class="kn">import</span> <span class="n">SX</span><span class="p">,</span> <span class="n">SXVector</span>
+
+<span class="n">FunctionArg</span> <span class="o">=</span> <span class="n">SX</span> <span class="o">|</span> <span class="n">SXVector</span>
+
+
+<div class="viewcode-block" id="SingleShootingBundle">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingBundle">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SingleShootingBundle</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Requested outputs for a joint single-shooting kernel.&quot;&quot;&quot;</span>
+
+    <span class="n">include_cost</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">include_gradient</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">include_hvp</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="SingleShootingBundle.add_cost">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingBundle.add_cost">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_cost</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include the total cost in the joint kernel outputs.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">include_cost</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingBundle.add_gradient">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingBundle.add_gradient">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_gradient</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include the gradient with respect to the packed control sequence.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">include_gradient</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingBundle.add_hvp">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingBundle.add_hvp">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_hvp</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include the HVP with respect to the packed control sequence.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">include_hvp</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingBundle.add_rollout_states">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingBundle.add_rollout_states">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">add_rollout_states</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingBundle</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Include the packed rollout state trajectory.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">include_states</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="SingleShootingPrimalFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SingleShootingPrimalFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Primal single-shooting cost kernel.&quot;&quot;&quot;</span>
+
+    <span class="n">problem</span><span class="p">:</span> <span class="n">SingleShootingProblem</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="SingleShootingPrimalFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged kernel into a symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="n">function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">to_function</span><span class="p">(</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">include_states</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for shared helper discovery.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">input_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the exposed input names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">input_names</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the exposed output names.&quot;&quot;&quot;</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;cost&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">include_states</span><span class="p">:</span>
+            <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;x_traj&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SingleShootingPrimalFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged primal kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingPrimalFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged primal kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="SingleShootingGradientFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SingleShootingGradientFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Gradient kernel for a single-shooting optimal-control problem.&quot;&quot;&quot;</span>
+
+    <span class="n">problem</span><span class="p">:</span> <span class="n">SingleShootingProblem</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="SingleShootingGradientFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged gradient into a regular symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="n">gradient_function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">_expanded_gradient_function</span><span class="p">(</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">include_states</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">gradient_function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for shared helper discovery.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">input_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the exposed input names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">input_names</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the exposed output names.&quot;&quot;&quot;</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;gradient_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">include_states</span><span class="p">:</span>
+            <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;x_traj&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SingleShootingGradientFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged gradient kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingGradientFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged gradient kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="SingleShootingHvpFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SingleShootingHvpFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;HVP kernel for a single-shooting optimal-control problem.&quot;&quot;&quot;</span>
+
+    <span class="n">problem</span><span class="p">:</span> <span class="n">SingleShootingProblem</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="SingleShootingHvpFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged HVP kernel into a symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="n">hvp_function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">_expanded_hvp_function</span><span class="p">(</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">include_states</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">hvp_function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for shared helper discovery.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">input_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the exposed input names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="sa">f</span><span class="s2">&quot;v_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the exposed output names.&quot;&quot;&quot;</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;hvp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">include_states</span><span class="p">:</span>
+            <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;x_traj&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SingleShootingHvpFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged HVP kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingHvpFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged HVP kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="SingleShootingJointFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingJointFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SingleShootingJointFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Joint cost/gradient/HVP/state kernel for a single-shooting problem.&quot;&quot;&quot;</span>
+
+    <span class="n">problem</span><span class="p">:</span> <span class="n">SingleShootingProblem</span>
+    <span class="n">bundle</span><span class="p">:</span> <span class="n">SingleShootingBundle</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="SingleShootingJointFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged joint kernel into a symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="n">function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">_expanded_joint_function</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">bundle</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for shared helper discovery.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">input_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the exposed input names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="o">.</span><span class="n">input_names</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the exposed output names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_single_shooting_bundle_output_names</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">problem</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">bundle</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SingleShootingJointFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged joint kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingJointFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged joint kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="SingleShootingProblem">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SingleShootingProblem</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Deterministic single-shooting optimal-control problem.</span>
+
+<span class="sd">    The problem represents a fixed-horizon rollout with dynamics</span>
+<span class="sd">    ``x_next = f(x, u, p)`` and total cost</span>
+<span class="sd">    ``sum_k ell(x_k, u_k, p) + V_f(x_N, p)``. Optional vector-valued</span>
+<span class="sd">    penalty residuals may be supplied to augment this cost as</span>
+<span class="sd">    ``c / 2 * ||q(x_k, u_k, p)||_2^2`` at each stage and</span>
+<span class="sd">    ``c / 2 * ||q_N(x_N, p)||_2^2`` at the terminal state.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name: Name used for expanded functions and generated kernels.</span>
+<span class="sd">        horizon: Optional positive rollout horizon. It may be supplied in the</span>
+<span class="sd">            constructor or later with :meth:`with_horizon`.</span>
+<span class="sd">        dynamics: Optional function accepting ``(x, u, p)`` and returning the</span>
+<span class="sd">            next state with the same shape as ``x``. It may be supplied in the</span>
+<span class="sd">            constructor or later with :meth:`with_dynamics`.</span>
+<span class="sd">        stage_cost: Optional scalar function accepting ``(x, u, p)`` and</span>
+<span class="sd">            returning ``ell(x, u, p)``. It may be supplied in the constructor</span>
+<span class="sd">            or later with :meth:`with_stage_cost`.</span>
+<span class="sd">        terminal_cost: Optional scalar function accepting ``(x, p)`` and</span>
+<span class="sd">            returning ``V_f(x, p)``. It may be supplied in the constructor or</span>
+<span class="sd">            later with :meth:`with_terminal_cost`.</span>
+<span class="sd">        initial_state_name: Runtime input name for the initial state.</span>
+<span class="sd">        control_sequence_name: Runtime input name for the packed controls.</span>
+<span class="sd">        parameter_name: Runtime input name for the shared parameters.</span>
+<span class="sd">        simplification: Optional simplification effort applied to expanded</span>
+<span class="sd">            functions and derivative helper kernels.</span>
+<span class="sd">        stage_penalty: Optional vector-valued residual function accepting</span>
+<span class="sd">            ``(x, u, p)`` and returning ``q(x, u, p)``.</span>
+<span class="sd">        terminal_penalty: Optional vector-valued residual function accepting</span>
+<span class="sd">            ``(x, p)`` and returning ``q_N(x, p)``.</span>
+<span class="sd">        penalty_weight: Optional scalar ``c`` multiplying both squared</span>
+<span class="sd">            residual norms. Pass a numeric value to bake ``c`` into generated</span>
+<span class="sd">            code, or pass an ``SX`` symbol such as ``SX.sym(&quot;c&quot;)`` to expose</span>
+<span class="sd">            ``c`` as a runtime scalar input.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">horizon</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">dynamics</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">stage_cost</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">terminal_cost</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">initial_state_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;x0&quot;</span>
+    <span class="n">control_sequence_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;U&quot;</span>
+    <span class="n">parameter_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;p&quot;</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">stage_penalty</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">terminal_penalty</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">penalty_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">SX</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate stage and cost signatures.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">horizon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">horizon</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;horizon must be a positive integer&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dynamics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_validate_single_shooting_dynamics</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">dynamics</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_cost</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_validate_single_shooting_stage_cost</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage_cost</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminal_cost</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_validate_single_shooting_terminal_cost</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">terminal_cost</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_complete_core</span><span class="p">():</span>
+            <span class="n">_validate_single_shooting_penalty_configuration</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stage_penalty</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">terminal_penalty</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_penalty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_validate_single_shooting_stage_penalty</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage_penalty</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminal_penalty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">_validate_single_shooting_terminal_penalty</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">terminal_penalty</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_complete_core</span><span class="p">():</span>
+            <span class="n">_validate_single_shooting_shapes</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_dynamics</span><span class="p">(),</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_stage_cost</span><span class="p">(),</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_terminal_cost</span><span class="p">(),</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">stage_penalty</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">terminal_penalty</span><span class="p">,</span>
+            <span class="p">)</span>
+
+<div class="viewcode-block" id="SingleShootingProblem.with_horizon">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_horizon">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_horizon</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">horizon</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingProblem</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy configured with a positive rollout horizon.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            horizon: Number of control intervals in the single-shooting</span>
+<span class="sd">                rollout. It must be a positive integer.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new :class:`SingleShootingProblem` with the requested horizon.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">horizon</span><span class="o">=</span><span class="n">horizon</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.with_dynamics">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_dynamics">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_dynamics</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dynamics</span><span class="p">:</span> <span class="n">Function</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingProblem</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy configured with the dynamics function.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            dynamics: Function accepting ``(x, u, p)`` and returning the next</span>
+<span class="sd">                state with the same shape as ``x``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new :class:`SingleShootingProblem` using ``dynamics``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">dynamics</span><span class="o">=</span><span class="n">dynamics</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.with_stage_cost">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_stage_cost">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_stage_cost</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stage_cost</span><span class="p">:</span> <span class="n">Function</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingProblem</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy configured with the scalar stage cost.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            stage_cost: Function accepting ``(x, u, p)`` and returning one</span>
+<span class="sd">                scalar output.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new :class:`SingleShootingProblem` using ``stage_cost``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">stage_cost</span><span class="o">=</span><span class="n">stage_cost</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.with_terminal_cost">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_terminal_cost">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_terminal_cost</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">terminal_cost</span><span class="p">:</span> <span class="n">Function</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingProblem</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy configured with the scalar terminal cost.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            terminal_cost: Function accepting ``(x, p)`` and returning one</span>
+<span class="sd">                scalar output.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new :class:`SingleShootingProblem` using ``terminal_cost``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">terminal_cost</span><span class="o">=</span><span class="n">terminal_cost</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.with_costs">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_costs">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_costs</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">stage_cost</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+        <span class="n">terminal_cost</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingProblem</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy configured with stage and terminal costs.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            stage_cost: Scalar stage cost accepting ``(x, u, p)``.</span>
+<span class="sd">            terminal_cost: Scalar terminal cost accepting ``(x, p)``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new :class:`SingleShootingProblem` using both costs.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">stage_cost</span><span class="o">=</span><span class="n">stage_cost</span><span class="p">,</span>
+            <span class="n">terminal_cost</span><span class="o">=</span><span class="n">terminal_cost</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.with_penalties">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_penalties">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_penalties</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">stage_penalty</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+        <span class="n">terminal_penalty</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+        <span class="n">penalty_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">SX</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingProblem</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy configured with residual penalties.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            stage_penalty: Vector or scalar residual accepting ``(x, u, p)``.</span>
+<span class="sd">            terminal_penalty: Vector or scalar residual accepting ``(x, p)``.</span>
+<span class="sd">            penalty_weight: Numeric penalty weight, or an ``SX`` symbol such</span>
+<span class="sd">                as ``SX.sym(&quot;c&quot;)`` to expose the weight as a runtime input.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new :class:`SingleShootingProblem` with residual penalties.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">penalty_weight</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;penalty_weight must be provided&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">stage_penalty</span><span class="o">=</span><span class="n">stage_penalty</span><span class="p">,</span>
+            <span class="n">terminal_penalty</span><span class="o">=</span><span class="n">terminal_penalty</span><span class="p">,</span>
+            <span class="n">penalty_weight</span><span class="o">=</span><span class="n">penalty_weight</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.with_input_names">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_input_names">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_input_names</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">initial_state_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">control_sequence_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">parameter_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingProblem</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with customized generated input names.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            initial_state_name: Optional runtime input name for the initial</span>
+<span class="sd">                state.</span>
+<span class="sd">            control_sequence_name: Optional runtime input name for the packed</span>
+<span class="sd">                control sequence.</span>
+<span class="sd">            parameter_name: Optional runtime input name for shared</span>
+<span class="sd">                parameters.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new :class:`SingleShootingProblem` with updated input names.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">initial_state_name</span><span class="o">=</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">initial_state_name</span>
+                <span class="k">if</span> <span class="n">initial_state_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">initial_state_name</span>
+            <span class="p">),</span>
+            <span class="n">control_sequence_name</span><span class="o">=</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span>
+                <span class="k">if</span> <span class="n">control_sequence_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">control_sequence_name</span>
+            <span class="p">),</span>
+            <span class="n">parameter_name</span><span class="o">=</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">parameter_name</span> <span class="k">if</span> <span class="n">parameter_name</span> <span class="ow">is</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="n">parameter_name</span>
+            <span class="p">),</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.with_simplification">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_simplification">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_simplification</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingProblem</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with the requested simplification effort.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            simplification: Simplification effort used for expanded functions</span>
+<span class="sd">                and derivative helper kernels.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A new :class:`SingleShootingProblem` with the simplification</span>
+<span class="sd">            setting.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">state_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the state dimension.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_single_shooting_arg_size</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dynamics</span><span class="p">()</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">control_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the per-stage control dimension.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_single_shooting_arg_size</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dynamics</span><span class="p">()</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">parameter_size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the shared parameter-vector dimension.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_single_shooting_arg_size</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_dynamics</span><span class="p">()</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">has_runtime_penalty_weight</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return whether ``c`` is exposed as a runtime scalar input.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight</span><span class="p">,</span> <span class="n">SX</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">penalty_weight_name</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the runtime input name for symbolic ``c``.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight</span><span class="o">.</span><span class="n">name</span> <span class="ow">or</span> <span class="s2">&quot;c&quot;</span>
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">input_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the exposed runtime input names.&quot;&quot;&quot;</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">initial_state_name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="p">,</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parameter_name</span><span class="p">,</span>
+        <span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_runtime_penalty_weight</span><span class="p">:</span>
+            <span class="n">penalty_weight_name</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight_name</span>
+            <span class="k">if</span> <span class="n">penalty_weight_name</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">penalty_weight_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the default primal output names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="s2">&quot;cost&quot;</span><span class="p">,)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inputs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return compiled symbolic inputs.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiled_inputs</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">outputs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return compiled symbolic outputs for the primal cost kernel.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">outputs</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for shared helper discovery.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_has_complete_core</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return whether the required problem definition is present.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">horizon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">dynamics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_cost</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminal_cost</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_require_complete</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Raise a helpful error when a builder-style problem is incomplete.&quot;&quot;&quot;</span>
+        <span class="n">missing</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">horizon</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">missing</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;horizon&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">dynamics</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">missing</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;dynamics&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_cost</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">missing</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;stage_cost&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminal_cost</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">missing</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;terminal_cost&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">missing</span><span class="p">:</span>
+            <span class="n">joined</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">missing</span><span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;SingleShootingProblem is incomplete; configure &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">joined</span><span class="si">}</span><span class="s2"> before expanding or generating code&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_dynamics</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return configured dynamics after checking completeness.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">dynamics</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">dynamics</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_stage_cost</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return configured stage cost after checking completeness.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_cost</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_cost</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_terminal_cost</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return configured terminal cost after checking completeness.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminal_cost</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminal_cost</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_horizon</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return configured horizon after checking completeness.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="k">assert</span> <span class="bp">self</span><span class="o">.</span><span class="n">horizon</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">horizon</span>
+
+<div class="viewcode-block" id="SingleShootingProblem.primal">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.primal">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">primal</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingProblem</span> <span class="o">|</span> <span class="n">SingleShootingPrimalFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a staged primal kernel source.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">include_states</span> <span class="ow">and</span> <span class="n">name</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span>
+        <span class="k">return</span> <span class="n">SingleShootingPrimalFunction</span><span class="p">(</span>
+            <span class="n">problem</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span>
+            <span class="ow">or</span> <span class="n">_single_shooting_primal_name</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">include_states</span><span class="p">),</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="n">include_states</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.gradient">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.gradient">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">gradient</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingGradientFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a staged gradient kernel source.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">SingleShootingGradientFunction</span><span class="p">(</span>
+            <span class="n">problem</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_gradient_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="n">include_states</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.hvp">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.hvp">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">hvp</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingHvpFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a staged Hessian-vector-product kernel source.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">SingleShootingHvpFunction</span><span class="p">(</span>
+            <span class="n">problem</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_hvp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="n">include_states</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.joint">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.joint">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">joint</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bundle</span><span class="p">:</span> <span class="n">SingleShootingBundle</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SingleShootingJointFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a staged joint kernel source.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="n">_validate_single_shooting_bundle</span><span class="p">(</span><span class="n">bundle</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">SingleShootingJointFunction</span><span class="p">(</span>
+            <span class="n">problem</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+            <span class="n">bundle</span><span class="o">=</span><span class="n">bundle</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span>
+            <span class="ow">or</span> <span class="n">_single_shooting_joint_name</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">bundle</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span>
+            <span class="p">),</span>
+            <span class="n">simplification</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand the total-cost kernel into a symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="n">dynamics</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dynamics</span><span class="p">()</span>
+        <span class="n">horizon</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_horizon</span><span class="p">()</span>
+        <span class="n">compiled_inputs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_compiled_inputs</span><span class="p">()</span>
+        <span class="n">x0</span><span class="p">,</span> <span class="n">U</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">compiled_inputs</span><span class="p">[:</span><span class="mi">3</span><span class="p">]</span>
+        <span class="n">penalty_weight</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">compiled_inputs</span><span class="p">[</span><span class="mi">3</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_runtime_penalty_weight</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">current_state</span><span class="p">:</span> <span class="n">FunctionArg</span> <span class="o">=</span> <span class="n">x0</span>
+        <span class="n">rollout_states</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">current_state</span><span class="p">]</span>
+        <span class="n">total_cost</span> <span class="o">=</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">stage_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">horizon</span><span class="p">):</span>
+            <span class="n">u_t</span> <span class="o">=</span> <span class="n">_slice_packed_sequence</span><span class="p">(</span>
+                <span class="n">U</span><span class="p">,</span> <span class="n">stage_index</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">control_size</span><span class="p">,</span> <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">total_cost</span> <span class="o">=</span> <span class="n">total_cost</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stage_total_cost</span><span class="p">(</span>
+                <span class="n">current_state</span><span class="p">,</span> <span class="n">u_t</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">penalty_weight</span>
+            <span class="p">)</span>
+            <span class="n">current_state</span> <span class="o">=</span> <span class="n">_extract_single_output</span><span class="p">(</span>
+                <span class="n">dynamics</span><span class="p">(</span><span class="n">current_state</span><span class="p">,</span> <span class="n">u_t</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">rollout_states</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">current_state</span><span class="p">)</span>
+
+        <span class="n">total_cost</span> <span class="o">=</span> <span class="n">total_cost</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terminal_total_cost</span><span class="p">(</span>
+            <span class="n">current_state</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">penalty_weight</span>
+        <span class="p">)</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">total_cost</span><span class="p">]</span>
+        <span class="n">output_names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;cost&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">include_states</span><span class="p">:</span>
+            <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">_flatten_rollout_states</span><span class="p">(</span><span class="n">rollout_states</span><span class="p">))</span>
+            <span class="n">output_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;x_traj&quot;</span><span class="p">)</span>
+
+        <span class="n">function</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">compiled_inputs</span><span class="p">,</span>
+            <span class="n">outputs</span><span class="p">,</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">output_names</span><span class="p">),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_expanded_gradient_function</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand the staged gradient kernel into a symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="n">cost_function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">(</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_cost&quot;</span>
+        <span class="p">)</span>
+        <span class="n">gradient_function</span> <span class="o">=</span> <span class="n">cost_function</span><span class="o">.</span><span class="n">gradient</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_grad&quot;</span><span class="p">)</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">gradient_function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="n">output_names</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;gradient_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">include_states</span><span class="p">:</span>
+            <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">(</span>
+                    <span class="n">include_states</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_states&quot;</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">output_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;x_traj&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="n">name</span><span class="p">,</span>
+            <span class="n">gradient_function</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span>
+            <span class="n">outputs</span><span class="p">,</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="n">gradient_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">output_names</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_expanded_hvp_function</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand the staged HVP kernel into a symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="n">cost_function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">(</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_cost&quot;</span>
+        <span class="p">)</span>
+        <span class="n">hvp_function</span> <span class="o">=</span> <span class="n">cost_function</span><span class="o">.</span><span class="n">hvp</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_hvp&quot;</span><span class="p">)</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">]</span> <span class="o">=</span> <span class="p">[</span><span class="n">hvp_function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]]</span>
+        <span class="n">output_names</span> <span class="o">=</span> <span class="p">[</span><span class="sa">f</span><span class="s2">&quot;hvp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">include_states</span><span class="p">:</span>
+            <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">(</span>
+                    <span class="n">include_states</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_states&quot;</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">output_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;x_traj&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="n">name</span><span class="p">,</span>
+            <span class="n">hvp_function</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span>
+            <span class="n">outputs</span><span class="p">,</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="n">hvp_function</span><span class="o">.</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">output_names</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_expanded_joint_function</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">bundle</span><span class="p">:</span> <span class="n">SingleShootingBundle</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand a staged joint kernel into a symbolic ``Function``.&quot;&quot;&quot;</span>
+        <span class="n">_validate_single_shooting_bundle</span><span class="p">(</span><span class="n">bundle</span><span class="p">)</span>
+        <span class="n">cost_function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">(</span>
+            <span class="n">include_states</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_cost&quot;</span>
+        <span class="p">)</span>
+        <span class="n">gradient_function</span> <span class="o">=</span> <span class="n">cost_function</span><span class="o">.</span><span class="n">gradient</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_grad&quot;</span><span class="p">)</span>
+        <span class="n">hvp_function</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">cost_function</span><span class="o">.</span><span class="n">hvp</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_hvp&quot;</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_hvp</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="n">outputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">output_names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_cost</span><span class="p">:</span>
+            <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">cost_function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">output_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;cost&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_gradient</span><span class="p">:</span>
+            <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">gradient_function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">output_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;gradient_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_hvp</span><span class="p">:</span>
+            <span class="k">assert</span> <span class="n">hvp_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">hvp_function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+            <span class="n">output_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;hvp_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_states</span><span class="p">:</span>
+            <span class="n">outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">(</span>
+                    <span class="n">include_states</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_states&quot;</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+            <span class="p">)</span>
+            <span class="n">output_names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;x_traj&quot;</span><span class="p">)</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">hvp_function</span><span class="o">.</span><span class="n">inputs</span>
+            <span class="k">if</span> <span class="n">hvp_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">cost_function</span><span class="o">.</span><span class="n">inputs</span>
+        <span class="p">)</span>
+        <span class="n">input_names</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">hvp_function</span><span class="o">.</span><span class="n">input_names</span>
+            <span class="k">if</span> <span class="n">hvp_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="n">cost_function</span><span class="o">.</span><span class="n">input_names</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="n">name</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="p">,</span>
+            <span class="n">outputs</span><span class="p">,</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">output_names</span><span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_compiled_inputs</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return symbolic runtime inputs.&quot;&quot;&quot;</span>
+        <span class="n">dynamics</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_dynamics</span><span class="p">()</span>
+        <span class="n">horizon</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_horizon</span><span class="p">()</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">_make_symbolic_like</span><span class="p">(</span>
+            <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">initial_state_name</span>
+        <span class="p">)</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">_make_symbolic_like</span><span class="p">(</span><span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameter_name</span><span class="p">)</span>
+        <span class="n">U</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="p">,</span> <span class="n">horizon</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">control_size</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_runtime_penalty_weight</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">x0</span><span class="p">,</span> <span class="n">U</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">SX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight_name</span> <span class="ow">or</span> <span class="s2">&quot;c&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">x0</span><span class="p">,</span> <span class="n">U</span><span class="p">,</span> <span class="n">p</span>
+
+<div class="viewcode-block" id="SingleShootingProblem.stage_total_cost_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.stage_total_cost_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">stage_total_cost_function</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the scalar stage cost including residual penalties.</span>
+
+<span class="sd">        The returned function has the same ``(x, u, p)`` signature as</span>
+<span class="sd">        :attr:`stage_cost` when ``penalty_weight`` is numeric, and</span>
+<span class="sd">        ``(x, u, p, c)`` when ``penalty_weight`` is symbolic. When</span>
+<span class="sd">        :attr:`stage_penalty` is present its output is squared, summed,</span>
+<span class="sd">        multiplied by ``penalty_weight / 2``, and added to the base stage</span>
+<span class="sd">        cost.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A scalar :class:`~gradgen.function.Function` for the effective</span>
+<span class="sd">            stage contribution used by primal, gradient, HVP, and Rust</span>
+<span class="sd">            code-generation paths.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">stage_cost</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_stage_cost</span><span class="p">()</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">stage_cost</span><span class="o">.</span><span class="n">inputs</span>
+        <span class="n">penalty_weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper_penalty_weight_symbol</span><span class="p">()</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+        <span class="n">input_names</span> <span class="o">=</span> <span class="n">stage_cost</span><span class="o">.</span><span class="n">input_names</span>
+        <span class="k">if</span> <span class="n">penalty_weight</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">inputs</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="n">penalty_weight</span><span class="p">)</span>
+            <span class="n">input_names</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">input_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight_name</span> <span class="ow">or</span> <span class="s2">&quot;c&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">stage_cost</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_with_penalty&quot;</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="p">,</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_stage_total_cost</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">penalty_weight</span><span class="p">),),</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="n">stage_cost</span><span class="o">.</span><span class="n">output_names</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.terminal_total_cost_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.terminal_total_cost_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">terminal_total_cost_function</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the scalar terminal cost including residual penalties.</span>
+
+<span class="sd">        The returned function has the same ``(x, p)`` signature as</span>
+<span class="sd">        :attr:`terminal_cost` when ``penalty_weight`` is numeric, and</span>
+<span class="sd">        ``(x, p, c)`` when ``penalty_weight`` is symbolic. When</span>
+<span class="sd">        :attr:`terminal_penalty` is present its output is squared, summed,</span>
+<span class="sd">        multiplied by ``penalty_weight / 2``, and added to the base terminal</span>
+<span class="sd">        cost.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A scalar :class:`~gradgen.function.Function` for the effective</span>
+<span class="sd">            terminal contribution used by primal, gradient, HVP, and Rust</span>
+<span class="sd">            code-generation paths.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">terminal_cost</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_terminal_cost</span><span class="p">()</span>
+        <span class="n">x</span><span class="p">,</span> <span class="n">p</span> <span class="o">=</span> <span class="n">terminal_cost</span><span class="o">.</span><span class="n">inputs</span>
+        <span class="n">penalty_weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_helper_penalty_weight_symbol</span><span class="p">()</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+        <span class="n">input_names</span> <span class="o">=</span> <span class="n">terminal_cost</span><span class="o">.</span><span class="n">input_names</span>
+        <span class="k">if</span> <span class="n">penalty_weight</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">inputs</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">inputs</span><span class="p">,</span> <span class="n">penalty_weight</span><span class="p">)</span>
+            <span class="n">input_names</span> <span class="o">=</span> <span class="p">(</span><span class="o">*</span><span class="n">input_names</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight_name</span> <span class="ow">or</span> <span class="s2">&quot;c&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">terminal_cost</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_with_penalty&quot;</span><span class="p">,</span>
+            <span class="n">inputs</span><span class="p">,</span>
+            <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_terminal_total_cost</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">penalty_weight</span><span class="p">),),</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="n">input_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="n">terminal_cost</span><span class="o">.</span><span class="n">output_names</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_stage_total_cost</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">x</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span>
+        <span class="n">u</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span>
+        <span class="n">p</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span>
+        <span class="n">penalty_weight</span><span class="p">:</span> <span class="n">SX</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the symbolic stage cost including residual penalties.&quot;&quot;&quot;</span>
+        <span class="n">cost</span> <span class="o">=</span> <span class="n">_extract_scalar_output</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_stage_cost</span><span class="p">()(</span><span class="n">x</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">p</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">stage_penalty</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cost</span>
+        <span class="k">return</span> <span class="n">cost</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weighted_squared_norm</span><span class="p">(</span>
+            <span class="n">_extract_single_output</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">stage_penalty</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">u</span><span class="p">,</span> <span class="n">p</span><span class="p">)),</span>
+            <span class="n">penalty_weight</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_terminal_total_cost</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">x</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span>
+        <span class="n">p</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span>
+        <span class="n">penalty_weight</span><span class="p">:</span> <span class="n">SX</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the symbolic terminal cost including residual penalties.&quot;&quot;&quot;</span>
+        <span class="n">cost</span> <span class="o">=</span> <span class="n">_extract_scalar_output</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_terminal_cost</span><span class="p">()(</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="p">))</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">terminal_penalty</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">cost</span>
+        <span class="k">return</span> <span class="n">cost</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">_weighted_squared_norm</span><span class="p">(</span>
+            <span class="n">_extract_single_output</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">terminal_penalty</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">p</span><span class="p">)),</span>
+            <span class="n">penalty_weight</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_weighted_squared_norm</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">residual</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span>
+        <span class="n">penalty_weight</span><span class="p">:</span> <span class="n">SX</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return ``penalty_weight / 2 * ||residual||_2^2``.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;penalty_weight must be provided&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">penalty_weight</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">weight</span> <span class="o">=</span> <span class="n">penalty_weight</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+            <span class="n">weight</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">weight</span> <span class="o">=</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight</span><span class="p">))</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">0.5</span><span class="p">)</span> <span class="o">*</span> <span class="n">weight</span><span class="p">)</span> <span class="o">*</span> <span class="n">_squared_norm</span><span class="p">(</span><span class="n">residual</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_helper_penalty_weight_symbol</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the helper input symbol for runtime penalty weights.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">has_runtime_penalty_weight</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="n">SX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">penalty_weight_name</span> <span class="ow">or</span> <span class="s2">&quot;c&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SingleShootingProblem.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the primal total-cost kernel.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SingleShootingProblem.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the total-cost kernel.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_require_complete</span><span class="p">()</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_single_shooting_arg_size</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the flattened scalar dimension of ``value``.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_same_single_shooting_shape</span><span class="p">(</span><span class="n">left</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span> <span class="n">right</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return ``True`` when two symbolic values share the same shape.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">SX</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">left</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">right</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_make_symbolic_like</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span> <span class="n">base_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionArg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a fresh symbolic input with the same shape as ``value``.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">SX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="n">base_name</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="n">base_name</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_slice_packed_sequence</span><span class="p">(</span>
+    <span class="n">sequence</span><span class="p">:</span> <span class="n">SXVector</span><span class="p">,</span>
+    <span class="n">stage_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">block_size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="n">formal</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionArg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return one stage block from a packed control sequence.&quot;&quot;&quot;</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">stage_index</span> <span class="o">*</span> <span class="n">block_size</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">formal</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">sequence</span><span class="p">[</span><span class="n">start</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">SXVector</span><span class="p">(</span><span class="n">sequence</span><span class="o">.</span><span class="n">elements</span><span class="p">[</span><span class="n">start</span><span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="n">block_size</span><span class="p">])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_extract_single_output</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionArg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize a single-output function call result.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;expected a single function output&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="n">SX</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="n">value</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;single-shooting stages must return symbolic outputs&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_extract_scalar_output</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize a single scalar output.&quot;&quot;&quot;</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">_extract_single_output</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;single-shooting cost functions must return scalar outputs&quot;</span>
+        <span class="p">)</span>
+    <span class="k">return</span> <span class="n">output</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_squared_norm</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the sum of squares for a scalar or vector symbolic value.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">value</span> <span class="o">*</span> <span class="n">value</span>
+    <span class="n">total</span> <span class="o">=</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="k">for</span> <span class="n">element</span> <span class="ow">in</span> <span class="n">value</span><span class="o">.</span><span class="n">elements</span><span class="p">:</span>
+        <span class="n">total</span> <span class="o">=</span> <span class="n">total</span> <span class="o">+</span> <span class="n">element</span> <span class="o">*</span> <span class="n">element</span>
+    <span class="k">return</span> <span class="n">total</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_flatten_rollout_states</span><span class="p">(</span><span class="n">states</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">SXVector</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flatten a rollout state sequence into one packed vector.&quot;&quot;&quot;</span>
+    <span class="n">scalars</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SX</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">for</span> <span class="n">state</span> <span class="ow">in</span> <span class="n">states</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">state</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+            <span class="n">scalars</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">scalars</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">state</span><span class="o">.</span><span class="n">elements</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">SXVector</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">scalars</span><span class="p">))</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_single_shooting_primal_name</span><span class="p">(</span><span class="n">base_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">include_states</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the default primal wrapper name.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">include_states</span><span class="p">:</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">base_name</span><span class="si">}</span><span class="s2">_with_states&quot;</span>
+    <span class="k">return</span> <span class="n">base_name</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_single_shooting_joint_name</span><span class="p">(</span>
+    <span class="n">base_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">bundle</span><span class="p">:</span> <span class="n">SingleShootingBundle</span><span class="p">,</span>
+    <span class="n">control_sequence_name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the default joint-kernel name.&quot;&quot;&quot;</span>
+    <span class="n">labels</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_cost</span><span class="p">:</span>
+        <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;cost&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_gradient</span><span class="p">:</span>
+        <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;gradient_</span><span class="si">{</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_hvp</span><span class="p">:</span>
+        <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;hvp_</span><span class="si">{</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_states</span><span class="p">:</span>
+        <span class="n">labels</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;states&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">base_name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="s1">&#39;_&#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="n">labels</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_single_shooting_bundle_output_names</span><span class="p">(</span>
+    <span class="n">problem</span><span class="p">:</span> <span class="n">SingleShootingProblem</span><span class="p">,</span>
+    <span class="n">bundle</span><span class="p">:</span> <span class="n">SingleShootingBundle</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return output names for a joint bundle.&quot;&quot;&quot;</span>
+    <span class="n">names</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_cost</span><span class="p">:</span>
+        <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;cost&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_gradient</span><span class="p">:</span>
+        <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;gradient_</span><span class="si">{</span><span class="n">problem</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_hvp</span><span class="p">:</span>
+        <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;hvp_</span><span class="si">{</span><span class="n">problem</span><span class="o">.</span><span class="n">control_sequence_name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_states</span><span class="p">:</span>
+        <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;x_traj&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">names</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_single_shooting_bundle</span><span class="p">(</span><span class="n">bundle</span><span class="p">:</span> <span class="n">SingleShootingBundle</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate a joint single-shooting bundle.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span>
+        <span class="n">bundle</span><span class="o">.</span><span class="n">include_cost</span> <span class="ow">or</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_gradient</span> <span class="ow">or</span> <span class="n">bundle</span><span class="o">.</span><span class="n">include_hvp</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingBundle must request at least cost, gradient, or HVP&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="nb">sum</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="n">bundle</span><span class="o">.</span><span class="n">include_cost</span><span class="p">,</span>
+                <span class="n">bundle</span><span class="o">.</span><span class="n">include_gradient</span><span class="p">,</span>
+                <span class="n">bundle</span><span class="o">.</span><span class="n">include_hvp</span><span class="p">,</span>
+                <span class="n">bundle</span><span class="o">.</span><span class="n">include_states</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="o">&lt;</span> <span class="mi">2</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;joint single-shooting kernels require at least two &quot;</span>
+            <span class="s2">&quot;requested outputs&quot;</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_single_shooting_dynamics</span><span class="p">(</span><span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate the dynamics function signature.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem dynamics must accept (x, u, p)&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem dynamics must return exactly one output&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+        <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem dynamics must return the next state &quot;</span>
+            <span class="s2">&quot;with the same shape as x&quot;</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_single_shooting_stage_cost</span><span class="p">(</span><span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate the stage-cost function signature.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem stage_cost must accept (x, u, p)&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem stage_cost must return exactly one &quot;</span>
+            <span class="s2">&quot;scalar output&quot;</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_single_shooting_terminal_cost</span><span class="p">(</span><span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate the terminal-cost function signature.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem terminal_cost must accept (x, p)&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem terminal_cost must return exactly one &quot;</span>
+            <span class="s2">&quot;scalar output&quot;</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_single_shooting_penalty_configuration</span><span class="p">(</span>
+    <span class="n">stage_penalty</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">terminal_penalty</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">penalty_weight</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="n">SX</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate optional residual penalty fields are supplied together.&quot;&quot;&quot;</span>
+    <span class="n">has_any_penalty</span> <span class="o">=</span> <span class="n">stage_penalty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">or</span> <span class="n">terminal_penalty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="k">if</span> <span class="n">has_any_penalty</span> <span class="ow">and</span> <span class="p">(</span>
+        <span class="n">stage_penalty</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="ow">or</span> <span class="n">terminal_penalty</span> <span class="ow">is</span> <span class="kc">None</span>
+        <span class="ow">or</span> <span class="n">penalty_weight</span> <span class="ow">is</span> <span class="kc">None</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem penalties require stage_penalty, &quot;</span>
+            <span class="s2">&quot;terminal_penalty, and penalty_weight&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">penalty_weight</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;penalty_weight must be a scalar&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_single_shooting_stage_penalty</span><span class="p">(</span><span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate the stage residual signature.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem stage_penalty must accept (x, u, p)&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem stage_penalty must return exactly one &quot;</span>
+            <span class="s2">&quot;residual output&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="n">SX</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem stage_penalty must return a scalar or &quot;</span>
+            <span class="s2">&quot;vector symbolic residual&quot;</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_single_shooting_terminal_penalty</span><span class="p">(</span><span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate the terminal residual signature.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem terminal_penalty must accept (x, p)&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem terminal_penalty must return exactly one &quot;</span>
+            <span class="s2">&quot;residual output&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="p">(</span><span class="n">SX</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;SingleShootingProblem terminal_penalty must return a scalar or &quot;</span>
+            <span class="s2">&quot;vector symbolic residual&quot;</span>
+        <span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_validate_single_shooting_shapes</span><span class="p">(</span>
+    <span class="n">dynamics</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="n">stage_cost</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="n">terminal_cost</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="n">stage_penalty</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">terminal_penalty</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Validate stage functions agree on state, control, and parameters.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+        <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">stage_cost</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;stage_cost x input must have the same shape as dynamics x&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+        <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">stage_cost</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;stage_cost u input must have the same shape as dynamics u&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+        <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">stage_cost</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;stage_cost p input must have the same shape as dynamics p&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+        <span class="n">dynamics</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">terminal_cost</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;terminal_cost x input must have the same shape as the &quot;</span>
+            <span class="s2">&quot;dynamics state&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+        <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">terminal_cost</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;terminal_cost p input must have the same shape as dynamics p&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="n">stage_penalty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+            <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">stage_penalty</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;stage_penalty x input must have the same shape as &quot;</span>
+                <span class="s2">&quot;dynamics x&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+            <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">],</span> <span class="n">stage_penalty</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;stage_penalty u input must have the same shape as &quot;</span>
+                <span class="s2">&quot;dynamics u&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+            <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">stage_penalty</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;stage_penalty p input must have the same shape as &quot;</span>
+                <span class="s2">&quot;dynamics p&quot;</span>
+            <span class="p">)</span>
+    <span class="k">if</span> <span class="n">terminal_penalty</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+            <span class="n">dynamics</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">terminal_penalty</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;terminal_penalty x input must have the same shape as the &quot;</span>
+                <span class="s2">&quot;dynamics state&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_single_shooting_shape</span><span class="p">(</span>
+            <span class="n">dynamics</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">2</span><span class="p">],</span> <span class="n">terminal_penalty</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;terminal_penalty p input must have the same shape as &quot;</span>
+                <span class="s2">&quot;dynamics p&quot;</span>
+            <span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

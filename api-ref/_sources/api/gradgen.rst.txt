@@ -1,0 +1,85 @@
+gradgen package
+===============
+
+Submodules
+----------
+
+gradgen.ad module
+-----------------
+
+.. automodule:: gradgen.ad
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+gradgen.composed\_function module
+---------------------------------
+
+.. automodule:: gradgen.composed_function
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+gradgen.composer module
+-----------------------
+
+.. automodule:: gradgen.composer
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+gradgen.cse module
+------------------
+
+.. automodule:: gradgen.cse
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+gradgen.function module
+-----------------------
+
+.. automodule:: gradgen.function
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+gradgen.map\_zip module
+-----------------------
+
+.. automodule:: gradgen.map_zip
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+gradgen.simplify module
+-----------------------
+
+.. automodule:: gradgen.simplify
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+gradgen.single\_shooting module
+-------------------------------
+
+.. automodule:: gradgen.single_shooting
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+gradgen.sx module
+-----------------
+
+.. automodule:: gradgen.sx
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
+Module contents
+---------------
+
+.. automodule:: gradgen
+   :members:
+   :show-inheritance:
+   :undoc-members:

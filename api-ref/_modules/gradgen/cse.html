@@ -1,0 +1,236 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen.cse &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/modules.html">gradgen</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gradgen.cse</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gradgen.cse</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Common subexpression elimination utilities.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sx</span><span class="w"> </span><span class="kn">import</span> <span class="n">SX</span><span class="p">,</span> <span class="n">SXNode</span><span class="p">,</span> <span class="n">SXVector</span>
+
+
+<span class="n">ExpressionLike</span> <span class="o">=</span> <span class="n">SX</span> <span class="o">|</span> <span class="n">SXVector</span>
+
+
+<div class="viewcode-block" id="CSEAssignment">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.cse.CSEAssignment">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CSEAssignment</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A named reusable intermediate expression.&quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">expr</span><span class="p">:</span> <span class="n">SX</span>
+    <span class="n">use_count</span><span class="p">:</span> <span class="nb">int</span></div>
+
+
+
+<div class="viewcode-block" id="CSEPlan">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.cse.CSEPlan">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">CSEPlan</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A computation plan extracted from a symbolic DAG.&quot;&quot;&quot;</span>
+
+    <span class="n">assignments</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">CSEAssignment</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">outputs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SX</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">use_counts</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">SXNode</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="cse">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.cse.cse">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cse</span><span class="p">(</span>
+    <span class="n">outputs</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">ExpressionLike</span><span class="p">],</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">prefix</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;w&quot;</span><span class="p">,</span>
+    <span class="n">min_uses</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">CSEPlan</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Build a common-subexpression elimination plan for symbolic outputs.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        outputs: Scalar or vector symbolic outputs to analyze.</span>
+<span class="sd">        prefix: Prefix used for temporary names.</span>
+<span class="sd">        min_uses: Minimum number of uses required before an expression is</span>
+<span class="sd">            promoted to a named temporary.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A ``CSEPlan`` containing topologically ordered assignments for</span>
+<span class="sd">        reusable intermediates and the flattened scalar outputs.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">min_uses</span> <span class="o">&lt;</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;min_uses must be at least 2&quot;</span><span class="p">)</span>
+
+    <span class="n">flat_outputs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">_flatten_outputs</span><span class="p">(</span><span class="n">outputs</span><span class="p">))</span>
+    <span class="n">ordered</span> <span class="o">=</span> <span class="n">_topological_nodes</span><span class="p">(</span><span class="n">flat_outputs</span><span class="p">)</span>
+    <span class="n">use_counts</span> <span class="o">=</span> <span class="n">_count_uses</span><span class="p">(</span><span class="n">flat_outputs</span><span class="p">)</span>
+
+    <span class="n">assignments</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CSEAssignment</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">temp_index</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="k">for</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">ordered</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">node</span><span class="o">.</span><span class="n">op</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;symbol&quot;</span><span class="p">,</span> <span class="s2">&quot;const&quot;</span><span class="p">}:</span>
+            <span class="k">continue</span>
+        <span class="k">if</span> <span class="n">use_counts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">&lt;</span> <span class="n">min_uses</span><span class="p">:</span>
+            <span class="k">continue</span>
+        <span class="n">assignments</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+            <span class="n">CSEAssignment</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">prefix</span><span class="si">}{</span><span class="n">temp_index</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="n">expr</span><span class="o">=</span><span class="n">SX</span><span class="p">(</span><span class="n">node</span><span class="p">),</span>
+                <span class="n">use_count</span><span class="o">=</span><span class="n">use_counts</span><span class="p">[</span><span class="n">node</span><span class="p">],</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">temp_index</span> <span class="o">+=</span> <span class="mi">1</span>
+
+    <span class="k">return</span> <span class="n">CSEPlan</span><span class="p">(</span>
+        <span class="n">assignments</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">assignments</span><span class="p">),</span>
+        <span class="n">outputs</span><span class="o">=</span><span class="n">flat_outputs</span><span class="p">,</span>
+        <span class="n">use_counts</span><span class="o">=</span><span class="n">use_counts</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_flatten_outputs</span><span class="p">(</span><span class="n">outputs</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">ExpressionLike</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">Iterable</span><span class="p">[</span><span class="n">SX</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flatten scalar and vector outputs into scalar expressions.&quot;&quot;&quot;</span>
+    <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">outputs</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+            <span class="k">yield</span> <span class="n">output</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">yield from</span> <span class="n">output</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_topological_nodes</span><span class="p">(</span><span class="n">outputs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SX</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SXNode</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return output dependency nodes in topological order.&quot;&quot;&quot;</span>
+    <span class="n">ordered</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SXNode</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">SXNode</span><span class="p">]</span> <span class="o">=</span> <span class="nb">set</span><span class="p">()</span>
+
+    <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">outputs</span><span class="p">:</span>
+        <span class="n">_visit_node</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">node</span><span class="p">,</span> <span class="n">seen</span><span class="p">,</span> <span class="n">ordered</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">ordered</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_visit_node</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">SXNode</span><span class="p">,</span>
+                <span class="n">seen</span><span class="p">:</span> <span class="nb">set</span><span class="p">[</span><span class="n">SXNode</span><span class="p">],</span>
+                <span class="n">ordered</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SXNode</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Depth-first topological traversal of expression nodes.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">node</span> <span class="ow">in</span> <span class="n">seen</span><span class="p">:</span>
+        <span class="k">return</span>
+
+    <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+        <span class="n">_visit_node</span><span class="p">(</span><span class="n">arg</span><span class="p">,</span> <span class="n">seen</span><span class="p">,</span> <span class="n">ordered</span><span class="p">)</span>
+
+    <span class="n">seen</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+    <span class="n">ordered</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">node</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_count_uses</span><span class="p">(</span><span class="n">outputs</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SX</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="n">SXNode</span><span class="p">,</span> <span class="nb">int</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Count how many parent/output references each node receives.&quot;&quot;&quot;</span>
+    <span class="n">counts</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="n">SXNode</span><span class="p">,</span> <span class="nb">int</span><span class="p">]</span> <span class="o">=</span> <span class="p">{}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">record</span><span class="p">(</span><span class="n">node</span><span class="p">:</span> <span class="n">SXNode</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">counts</span><span class="p">[</span><span class="n">node</span><span class="p">]</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">node</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="k">for</span> <span class="n">arg</span> <span class="ow">in</span> <span class="n">node</span><span class="o">.</span><span class="n">args</span><span class="p">:</span>
+            <span class="n">record</span><span class="p">(</span><span class="n">arg</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">output</span> <span class="ow">in</span> <span class="n">outputs</span><span class="p">:</span>
+        <span class="n">record</span><span class="p">(</span><span class="n">output</span><span class="o">.</span><span class="n">node</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">counts</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

@@ -1,0 +1,1122 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="gradgen package" href="gradgen.html" />
+    <link rel="prev" title="Gradgen API Reference" href="../index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">gradgen</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html">gradgen package</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">gradgen</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/modules.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="gradgen">
+<h1>gradgen<a class="headerlink" href="#gradgen" title="Link to this heading"></a></h1>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="gradgen.html">gradgen package</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#submodules">Submodules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen.ad">gradgen.ad module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ad.jvp"><code class="docutils literal notranslate"><span class="pre">jvp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ad.derivative"><code class="docutils literal notranslate"><span class="pre">derivative()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ad.vjp"><code class="docutils literal notranslate"><span class="pre">vjp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ad.gradient"><code class="docutils literal notranslate"><span class="pre">gradient()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ad.jacobian"><code class="docutils literal notranslate"><span class="pre">jacobian()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ad.hessian"><code class="docutils literal notranslate"><span class="pre">hessian()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen.composed_function">gradgen.composed_function module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedGradientFunction"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedGradientFunction.composed"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.composed</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedGradientFunction.name"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedGradientFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedGradientFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedGradientFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedGradientFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedGradientFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJacobianFunction"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJacobianFunction.composed"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.composed</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJacobianFunction.name"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJacobianFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJacobianFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJacobianFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJacobianFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJacobianFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction.composed"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.composed</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction.name"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction.components"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.components</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction.wrt_index"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.wrt_index</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedJointFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction"><code class="docutils literal notranslate"><span class="pre">ComposedFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.name"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.state_input"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.state_input</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.input_name"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.parameter_name"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.parameter_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.steps"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.steps</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.finished"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.finished</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.parameter_size"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.parameter_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.stage_count"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.stage_count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.inputs"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.inputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.outputs"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.input_names"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.output_names"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.then"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.then()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.chain"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.chain()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.repeat"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.repeat()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.finish"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.finish()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.gradient"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.jacobian"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.jacobian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.joint"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.joint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composed_function.ComposedFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen.composer">gradgen.composer module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposer"><code class="docutils literal notranslate"><span class="pre">FunctionComposer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposer.stages"><code class="docutils literal notranslate"><span class="pre">FunctionComposer.stages</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposer.feed_into"><code class="docutils literal notranslate"><span class="pre">FunctionComposer.feed_into()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposer.compose"><code class="docutils literal notranslate"><span class="pre">FunctionComposer.compose()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition"><code class="docutils literal notranslate"><span class="pre">FunctionComposition</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.name"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.stages"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.stages</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.input_names"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.output_names"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.nodes"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.to_function"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.gradient"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.hessian"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.hessian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.hvp"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.hvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.generate_rust"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.composer.FunctionComposition.create_rust_project"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen.cse">gradgen.cse module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.cse.CSEAssignment"><code class="docutils literal notranslate"><span class="pre">CSEAssignment</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.cse.CSEAssignment.name"><code class="docutils literal notranslate"><span class="pre">CSEAssignment.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.cse.CSEAssignment.expr"><code class="docutils literal notranslate"><span class="pre">CSEAssignment.expr</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.cse.CSEAssignment.use_count"><code class="docutils literal notranslate"><span class="pre">CSEAssignment.use_count</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.cse.CSEPlan"><code class="docutils literal notranslate"><span class="pre">CSEPlan</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.cse.CSEPlan.assignments"><code class="docutils literal notranslate"><span class="pre">CSEPlan.assignments</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.cse.CSEPlan.outputs"><code class="docutils literal notranslate"><span class="pre">CSEPlan.outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.cse.CSEPlan.use_counts"><code class="docutils literal notranslate"><span class="pre">CSEPlan.use_counts</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.cse.cse"><code class="docutils literal notranslate"><span class="pre">cse()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen.function">gradgen.function module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.function.Function"><code class="docutils literal notranslate"><span class="pre">Function</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.name"><code class="docutils literal notranslate"><span class="pre">Function.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.inputs"><code class="docutils literal notranslate"><span class="pre">Function.inputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.outputs"><code class="docutils literal notranslate"><span class="pre">Function.outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.input_names"><code class="docutils literal notranslate"><span class="pre">Function.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.output_names"><code class="docutils literal notranslate"><span class="pre">Function.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.flat_inputs"><code class="docutils literal notranslate"><span class="pre">Function.flat_inputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.flat_outputs"><code class="docutils literal notranslate"><span class="pre">Function.flat_outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.nodes"><code class="docutils literal notranslate"><span class="pre">Function.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.cse"><code class="docutils literal notranslate"><span class="pre">Function.cse()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.generate_rust"><code class="docutils literal notranslate"><span class="pre">Function.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.create_rust_project"><code class="docutils literal notranslate"><span class="pre">Function.create_rust_project()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.create_rust_derivative_bundle"><code class="docutils literal notranslate"><span class="pre">Function.create_rust_derivative_bundle()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.jvp"><code class="docutils literal notranslate"><span class="pre">Function.jvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.gradient"><code class="docutils literal notranslate"><span class="pre">Function.gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.joint"><code class="docutils literal notranslate"><span class="pre">Function.joint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.hvp"><code class="docutils literal notranslate"><span class="pre">Function.hvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.vjp"><code class="docutils literal notranslate"><span class="pre">Function.vjp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.jacobian"><code class="docutils literal notranslate"><span class="pre">Function.jacobian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.jacobian_blocks"><code class="docutils literal notranslate"><span class="pre">Function.jacobian_blocks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.vjp_blocks"><code class="docutils literal notranslate"><span class="pre">Function.vjp_blocks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.hessian"><code class="docutils literal notranslate"><span class="pre">Function.hessian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.hessian_blocks"><code class="docutils literal notranslate"><span class="pre">Function.hessian_blocks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.hvp_blocks"><code class="docutils literal notranslate"><span class="pre">Function.hvp_blocks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.function.Function.simplify"><code class="docutils literal notranslate"><span class="pre">Function.simplify()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen.map_zip">gradgen.map_zip module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction.batched"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.batched</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction.wrt_index"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.wrt_index</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction.name"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction.simplification"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id0"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.batched</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id1"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.wrt_index</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id2"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id3"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction.to_function"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction.input_names"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction.output_names"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedJacobianFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction"><code class="docutils literal notranslate"><span class="pre">BatchedFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.function"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.function</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.count"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.name"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.input_sequence_names"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.input_sequence_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.simplification"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id4"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.function</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id5"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id6"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id7"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.input_sequence_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id8"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.input_names"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.output_names"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.nodes"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.jacobian"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.jacobian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.to_function"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.BatchedFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction"><code class="docutils literal notranslate"><span class="pre">ReducedFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.function"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.function</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.count"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.name"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.accumulator_input_name"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.accumulator_input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.input_name"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.output_name"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.output_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id9"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.function</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id10"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id11"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id12"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.accumulator_input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id13"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id14"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.output_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id15"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.input_names"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.output_names"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.map_zip.ReducedFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.map_zip.map_function"><code class="docutils literal notranslate"><span class="pre">map_function()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.map_zip.zip_function"><code class="docutils literal notranslate"><span class="pre">zip_function()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.map_zip.reduce_function"><code class="docutils literal notranslate"><span class="pre">reduce_function()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen.simplify">gradgen.simplify module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.simplify.simplify"><code class="docutils literal notranslate"><span class="pre">simplify()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen.single_shooting">gradgen.single_shooting module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingBundle"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingBundle.include_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.include_cost</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingBundle.include_gradient"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.include_gradient</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingBundle.include_hvp"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.include_hvp</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingBundle.include_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.include_states</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingBundle.add_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.add_cost()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingBundle.add_gradient"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.add_gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingBundle.add_hvp"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.add_hvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingBundle.add_rollout_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.add_rollout_states()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.problem"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.problem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.include_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.include_states</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingPrimalFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.problem"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.problem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.include_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.include_states</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingGradientFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.problem"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.problem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.include_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.include_states</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.problem"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.problem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.bundle"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.bundle</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingJointFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.horizon"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.horizon</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.dynamics"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.dynamics</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.stage_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.stage_cost</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.terminal_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.terminal_cost</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.initial_state_name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.initial_state_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.control_sequence_name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.control_sequence_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.parameter_name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.parameter_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.stage_penalty"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.stage_penalty</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.terminal_penalty"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.terminal_penalty</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.penalty_weight"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.penalty_weight</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_horizon"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_horizon()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_dynamics"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_dynamics()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_stage_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_stage_cost()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_terminal_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_terminal_cost()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_costs"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_costs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_penalties"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_penalties()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_input_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_simplification()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.state_size"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.state_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.control_size"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.control_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.parameter_size"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.parameter_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.has_runtime_penalty_weight"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.has_runtime_penalty_weight</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.penalty_weight_name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.penalty_weight_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.inputs"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.inputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.outputs"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.primal"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.primal()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.gradient"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.hvp"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.hvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.joint"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.joint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.stage_total_cost_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.stage_total_cost_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.terminal_total_cost_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.terminal_total_cost_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.single_shooting.SingleShootingProblem.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen.sx">gradgen.sx module</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.SXNode"><code class="docutils literal notranslate"><span class="pre">SXNode</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXNode.op"><code class="docutils literal notranslate"><span class="pre">SXNode.op</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXNode.args"><code class="docutils literal notranslate"><span class="pre">SXNode.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXNode.name"><code class="docutils literal notranslate"><span class="pre">SXNode.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXNode.metadata"><code class="docutils literal notranslate"><span class="pre">SXNode.metadata</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXNode.value"><code class="docutils literal notranslate"><span class="pre">SXNode.value</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id16"><code class="docutils literal notranslate"><span class="pre">SXNode.op</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id17"><code class="docutils literal notranslate"><span class="pre">SXNode.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id18"><code class="docutils literal notranslate"><span class="pre">SXNode.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id19"><code class="docutils literal notranslate"><span class="pre">SXNode.metadata</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id20"><code class="docutils literal notranslate"><span class="pre">SXNode.value</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXNode.make"><code class="docutils literal notranslate"><span class="pre">SXNode.make()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.SX"><code class="docutils literal notranslate"><span class="pre">SX</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.node"><code class="docutils literal notranslate"><span class="pre">SX.node</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.sym"><code class="docutils literal notranslate"><span class="pre">SX.sym()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.const"><code class="docutils literal notranslate"><span class="pre">SX.const()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.op"><code class="docutils literal notranslate"><span class="pre">SX.op</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.args"><code class="docutils literal notranslate"><span class="pre">SX.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.name"><code class="docutils literal notranslate"><span class="pre">SX.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.value"><code class="docutils literal notranslate"><span class="pre">SX.value</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.metadata"><code class="docutils literal notranslate"><span class="pre">SX.metadata</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.sin"><code class="docutils literal notranslate"><span class="pre">SX.sin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.cos"><code class="docutils literal notranslate"><span class="pre">SX.cos()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.tan"><code class="docutils literal notranslate"><span class="pre">SX.tan()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.asin"><code class="docutils literal notranslate"><span class="pre">SX.asin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.acos"><code class="docutils literal notranslate"><span class="pre">SX.acos()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.atan"><code class="docutils literal notranslate"><span class="pre">SX.atan()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.atan2"><code class="docutils literal notranslate"><span class="pre">SX.atan2()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.sinh"><code class="docutils literal notranslate"><span class="pre">SX.sinh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.cosh"><code class="docutils literal notranslate"><span class="pre">SX.cosh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.tanh"><code class="docutils literal notranslate"><span class="pre">SX.tanh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.asinh"><code class="docutils literal notranslate"><span class="pre">SX.asinh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.acosh"><code class="docutils literal notranslate"><span class="pre">SX.acosh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.atanh"><code class="docutils literal notranslate"><span class="pre">SX.atanh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.exp"><code class="docutils literal notranslate"><span class="pre">SX.exp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.expm1"><code class="docutils literal notranslate"><span class="pre">SX.expm1()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.log"><code class="docutils literal notranslate"><span class="pre">SX.log()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.log1p"><code class="docutils literal notranslate"><span class="pre">SX.log1p()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.sqrt"><code class="docutils literal notranslate"><span class="pre">SX.sqrt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.cbrt"><code class="docutils literal notranslate"><span class="pre">SX.cbrt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.erf"><code class="docutils literal notranslate"><span class="pre">SX.erf()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.erfc"><code class="docutils literal notranslate"><span class="pre">SX.erfc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.floor"><code class="docutils literal notranslate"><span class="pre">SX.floor()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.ceil"><code class="docutils literal notranslate"><span class="pre">SX.ceil()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.round"><code class="docutils literal notranslate"><span class="pre">SX.round()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.trunc"><code class="docutils literal notranslate"><span class="pre">SX.trunc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.fract"><code class="docutils literal notranslate"><span class="pre">SX.fract()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.signum"><code class="docutils literal notranslate"><span class="pre">SX.signum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.hypot"><code class="docutils literal notranslate"><span class="pre">SX.hypot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.abs"><code class="docutils literal notranslate"><span class="pre">SX.abs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.maximum"><code class="docutils literal notranslate"><span class="pre">SX.maximum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SX.minimum"><code class="docutils literal notranslate"><span class="pre">SX.minimum()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector"><code class="docutils literal notranslate"><span class="pre">SXVector</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.elements"><code class="docutils literal notranslate"><span class="pre">SXVector.elements</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.sym"><code class="docutils literal notranslate"><span class="pre">SXVector.sym()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.sin"><code class="docutils literal notranslate"><span class="pre">SXVector.sin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.cos"><code class="docutils literal notranslate"><span class="pre">SXVector.cos()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.tan"><code class="docutils literal notranslate"><span class="pre">SXVector.tan()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.asin"><code class="docutils literal notranslate"><span class="pre">SXVector.asin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.acos"><code class="docutils literal notranslate"><span class="pre">SXVector.acos()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.atan"><code class="docutils literal notranslate"><span class="pre">SXVector.atan()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.asinh"><code class="docutils literal notranslate"><span class="pre">SXVector.asinh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.acosh"><code class="docutils literal notranslate"><span class="pre">SXVector.acosh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.atanh"><code class="docutils literal notranslate"><span class="pre">SXVector.atanh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.sinh"><code class="docutils literal notranslate"><span class="pre">SXVector.sinh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.cosh"><code class="docutils literal notranslate"><span class="pre">SXVector.cosh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.tanh"><code class="docutils literal notranslate"><span class="pre">SXVector.tanh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.exp"><code class="docutils literal notranslate"><span class="pre">SXVector.exp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.expm1"><code class="docutils literal notranslate"><span class="pre">SXVector.expm1()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.log"><code class="docutils literal notranslate"><span class="pre">SXVector.log()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.log1p"><code class="docutils literal notranslate"><span class="pre">SXVector.log1p()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.sqrt"><code class="docutils literal notranslate"><span class="pre">SXVector.sqrt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.cbrt"><code class="docutils literal notranslate"><span class="pre">SXVector.cbrt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.erf"><code class="docutils literal notranslate"><span class="pre">SXVector.erf()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.erfc"><code class="docutils literal notranslate"><span class="pre">SXVector.erfc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.floor"><code class="docutils literal notranslate"><span class="pre">SXVector.floor()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.ceil"><code class="docutils literal notranslate"><span class="pre">SXVector.ceil()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.round"><code class="docutils literal notranslate"><span class="pre">SXVector.round()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.trunc"><code class="docutils literal notranslate"><span class="pre">SXVector.trunc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.fract"><code class="docutils literal notranslate"><span class="pre">SXVector.fract()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.signum"><code class="docutils literal notranslate"><span class="pre">SXVector.signum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.abs"><code class="docutils literal notranslate"><span class="pre">SXVector.abs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.dot"><code class="docutils literal notranslate"><span class="pre">SXVector.dot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.sum"><code class="docutils literal notranslate"><span class="pre">SXVector.sum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.prod"><code class="docutils literal notranslate"><span class="pre">SXVector.prod()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.max"><code class="docutils literal notranslate"><span class="pre">SXVector.max()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.min"><code class="docutils literal notranslate"><span class="pre">SXVector.min()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.mean"><code class="docutils literal notranslate"><span class="pre">SXVector.mean()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.norm2"><code class="docutils literal notranslate"><span class="pre">SXVector.norm2()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.norm2sq"><code class="docutils literal notranslate"><span class="pre">SXVector.norm2sq()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.norm1"><code class="docutils literal notranslate"><span class="pre">SXVector.norm1()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.norm_inf"><code class="docutils literal notranslate"><span class="pre">SXVector.norm_inf()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.norm_p"><code class="docutils literal notranslate"><span class="pre">SXVector.norm_p()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.sx.SXVector.norm_p_to_p"><code class="docutils literal notranslate"><span class="pre">SXVector.norm_p_to_p()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.const"><code class="docutils literal notranslate"><span class="pre">const()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.sin"><code class="docutils literal notranslate"><span class="pre">sin()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.cos"><code class="docutils literal notranslate"><span class="pre">cos()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.tan"><code class="docutils literal notranslate"><span class="pre">tan()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.asin"><code class="docutils literal notranslate"><span class="pre">asin()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.acos"><code class="docutils literal notranslate"><span class="pre">acos()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.atan"><code class="docutils literal notranslate"><span class="pre">atan()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.atan2"><code class="docutils literal notranslate"><span class="pre">atan2()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.sinh"><code class="docutils literal notranslate"><span class="pre">sinh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.cosh"><code class="docutils literal notranslate"><span class="pre">cosh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.tanh"><code class="docutils literal notranslate"><span class="pre">tanh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.asinh"><code class="docutils literal notranslate"><span class="pre">asinh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.acosh"><code class="docutils literal notranslate"><span class="pre">acosh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.atanh"><code class="docutils literal notranslate"><span class="pre">atanh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.exp"><code class="docutils literal notranslate"><span class="pre">exp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.expm1"><code class="docutils literal notranslate"><span class="pre">expm1()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.log"><code class="docutils literal notranslate"><span class="pre">log()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.log1p"><code class="docutils literal notranslate"><span class="pre">log1p()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.sqrt"><code class="docutils literal notranslate"><span class="pre">sqrt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.cbrt"><code class="docutils literal notranslate"><span class="pre">cbrt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.erf"><code class="docutils literal notranslate"><span class="pre">erf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.erfc"><code class="docutils literal notranslate"><span class="pre">erfc()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.floor"><code class="docutils literal notranslate"><span class="pre">floor()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.ceil"><code class="docutils literal notranslate"><span class="pre">ceil()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.round"><code class="docutils literal notranslate"><span class="pre">round()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.trunc"><code class="docutils literal notranslate"><span class="pre">trunc()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.fract"><code class="docutils literal notranslate"><span class="pre">fract()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.signum"><code class="docutils literal notranslate"><span class="pre">signum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.hypot"><code class="docutils literal notranslate"><span class="pre">hypot()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.maximum"><code class="docutils literal notranslate"><span class="pre">maximum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.minimum"><code class="docutils literal notranslate"><span class="pre">minimum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.vector"><code class="docutils literal notranslate"><span class="pre">vector()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.matvec"><code class="docutils literal notranslate"><span class="pre">matvec()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.quadform"><code class="docutils literal notranslate"><span class="pre">quadform()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.bilinear_form"><code class="docutils literal notranslate"><span class="pre">bilinear_form()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.parse_matvec_component_args"><code class="docutils literal notranslate"><span class="pre">parse_matvec_component_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.parse_quadform_args"><code class="docutils literal notranslate"><span class="pre">parse_quadform_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.parse_bilinear_form_args"><code class="docutils literal notranslate"><span class="pre">parse_bilinear_form_args()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.matrix_transpose"><code class="docutils literal notranslate"><span class="pre">matrix_transpose()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sx.matrix_add"><code class="docutils literal notranslate"><span class="pre">matrix_add()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="gradgen.html#module-gradgen">Module contents</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.CSEAssignment"><code class="docutils literal notranslate"><span class="pre">CSEAssignment</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CSEAssignment.name"><code class="docutils literal notranslate"><span class="pre">CSEAssignment.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CSEAssignment.expr"><code class="docutils literal notranslate"><span class="pre">CSEAssignment.expr</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CSEAssignment.use_count"><code class="docutils literal notranslate"><span class="pre">CSEAssignment.use_count</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.CSEPlan"><code class="docutils literal notranslate"><span class="pre">CSEPlan</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CSEPlan.assignments"><code class="docutils literal notranslate"><span class="pre">CSEPlan.assignments</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CSEPlan.outputs"><code class="docutils literal notranslate"><span class="pre">CSEPlan.outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CSEPlan.use_counts"><code class="docutils literal notranslate"><span class="pre">CSEPlan.use_counts</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.function"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.function</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.config"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.config</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.requests"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.requests</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.simplification"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.functions"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.functions</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.with_backend_config"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.with_backend_config()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.with_simplification"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.with_simplification()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.add_primal"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.add_primal()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.add_gradient"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.add_gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.add_jacobian"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.add_jacobian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.add_vjp"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.add_vjp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.add_joint"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.add_joint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.add_hessian"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.add_hessian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.add_hvp"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.add_hvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.for_function"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.for_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.CodeGenerationBuilder.build"><code class="docutils literal notranslate"><span class="pre">CodeGenerationBuilder.build()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction"><code class="docutils literal notranslate"><span class="pre">ComposedFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.name"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.state_input"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.state_input</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.input_name"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.parameter_name"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.parameter_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.steps"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.steps</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.finished"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.finished</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.parameter_size"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.parameter_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.stage_count"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.stage_count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.inputs"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.inputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.outputs"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.input_names"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.output_names"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.then"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.then()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.chain"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.chain()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.repeat"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.repeat()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.finish"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.finish()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.gradient"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.jacobian"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.jacobian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.joint"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.joint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ComposedFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ComposedGradientFunction"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedGradientFunction.composed"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.composed</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedGradientFunction.name"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedGradientFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedGradientFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedGradientFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedGradientFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedGradientFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ComposedGradientFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ComposedJacobianFunction"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJacobianFunction.composed"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.composed</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJacobianFunction.name"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJacobianFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJacobianFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJacobianFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJacobianFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJacobianFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ComposedJacobianFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction.composed"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.composed</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction.name"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction.components"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.components</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction.wrt_index"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.wrt_index</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ComposedJointFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ComposedJointFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.Function"><code class="docutils literal notranslate"><span class="pre">Function</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.name"><code class="docutils literal notranslate"><span class="pre">Function.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.inputs"><code class="docutils literal notranslate"><span class="pre">Function.inputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.outputs"><code class="docutils literal notranslate"><span class="pre">Function.outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.input_names"><code class="docutils literal notranslate"><span class="pre">Function.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.output_names"><code class="docutils literal notranslate"><span class="pre">Function.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.flat_inputs"><code class="docutils literal notranslate"><span class="pre">Function.flat_inputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.flat_outputs"><code class="docutils literal notranslate"><span class="pre">Function.flat_outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.nodes"><code class="docutils literal notranslate"><span class="pre">Function.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.cse"><code class="docutils literal notranslate"><span class="pre">Function.cse()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.generate_rust"><code class="docutils literal notranslate"><span class="pre">Function.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.create_rust_project"><code class="docutils literal notranslate"><span class="pre">Function.create_rust_project()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.create_rust_derivative_bundle"><code class="docutils literal notranslate"><span class="pre">Function.create_rust_derivative_bundle()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.jvp"><code class="docutils literal notranslate"><span class="pre">Function.jvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.gradient"><code class="docutils literal notranslate"><span class="pre">Function.gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.joint"><code class="docutils literal notranslate"><span class="pre">Function.joint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.hvp"><code class="docutils literal notranslate"><span class="pre">Function.hvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.vjp"><code class="docutils literal notranslate"><span class="pre">Function.vjp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.jacobian"><code class="docutils literal notranslate"><span class="pre">Function.jacobian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.jacobian_blocks"><code class="docutils literal notranslate"><span class="pre">Function.jacobian_blocks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.vjp_blocks"><code class="docutils literal notranslate"><span class="pre">Function.vjp_blocks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.hessian"><code class="docutils literal notranslate"><span class="pre">Function.hessian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.hessian_blocks"><code class="docutils literal notranslate"><span class="pre">Function.hessian_blocks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.hvp_blocks"><code class="docutils literal notranslate"><span class="pre">Function.hvp_blocks()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.Function.simplify"><code class="docutils literal notranslate"><span class="pre">Function.simplify()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.FunctionBundle"><code class="docutils literal notranslate"><span class="pre">FunctionBundle</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionBundle.items"><code class="docutils literal notranslate"><span class="pre">FunctionBundle.items</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionBundle.add_f"><code class="docutils literal notranslate"><span class="pre">FunctionBundle.add_f()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionBundle.add_gradient"><code class="docutils literal notranslate"><span class="pre">FunctionBundle.add_gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionBundle.add_jf"><code class="docutils literal notranslate"><span class="pre">FunctionBundle.add_jf()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionBundle.add_hessian"><code class="docutils literal notranslate"><span class="pre">FunctionBundle.add_hessian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionBundle.add_hvp"><code class="docutils literal notranslate"><span class="pre">FunctionBundle.add_hvp()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposer"><code class="docutils literal notranslate"><span class="pre">FunctionComposer</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposer.stages"><code class="docutils literal notranslate"><span class="pre">FunctionComposer.stages</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposer.feed_into"><code class="docutils literal notranslate"><span class="pre">FunctionComposer.feed_into()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposer.compose"><code class="docutils literal notranslate"><span class="pre">FunctionComposer.compose()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition"><code class="docutils literal notranslate"><span class="pre">FunctionComposition</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.name"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.stages"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.stages</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.input_names"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.output_names"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.nodes"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.to_function"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.gradient"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.hessian"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.hessian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.hvp"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.hvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.generate_rust"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.FunctionComposition.create_rust_project"><code class="docutils literal notranslate"><span class="pre">FunctionComposition.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.RustBackendMode"><code class="docutils literal notranslate"><span class="pre">RustBackendMode</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.backend_mode"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.backend_mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.scalar_type"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.scalar_type</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.crate_name"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.crate_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.function_name"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.function_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.header"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.header</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.emit_metadata_helpers"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.emit_metadata_helpers</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.enable_python_interface"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.enable_python_interface</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.build_python_interface"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.build_python_interface</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.build_crate"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.build_crate</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.additional_dependencies"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.additional_dependencies</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_backend_mode"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_backend_mode()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_scalar_type"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_scalar_type()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_crate_name"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_crate_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_function_name"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_function_name()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_header"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_header()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_emit_metadata_helpers"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_emit_metadata_helpers()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_enable_python_interface"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_enable_python_interface()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_build_python_interface"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_build_python_interface()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_build_crate"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_build_crate()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustBackendConfig.with_additional_dependencies"><code class="docutils literal notranslate"><span class="pre">RustBackendConfig.with_additional_dependencies()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.source"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.source</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.python_name"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.python_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.function_name"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.function_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.workspace_size"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.workspace_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.input_names"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.input_sizes"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.input_sizes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.output_names"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.output_sizes"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.output_sizes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.backend_mode"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.backend_mode</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.scalar_type"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.scalar_type</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustCodegenResult.math_library"><code class="docutils literal notranslate"><span class="pre">RustCodegenResult.math_library</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.RustDerivativeBundleResult"><code class="docutils literal notranslate"><span class="pre">RustDerivativeBundleResult</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustDerivativeBundleResult.bundle_dir"><code class="docutils literal notranslate"><span class="pre">RustDerivativeBundleResult.bundle_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustDerivativeBundleResult.primal"><code class="docutils literal notranslate"><span class="pre">RustDerivativeBundleResult.primal</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustDerivativeBundleResult.jacobians"><code class="docutils literal notranslate"><span class="pre">RustDerivativeBundleResult.jacobians</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustDerivativeBundleResult.hessians"><code class="docutils literal notranslate"><span class="pre">RustDerivativeBundleResult.hessians</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.RustMultiFunctionProjectResult"><code class="docutils literal notranslate"><span class="pre">RustMultiFunctionProjectResult</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustMultiFunctionProjectResult.project_dir"><code class="docutils literal notranslate"><span class="pre">RustMultiFunctionProjectResult.project_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustMultiFunctionProjectResult.cargo_toml"><code class="docutils literal notranslate"><span class="pre">RustMultiFunctionProjectResult.cargo_toml</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustMultiFunctionProjectResult.readme"><code class="docutils literal notranslate"><span class="pre">RustMultiFunctionProjectResult.readme</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustMultiFunctionProjectResult.metadata_json"><code class="docutils literal notranslate"><span class="pre">RustMultiFunctionProjectResult.metadata_json</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustMultiFunctionProjectResult.lib_rs"><code class="docutils literal notranslate"><span class="pre">RustMultiFunctionProjectResult.lib_rs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustMultiFunctionProjectResult.codegens"><code class="docutils literal notranslate"><span class="pre">RustMultiFunctionProjectResult.codegens</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustMultiFunctionProjectResult.python_interface"><code class="docutils literal notranslate"><span class="pre">RustMultiFunctionProjectResult.python_interface</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.RustProjectResult"><code class="docutils literal notranslate"><span class="pre">RustProjectResult</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustProjectResult.project_dir"><code class="docutils literal notranslate"><span class="pre">RustProjectResult.project_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustProjectResult.cargo_toml"><code class="docutils literal notranslate"><span class="pre">RustProjectResult.cargo_toml</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustProjectResult.readme"><code class="docutils literal notranslate"><span class="pre">RustProjectResult.readme</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustProjectResult.metadata_json"><code class="docutils literal notranslate"><span class="pre">RustProjectResult.metadata_json</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustProjectResult.lib_rs"><code class="docutils literal notranslate"><span class="pre">RustProjectResult.lib_rs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustProjectResult.codegen"><code class="docutils literal notranslate"><span class="pre">RustProjectResult.codegen</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustProjectResult.python_interface"><code class="docutils literal notranslate"><span class="pre">RustProjectResult.python_interface</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.RustPythonInterfaceProjectResult"><code class="docutils literal notranslate"><span class="pre">RustPythonInterfaceProjectResult</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustPythonInterfaceProjectResult.project_dir"><code class="docutils literal notranslate"><span class="pre">RustPythonInterfaceProjectResult.project_dir</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustPythonInterfaceProjectResult.cargo_toml"><code class="docutils literal notranslate"><span class="pre">RustPythonInterfaceProjectResult.cargo_toml</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustPythonInterfaceProjectResult.pyproject"><code class="docutils literal notranslate"><span class="pre">RustPythonInterfaceProjectResult.pyproject</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustPythonInterfaceProjectResult.readme"><code class="docutils literal notranslate"><span class="pre">RustPythonInterfaceProjectResult.readme</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustPythonInterfaceProjectResult.lib_rs"><code class="docutils literal notranslate"><span class="pre">RustPythonInterfaceProjectResult.lib_rs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustPythonInterfaceProjectResult.module_name"><code class="docutils literal notranslate"><span class="pre">RustPythonInterfaceProjectResult.module_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.RustPythonInterfaceProjectResult.low_level_crate_name"><code class="docutils literal notranslate"><span class="pre">RustPythonInterfaceProjectResult.low_level_crate_name</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.RustScalarType"><code class="docutils literal notranslate"><span class="pre">RustScalarType</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.SX"><code class="docutils literal notranslate"><span class="pre">SX</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.node"><code class="docutils literal notranslate"><span class="pre">SX.node</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.sym"><code class="docutils literal notranslate"><span class="pre">SX.sym()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.const"><code class="docutils literal notranslate"><span class="pre">SX.const()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.op"><code class="docutils literal notranslate"><span class="pre">SX.op</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.args"><code class="docutils literal notranslate"><span class="pre">SX.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.name"><code class="docutils literal notranslate"><span class="pre">SX.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.value"><code class="docutils literal notranslate"><span class="pre">SX.value</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.metadata"><code class="docutils literal notranslate"><span class="pre">SX.metadata</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.sin"><code class="docutils literal notranslate"><span class="pre">SX.sin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.cos"><code class="docutils literal notranslate"><span class="pre">SX.cos()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.tan"><code class="docutils literal notranslate"><span class="pre">SX.tan()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.asin"><code class="docutils literal notranslate"><span class="pre">SX.asin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.acos"><code class="docutils literal notranslate"><span class="pre">SX.acos()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.atan"><code class="docutils literal notranslate"><span class="pre">SX.atan()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.atan2"><code class="docutils literal notranslate"><span class="pre">SX.atan2()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.sinh"><code class="docutils literal notranslate"><span class="pre">SX.sinh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.cosh"><code class="docutils literal notranslate"><span class="pre">SX.cosh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.tanh"><code class="docutils literal notranslate"><span class="pre">SX.tanh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.asinh"><code class="docutils literal notranslate"><span class="pre">SX.asinh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.acosh"><code class="docutils literal notranslate"><span class="pre">SX.acosh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.atanh"><code class="docutils literal notranslate"><span class="pre">SX.atanh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.exp"><code class="docutils literal notranslate"><span class="pre">SX.exp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.expm1"><code class="docutils literal notranslate"><span class="pre">SX.expm1()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.log"><code class="docutils literal notranslate"><span class="pre">SX.log()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.log1p"><code class="docutils literal notranslate"><span class="pre">SX.log1p()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.sqrt"><code class="docutils literal notranslate"><span class="pre">SX.sqrt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.cbrt"><code class="docutils literal notranslate"><span class="pre">SX.cbrt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.erf"><code class="docutils literal notranslate"><span class="pre">SX.erf()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.erfc"><code class="docutils literal notranslate"><span class="pre">SX.erfc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.floor"><code class="docutils literal notranslate"><span class="pre">SX.floor()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.ceil"><code class="docutils literal notranslate"><span class="pre">SX.ceil()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.round"><code class="docutils literal notranslate"><span class="pre">SX.round()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.trunc"><code class="docutils literal notranslate"><span class="pre">SX.trunc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.fract"><code class="docutils literal notranslate"><span class="pre">SX.fract()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.signum"><code class="docutils literal notranslate"><span class="pre">SX.signum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.hypot"><code class="docutils literal notranslate"><span class="pre">SX.hypot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.abs"><code class="docutils literal notranslate"><span class="pre">SX.abs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.maximum"><code class="docutils literal notranslate"><span class="pre">SX.maximum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SX.minimum"><code class="docutils literal notranslate"><span class="pre">SX.minimum()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.SXNode"><code class="docutils literal notranslate"><span class="pre">SXNode</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXNode.op"><code class="docutils literal notranslate"><span class="pre">SXNode.op</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXNode.args"><code class="docutils literal notranslate"><span class="pre">SXNode.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXNode.name"><code class="docutils literal notranslate"><span class="pre">SXNode.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXNode.metadata"><code class="docutils literal notranslate"><span class="pre">SXNode.metadata</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXNode.value"><code class="docutils literal notranslate"><span class="pre">SXNode.value</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id21"><code class="docutils literal notranslate"><span class="pre">SXNode.op</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id22"><code class="docutils literal notranslate"><span class="pre">SXNode.args</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id23"><code class="docutils literal notranslate"><span class="pre">SXNode.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id24"><code class="docutils literal notranslate"><span class="pre">SXNode.metadata</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id25"><code class="docutils literal notranslate"><span class="pre">SXNode.value</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXNode.make"><code class="docutils literal notranslate"><span class="pre">SXNode.make()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.SXVector"><code class="docutils literal notranslate"><span class="pre">SXVector</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.elements"><code class="docutils literal notranslate"><span class="pre">SXVector.elements</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.sym"><code class="docutils literal notranslate"><span class="pre">SXVector.sym()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.sin"><code class="docutils literal notranslate"><span class="pre">SXVector.sin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.cos"><code class="docutils literal notranslate"><span class="pre">SXVector.cos()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.tan"><code class="docutils literal notranslate"><span class="pre">SXVector.tan()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.asin"><code class="docutils literal notranslate"><span class="pre">SXVector.asin()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.acos"><code class="docutils literal notranslate"><span class="pre">SXVector.acos()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.atan"><code class="docutils literal notranslate"><span class="pre">SXVector.atan()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.asinh"><code class="docutils literal notranslate"><span class="pre">SXVector.asinh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.acosh"><code class="docutils literal notranslate"><span class="pre">SXVector.acosh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.atanh"><code class="docutils literal notranslate"><span class="pre">SXVector.atanh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.sinh"><code class="docutils literal notranslate"><span class="pre">SXVector.sinh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.cosh"><code class="docutils literal notranslate"><span class="pre">SXVector.cosh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.tanh"><code class="docutils literal notranslate"><span class="pre">SXVector.tanh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.exp"><code class="docutils literal notranslate"><span class="pre">SXVector.exp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.expm1"><code class="docutils literal notranslate"><span class="pre">SXVector.expm1()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.log"><code class="docutils literal notranslate"><span class="pre">SXVector.log()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.log1p"><code class="docutils literal notranslate"><span class="pre">SXVector.log1p()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.sqrt"><code class="docutils literal notranslate"><span class="pre">SXVector.sqrt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.cbrt"><code class="docutils literal notranslate"><span class="pre">SXVector.cbrt()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.erf"><code class="docutils literal notranslate"><span class="pre">SXVector.erf()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.erfc"><code class="docutils literal notranslate"><span class="pre">SXVector.erfc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.floor"><code class="docutils literal notranslate"><span class="pre">SXVector.floor()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.ceil"><code class="docutils literal notranslate"><span class="pre">SXVector.ceil()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.round"><code class="docutils literal notranslate"><span class="pre">SXVector.round()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.trunc"><code class="docutils literal notranslate"><span class="pre">SXVector.trunc()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.fract"><code class="docutils literal notranslate"><span class="pre">SXVector.fract()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.signum"><code class="docutils literal notranslate"><span class="pre">SXVector.signum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.abs"><code class="docutils literal notranslate"><span class="pre">SXVector.abs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.dot"><code class="docutils literal notranslate"><span class="pre">SXVector.dot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.sum"><code class="docutils literal notranslate"><span class="pre">SXVector.sum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.prod"><code class="docutils literal notranslate"><span class="pre">SXVector.prod()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.max"><code class="docutils literal notranslate"><span class="pre">SXVector.max()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.min"><code class="docutils literal notranslate"><span class="pre">SXVector.min()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.mean"><code class="docutils literal notranslate"><span class="pre">SXVector.mean()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.norm2"><code class="docutils literal notranslate"><span class="pre">SXVector.norm2()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.norm2sq"><code class="docutils literal notranslate"><span class="pre">SXVector.norm2sq()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.norm1"><code class="docutils literal notranslate"><span class="pre">SXVector.norm1()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.norm_inf"><code class="docutils literal notranslate"><span class="pre">SXVector.norm_inf()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.norm_p"><code class="docutils literal notranslate"><span class="pre">SXVector.norm_p()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SXVector.norm_p_to_p"><code class="docutils literal notranslate"><span class="pre">SXVector.norm_p_to_p()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingBundle"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingBundle.include_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.include_cost</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingBundle.include_gradient"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.include_gradient</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingBundle.include_hvp"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.include_hvp</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingBundle.include_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.include_states</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingBundle.add_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.add_cost()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingBundle.add_gradient"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.add_gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingBundle.add_hvp"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.add_hvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingBundle.add_rollout_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingBundle.add_rollout_states()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.problem"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.problem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.include_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.include_states</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingGradientFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingGradientFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.problem"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.problem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.include_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.include_states</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingHvpFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingHvpFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.problem"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.problem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.bundle"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.bundle</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingJointFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.problem"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.problem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.include_states"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.include_states</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingPrimalFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.horizon"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.horizon</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.dynamics"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.dynamics</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.stage_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.stage_cost</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.terminal_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.terminal_cost</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.initial_state_name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.initial_state_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.control_sequence_name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.control_sequence_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.parameter_name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.parameter_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.stage_penalty"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.stage_penalty</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.terminal_penalty"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.terminal_penalty</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.penalty_weight"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.penalty_weight</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.with_horizon"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_horizon()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.with_dynamics"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_dynamics()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.with_stage_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_stage_cost()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.with_terminal_cost"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_terminal_cost()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.with_costs"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_costs()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.with_penalties"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_penalties()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.with_input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_input_names()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.with_simplification"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.with_simplification()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.state_size"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.state_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.control_size"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.control_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.parameter_size"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.parameter_size</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.has_runtime_penalty_weight"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.has_runtime_penalty_weight</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.penalty_weight_name"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.penalty_weight_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.input_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.output_names"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.inputs"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.inputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.outputs"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.outputs</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.nodes"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.primal"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.primal()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.gradient"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.gradient()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.hvp"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.hvp()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.joint"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.joint()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.to_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.stage_total_cost_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.stage_total_cost_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.terminal_total_cost_function"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.terminal_total_cost_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.generate_rust"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.SingleShootingProblem.create_rust_project"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.acosh"><code class="docutils literal notranslate"><span class="pre">acosh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.acos"><code class="docutils literal notranslate"><span class="pre">acos()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.asinh"><code class="docutils literal notranslate"><span class="pre">asinh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.asin"><code class="docutils literal notranslate"><span class="pre">asin()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.atan2"><code class="docutils literal notranslate"><span class="pre">atan2()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.atan"><code class="docutils literal notranslate"><span class="pre">atan()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.atanh"><code class="docutils literal notranslate"><span class="pre">atanh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.bilinear_form"><code class="docutils literal notranslate"><span class="pre">bilinear_form()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.cbrt"><code class="docutils literal notranslate"><span class="pre">cbrt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ceil"><code class="docutils literal notranslate"><span class="pre">ceil()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.const"><code class="docutils literal notranslate"><span class="pre">const()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.cos"><code class="docutils literal notranslate"><span class="pre">cos()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.cosh"><code class="docutils literal notranslate"><span class="pre">cosh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.cse"><code class="docutils literal notranslate"><span class="pre">cse()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.create_rust_project"><code class="docutils literal notranslate"><span class="pre">create_rust_project()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.create_rust_derivative_bundle"><code class="docutils literal notranslate"><span class="pre">create_rust_derivative_bundle()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.create_multi_function_rust_project"><code class="docutils literal notranslate"><span class="pre">create_multi_function_rust_project()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.derivative"><code class="docutils literal notranslate"><span class="pre">derivative()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.clear_registered_elementary_functions"><code class="docutils literal notranslate"><span class="pre">clear_registered_elementary_functions()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.erf"><code class="docutils literal notranslate"><span class="pre">erf()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.erfc"><code class="docutils literal notranslate"><span class="pre">erfc()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.exp"><code class="docutils literal notranslate"><span class="pre">exp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.expm1"><code class="docutils literal notranslate"><span class="pre">expm1()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.floor"><code class="docutils literal notranslate"><span class="pre">floor()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.fract"><code class="docutils literal notranslate"><span class="pre">fract()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.gradient"><code class="docutils literal notranslate"><span class="pre">gradient()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.get_registered_elementary_function"><code class="docutils literal notranslate"><span class="pre">get_registered_elementary_function()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.hessian"><code class="docutils literal notranslate"><span class="pre">hessian()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.hypot"><code class="docutils literal notranslate"><span class="pre">hypot()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.jacobian"><code class="docutils literal notranslate"><span class="pre">jacobian()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.jvp"><code class="docutils literal notranslate"><span class="pre">jvp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.log"><code class="docutils literal notranslate"><span class="pre">log()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.log1p"><code class="docutils literal notranslate"><span class="pre">log1p()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.map_function"><code class="docutils literal notranslate"><span class="pre">map_function()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.reduce_function"><code class="docutils literal notranslate"><span class="pre">reduce_function()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.matvec"><code class="docutils literal notranslate"><span class="pre">matvec()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.maximum"><code class="docutils literal notranslate"><span class="pre">maximum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.minimum"><code class="docutils literal notranslate"><span class="pre">minimum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.quadform"><code class="docutils literal notranslate"><span class="pre">quadform()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.round"><code class="docutils literal notranslate"><span class="pre">round()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.register_elementary_function"><code class="docutils literal notranslate"><span class="pre">register_elementary_function()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.generate_rust"><code class="docutils literal notranslate"><span class="pre">generate_rust()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.signum"><code class="docutils literal notranslate"><span class="pre">signum()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.simplify"><code class="docutils literal notranslate"><span class="pre">simplify()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sin"><code class="docutils literal notranslate"><span class="pre">sin()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sinh"><code class="docutils literal notranslate"><span class="pre">sinh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.sqrt"><code class="docutils literal notranslate"><span class="pre">sqrt()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.tan"><code class="docutils literal notranslate"><span class="pre">tan()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.tanh"><code class="docutils literal notranslate"><span class="pre">tanh()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.trunc"><code class="docutils literal notranslate"><span class="pre">trunc()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.vector"><code class="docutils literal notranslate"><span class="pre">vector()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.vjp"><code class="docutils literal notranslate"><span class="pre">vjp()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.zip_function"><code class="docutils literal notranslate"><span class="pre">zip_function()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction"><code class="docutils literal notranslate"><span class="pre">BatchedFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.function"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.function</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.count"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.name"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.input_sequence_names"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.input_sequence_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.simplification"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id26"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.function</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id27"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id28"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id29"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.input_sequence_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id30"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.input_names"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.output_names"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.nodes"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.jacobian"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.jacobian()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.to_function"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">BatchedFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction.batched"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.batched</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction.wrt_index"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.wrt_index</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction.name"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction.simplification"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id31"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.batched</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id32"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.wrt_index</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id33"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id34"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction.to_function"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction.input_names"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction.output_names"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.BatchedJacobianFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">BatchedJacobianFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction"><code class="docutils literal notranslate"><span class="pre">ReducedFunction</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.function"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.function</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.count"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.name"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.accumulator_input_name"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.accumulator_input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.input_name"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.output_name"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.output_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.simplification"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id35"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.function</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id36"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.count</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id37"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id38"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.accumulator_input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id39"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.input_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id40"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.output_name</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#id41"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.simplification</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.input_names"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.input_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.output_names"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.output_names</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.nodes"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.nodes</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.to_function"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.to_function()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.generate_rust"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.generate_rust()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="gradgen.html#gradgen.ReducedFunction.create_rust_project"><code class="docutils literal notranslate"><span class="pre">ReducedFunction.create_rust_project()</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="../index.html" class="btn btn-neutral float-left" title="Gradgen API Reference" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="gradgen.html" class="btn btn-neutral float-right" title="gradgen package" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

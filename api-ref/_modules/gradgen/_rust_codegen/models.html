@@ -1,0 +1,255 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen._rust_codegen.models &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">gradgen</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gradgen._rust_codegen.models</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gradgen._rust_codegen.models</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Dataclasses describing generated Rust artifacts.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">..sx</span><span class="w"> </span><span class="kn">import</span> <span class="n">SXNode</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.config</span><span class="w"> </span><span class="kn">import</span> <span class="n">RustBackendMode</span><span class="p">,</span> <span class="n">RustScalarType</span>
+
+
+<div class="viewcode-block" id="RustCodegenResult">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustCodegenResult">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RustCodegenResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generated Rust source and metadata for a symbolic function.&quot;&quot;&quot;</span>
+
+    <span class="n">source</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">python_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">workspace_size</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">input_names</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">input_sizes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">output_names</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">output_sizes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">backend_mode</span><span class="p">:</span> <span class="n">RustBackendMode</span>
+    <span class="n">scalar_type</span><span class="p">:</span> <span class="n">RustScalarType</span>
+    <span class="n">math_library</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="RustPythonInterfaceProjectResult">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustPythonInterfaceProjectResult">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RustPythonInterfaceProjectResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Information about a generated Python wrapper crate.&quot;&quot;&quot;</span>
+
+    <span class="n">project_dir</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">cargo_toml</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">pyproject</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">readme</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">lib_rs</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">module_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">low_level_crate_name</span><span class="p">:</span> <span class="nb">str</span></div>
+
+
+
+<div class="viewcode-block" id="RustProjectResult">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustProjectResult">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RustProjectResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Information about a generated Rust project on disk.&quot;&quot;&quot;</span>
+
+    <span class="n">project_dir</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">cargo_toml</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">readme</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">metadata_json</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">lib_rs</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">codegen</span><span class="p">:</span> <span class="n">RustCodegenResult</span>
+    <span class="n">python_interface</span><span class="p">:</span> <span class="n">RustPythonInterfaceProjectResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<div class="viewcode-block" id="RustDerivativeBundleResult">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustDerivativeBundleResult">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RustDerivativeBundleResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Information about a generated directory of derivative Rust crates.&quot;&quot;&quot;</span>
+
+    <span class="n">bundle_dir</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">primal</span><span class="p">:</span> <span class="n">RustProjectResult</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">jacobians</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">RustProjectResult</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">hessians</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">RustProjectResult</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span></div>
+
+
+
+<div class="viewcode-block" id="RustMultiFunctionProjectResult">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustMultiFunctionProjectResult">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RustMultiFunctionProjectResult</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Information about a generated single-crate multi-function project.&quot;&quot;&quot;</span>
+
+    <span class="n">project_dir</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">cargo_toml</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">readme</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">metadata_json</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">lib_rs</span><span class="p">:</span> <span class="n">Path</span>
+    <span class="n">codegens</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">RustCodegenResult</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">python_interface</span><span class="p">:</span> <span class="n">RustPythonInterfaceProjectResult</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+           <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_ArgSpec</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Rendered metadata for a generated Rust input or output.&quot;&quot;&quot;</span>
+
+    <span class="n">raw_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">rust_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">rust_label</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">doc_description</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">size</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_ComposedSinglePlan</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Codegen metadata for one explicit composed stage.&quot;&quot;&quot;</span>
+
+    <span class="n">helper_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">vjp_helper_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">parameter_kind</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">parameter_size</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">parameter_offset</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">fixed_values</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">stage_index</span><span class="p">:</span> <span class="nb">int</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_ComposedRepeatPlan</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Codegen metadata for one repeated composed stage block.&quot;&quot;&quot;</span>
+
+    <span class="n">helper_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">vjp_helper_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">parameter_kind</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">parameter_size</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">parameter_offset</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">parameter_offsets</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">fixed_values</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">float</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">repeat_count</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">stage_start_index</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">const_name</span><span class="p">:</span> <span class="nb">str</span>
+
+
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_SingleShootingHelperBundle</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generated helper kernels for a single-shooting problem.&quot;&quot;&quot;</span>
+
+    <span class="n">dynamics_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">dynamics_jvp_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">stage_cost_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">terminal_cost_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">dynamics_vjp_x_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">dynamics_vjp_u_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">dynamics_vjp_x_jvp_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">dynamics_vjp_u_jvp_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">stage_cost_grad_x_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">stage_cost_grad_u_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">stage_cost_grad_x_jvp_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">stage_cost_grad_u_jvp_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">terminal_cost_grad_x_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">terminal_cost_grad_x_jvp_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">sources</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">helper_nodes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SXNode</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">max_workspace_size</span><span class="p">:</span> <span class="nb">int</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

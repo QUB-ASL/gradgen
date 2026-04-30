@@ -1,0 +1,273 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen._rust_codegen.config &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../../genindex.html" />
+    <link rel="search" title="Search" href="../../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../api/modules.html">gradgen</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gradgen._rust_codegen.config</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gradgen._rust_codegen.config</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Backend configuration for Rust code generation.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">replace</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections.abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Iterable</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.naming</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">validate_cargo_dependency_name</span><span class="p">,</span>
+    <span class="n">validate_rust_ident</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.validation</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">validate_backend_mode</span><span class="p">,</span>
+    <span class="n">validate_crate_name</span><span class="p">,</span>
+    <span class="n">validate_scalar_type</span>
+<span class="p">)</span>
+
+
+<span class="n">RustBackendMode</span> <span class="o">=</span> <span class="nb">str</span>
+<span class="n">RustScalarType</span> <span class="o">=</span> <span class="nb">str</span>
+<span class="n">CargoDependency</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="RustBackendConfig">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">RustBackendConfig</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Configuration for generated Rust source and project layout.&quot;&quot;&quot;</span>
+
+    <span class="n">backend_mode</span><span class="p">:</span> <span class="n">RustBackendMode</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span>
+    <span class="n">scalar_type</span><span class="p">:</span> <span class="n">RustScalarType</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span>
+    <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">header</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">emit_metadata_helpers</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">enable_python_interface</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">build_python_interface</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">build_crate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">additional_dependencies</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">CargoDependency</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
+
+<div class="viewcode-block" id="RustBackendConfig.with_backend_mode">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_backend_mode">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_backend_mode</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                          <span class="n">backend_mode</span><span class="p">:</span> <span class="n">RustBackendMode</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with a different Rust backend mode.&quot;&quot;&quot;</span>
+        <span class="n">validate_backend_mode</span><span class="p">(</span><span class="n">backend_mode</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_scalar_type">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_scalar_type">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_scalar_type</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scalar_type</span><span class="p">:</span> <span class="n">RustScalarType</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with a different generated Rust scalar type.&quot;&quot;&quot;</span>
+        <span class="n">validate_scalar_type</span><span class="p">(</span><span class="n">scalar_type</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_crate_name">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_crate_name">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_crate_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with a different generated crate name.&quot;&quot;&quot;</span>
+        <span class="n">validate_crate_name</span><span class="p">(</span><span class="n">crate_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_function_name">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_function_name">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_function_name</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with a different generated Rust function name.&quot;&quot;&quot;</span>
+        <span class="n">validate_rust_ident</span><span class="p">(</span><span class="n">function_name</span><span class="p">,</span> <span class="n">label</span><span class="o">=</span><span class="s2">&quot;function_name&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_header">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_header">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_header</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with a custom Rust module header.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            header: Extra Rust source to insert near the top of generated</span>
+<span class="sd">                ``src/lib.rs``. The text is written after crate attributes such</span>
+<span class="sd">                as ``#![no_std]`` and ``#![forbid(unsafe_code)]``. The header</span>
+<span class="sd">                is rendered as a small Jinja2 template with variables such as</span>
+<span class="sd">                ``scalar_type``, ``backend_mode``, and ``math_library``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A copy of the config with the provided header text.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">header</span><span class="o">=</span><span class="n">header</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_emit_metadata_helpers">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_emit_metadata_helpers">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_emit_metadata_helpers</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                   <span class="n">emit_metadata_helpers</span><span class="p">:</span> <span class="nb">bool</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with metadata helper emission enabled or disabled.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">emit_metadata_helpers</span><span class="o">=</span><span class="n">emit_metadata_helpers</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_enable_python_interface">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_enable_python_interface">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_enable_python_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                     <span class="n">enable_python_interface</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a copy with optional PyO3-based Python bindings enabled.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">enable_python_interface</span><span class="o">=</span><span class="n">enable_python_interface</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_build_python_interface">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_build_python_interface">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_build_python_interface</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span>
+                                    <span class="n">build_python_interface</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> \
+            <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a copy with Python wrapper compilation enabled or disabled.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">build_python_interface</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">enable_python_interface</span><span class="p">:</span>
+            <span class="k">return</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;To use with_build_python_interface, you first need &quot;</span>
+                <span class="s2">&quot;to call with_enable_python_interface&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">build_python_interface</span><span class="o">=</span><span class="n">build_python_interface</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_build_crate">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_build_crate">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_build_crate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">build_crate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Return a copy with low-level crate compilation enabled or disabled.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">build_crate</span><span class="o">=</span><span class="n">build_crate</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_additional_dependencies">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_additional_dependencies">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_additional_dependencies</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">dependencies</span><span class="p">:</span> <span class="n">Iterable</span><span class="p">[</span><span class="nb">str</span> <span class="o">|</span> <span class="n">CargoDependency</span><span class="p">],</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with extra Cargo dependencies added.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            dependencies: Additional dependencies to include in the generated</span>
+<span class="sd">                ``Cargo.toml``. Each item may be either a dependency name, in</span>
+<span class="sd">                which case the version defaults to ``&quot;*&quot;`` in Cargo syntax, or</span>
+<span class="sd">                a ``(name, version)`` pair.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A copy of the config with the normalized dependency list.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">normalized</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">CargoDependency</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">dependency</span> <span class="ow">in</span> <span class="n">dependencies</span><span class="p">:</span>
+            <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">dependency</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="n">name</span> <span class="o">=</span> <span class="n">dependency</span>
+                <span class="n">version</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">name</span><span class="p">,</span> <span class="n">version</span> <span class="o">=</span> <span class="n">dependency</span>
+            <span class="n">validate_cargo_dependency_name</span><span class="p">(</span><span class="n">name</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">version</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">version</span><span class="p">,</span> <span class="nb">str</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                    <span class="s2">&quot;Cargo dependency versions must be strings or None&quot;</span>
+                <span class="p">)</span>
+            <span class="n">normalized</span><span class="o">.</span><span class="n">append</span><span class="p">((</span><span class="n">name</span><span class="p">,</span> <span class="n">version</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">additional_dependencies</span><span class="o">=</span><span class="nb">tuple</span><span class="p">(</span><span class="n">normalized</span><span class="p">))</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

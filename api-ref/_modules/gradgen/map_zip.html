@@ -1,0 +1,844 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen.map_zip &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/modules.html">gradgen</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gradgen.map_zip</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gradgen.map_zip</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Loop-structured batched map/zip/reduce function abstractions.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">.function</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._staged</span><span class="w"> </span><span class="kn">import</span> <span class="n">_create_rust_project</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._staged</span><span class="w"> </span><span class="kn">import</span> <span class="n">_generate_rust</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">._staged</span><span class="w"> </span><span class="kn">import</span> <span class="n">_simplify_function</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sx</span><span class="w"> </span><span class="kn">import</span> <span class="n">SX</span><span class="p">,</span> <span class="n">SXVector</span>
+
+<span class="n">FunctionArg</span> <span class="o">=</span> <span class="n">SX</span> <span class="o">|</span> <span class="n">SXVector</span>
+
+
+<div class="viewcode-block" id="BatchedJacobianFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.BatchedJacobianFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BatchedJacobianFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Staged Jacobian wrapper for a batched function.</span>
+
+<span class="sd">    This object represents the Jacobian of a staged batched function without</span>
+<span class="sd">    immediately expanding it back into an ordinary :class:`Function`.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        batched: The underlying staged batched function.</span>
+<span class="sd">        wrt_index: The input index with respect to which the Jacobian is</span>
+<span class="sd">            taken.</span>
+<span class="sd">        name: The symbolic name of the staged Jacobian wrapper.</span>
+<span class="sd">        simplification: Optional simplification effort forwarded to the</span>
+<span class="sd">            expanded symbolic function.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">batched</span><span class="p">:</span> <span class="n">BatchedFunction</span>
+    <span class="n">wrt_index</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="BatchedJacobianFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.BatchedJacobianFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged Jacobian into a regular symbolic function.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: Optional name for the expanded symbolic function. When not</span>
+<span class="sd">                provided, the wrapper name is reused.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A symbolic :class:`~gradgen.function.Function` representing the</span>
+<span class="sd">            expanded Jacobian.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">function</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">batched</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">jacobian</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">wrt_index</span><span class="p">,</span> <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">input_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the packed input names used by the staged Jacobian.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">batched</span><span class="o">.</span><span class="n">input_names</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the generated Jacobian output names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;jacobian_</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">batched</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">output_names</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="BatchedJacobianFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.BatchedJacobianFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged Jacobian kernel.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            config: Optional backend configuration object.</span>
+<span class="sd">            function_name: Optional exported Rust function name.</span>
+<span class="sd">            backend_mode: Rust backend mode to target.</span>
+<span class="sd">            scalar_type: Rust scalar type to emit.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The generated Rust code bundle for this staged Jacobian.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BatchedJacobianFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.BatchedJacobianFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged Jacobian kernel.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            path: Directory where the Rust crate should be created.</span>
+<span class="sd">            config: Optional backend configuration object.</span>
+<span class="sd">            crate_name: Optional crate name override.</span>
+<span class="sd">            function_name: Optional exported Rust function name.</span>
+<span class="sd">            backend_mode: Rust backend mode to target.</span>
+<span class="sd">            scalar_type: Rust scalar type to emit.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A Rust project bundle rooted at ``path``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="BatchedFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.BatchedFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">BatchedFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Staged wrapper that batches a function over packed inputs.</span>
+
+<span class="sd">    The wrapper represents a symbolic function evaluated repeatedly over</span>
+<span class="sd">    packed input sequences, producing packed outputs suitable for Rust code</span>
+<span class="sd">    generation or symbolic expansion.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        function: The symbolic function to stage.</span>
+<span class="sd">        count: Number of repeated stages in the packed sequence.</span>
+<span class="sd">        name: Symbolic name of the staged wrapper.</span>
+<span class="sd">        input_sequence_names: Packed input sequence names.</span>
+<span class="sd">        simplification: Optional simplification effort forwarded to the</span>
+<span class="sd">            expanded symbolic function.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">function</span><span class="p">:</span> <span class="n">Function</span>
+    <span class="n">count</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">input_sequence_names</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate batching metadata and staged input arity.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;count must be a positive integer&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">input_sequence_names</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;input_sequence_names must match the number &quot;</span>
+                <span class="s2">&quot;of function inputs&quot;</span>
+            <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">input_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the packed input sequence names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_sequence_names</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the packed output names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">output_names</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for symbolic fallback usage.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+<div class="viewcode-block" id="BatchedFunction.jacobian">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.BatchedFunction.jacobian">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">jacobian</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">wrt_index</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BatchedJacobianFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a staged Jacobian wrapper for one packed input.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            wrt_index: Input index to differentiate with respect to.</span>
+<span class="sd">            name: Optional symbolic name for the staged Jacobian wrapper.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A :class:`BatchedJacobianFunction` describing the staged Jacobian.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">wrt_index</span> <span class="o">&lt;</span> <span class="mi">0</span> <span class="ow">or</span> <span class="n">wrt_index</span> <span class="o">&gt;=</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">IndexError</span><span class="p">(</span><span class="s2">&quot;wrt_index out of range&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">BatchedJacobianFunction</span><span class="p">(</span>
+            <span class="n">batched</span><span class="o">=</span><span class="bp">self</span><span class="p">,</span>
+            <span class="n">wrt_index</span><span class="o">=</span><span class="n">wrt_index</span><span class="p">,</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_jacobian_</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="n">wrt_index</span><span class="p">]</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BatchedFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.BatchedFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged batching into a regular symbolic function.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: Optional name for the expanded symbolic function. When not</span>
+<span class="sd">                provided, the wrapper name is reused.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A symbolic :class:`~gradgen.function.Function` representing the</span>
+<span class="sd">            expanded staged batch.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">packed_inputs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="n">input_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">*</span> <span class="n">_arg_size</span><span class="p">(</span><span class="n">formal</span><span class="p">))</span>
+            <span class="k">for</span> <span class="n">formal</span><span class="p">,</span> <span class="n">input_name</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_sequence_names</span>
+            <span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">packed_outputs</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SXVector</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">output_index</span><span class="p">,</span> <span class="n">_</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">):</span>
+            <span class="n">scalars</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="n">SX</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">stage_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">count</span><span class="p">):</span>
+                <span class="n">stage_inputs</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+                    <span class="n">_slice_packed_input</span><span class="p">(</span><span class="n">sequence</span><span class="p">,</span> <span class="n">stage_index</span><span class="p">,</span> <span class="n">formal</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">sequence</span><span class="p">,</span> <span class="n">formal</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                        <span class="n">packed_inputs</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+                <span class="n">stage_result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="o">*</span><span class="n">stage_inputs</span><span class="p">)</span>
+                <span class="n">stage_output</span> <span class="o">=</span> <span class="n">_normalize_function_result</span><span class="p">(</span>
+                    <span class="n">stage_result</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span>
+                <span class="p">)[</span><span class="n">output_index</span><span class="p">]</span>
+                <span class="n">scalars</span><span class="o">.</span><span class="n">extend</span><span class="p">(</span><span class="n">_flatten_arg</span><span class="p">(</span><span class="n">stage_output</span><span class="p">))</span>
+            <span class="n">packed_outputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">SXVector</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">scalars</span><span class="p">)))</span>
+
+        <span class="n">function</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">packed_inputs</span><span class="p">,</span>
+            <span class="n">packed_outputs</span><span class="p">,</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">input_sequence_names</span><span class="p">,</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">output_names</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BatchedFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.BatchedFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged batched kernel.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            config: Optional backend configuration object.</span>
+<span class="sd">            function_name: Optional exported Rust function name.</span>
+<span class="sd">            backend_mode: Rust backend mode to target.</span>
+<span class="sd">            scalar_type: Rust scalar type to emit.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The generated Rust code bundle for this staged batch.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="BatchedFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.BatchedFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged batched kernel.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            path: Directory where the Rust crate should be created.</span>
+<span class="sd">            config: Optional backend configuration object.</span>
+<span class="sd">            crate_name: Optional crate name override.</span>
+<span class="sd">            function_name: Optional exported Rust function name.</span>
+<span class="sd">            backend_mode: Rust backend mode to target.</span>
+<span class="sd">            scalar_type: Rust scalar type to emit.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A Rust project bundle rooted at ``path``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ReducedFunction">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.ReducedFunction">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">frozen</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span> <span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">ReducedFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Staged wrapper that reduces a packed input sequence.</span>
+
+<span class="sd">    The wrapper represents a repeated left-fold reduction over a packed input</span>
+<span class="sd">    sequence and is designed for symbolic expansion or Rust generation.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        function: The binary stage function being reduced.</span>
+<span class="sd">        count: Number of reduction stages.</span>
+<span class="sd">        name: Symbolic name of the staged reducer.</span>
+<span class="sd">        accumulator_input_name: Name of the accumulator input sequence.</span>
+<span class="sd">        input_name: Name of the packed sequence input.</span>
+<span class="sd">        output_name: Name of the final reduced output.</span>
+<span class="sd">        simplification: Optional simplification effort forwarded to the</span>
+<span class="sd">            expanded symbolic function.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">function</span><span class="p">:</span> <span class="n">Function</span>
+    <span class="n">count</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">accumulator_input_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">input_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">output_name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate reduction metadata and stage-function contract.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">&lt;=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;count must be a positive integer&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;reduce_function requires a function with exactly two inputs&quot;</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;reduce_function requires a function with exactly one output&quot;</span>
+            <span class="p">)</span>
+        <span class="n">accumulator_formal</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">accumulator_output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">_same_arg_shape</span><span class="p">(</span><span class="n">accumulator_formal</span><span class="p">,</span> <span class="n">accumulator_output</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;reduce_function output shape must match &quot;</span>
+                <span class="s2">&quot;accumulator input shape&quot;</span>
+            <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">input_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return packed reduce input names: ``(acc0, x_seq)``.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">accumulator_input_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_name</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">output_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the reduction output names.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">nodes</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return dependency nodes for symbolic fallback usage.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()</span><span class="o">.</span><span class="n">nodes</span>
+
+<div class="viewcode-block" id="ReducedFunction.to_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.ReducedFunction.to_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Function</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Expand this staged reduce into a regular symbolic function.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: Optional name for the expanded symbolic function.</span>
+<span class="sd">                When not provided, the wrapper name is reused.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A symbolic :class:`~gradgen.function.Function` representing the</span>
+<span class="sd">            expanded reduction.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">accumulator_formal</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">sequence_formal</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">accumulator_initial</span><span class="p">:</span> <span class="n">FunctionArg</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">accumulator_formal</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+            <span class="n">accumulator_initial</span> <span class="o">=</span> <span class="n">SX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">accumulator_input_name</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">accumulator_initial</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">accumulator_input_name</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">accumulator_formal</span><span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="n">sequence_input</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">input_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">count</span> <span class="o">*</span> <span class="n">_arg_size</span><span class="p">(</span><span class="n">sequence_formal</span><span class="p">)</span>
+        <span class="p">)</span>
+
+        <span class="n">accumulator_state</span> <span class="o">=</span> <span class="n">accumulator_initial</span>
+        <span class="k">for</span> <span class="n">stage_index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">count</span><span class="p">):</span>
+            <span class="n">sequence_stage</span> <span class="o">=</span> <span class="n">_slice_packed_input</span><span class="p">(</span>
+                <span class="n">sequence_input</span><span class="p">,</span> <span class="n">stage_index</span><span class="p">,</span> <span class="n">sequence_formal</span>
+            <span class="p">)</span>
+            <span class="n">stage_result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="p">(</span><span class="n">accumulator_state</span><span class="p">,</span> <span class="n">sequence_stage</span><span class="p">)</span>
+            <span class="n">accumulator_state</span> <span class="o">=</span> <span class="n">_normalize_function_result</span><span class="p">(</span>
+                <span class="n">stage_result</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span>
+            <span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="n">function</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span>
+            <span class="n">name</span> <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+            <span class="p">(</span><span class="n">accumulator_initial</span><span class="p">,</span> <span class="n">sequence_input</span><span class="p">),</span>
+            <span class="p">(</span><span class="n">accumulator_state</span><span class="p">,),</span>
+            <span class="n">input_names</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">accumulator_input_name</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">input_name</span><span class="p">),</span>
+            <span class="n">output_names</span><span class="o">=</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">output_name</span><span class="p">,),</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">_simplify_function</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">simplification</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ReducedFunction.generate_rust">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.ReducedFunction.generate_rust">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">generate_rust</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Generate compact Rust for the staged reduce kernel.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            config: Optional backend configuration object.</span>
+<span class="sd">            function_name: Optional exported Rust function name.</span>
+<span class="sd">            backend_mode: Rust backend mode to target.</span>
+<span class="sd">            scalar_type: Rust scalar type to emit.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The generated Rust code bundle for this staged reduction.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_generate_rust</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="ReducedFunction.create_rust_project">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.ReducedFunction.create_rust_project">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">create_rust_project</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">config</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+        <span class="n">crate_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">function_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">backend_mode</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;std&quot;</span><span class="p">,</span>
+        <span class="n">scalar_type</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;f64&quot;</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a Rust crate containing the staged reduce kernel.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            path: Directory where the Rust crate should be created.</span>
+<span class="sd">            config: Optional backend configuration object.</span>
+<span class="sd">            crate_name: Optional crate name override.</span>
+<span class="sd">            function_name: Optional exported Rust function name.</span>
+<span class="sd">            backend_mode: Rust backend mode to target.</span>
+<span class="sd">            scalar_type: Rust scalar type to emit.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A Rust project bundle rooted at ``path``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">_create_rust_project</span><span class="p">(</span>
+            <span class="bp">self</span><span class="p">,</span>
+            <span class="n">path</span><span class="p">,</span>
+            <span class="n">config</span><span class="o">=</span><span class="n">config</span><span class="p">,</span>
+            <span class="n">crate_name</span><span class="o">=</span><span class="n">crate_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+            <span class="n">backend_mode</span><span class="o">=</span><span class="n">backend_mode</span><span class="p">,</span>
+            <span class="n">scalar_type</span><span class="o">=</span><span class="n">scalar_type</span><span class="p">,</span>
+        <span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="map_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.map_function">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">map_function</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">input_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BatchedFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a staged mapped function for a unary function.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        function: The symbolic function to stage. It must accept exactly one</span>
+<span class="sd">            input argument.</span>
+<span class="sd">        count: Number of repeated applications in the packed sequence.</span>
+<span class="sd">        input_name: Optional name for the packed input sequence. When not</span>
+<span class="sd">            provided, the name defaults to ``&quot;&lt;input_name&gt;_seq&quot;``.</span>
+<span class="sd">        name: Optional name for the staged mapped function. When not</span>
+<span class="sd">            provided, the generated name defaults to ``&quot;&lt;function.name&gt;_map&quot;``.</span>
+<span class="sd">        simplification: Optional simplification effort passed through to the</span>
+<span class="sd">            expanded symbolic function.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A :class:`BatchedFunction` representing the staged batched function.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;map_function requires a function &quot;</span> <span class="s2">&quot;with exactly one input&quot;</span>
+        <span class="p">)</span>
+    <span class="n">sequence_name</span> <span class="o">=</span> <span class="n">input_name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">_seq&quot;</span>
+    <span class="k">return</span> <span class="n">BatchedFunction</span><span class="p">(</span>
+        <span class="n">function</span><span class="o">=</span><span class="n">function</span><span class="p">,</span>
+        <span class="n">count</span><span class="o">=</span><span class="n">count</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_map&quot;</span><span class="p">,</span>
+        <span class="n">input_sequence_names</span><span class="o">=</span><span class="p">(</span><span class="n">sequence_name</span><span class="p">,),</span>
+        <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="zip_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.zip_function">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">zip_function</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">input_names</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BatchedFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a staged batched function for a multi-input ``function``.</span>
+
+<span class="sd">    This helper creates a loop-structured wrapper around ``function`` so it can</span>
+<span class="sd">    be evaluated repeatedly over packed input sequences. The returned object is</span>
+<span class="sd">    a :class:`BatchedFunction`, which can later be expanded back into a regular</span>
+<span class="sd">    symbolic :class:`~gradgen.function.Function` or used for Rust code</span>
+<span class="sd">    generation.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        function: The symbolic function to stage. It may accept one or more</span>
+<span class="sd">            inputs, and each input can be either a scalar ``SX`` or an</span>
+<span class="sd">            ``SXVector``.</span>
+<span class="sd">        count: The number of times the function should be applied over the</span>
+<span class="sd">            packed input sequences.</span>
+<span class="sd">        input_names: Optional names for the packed input sequences. When not</span>
+<span class="sd">            provided, each input name defaults to ``&quot;&lt;input_name&gt;_seq&quot;``.</span>
+<span class="sd">        name: Optional name for the staged batched function. When not provided,</span>
+<span class="sd">            the generated name defaults to ``&quot;&lt;function.name&gt;_zip&quot;``.</span>
+<span class="sd">        simplification: Optional simplification effort passed through to the</span>
+<span class="sd">            generated symbolic function when the staged wrapper is expanded.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A :class:`BatchedFunction` describing the staged batched version of</span>
+<span class="sd">        ``function``.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; from gradgen import Function, SX</span>
+<span class="sd">        &gt;&gt;&gt; x = SX.sym(&quot;x&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; y = SX.sym(&quot;y&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; f = Function(&quot;add&quot;, (x, y), (x + y,))</span>
+<span class="sd">        &gt;&gt;&gt; batched = zip_function(f, 4)</span>
+<span class="sd">        &gt;&gt;&gt; batched.name</span>
+<span class="sd">        &#39;add_zip&#39;</span>
+<span class="sd">        &gt;&gt;&gt; batched.input_names</span>
+<span class="sd">        (&#39;x_seq&#39;, &#39;y_seq&#39;)</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">resolved_names</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="nb">tuple</span><span class="p">(</span><span class="n">input_names</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">input_names</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="k">else</span> <span class="nb">tuple</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">input_name</span><span class="si">}</span><span class="s2">_seq&quot;</span> <span class="k">for</span> <span class="n">input_name</span> <span class="ow">in</span> <span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">BatchedFunction</span><span class="p">(</span>
+        <span class="n">function</span><span class="o">=</span><span class="n">function</span><span class="p">,</span>
+        <span class="n">count</span><span class="o">=</span><span class="n">count</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_zip&quot;</span><span class="p">,</span>
+        <span class="n">input_sequence_names</span><span class="o">=</span><span class="n">resolved_names</span><span class="p">,</span>
+        <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="reduce_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.map_zip.reduce_function">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">reduce_function</span><span class="p">(</span>
+    <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="n">count</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">accumulator_input_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">input_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">output_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">simplification</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ReducedFunction</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a staged left-fold reduction for a binary stage function.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        function: The symbolic function to stage. It must accept exactly two</span>
+<span class="sd">            inputs and produce exactly one output.</span>
+<span class="sd">        count: Number of repeated reduction stages.</span>
+<span class="sd">        accumulator_input_name: Optional name for the accumulator input.</span>
+<span class="sd">            When not provided, the name defaults to ``&quot;&lt;input0&gt;0&quot;``.</span>
+<span class="sd">        input_name: Optional name for the packed sequence input. When not</span>
+<span class="sd">            provided, the name defaults to ``&quot;&lt;input1&gt;_seq&quot;``.</span>
+<span class="sd">        output_name: Optional name for the final reduced output. When not</span>
+<span class="sd">            provided, the name defaults to the stage function&#39;s output name.</span>
+<span class="sd">        name: Optional name for the staged reduction. When not provided, the</span>
+<span class="sd">            generated name defaults to ``&quot;&lt;function.name&gt;_reduce&quot;``.</span>
+<span class="sd">        simplification: Optional simplification effort passed through to the</span>
+<span class="sd">            expanded symbolic function.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A :class:`ReducedFunction` describing the staged reduction.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">2</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;reduce_function requires a function with exactly two inputs&quot;</span>
+        <span class="p">)</span>
+    <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="s2">&quot;reduce_function requires a function with exactly one output&quot;</span>
+        <span class="p">)</span>
+    <span class="n">accum_inp_name</span> <span class="o">=</span> <span class="n">accumulator_input_name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">0&quot;</span>
+    <span class="k">return</span> <span class="n">ReducedFunction</span><span class="p">(</span>
+        <span class="n">function</span><span class="o">=</span><span class="n">function</span><span class="p">,</span>
+        <span class="n">count</span><span class="o">=</span><span class="n">count</span><span class="p">,</span>
+        <span class="n">name</span><span class="o">=</span><span class="n">name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">function</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_reduce&quot;</span><span class="p">,</span>
+        <span class="n">accumulator_input_name</span><span class="o">=</span><span class="n">accum_inp_name</span><span class="p">,</span>
+        <span class="n">input_name</span><span class="o">=</span><span class="n">input_name</span> <span class="ow">or</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">function</span><span class="o">.</span><span class="n">input_names</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="si">}</span><span class="s2">_seq&quot;</span><span class="p">,</span>
+        <span class="n">output_name</span><span class="o">=</span><span class="n">output_name</span> <span class="ow">or</span> <span class="n">function</span><span class="o">.</span><span class="n">output_names</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="n">simplification</span><span class="o">=</span><span class="n">simplification</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_same_arg_shape</span><span class="p">(</span><span class="n">left</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">,</span> <span class="n">right</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    Return whether two function arguments share the same</span>
+<span class="sd">    scalar/vector shape.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">SX</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="kc">True</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">right</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">left</span><span class="p">)</span> <span class="o">==</span> <span class="nb">len</span><span class="p">(</span><span class="n">right</span><span class="p">)</span>
+    <span class="k">return</span> <span class="kc">False</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_arg_size</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the packed scalar count for one argument.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="mi">1</span>
+    <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_slice_packed_input</span><span class="p">(</span>
+    <span class="n">sequence</span><span class="p">:</span> <span class="n">SXVector</span><span class="p">,</span> <span class="n">stage_index</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">formal</span><span class="p">:</span> <span class="n">FunctionArg</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionArg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return one stage input block from a packed batched input.&quot;&quot;&quot;</span>
+    <span class="n">block_size</span> <span class="o">=</span> <span class="n">_arg_size</span><span class="p">(</span><span class="n">formal</span><span class="p">)</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">stage_index</span> <span class="o">*</span> <span class="n">block_size</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">formal</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">sequence</span><span class="p">[</span><span class="n">start</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">SXVector</span><span class="p">(</span><span class="n">sequence</span><span class="o">.</span><span class="n">elements</span><span class="p">[</span><span class="n">start</span><span class="p">:</span> <span class="n">start</span> <span class="o">+</span> <span class="n">block_size</span><span class="p">])</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_flatten_arg</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="n">FunctionArg</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SX</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Flatten a scalar or vector symbolic value to scalar expressions.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">value</span><span class="p">,)</span>
+    <span class="k">return</span> <span class="n">value</span><span class="o">.</span><span class="n">elements</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_normalize_function_result</span><span class="p">(</span>
+    <span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+    <span class="n">output_formals</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">FunctionArg</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Normalize a function call result to a tuple of symbolic outputs.&quot;&quot;&quot;</span>
+    <span class="n">output_count</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">output_formals</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">output_count</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">_coerce_function_arg_like</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">output_formals</span><span class="p">[</span><span class="mi">0</span><span class="p">]),)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="n">output_count</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;unexpected number of function outputs&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+            <span class="n">_coerce_function_arg_like</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">formal</span><span class="p">)</span>
+            <span class="k">for</span> <span class="n">item</span><span class="p">,</span> <span class="n">formal</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">output_formals</span><span class="p">)</span>
+        <span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;expected multiple outputs from the staged function&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce_function_arg_like</span><span class="p">(</span>
+    <span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">formal</span><span class="p">:</span> <span class="n">FunctionArg</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">FunctionArg</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Coerce a staged output value to the symbolic shape of ``formal``.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">formal</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">_coerce_scalar_output</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">formal</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;unexpected vector output length&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">value</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">list</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">)):</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">formal</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;unexpected vector output length&quot;</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">SXVector</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">_coerce_scalar_output</span><span class="p">(</span><span class="n">item</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">value</span><span class="p">))</span>
+
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;batched functions require symbolic outputs&quot;</span><span class="p">)</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce_scalar_output</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Coerce a scalar staged output to ``SX``.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">value</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">)):</span>
+        <span class="k">return</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;batched functions require symbolic outputs&quot;</span><span class="p">)</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
