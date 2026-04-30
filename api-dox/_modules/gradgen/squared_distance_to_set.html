@@ -1,0 +1,501 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>gradgen.squared_distance_to_set &mdash; Gradgen API 0.4.2a1</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+      <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            Gradgen API
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Modules</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../api/modules.html">gradgen</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">Gradgen API</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">gradgen.squared_distance_to_set</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for gradgen.squared_distance_to_set</h1><div class="highlight"><pre>
+<span></span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Helpers for projection-backed half-squared distance primitives.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Callable</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">._custom_elementary</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">RegisteredElementaryFunction</span><span class="p">,</span>
+    <span class="n">get_registered_elementary_function</span><span class="p">,</span>
+    <span class="n">register_elementary_function</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.function</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">.sx</span><span class="w"> </span><span class="kn">import</span> <span class="n">SX</span><span class="p">,</span> <span class="n">SXVector</span>
+
+<span class="n">SqDistanceCallback</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">object</span><span class="p">],</span> <span class="nb">object</span><span class="p">]</span>
+<span class="n">ProjectionCallback</span> <span class="o">=</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">object</span><span class="p">],</span> <span class="nb">object</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="SquaredDistanceToSet">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">slots</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SquaredDistanceToSet</span><span class="p">:</span>
+<span class="w">    </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Represent a projection-backed half-squared distance primitive.</span>
+
+<span class="sd">    This helper lets callers define a scalar-valued primitive whose gradient</span>
+<span class="sd">    is derived from a projection callback. The represented scalar quantity is</span>
+<span class="sd">    expected to be the half-squared Euclidean distance to a nonempty closed</span>
+<span class="sd">    convex set:</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \tfrac12 \operatorname{dist}_C(x)^2.</span>
+
+<span class="sd">    With that convention, the gradient satisfies</span>
+
+<span class="sd">    .. math::</span>
+
+<span class="sd">        \nabla \tfrac12 \operatorname{dist}_C(x)^2 = x - \Pi_C(x).</span>
+
+<span class="sd">    Instances are configured fluently and can then be called with symbolic</span>
+<span class="sd">    vectors to produce ``SX`` expressions that participate in regular gradgen</span>
+<span class="sd">    composition and Rust code generation.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name: Public identifier used for the registered primitive.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; from gradgen import SXVector, SquaredDistanceToSet</span>
+<span class="sd">        &gt;&gt;&gt; distance = (</span>
+<span class="sd">        ...     SquaredDistanceToSet(name=&quot;dist_to_axis&quot;)</span>
+<span class="sd">        ...     .with_sq_distance(lambda x: 0.5 * x[1] * x[1])</span>
+<span class="sd">        ...     .with_projection(lambda x: (x[0], 0.0))</span>
+<span class="sd">        ... )</span>
+<span class="sd">        &gt;&gt;&gt; x = SXVector.sym(&quot;x&quot;, 2)</span>
+<span class="sd">        &gt;&gt;&gt; expr = distance(x)</span>
+<span class="sd">        &gt;&gt;&gt; expr.op</span>
+<span class="sd">        &#39;custom_vector&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">_sq_distance</span><span class="p">:</span> <span class="n">SqDistanceCallback</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_projection</span><span class="p">:</span> <span class="n">ProjectionCallback</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_sq_distance_function</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_projection_function</span><span class="p">:</span> <span class="n">Function</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_rust_sq_distance</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_rust_projection</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">_input_dimension</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate constructor arguments.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="ow">or</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">isidentifier</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;name must be a valid identifier&quot;</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SquaredDistanceToSet.with_sq_distance">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_sq_distance">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_sq_distance</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">callback</span><span class="p">:</span> <span class="n">SqDistanceCallback</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SquaredDistanceToSet</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach the half-squared distance callback.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            callback: Callable that evaluates the represented scalar</span>
+<span class="sd">                half-squared distance. The callback must accept either a</span>
+<span class="sd">                symbolic ``SXVector`` or a numeric tuple and return a scalar.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ``self`` to support fluent configuration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance</span> <span class="o">=</span> <span class="n">callback</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="SquaredDistanceToSet.with_sq_distance_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_sq_distance_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_sq_distance_function</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SquaredDistanceToSet</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach a symbolic half-squared distance function.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            function: A gradgen ``Function`` with exactly one vector input</span>
+<span class="sd">                block and one scalar output block representing the half-</span>
+<span class="sd">                squared distance.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ``self`` to support fluent configuration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_single_vector_input_function</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">output_kind</span><span class="o">=</span><span class="s2">&quot;scalar&quot;</span><span class="p">,</span>
+            <span class="n">label</span><span class="o">=</span><span class="s2">&quot;sq_distance function&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance_function</span> <span class="o">=</span> <span class="n">function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_input_dimension_from_function</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="SquaredDistanceToSet.with_projection">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_projection">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_projection</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">callback</span><span class="p">:</span> <span class="n">ProjectionCallback</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SquaredDistanceToSet</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach the projection callback used to build gradients.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            callback: Callable implementing the projection map ``Pi_C``. The</span>
+<span class="sd">                callback must accept either a symbolic ``SXVector`` or a</span>
+<span class="sd">                numeric tuple and return a vector-like value of matching</span>
+<span class="sd">                length.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ``self`` to support fluent configuration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_projection</span> <span class="o">=</span> <span class="n">callback</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="SquaredDistanceToSet.with_projection_function">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_projection_function">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_projection_function</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SquaredDistanceToSet</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach a symbolic projection function.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            function: A gradgen ``Function`` with exactly one vector input</span>
+<span class="sd">                block and one vector output block representing the</span>
+<span class="sd">                projection map.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ``self`` to support fluent configuration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_single_vector_input_function</span><span class="p">(</span>
+            <span class="n">function</span><span class="p">,</span>
+            <span class="n">output_kind</span><span class="o">=</span><span class="s2">&quot;vector&quot;</span><span class="p">,</span>
+            <span class="n">label</span><span class="o">=</span><span class="s2">&quot;projection function&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_projection_function</span> <span class="o">=</span> <span class="n">function</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_update_input_dimension_from_function</span><span class="p">(</span><span class="n">function</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="SquaredDistanceToSet.with_rust_sq_distance">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_rust_sq_distance">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_rust_sq_distance</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snippet</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SquaredDistanceToSet</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach the Rust primal helper snippet.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            snippet: Rust source defining the registered primal helper with</span>
+<span class="sd">                signature ``fn &lt;name&gt;(x: &amp;[T], w: &amp;[T]) -&gt; T``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ``self`` to support fluent configuration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rust_sq_distance</span> <span class="o">=</span> <span class="n">snippet</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+<div class="viewcode-block" id="SquaredDistanceToSet.with_rust_projection">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_rust_projection">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_rust_projection</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">snippet</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SquaredDistanceToSet</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Attach the Rust projection helper snippet.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            snippet: Rust source defining a projection helper with signature</span>
+<span class="sd">                ``fn &lt;name&gt;_projection(x: &amp;[T], out: &amp;mut [T])``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            ``self`` to support fluent configuration.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_rust_projection</span> <span class="o">=</span> <span class="n">snippet</span>
+        <span class="k">return</span> <span class="bp">self</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">SXVector</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build a symbolic call to the configured primitive.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            value: Symbolic vector at which the half-squared distance should</span>
+<span class="sd">                be evaluated.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            An ``SX`` scalar representing the configured primitive applied to</span>
+<span class="sd">            ``value``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            TypeError: If ``value`` is not an ``SXVector``.</span>
+<span class="sd">            ValueError: If mandatory callbacks are missing or the primitive is</span>
+<span class="sd">                reused with a different input dimension.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;SquaredDistanceToSet expects an SXVector input&quot;</span><span class="p">)</span>
+        <span class="n">symbolic_expr</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_build_symbolic_expr</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">symbolic_expr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">symbolic_expr</span>
+        <span class="n">spec</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_ensure_registered</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">spec</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_ensure_registered</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dimension</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RegisteredElementaryFunction</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Register the backing custom primitive on first use.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_callbacks</span><span class="p">()</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">input_dimension</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;SquaredDistanceToSet </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> expects input length &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span><span class="si">}</span><span class="s2">, received </span><span class="si">{</span><span class="n">input_dimension</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">try</span><span class="p">:</span>
+            <span class="n">registered</span> <span class="o">=</span> <span class="n">get_registered_elementary_function</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
+        <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">registered</span> <span class="o">=</span> <span class="n">register_elementary_function</span><span class="p">(</span>
+                <span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
+                <span class="n">input_dimension</span><span class="o">=</span><span class="n">input_dimension</span><span class="p">,</span>
+                <span class="n">parameter_dimension</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                <span class="n">eval_python</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance</span><span class="p">,</span>
+                <span class="n">jacobian</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_build_gradient_callback</span><span class="p">(),</span>
+                <span class="n">hessian</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">rust_primal</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_rust_sq_distance</span><span class="p">,</span>
+                <span class="n">rust_jacobian</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_build_rust_jacobian</span><span class="p">(</span><span class="n">input_dimension</span><span class="p">),</span>
+                <span class="n">rust_hvp</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+                <span class="n">rust_hessian</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
+            <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span> <span class="o">=</span> <span class="n">input_dimension</span>
+        <span class="k">return</span> <span class="n">registered</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_callbacks</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Ensure the required Python callbacks have been provided.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;SquaredDistanceToSet requires with_sq_distance&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;SquaredDistanceToSet requires with_projection&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_symbolic_expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">SXVector</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Build a symbolic expression from configured gradgen Functions.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_input_dimension</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+            <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance_function</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">output</span><span class="p">,</span> <span class="n">SX</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                    <span class="s2">&quot;sq_distance function must return a single scalar output&quot;</span>
+                <span class="p">)</span>
+            <span class="k">return</span> <span class="n">output</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_validate_input_dimension</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">value</span><span class="p">))</span>
+            <span class="n">projected</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection_function</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">projected</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+                    <span class="s2">&quot;projection function must return a single vector output&quot;</span>
+                <span class="p">)</span>
+            <span class="n">delta</span> <span class="o">=</span> <span class="n">value</span> <span class="o">-</span> <span class="n">projected</span>
+            <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">delta</span><span class="o">.</span><span class="n">norm2sq</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="kc">None</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_gradient_callback</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">object</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a callback computing ``x - projection(x)``.&quot;&quot;&quot;</span>
+        <span class="n">projection</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection</span>
+        <span class="k">if</span> <span class="n">projection</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;SquaredDistanceToSet requires with_projection&quot;</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">gradient</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+            <span class="n">projected</span> <span class="o">=</span> <span class="n">projection</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">projected_items</span> <span class="o">=</span> <span class="n">_coerce_vector_like</span><span class="p">(</span><span class="n">projected</span><span class="p">)</span>
+            <span class="n">value_items</span> <span class="o">=</span> <span class="n">_coerce_vector_like</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">projected_items</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">len</span><span class="p">(</span><span class="n">value_items</span><span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;projection callback must return a vector with matching &quot;</span>
+                    <span class="s2">&quot;length&quot;</span>
+                <span class="p">)</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+                <span class="n">value_items</span><span class="p">[</span><span class="n">index</span><span class="p">]</span> <span class="o">-</span> <span class="n">projected_items</span><span class="p">[</span><span class="n">index</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">value_items</span><span class="p">))</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">gradient</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_build_rust_jacobian</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">input_dimension</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a Rust Jacobian helper synthesized from the projection.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rust_projection</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">None</span>
+        <span class="k">return</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s2">&quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+            <span class="p">[</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_rust_projection</span><span class="o">.</span><span class="n">strip</span><span class="p">(),</span>
+                <span class="s2">&quot;&quot;</span><span class="p">,</span>
+                <span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;fn </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_jacobian(&quot;</span>
+                    <span class="s2">&quot;x: &amp;[{{ scalar_type }}], &quot;</span>
+                    <span class="s2">&quot;w: &amp;[{{ scalar_type }}], &quot;</span>
+                    <span class="s2">&quot;out: &amp;mut [{{ scalar_type }}],&quot;</span>
+                    <span class="s2">&quot;) {&quot;</span>
+                <span class="p">),</span>
+                <span class="s2">&quot;    let _ = w;&quot;</span><span class="p">,</span>
+                <span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;    let mut projection = &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;[0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">; </span><span class="si">{</span><span class="n">input_dimension</span><span class="si">}</span><span class="s2">];&quot;</span>
+                <span class="p">),</span>
+                <span class="sa">f</span><span class="s2">&quot;    </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_projection(x, &amp;mut projection);&quot;</span><span class="p">,</span>
+                <span class="o">*</span><span class="p">[</span>
+                    <span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;    out[</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">] = x[</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">] - &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;projection[</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">];&quot;</span>
+                    <span class="p">)</span>
+                    <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">input_dimension</span><span class="p">)</span>
+                <span class="p">],</span>
+                <span class="s2">&quot;}&quot;</span><span class="p">,</span>
+            <span class="p">]</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_update_input_dimension_from_function</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Record and validate the shared symbolic input dimension.&quot;&quot;&quot;</span>
+        <span class="n">vector_input</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">vector_input</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;SquaredDistanceToSet symbolic inputs must be vectors&quot;</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_input_dimension</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">vector_input</span><span class="p">),</span> <span class="n">allow_unset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vector_input</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_input_dimension</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_dimension</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">allow_unset</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate the configured vector input dimension.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">allow_unset</span><span class="p">:</span>
+                <span class="k">return</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span> <span class="o">=</span> <span class="n">input_dimension</span>
+            <span class="k">return</span>
+        <span class="k">if</span> <span class="n">input_dimension</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;SquaredDistanceToSet </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> expects input length &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span><span class="si">}</span><span class="s2">, received </span><span class="si">{</span><span class="n">input_dimension</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_single_vector_input_function</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">function</span><span class="p">:</span> <span class="n">Function</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">output_kind</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Validate a symbolic helper function shape.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> must accept exactly one input block&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> must return exactly one output block&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">inputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">SXVector</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> input must be an SXVector&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">output_kind</span> <span class="o">==</span> <span class="s2">&quot;scalar&quot;</span> <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">SX</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> output must be an SX scalar&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="n">output_kind</span> <span class="o">==</span> <span class="s2">&quot;vector&quot;</span>
+            <span class="ow">and</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="o">.</span><span class="n">outputs</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">SXVector</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> output must be an SXVector&quot;</span><span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce_vector_like</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return ``value`` as a tuple of vector components.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="n">SXVector</span><span class="p">):</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="p">(</span><span class="nb">str</span><span class="p">,</span> <span class="nb">bytes</span><span class="p">)):</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span><span class="s2">&quot;projection callbacks must return vector-like values&quot;</span><span class="p">)</span>
+    <span class="k">try</span><span class="p">:</span>
+        <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+    <span class="k">except</span> <span class="ne">TypeError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">TypeError</span><span class="p">(</span>
+            <span class="s2">&quot;projection callbacks must return vector-like values&quot;</span>
+        <span class="p">)</span> <span class="kn">from</span><span class="w"> </span><span class="nn">exc</span>
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2026, Gradgen contributors.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

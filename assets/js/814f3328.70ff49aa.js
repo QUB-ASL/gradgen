@@ -1,1 +1,0 @@
-"use strict";(globalThis.webpackChunkwebsite=globalThis.webpackChunkwebsite||[]).push([[472],{5513(e){e.exports=JSON.parse('{"title":"Recent posts","items":[{"title":"Gradgen revival","permalink":"/gradgen/blog/first-blog-post","unlisted":false,"date":"2026-03-31T00:00:00.000Z"}]}')}}]);

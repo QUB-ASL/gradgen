@@ -16,6 +16,7 @@
       <script src="../_static/documentation_options.js?v=144dbdd6"></script>
       <script src="../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
+      <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
     <script src="../_static/js/theme.js"></script>
     <link rel="index" title="Index" href="../genindex.html" />
     <link rel="search" title="Search" href="../search.html" />
@@ -99,6 +100,10 @@
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.single_shooting.SingleShootingProblem"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem</span></code></a></li>
 </ul>
 </li>
+<li class="toctree-l3"><a class="reference internal" href="#module-gradgen.squared_distance_to_set">gradgen.squared_distance_to_set module</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet"><code class="docutils literal notranslate"><span class="pre">SquaredDistanceToSet</span></code></a></li>
+</ul>
+</li>
 <li class="toctree-l3"><a class="reference internal" href="#module-gradgen.sx">gradgen.sx module</a><ul>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.SXNode"><code class="docutils literal notranslate"><span class="pre">SXNode</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.SX"><code class="docutils literal notranslate"><span class="pre">SX</span></code></a></li>
@@ -174,6 +179,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.SingleShootingJointFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingJointFunction</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.SingleShootingPrimalFunction"><code class="docutils literal notranslate"><span class="pre">SingleShootingPrimalFunction</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.SingleShootingProblem"><code class="docutils literal notranslate"><span class="pre">SingleShootingProblem</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gradgen.SquaredDistanceToSet"><code class="docutils literal notranslate"><span class="pre">SquaredDistanceToSet</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.acosh"><code class="docutils literal notranslate"><span class="pre">acosh()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.acos"><code class="docutils literal notranslate"><span class="pre">acos()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.asinh"><code class="docutils literal notranslate"><span class="pre">asinh()</span></code></a></li>
@@ -3348,6 +3354,174 @@ code-generation paths.</p>
 <li><p><strong>backend_mode</strong> (<em>str</em>)</p></li>
 <li><p><strong>scalar_type</strong> (<em>str</em>)</p></li>
 </ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+</section>
+<section id="module-gradgen.squared_distance_to_set">
+<span id="gradgen-squared-distance-to-set-module"></span><h2>gradgen.squared_distance_to_set module<a class="headerlink" href="#module-gradgen.squared_distance_to_set" title="Link to this heading"></a></h2>
+<p>Helpers for projection-backed half-squared distance primitives.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="gradgen.squared_distance_to_set.SquaredDistanceToSet">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gradgen.squared_distance_to_set.</span></span><span class="sig-name descname"><span class="pre">SquaredDistanceToSet</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_sq_distance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_projection</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_sq_distance_function</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_projection_function</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_rust_sq_distance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_rust_projection</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_input_dimension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Represent a projection-backed half-squared distance primitive.</p>
+<p>This helper lets callers define a scalar-valued primitive whose gradient
+is derived from a projection callback. The represented scalar quantity is
+expected to be the half-squared Euclidean distance to a nonempty closed
+convex set:</p>
+<div class="math notranslate nohighlight">
+\[\tfrac12 \operatorname{dist}_C(x)^2.\]</div>
+<p>With that convention, the gradient satisfies</p>
+<div class="math notranslate nohighlight">
+\[\nabla \tfrac12 \operatorname{dist}_C(x)^2 = x - \Pi_C(x).\]</div>
+<p>Instances are configured fluently and can then be called with symbolic
+vectors to produce <code class="docutils literal notranslate"><span class="pre">SX</span></code> expressions that participate in regular gradgen
+composition and Rust code generation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Public identifier used for the registered primitive.</p></li>
+<li><p><strong>_sq_distance</strong> (<em>Callable</em><em>[</em><em>[</em><em>object</em><em>]</em><em>, </em><em>object</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>_projection</strong> (<em>Callable</em><em>[</em><em>[</em><em>object</em><em>]</em><em>, </em><em>object</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>_sq_distance_function</strong> (<a class="reference internal" href="#gradgen.function.Function" title="gradgen.function.Function"><em>Function</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>_projection_function</strong> (<a class="reference internal" href="#gradgen.function.Function" title="gradgen.function.Function"><em>Function</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>_rust_sq_distance</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>_rust_projection</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>_input_dimension</strong> (<em>int</em><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">gradgen</span><span class="w"> </span><span class="kn">import</span> <span class="n">SXVector</span><span class="p">,</span> <span class="n">SquaredDistanceToSet</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">distance</span> <span class="o">=</span> <span class="p">(</span>
+<span class="gp">... </span>    <span class="n">SquaredDistanceToSet</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;dist_to_axis&quot;</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="o">.</span><span class="n">with_sq_distance</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="gp">... </span>    <span class="o">.</span><span class="n">with_projection</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mf">0.0</span><span class="p">))</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">expr</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">expr</span><span class="o">.</span><span class="n">op</span>
+<span class="go">&#39;custom_vector&#39;</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gradgen.squared_distance_to_set.SquaredDistanceToSet.name">
+<span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet.name" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.squared_distance_to_set.SquaredDistanceToSet.with_sq_distance">
+<span class="sig-name descname"><span class="pre">with_sq_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">callback</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_sq_distance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_sq_distance" title="Link to this definition"></a></dt>
+<dd><p>Attach the half-squared distance callback.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>callback</strong> (<em>Callable</em><em>[</em><em>[</em><em>object</em><em>]</em><em>, </em><em>object</em><em>]</em>) – Callable that evaluates the represented scalar
+half-squared distance. The callback must accept either a
+symbolic <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> or a numeric tuple and return a scalar.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.squared_distance_to_set.SquaredDistanceToSet.with_sq_distance_function">
+<span class="sig-name descname"><span class="pre">with_sq_distance_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_sq_distance_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_sq_distance_function" title="Link to this definition"></a></dt>
+<dd><p>Attach a symbolic half-squared distance function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>function</strong> (<a class="reference internal" href="#gradgen.function.Function" title="gradgen.function.Function"><em>Function</em></a>) – A gradgen <code class="docutils literal notranslate"><span class="pre">Function</span></code> with exactly one vector input
+block and one scalar output block representing the half-
+squared distance.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.squared_distance_to_set.SquaredDistanceToSet.with_projection">
+<span class="sig-name descname"><span class="pre">with_projection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">callback</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_projection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_projection" title="Link to this definition"></a></dt>
+<dd><p>Attach the projection callback used to build gradients.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>callback</strong> (<em>Callable</em><em>[</em><em>[</em><em>object</em><em>]</em><em>, </em><em>object</em><em>]</em>) – Callable implementing the projection map <code class="docutils literal notranslate"><span class="pre">Pi_C</span></code>. The
+callback must accept either a symbolic <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> or a
+numeric tuple and return a vector-like value of matching
+length.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.squared_distance_to_set.SquaredDistanceToSet.with_projection_function">
+<span class="sig-name descname"><span class="pre">with_projection_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_projection_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_projection_function" title="Link to this definition"></a></dt>
+<dd><p>Attach a symbolic projection function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>function</strong> (<a class="reference internal" href="#gradgen.function.Function" title="gradgen.function.Function"><em>Function</em></a>) – A gradgen <code class="docutils literal notranslate"><span class="pre">Function</span></code> with exactly one vector input
+block and one vector output block representing the
+projection map.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.squared_distance_to_set.SquaredDistanceToSet.with_rust_sq_distance">
+<span class="sig-name descname"><span class="pre">with_rust_sq_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">snippet</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_rust_sq_distance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_rust_sq_distance" title="Link to this definition"></a></dt>
+<dd><p>Attach the Rust primal helper snippet.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>snippet</strong> (<em>str</em>) – Rust source defining the registered primal helper with
+signature <code class="docutils literal notranslate"><span class="pre">fn</span> <span class="pre">&lt;name&gt;(x:</span> <span class="pre">&amp;[T],</span> <span class="pre">w:</span> <span class="pre">&amp;[T])</span> <span class="pre">-&gt;</span> <span class="pre">T</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.squared_distance_to_set.SquaredDistanceToSet.with_rust_projection">
+<span class="sig-name descname"><span class="pre">with_rust_projection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">snippet</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_rust_projection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_rust_projection" title="Link to this definition"></a></dt>
+<dd><p>Attach the Rust projection helper snippet.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>snippet</strong> (<em>str</em>) – Rust source defining a projection helper with signature
+<code class="docutils literal notranslate"><span class="pre">fn</span> <span class="pre">&lt;name&gt;_projection(x:</span> <span class="pre">&amp;[T],</span> <span class="pre">out:</span> <span class="pre">&amp;mut</span> <span class="pre">[T])</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -7101,7 +7275,7 @@ appended.</p>
 
 <dl class="py class">
 <dt class="sig sig-object py" id="gradgen.RustBackendConfig">
-<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gradgen.</span></span><span class="sig-name descname"><span class="pre">RustBackendConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">backend_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'std'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scalar_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'f64'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">crate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">header</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">emit_metadata_helpers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_python_interface</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">build_python_interface</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">build_crate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_dependencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/_rust_codegen/config.html#RustBackendConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.RustBackendConfig" title="Link to this definition"></a></dt>
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gradgen.</span></span><span class="sig-name descname"><span class="pre">RustBackendConfig</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">backend_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'std'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scalar_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'f64'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">crate_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">header</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">emit_metadata_helpers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">enable_python_interface</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">build_python_interface</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">build_crate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">build_profile</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'release'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">additional_dependencies</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">()</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/_rust_codegen/config.html#RustBackendConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.RustBackendConfig" title="Link to this definition"></a></dt>
 <dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
 <p>Configuration for generated Rust source and project layout.</p>
 <dl class="field-list simple">
@@ -7116,6 +7290,7 @@ appended.</p>
 <li><p><strong>enable_python_interface</strong> (<em>bool</em>)</p></li>
 <li><p><strong>build_python_interface</strong> (<em>bool</em>)</p></li>
 <li><p><strong>build_crate</strong> (<em>bool</em>)</p></li>
+<li><p><strong>build_profile</strong> (<em>str</em>)</p></li>
 <li><p><strong>additional_dependencies</strong> (<em>tuple</em><em>[</em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>str</em><em> | </em><em>None</em><em>]</em><em>, </em><em>...</em><em>]</em>)</p></li>
 </ul>
 </dd>
@@ -7163,6 +7338,11 @@ appended.</p>
 <dl class="py attribute">
 <dt class="sig sig-object py" id="gradgen.RustBackendConfig.build_crate">
 <span class="sig-name descname"><span class="pre">build_crate</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">bool</span></span><a class="headerlink" href="#gradgen.RustBackendConfig.build_crate" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gradgen.RustBackendConfig.build_profile">
+<span class="sig-name descname"><span class="pre">build_profile</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#gradgen.RustBackendConfig.build_profile" title="Link to this definition"></a></dt>
 <dd></dd></dl>
 
 <dl class="py attribute">
@@ -7292,13 +7472,35 @@ is rendered as a small Jinja2 template with variables such as
 <dl class="py method">
 <dt class="sig sig-object py" id="gradgen.RustBackendConfig.with_build_crate">
 <span class="sig-name descname"><span class="pre">with_build_crate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">build_crate</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/_rust_codegen/config.html#RustBackendConfig.with_build_crate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.RustBackendConfig.with_build_crate" title="Link to this definition"></a></dt>
-<dd><p>Return a copy with low-level crate compilation enabled or disabled.</p>
+<dd><p>Return a copy with crate compilation enabled or disabled.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
-<dd class="field-odd"><p><strong>build_crate</strong> (<em>bool</em>)</p>
+<dd class="field-odd"><p><strong>build_crate</strong> (<em>bool</em>) – Whether Gradgen should compile the generated
+low-level Rust crate after writing it to disk.</p>
 </dd>
-<dt class="field-even">Return type<span class="colon">:</span></dt>
-<dd class="field-even"><p><a class="reference internal" href="#gradgen.RustBackendConfig" title="gradgen._rust_codegen.config.RustBackendConfig"><em>RustBackendConfig</em></a></p>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A copy of the config with crate compilation enabled or disabled.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.RustBackendConfig" title="gradgen._rust_codegen.config.RustBackendConfig"><em>RustBackendConfig</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.RustBackendConfig.with_build_profile">
+<span class="sig-name descname"><span class="pre">with_build_profile</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">build_profile</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/_rust_codegen/config.html#RustBackendConfig.with_build_profile"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.RustBackendConfig.with_build_profile" title="Link to this definition"></a></dt>
+<dd><p>Return a copy with a different Cargo build profile.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>build_profile</strong> (<em>str</em>) – Cargo profile used when <code class="docutils literal notranslate"><span class="pre">build_crate</span></code> is enabled.
+Supported values are <code class="docutils literal notranslate"><span class="pre">&quot;dev&quot;</span></code> and <code class="docutils literal notranslate"><span class="pre">&quot;release&quot;</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A copy of the config with the requested build profile.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.RustBackendConfig" title="gradgen._rust_codegen.config.RustBackendConfig"><em>RustBackendConfig</em></a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -9941,6 +10143,170 @@ code-generation paths.</p>
 <li><p><strong>backend_mode</strong> (<em>str</em>)</p></li>
 <li><p><strong>scalar_type</strong> (<em>str</em>)</p></li>
 </ul>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="gradgen.SquaredDistanceToSet">
+<span class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></span><span class="sig-prename descclassname"><span class="pre">gradgen.</span></span><span class="sig-name descname"><span class="pre">SquaredDistanceToSet</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_sq_distance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_projection</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_sq_distance_function</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_projection_function</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_rust_sq_distance</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_rust_projection</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">_input_dimension</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SquaredDistanceToSet" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">object</span></code></p>
+<p>Represent a projection-backed half-squared distance primitive.</p>
+<p>This helper lets callers define a scalar-valued primitive whose gradient
+is derived from a projection callback. The represented scalar quantity is
+expected to be the half-squared Euclidean distance to a nonempty closed
+convex set:</p>
+<div class="math notranslate nohighlight">
+\[\tfrac12 \operatorname{dist}_C(x)^2.\]</div>
+<p>With that convention, the gradient satisfies</p>
+<div class="math notranslate nohighlight">
+\[\nabla \tfrac12 \operatorname{dist}_C(x)^2 = x - \Pi_C(x).\]</div>
+<p>Instances are configured fluently and can then be called with symbolic
+vectors to produce <code class="docutils literal notranslate"><span class="pre">SX</span></code> expressions that participate in regular gradgen
+composition and Rust code generation.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Public identifier used for the registered primitive.</p></li>
+<li><p><strong>_sq_distance</strong> (<em>Callable</em><em>[</em><em>[</em><em>object</em><em>]</em><em>, </em><em>object</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>_projection</strong> (<em>Callable</em><em>[</em><em>[</em><em>object</em><em>]</em><em>, </em><em>object</em><em>] </em><em>| </em><em>None</em>)</p></li>
+<li><p><strong>_sq_distance_function</strong> (<a class="reference internal" href="#gradgen.function.Function" title="gradgen.function.Function"><em>Function</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>_projection_function</strong> (<a class="reference internal" href="#gradgen.function.Function" title="gradgen.function.Function"><em>Function</em></a><em> | </em><em>None</em>)</p></li>
+<li><p><strong>_rust_sq_distance</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>_rust_projection</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
+<li><p><strong>_input_dimension</strong> (<em>int</em><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">gradgen</span><span class="w"> </span><span class="kn">import</span> <span class="n">SXVector</span><span class="p">,</span> <span class="n">SquaredDistanceToSet</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">distance</span> <span class="o">=</span> <span class="p">(</span>
+<span class="gp">... </span>    <span class="n">SquaredDistanceToSet</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="s2">&quot;dist_to_axis&quot;</span><span class="p">)</span>
+<span class="gp">... </span>    <span class="o">.</span><span class="n">with_sq_distance</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+<span class="gp">... </span>    <span class="o">.</span><span class="n">with_projection</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mf">0.0</span><span class="p">))</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="mi">2</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">expr</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">expr</span><span class="o">.</span><span class="n">op</span>
+<span class="go">&#39;custom_vector&#39;</span>
+</pre></div>
+</div>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="gradgen.SquaredDistanceToSet.name">
+<span class="sig-name descname"><span class="pre">name</span></span><span class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">str</span></span><a class="headerlink" href="#gradgen.SquaredDistanceToSet.name" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.SquaredDistanceToSet.with_sq_distance">
+<span class="sig-name descname"><span class="pre">with_sq_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">callback</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_sq_distance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SquaredDistanceToSet.with_sq_distance" title="Link to this definition"></a></dt>
+<dd><p>Attach the half-squared distance callback.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>callback</strong> (<em>Callable</em><em>[</em><em>[</em><em>object</em><em>]</em><em>, </em><em>object</em><em>]</em>) – Callable that evaluates the represented scalar
+half-squared distance. The callback must accept either a
+symbolic <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> or a numeric tuple and return a scalar.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.SquaredDistanceToSet.with_sq_distance_function">
+<span class="sig-name descname"><span class="pre">with_sq_distance_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_sq_distance_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SquaredDistanceToSet.with_sq_distance_function" title="Link to this definition"></a></dt>
+<dd><p>Attach a symbolic half-squared distance function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>function</strong> (<a class="reference internal" href="#gradgen.function.Function" title="gradgen.function.Function"><em>Function</em></a>) – A gradgen <code class="docutils literal notranslate"><span class="pre">Function</span></code> with exactly one vector input
+block and one scalar output block representing the half-
+squared distance.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.SquaredDistanceToSet.with_projection">
+<span class="sig-name descname"><span class="pre">with_projection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">callback</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_projection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SquaredDistanceToSet.with_projection" title="Link to this definition"></a></dt>
+<dd><p>Attach the projection callback used to build gradients.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>callback</strong> (<em>Callable</em><em>[</em><em>[</em><em>object</em><em>]</em><em>, </em><em>object</em><em>]</em>) – Callable implementing the projection map <code class="docutils literal notranslate"><span class="pre">Pi_C</span></code>. The
+callback must accept either a symbolic <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> or a
+numeric tuple and return a vector-like value of matching
+length.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.SquaredDistanceToSet.with_projection_function">
+<span class="sig-name descname"><span class="pre">with_projection_function</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_projection_function"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SquaredDistanceToSet.with_projection_function" title="Link to this definition"></a></dt>
+<dd><p>Attach a symbolic projection function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>function</strong> (<a class="reference internal" href="#gradgen.function.Function" title="gradgen.function.Function"><em>Function</em></a>) – A gradgen <code class="docutils literal notranslate"><span class="pre">Function</span></code> with exactly one vector input
+block and one vector output block representing the
+projection map.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.SquaredDistanceToSet.with_rust_sq_distance">
+<span class="sig-name descname"><span class="pre">with_rust_sq_distance</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">snippet</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_rust_sq_distance"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SquaredDistanceToSet.with_rust_sq_distance" title="Link to this definition"></a></dt>
+<dd><p>Attach the Rust primal helper snippet.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>snippet</strong> (<em>str</em>) – Rust source defining the registered primal helper with
+signature <code class="docutils literal notranslate"><span class="pre">fn</span> <span class="pre">&lt;name&gt;(x:</span> <span class="pre">&amp;[T],</span> <span class="pre">w:</span> <span class="pre">&amp;[T])</span> <span class="pre">-&gt;</span> <span class="pre">T</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.SquaredDistanceToSet.with_rust_projection">
+<span class="sig-name descname"><span class="pre">with_rust_projection</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">snippet</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.with_rust_projection"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SquaredDistanceToSet.with_rust_projection" title="Link to this definition"></a></dt>
+<dd><p>Attach the Rust projection helper snippet.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>snippet</strong> (<em>str</em>) – Rust source defining a projection helper with signature
+<code class="docutils literal notranslate"><span class="pre">fn</span> <span class="pre">&lt;name&gt;_projection(x:</span> <span class="pre">&amp;[T],</span> <span class="pre">out:</span> <span class="pre">&amp;mut</span> <span class="pre">[T])</span></code>.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><code class="docutils literal notranslate"><span class="pre">self</span></code> to support fluent configuration.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
 </dd>
 </dl>
 </dd></dl>

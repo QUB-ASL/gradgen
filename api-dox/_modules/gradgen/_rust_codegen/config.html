@@ -90,6 +90,7 @@
 <span class="n">RustBackendMode</span> <span class="o">=</span> <span class="nb">str</span>
 <span class="n">RustScalarType</span> <span class="o">=</span> <span class="nb">str</span>
 <span class="n">CargoDependency</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">]</span>
+<span class="n">RustBuildProfile</span> <span class="o">=</span> <span class="nb">str</span>
 
 
 <div class="viewcode-block" id="RustBackendConfig">
@@ -107,6 +108,7 @@
     <span class="n">enable_python_interface</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
     <span class="n">build_python_interface</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
     <span class="n">build_crate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span>
+    <span class="n">build_profile</span><span class="p">:</span> <span class="n">RustBuildProfile</span> <span class="o">=</span> <span class="s2">&quot;release&quot;</span>
     <span class="n">additional_dependencies</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">CargoDependency</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">()</span>
 
 <div class="viewcode-block" id="RustBackendConfig.with_backend_mode">
@@ -202,10 +204,38 @@
 <div class="viewcode-block" id="RustBackendConfig.with_build_crate">
 <a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_build_crate">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">with_build_crate</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">build_crate</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
-<span class="sd">        Return a copy with low-level crate compilation enabled or disabled.</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with crate compilation enabled or disabled.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            build_crate: Whether Gradgen should compile the generated</span>
+<span class="sd">                low-level Rust crate after writing it to disk.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A copy of the config with crate compilation enabled or disabled.</span>
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">build_crate</span><span class="o">=</span><span class="n">build_crate</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="RustBackendConfig.with_build_profile">
+<a class="viewcode-back" href="../../../api/gradgen.html#gradgen.RustBackendConfig.with_build_profile">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">with_build_profile</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">build_profile</span><span class="p">:</span> <span class="n">RustBuildProfile</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustBackendConfig</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return a copy with a different Cargo build profile.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            build_profile: Cargo profile used when ``build_crate`` is enabled.</span>
+<span class="sd">                Supported values are ``&quot;dev&quot;`` and ``&quot;release&quot;``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A copy of the config with the requested build profile.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">build_profile</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;dev&quot;</span><span class="p">,</span> <span class="s2">&quot;release&quot;</span><span class="p">}:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;build_profile must be either &#39;dev&#39; or &#39;release&#39;&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">replace</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">build_profile</span><span class="o">=</span><span class="n">build_profile</span><span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="RustBackendConfig.with_additional_dependencies">
