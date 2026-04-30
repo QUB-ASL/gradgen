@@ -10,6 +10,7 @@ from ._custom_elementary import (
     get_registered_elementary_function,
     register_elementary_function,
 )
+from .function import Function
 from .sx import SX, SXVector
 
 SqDistanceCallback = Callable[[object], object]
@@ -58,6 +59,8 @@ class SquaredDistanceToSet:
     name: str
     _sq_distance: SqDistanceCallback | None = None
     _projection: ProjectionCallback | None = None
+    _sq_distance_function: Function | None = None
+    _projection_function: Function | None = None
     _rust_sq_distance: str | None = None
     _rust_projection: str | None = None
     _input_dimension: int | None = None
@@ -84,6 +87,29 @@ class SquaredDistanceToSet:
         self._sq_distance = callback
         return self
 
+    def with_sq_distance_function(
+        self,
+        function: Function,
+    ) -> SquaredDistanceToSet:
+        """Attach a symbolic half-squared distance function.
+
+        Args:
+            function: A gradgen ``Function`` with exactly one vector input
+                block and one scalar output block representing the half-
+                squared distance.
+
+        Returns:
+            ``self`` to support fluent configuration.
+        """
+        self._validate_single_vector_input_function(
+            function,
+            output_kind="scalar",
+            label="sq_distance function",
+        )
+        self._sq_distance_function = function
+        self._update_input_dimension_from_function(function)
+        return self
+
     def with_projection(
         self,
         callback: ProjectionCallback,
@@ -100,6 +126,29 @@ class SquaredDistanceToSet:
             ``self`` to support fluent configuration.
         """
         self._projection = callback
+        return self
+
+    def with_projection_function(
+        self,
+        function: Function,
+    ) -> SquaredDistanceToSet:
+        """Attach a symbolic projection function.
+
+        Args:
+            function: A gradgen ``Function`` with exactly one vector input
+                block and one vector output block representing the
+                projection map.
+
+        Returns:
+            ``self`` to support fluent configuration.
+        """
+        self._validate_single_vector_input_function(
+            function,
+            output_kind="vector",
+            label="projection function",
+        )
+        self._projection_function = function
+        self._update_input_dimension_from_function(function)
         return self
 
     def with_rust_sq_distance(self, snippet: str) -> SquaredDistanceToSet:
@@ -146,6 +195,9 @@ class SquaredDistanceToSet:
         """
         if not isinstance(value, SXVector):
             raise TypeError("SquaredDistanceToSet expects an SXVector input")
+        symbolic_expr = self._build_symbolic_expr(value)
+        if symbolic_expr is not None:
+            return symbolic_expr
         spec = self._ensure_registered(len(value))
         return spec(value)
 
@@ -178,10 +230,37 @@ class SquaredDistanceToSet:
 
     def _validate_callbacks(self) -> None:
         """Ensure the required Python callbacks have been provided."""
+        if self._sq_distance_function is not None:
+            return
+        if self._projection_function is not None:
+            return
         if self._sq_distance is None:
             raise ValueError("SquaredDistanceToSet requires with_sq_distance")
         if self._projection is None:
             raise ValueError("SquaredDistanceToSet requires with_projection")
+
+    def _build_symbolic_expr(self, value: SXVector) -> SX | None:
+        """Build a symbolic expression from configured gradgen Functions."""
+        if self._sq_distance_function is not None:
+            self._validate_input_dimension(len(value))
+            output = self._sq_distance_function(value)
+            if not isinstance(output, SX):
+                raise TypeError(
+                    "sq_distance function must return a single scalar output"
+                )
+            return output
+
+        if self._projection_function is not None:
+            self._validate_input_dimension(len(value))
+            projected = self._projection_function(value)
+            if not isinstance(projected, SXVector):
+                raise TypeError(
+                    "projection function must return a single vector output"
+                )
+            delta = value - projected
+            return 0.5 * delta.norm2sq()
+
+        return None
 
     def _build_gradient_callback(self) -> Callable[[object], tuple[object, ...]]:
         """Return a callback computing ``x - projection(x)``."""
@@ -236,6 +315,54 @@ class SquaredDistanceToSet:
                 "}",
             ]
         )
+
+    def _update_input_dimension_from_function(self, function: Function) -> None:
+        """Record and validate the shared symbolic input dimension."""
+        vector_input = function.inputs[0]
+        if not isinstance(vector_input, SXVector):
+            raise TypeError("SquaredDistanceToSet symbolic inputs must be vectors")
+        self._validate_input_dimension(len(vector_input), allow_unset=True)
+        self._input_dimension = len(vector_input)
+
+    def _validate_input_dimension(
+        self,
+        input_dimension: int,
+        *,
+        allow_unset: bool = False,
+    ) -> None:
+        """Validate the configured vector input dimension."""
+        if self._input_dimension is None:
+            if allow_unset:
+                return
+            self._input_dimension = input_dimension
+            return
+        if input_dimension != self._input_dimension:
+            raise ValueError(
+                f"SquaredDistanceToSet {self.name!r} expects input length "
+                f"{self._input_dimension}, received {input_dimension}"
+            )
+
+    def _validate_single_vector_input_function(
+        self,
+        function: Function,
+        *,
+        output_kind: str,
+        label: str,
+    ) -> None:
+        """Validate a symbolic helper function shape."""
+        if len(function.inputs) != 1:
+            raise TypeError(f"{label} must accept exactly one input block")
+        if len(function.outputs) != 1:
+            raise TypeError(f"{label} must return exactly one output block")
+        if not isinstance(function.inputs[0], SXVector):
+            raise TypeError(f"{label} input must be an SXVector")
+        if output_kind == "scalar" and not isinstance(function.outputs[0], SX):
+            raise TypeError(f"{label} output must be an SX scalar")
+        if (
+            output_kind == "vector"
+            and not isinstance(function.outputs[0], SXVector)
+        ):
+            raise TypeError(f"{label} output must be an SXVector")
 
 
 def _coerce_vector_like(value: object) -> tuple[object, ...]:

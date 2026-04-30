@@ -329,6 +329,101 @@ mod integration_sympy_sqdist {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_squared_distance_symbolic_function_codegen_matches_sympy(
+        self,
+    ) -> None:
+        x0, x1 = sp.symbols("x0 x1", real=True)
+        sympy_expr = sp.Integer(2) * x1**2
+        sympy_gradient = sp.Matrix(
+            [sp.diff(sympy_expr, symbol) for symbol in (x0, x1)]
+        )
+
+        numeric_point = [1.25, -0.75]
+        substitutions = {x0: numeric_point[0], x1: numeric_point[1]}
+        expected_primal = float(sympy_expr.subs(substitutions).evalf())
+        expected_gradient = self._flatten_sympy_matrix(
+            sympy_gradient.subs(substitutions).evalf()
+        )
+
+        x = SXVector.sym("x", 2)
+        projection = Function(
+            "proj_axis_sympy",
+            [x],
+            [SXVector((x[0], SX.const(0.0)))],
+            input_names=["x"],
+            output_names=["p"],
+        )
+        distance = (
+            SquaredDistanceToSet(name="dist_to_axis_symbolic_sympy")
+            .with_projection_function(projection)
+        )
+        function = Function(
+            "distance_energy_symbolic",
+            [x],
+            [distance(2.0 * x)],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        builder = (
+            CodeGenerationBuilder(function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_sqdist_symbolic")
+            )
+            .add_primal()
+            .add_gradient()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_sqdist_symbolic")
+            primal_codegen, gradient_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_sqdist_symbolic {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(numeric_point, "f64")};
+        let mut primal_y = [0.0_f64; 1];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+        assert_close_slice(
+            &primal_y,
+            &{self._rust_array_literal([expected_primal], "f64")},
+            1e-10_f64,
+        );
+
+        let mut gradient_y = [0.0_f64; 2];
+        let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
+        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+        assert_close_slice(
+            &gradient_y,
+            &{self._rust_array_literal(expected_gradient, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_composed_pipeline_emits_norm2sq_helper(self) -> None:
         x = SXVector.sym("x", 2)
         mapped_function = Function(

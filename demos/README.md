@@ -7,6 +7,7 @@ This directory contains runnable end-to-end examples showing how to use
 
 - [codegen](./codegen/README.md): basic symbolic functions and Rust code generation
 - [custom_function](./custom_function/README.md): opaque custom elementary functions with user-provided derivatives
+- [squared_distance_to_set](./squared_distance_to_set/README.md): projection-backed half-squared distances and generated gradient kernels
 - [multi_function](./multi_function/README.md): generating one Rust crate from multiple source functions
 - [vjp](./vjp/README.md): Jacobian generation and runtime-seeded vector-Jacobian products
 - [map_zip](./map_zip/README.md): staged loop-preserving packed map/zip kernels
