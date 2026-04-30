@@ -765,6 +765,9 @@ class SX:
             return f"SX.sym({self.name!r})"
         if self.op == "const":
             return f"SX.const({self.value!r})"
+        custom_repr = _format_custom_repr(self)
+        if custom_repr is not None:
+            return custom_repr
         if len(self.node.args) == 1:
             return f"{self.op}({SX(self.node.args[0])!r})"
         if len(self.node.args) == 2:
@@ -1623,6 +1626,81 @@ class SXVector:
         if len(self) != 1 or isinstance(other, SXVector):
             return None
         return _coerce(other)
+
+
+def _format_custom_repr(expr: SX) -> str | None:
+    """Return a readable repr for registered custom primitive nodes."""
+    if not expr.op.startswith("custom_") or expr.node.name is None:
+        return None
+
+    if expr.op == "custom_vector":
+        return _format_custom_vector_repr(expr)
+
+    args_repr = ", ".join(repr(SX(arg)) for arg in expr.node.args)
+    return f"{expr.node.name}({args_repr})"
+
+
+def _format_custom_vector_repr(expr: SX) -> str:
+    """Return a repr for a vector-input custom primitive call."""
+    try:
+        from ._custom_elementary import get_registered_elementary_function
+
+        spec = get_registered_elementary_function(expr.node.name or "")
+    except Exception:
+        args_repr = ", ".join(repr(SX(arg)) for arg in expr.node.args)
+        return f"{expr.node.name}({args_repr})"
+
+    input_args = tuple(SX(arg) for arg in expr.node.args[:spec.input_dimension])
+    parameter_args = tuple(
+        SX(arg) for arg in expr.node.args[spec.input_dimension :]
+    )
+
+    parts = [_format_vector_argument_repr(input_args)]
+    if parameter_args:
+        params_repr = ", ".join(repr(arg) for arg in parameter_args)
+        parts.append(f"w=({params_repr})")
+    return f"{expr.node.name}({', '.join(parts)})"
+
+
+def _format_vector_argument_repr(args: tuple[SX, ...]) -> str:
+    """Return a compact repr for vector-input arguments when possible."""
+    if not args:
+        return "SXVector.sym('', 0)"
+
+    compact_repr = _format_symbol_sequence_repr(args)
+    if compact_repr is not None:
+        return compact_repr
+    return f"SXVector(elements={args!r})"
+
+
+def _format_symbol_sequence_repr(args: tuple[SX, ...]) -> str | None:
+    """Collapse ``x_0, x_1, ...`` style arguments into ``SXVector.sym``."""
+    base_name: str | None = None
+    metadata: dict[str, Hashable] | None = None
+
+    for index, arg in enumerate(args):
+        if arg.op != "symbol" or arg.name is None:
+            return None
+        expected_suffix = f"_{index}"
+        if not arg.name.endswith(expected_suffix):
+            return None
+        candidate_base = arg.name[: -len(expected_suffix)]
+        if candidate_base == "":
+            return None
+        if base_name is None:
+            base_name = candidate_base
+            metadata = arg.metadata
+        elif candidate_base != base_name or arg.metadata != (metadata or {}):
+            return None
+
+    if base_name is None:
+        return None
+    if metadata:
+        return (
+            f"SXVector.sym({base_name!r}, {len(args)}, "
+            f"metadata={metadata!r})"
+        )
+    return f"SXVector.sym({base_name!r}, {len(args)})"
 
 
 def const(value: float | int) -> SX:

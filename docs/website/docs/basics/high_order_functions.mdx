@@ -21,7 +21,7 @@ $$\mathbf\{y\} = (u(x^\{(1)\}), u(x^\{(2)\}), \dots, u(x^\{(N)\})),$$
 
 i.e., it applies $u$ to each of the vectors of the sequence.
 In other words, it is the mapping
-$\mathrm\{map\}_\{u, N\}: \mathbf\{x\} \mapsto \mathbf\{y\}$.
+$\mathbf\{map\}_\{u, N\}: \mathbf\{x\} \mapsto \mathbf\{y\}$.
 This operation is illustrated in the figure below.
 
 
@@ -72,7 +72,7 @@ $$\mathbf\{z\} =
 (g(a^\{(1)\}, c^\{(1)\}), \dots, g(a^\{(M)\}, c^\{(M)\})).$$
 
 In other words, it is the mapping
-$\mathrm\{zip\}_\{b, M\}: (\mathbf\{a\}, \mathbf\{c\}) \mapsto \mathbf\{z\}$.
+$\mathbf\{zip\}_\{b, M\}: (\mathbf\{a\}, \mathbf\{c\}) \mapsto \mathbf\{z\}$.
 The zip operation is illustrated in the figure below.
 
 <div align="center">
@@ -182,7 +182,7 @@ r = Function(
 Let us define $\mathbf\{x\} = (x_1, \ldots, x_N)$.
 The function `gradgen.reduce_function` maps 
 
-$$\mathrm\{reduce\}_\{\otimes, N\}: (a_0, \mathbf\{x\})
+$$\mathbf\{reduce\}_\{\otimes, N\}: (a_0, \mathbf\{x\})
 \mapsto a_0 \otimes x_1 \ldots \otimes x_n.$$
 
 
@@ -389,17 +389,17 @@ for $k=0, \ldots, N-1$. This is illustrated below
 
 We define the mapping 
 
-$$\mathrm\{repeat\}_\{G, N\}:x \mapsto x_\{N\},$$
+$$\mathbf\{repeat\}_\{G, N\}:x \mapsto x_N$$
 
 where $x_N$ is produced by the above sequence. For example, for $N=2$,
 we have 
 
-$$\mathrm\{repeat\}_\{G, 2\}(x, p_0, p_1) = G(G(x, p_0), p_1).$$
+$$\mathbf\{repeat\}_\{G, 2\}(x, p_0, p_1) = G(G(x, p_0), p_1).$$
 
 Let us consider an example where $x\in\mathbb\{R\}^2$,
 $p\in\mathbb\{R\}^3$, and 
 $$G(x, p) = \begin\{bmatrix\}
-p_1 x_1 + p_2  \sin(x_1x_2) \\
+p_1 x_1 + p_2  \sin(x_1x_2) \\\\
 \tfrac\{1\}\{2\}x_1 + p_3 x_2
 \end\{bmatrix\}.$$
 
@@ -451,11 +451,12 @@ $$\begin\{align\}x_0 ={}& x \\\\
 x_\{i+1\} ={}& F_i(x_i, p_i), i=0, \ldots, K-1
 \end\{align\}$$
 We define the *chain* function
-$$\mathrm\{chain\}_\{(F_0, p_0)\ldots(F_\{K-1\}, p_\{K-1\})\}
-(x, p_0, \ldots, p_\{K-1\}) = x_K$$
+
+$$\mathbf\{chain\}_\{((F_0, p_0), \ldots, (F_K, p_K))\}(x, p_0, \ldots, p_K) = x_K.$$
 
 Let us have a look at an example. Suppose $x\in\mathbb\{R\}^2$,
-$p_0\in\mathbb\{R\}$, and $p_1, p_3\in\mathbb\{R\}^2$. Let 
+$p_1\in\mathbb\{R\}$, and $p_1, p_3\in\mathbb\{R\}^2$, while $p_2 = p_1$. 
+Let 
 $$\begin\{align\}
 F(x, p_0) ={}& p_0x,
 \\\\
@@ -491,7 +492,9 @@ H = Function(name="H",
              outputs=[sin(p3.dot(x))*x])
 ```
 
-We can now create a chain object
+We can now create a chain object,
+$$\mathbf\{chain\}_\{((F, p_0), (G, p_1), (G, p_2), (H, p_3))\}(x, p_0, p_1, p_3),$$
+as follows
 
 ```python
 chained = (
