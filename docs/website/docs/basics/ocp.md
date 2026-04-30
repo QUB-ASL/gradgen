@@ -19,7 +19,7 @@ use `Function` you can end up with thousands of lines of generated code.
 
 :::
 
-## Problem statement
+## Single shooting optimal control 
 
 We can the discrete-time dynamical system 
 $$x_{k+1} = f(x_k, u_k, p),$$
@@ -224,3 +224,49 @@ for stage_index in (1..5).rev() {
 ```
 
 </details>
+
+
+## Penalty functions
+
+Consider an optimal control problem where the total cost function 
+with horizon $N$ involves quadratic penalty terms, that is, it 
+has the formm
+
+$$V_N(x_0, u_{\mathrm{seq}}, p, c) = \sum_{t=0}^{N-1} \ell(x_t, u_t, p) + \tfrac{c}{2}\Vert q(x_t, u_t, p) \Vert_2^2 + V_f(x_N, p) + \tfrac{c}{2}\Vert q_N(x_N, p)\Vert_2^2,$$
+
+where $c > 0$ is the penalty parameter.
+
+If $c$ is large enough, then $q(x_t, u_t, p) \approx 0$ for all $t$, 
+and $q_N(x_N, p) \approx 0$. This way we can impose *soft constraints* at every stage.
+The formulation is also used within the quadratic penalty method.
+
+
+
+As an example, suppose we have the stage penalty function $q:\mathbb{R}^2\times \mathbb{R} \times \mathbb{R}^2 \to \mathbb{R}^2$ given by
+$$q(x, u, p) = \begin{bmatrix}
+x_1 + u - p_1 \\\\ x_2 - p_2
+\end{bmatrix},$$
+and the terminal penalty function $q_N:\mathbb{R}^2\times \mathbb{R}^2 \to \mathbb{R}$ given by
+$$q_N(x, p) = \max\\{0, \Vert x \Vert_2^2 - 1 - p_1\\}$$
+The terminal penalty, $q_N$, can be used to enforce 
+the constraint $\Vert x \Vert_2^2 - 1 - p_1 \leq 0$.
+
+```python
+# Stage penalty
+stage_penalty = Function(
+    "stage_penalty",
+    [x, u, p],
+    [SXVector((x[0] + u[0] - p[0], x[1] - p[1]))],
+    input_names=["x", "u", "p"],
+    output_names=["q"],
+)
+
+# Terminal penalty
+terminal_penalty = Function(
+    "terminal_penalty",
+    [x, p],
+    [SXVector((maximum(0.0, x.norm2sq() - 1.0 - p[0]),))],
+    input_names=["x", "p"],
+    output_names=["q_n"],
+)
+```
