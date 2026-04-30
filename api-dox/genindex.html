@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Index &mdash; Gradgen API 0.4.2a1</title>
+  <title>Index &mdash; Gradgen API 0.4.2a2</title>
       <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=9edc463e" />
 
   
       <script src="_static/jquery.js?v=5d32c60e"></script>
       <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="_static/documentation_options.js?v=23b537bc"></script>
       <script src="_static/doctools.js?v=fd6eb6e6"></script>
       <script src="_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="_static/js/theme.js"></script>
@@ -320,6 +320,8 @@
       <li><a href="api/gradgen.html#gradgen.CodeGenerationBuilder.build">build() (gradgen.CodeGenerationBuilder method)</a>
 </li>
       <li><a href="api/gradgen.html#gradgen.RustBackendConfig.build_crate">build_crate (gradgen.RustBackendConfig attribute)</a>
+</li>
+      <li><a href="api/gradgen.html#gradgen.RustBackendConfig.build_profile">build_profile (gradgen.RustBackendConfig attribute)</a>
 </li>
       <li><a href="api/gradgen.html#gradgen.RustBackendConfig.build_python_interface">build_python_interface (gradgen.RustBackendConfig attribute)</a>
 </li>
@@ -667,6 +669,12 @@
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.euclidean_ball">euclidean_ball() (gradgen.squared_distance_to_set.SquaredDistanceToSet class method)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.euclidean_ball">(gradgen.SquaredDistanceToSet class method)</a>
+</li>
+      </ul></li>
       <li><a href="api/gradgen.html#gradgen.SX.exp">exp() (gradgen.SX method)</a>
 
       <ul>
@@ -877,8 +885,6 @@
       </ul></li>
       <li><a href="api/gradgen.html#gradgen.get_registered_elementary_function">get_registered_elementary_function() (in module gradgen)</a>
 </li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     gradgen
 
@@ -886,6 +892,8 @@
         <li><a href="api/gradgen.html#module-gradgen">module</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li>
     gradgen.ad
 
@@ -943,6 +951,13 @@
 </li>
       </ul></li>
       <li>
+    gradgen.squared_distance_to_set
+
+      <ul>
+        <li><a href="api/gradgen.html#module-gradgen.squared_distance_to_set">module</a>
+</li>
+      </ul></li>
+      <li>
     gradgen.sx
 
       <ul>
@@ -965,6 +980,10 @@
         <li><a href="api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.gradient">(gradgen.single_shooting.SingleShootingProblem method)</a>
 </li>
         <li><a href="api/gradgen.html#gradgen.SingleShootingProblem.gradient">(gradgen.SingleShootingProblem method)</a>
+</li>
+        <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.gradient">(gradgen.squared_distance_to_set.SquaredDistanceToSet method)</a>
+</li>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.gradient">(gradgen.SquaredDistanceToSet method)</a>
 </li>
         <li><a href="api/gradgen.html#gradgen.gradient">(in module gradgen)</a>
 </li>
@@ -1087,6 +1106,12 @@
         <li><a href="api/gradgen.html#gradgen.SingleShootingPrimalFunction.include_states">(gradgen.SingleShootingPrimalFunction attribute)</a>
 </li>
       </ul></li>
+      <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.infinity_ball">infinity_ball() (gradgen.squared_distance_to_set.SquaredDistanceToSet class method)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.infinity_ball">(gradgen.SquaredDistanceToSet class method)</a>
+</li>
+      </ul></li>
       <li><a href="api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.initial_state_name">initial_state_name (gradgen.single_shooting.SingleShootingProblem attribute)</a>
 
       <ul>
@@ -1195,6 +1220,10 @@
         <li><a href="api/gradgen.html#gradgen.function.Function.jacobian">(gradgen.function.Function method)</a>
 </li>
         <li><a href="api/gradgen.html#gradgen.map_zip.BatchedFunction.jacobian">(gradgen.map_zip.BatchedFunction method)</a>
+</li>
+        <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.jacobian">(gradgen.squared_distance_to_set.SquaredDistanceToSet method)</a>
+</li>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.jacobian">(gradgen.SquaredDistanceToSet method)</a>
 </li>
         <li><a href="api/gradgen.html#gradgen.jacobian">(in module gradgen)</a>
 </li>
@@ -1389,6 +1418,8 @@
 </li>
         <li><a href="api/gradgen.html#module-gradgen.single_shooting">gradgen.single_shooting</a>
 </li>
+        <li><a href="api/gradgen.html#module-gradgen.squared_distance_to_set">gradgen.squared_distance_to_set</a>
+</li>
         <li><a href="api/gradgen.html#module-gradgen.sx">gradgen.sx</a>
 </li>
       </ul></li>
@@ -1461,6 +1492,10 @@
 </li>
         <li><a href="api/gradgen.html#gradgen.SingleShootingProblem.name">(gradgen.SingleShootingProblem attribute)</a>
 </li>
+        <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.name">(gradgen.squared_distance_to_set.SquaredDistanceToSet attribute)</a>
+</li>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.name">(gradgen.SquaredDistanceToSet attribute)</a>
+</li>
         <li><a href="api/gradgen.html#gradgen.SX.name">(gradgen.SX property)</a>
 </li>
         <li><a href="api/gradgen.html#gradgen.sx.SX.name">(gradgen.sx.SX property)</a>
@@ -1476,6 +1511,8 @@
         <li><a href="api/gradgen.html#gradgen.sx.SX.node">(gradgen.sx.SX attribute)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/gradgen.html#gradgen.BatchedFunction.nodes">nodes (gradgen.BatchedFunction property)</a>
 
       <ul>
@@ -1530,8 +1567,6 @@
         <li><a href="api/gradgen.html#gradgen.SingleShootingProblem.nodes">(gradgen.SingleShootingProblem property)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/gradgen.html#gradgen.sx.SXVector.norm1">norm1() (gradgen.sx.SXVector method)</a>
 
       <ul>
@@ -1782,6 +1817,12 @@
         <li><a href="api/gradgen.html#gradgen.RustPythonInterfaceProjectResult.readme">(gradgen.RustPythonInterfaceProjectResult attribute)</a>
 </li>
       </ul></li>
+      <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.rectangle">rectangle() (gradgen.squared_distance_to_set.SquaredDistanceToSet class method)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.rectangle">(gradgen.SquaredDistanceToSet class method)</a>
+</li>
+      </ul></li>
       <li><a href="api/gradgen.html#gradgen.reduce_function">reduce_function() (in module gradgen)</a>
 
       <ul>
@@ -1804,6 +1845,8 @@
       </ul></li>
       <li><a href="api/gradgen.html#gradgen.CodeGenerationBuilder.requests">requests (gradgen.CodeGenerationBuilder attribute)</a>
 </li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/gradgen.html#gradgen.SX.round">round() (gradgen.SX method)</a>
 
       <ul>
@@ -1818,8 +1861,6 @@
         <li><a href="api/gradgen.html#gradgen.sx.round">(in module gradgen.sx)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/gradgen.html#gradgen.RustBackendConfig">RustBackendConfig (class in gradgen)</a>
 </li>
       <li><a href="api/gradgen.html#gradgen.RustBackendMode">RustBackendMode (in module gradgen)</a>
@@ -1956,14 +1997,14 @@
         <li><a href="api/gradgen.html#gradgen.single_shooting.SingleShootingHvpFunction">(class in gradgen.single_shooting)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/gradgen.html#gradgen.SingleShootingJointFunction">SingleShootingJointFunction (class in gradgen)</a>
 
       <ul>
         <li><a href="api/gradgen.html#gradgen.single_shooting.SingleShootingJointFunction">(class in gradgen.single_shooting)</a>
 </li>
       </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/gradgen.html#gradgen.SingleShootingPrimalFunction">SingleShootingPrimalFunction (class in gradgen)</a>
 
       <ul>
@@ -2004,6 +2045,12 @@
         <li><a href="api/gradgen.html#gradgen.sqrt">(in module gradgen)</a>
 </li>
         <li><a href="api/gradgen.html#gradgen.sx.sqrt">(in module gradgen.sx)</a>
+</li>
+      </ul></li>
+      <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet">SquaredDistanceToSet (class in gradgen)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet">(class in gradgen.squared_distance_to_set)</a>
 </li>
       </ul></li>
       <li><a href="api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.stage_cost">stage_cost (gradgen.single_shooting.SingleShootingProblem attribute)</a>
@@ -2203,6 +2250,10 @@
 </li>
         <li><a href="api/gradgen.html#gradgen.SingleShootingProblem.to_function">(gradgen.SingleShootingProblem method)</a>
 </li>
+        <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.to_function">(gradgen.squared_distance_to_set.SquaredDistanceToSet method)</a>
+</li>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.to_function">(gradgen.SquaredDistanceToSet method)</a>
+</li>
       </ul></li>
   </ul></td>
   <td style="width: 33%; vertical-align: top;"><ul>
@@ -2294,6 +2345,8 @@
 </li>
       <li><a href="api/gradgen.html#gradgen.RustBackendConfig.with_build_crate">with_build_crate() (gradgen.RustBackendConfig method)</a>
 </li>
+      <li><a href="api/gradgen.html#gradgen.RustBackendConfig.with_build_profile">with_build_profile() (gradgen.RustBackendConfig method)</a>
+</li>
       <li><a href="api/gradgen.html#gradgen.RustBackendConfig.with_build_python_interface">with_build_python_interface() (gradgen.RustBackendConfig method)</a>
 </li>
       <li><a href="api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_costs">with_costs() (gradgen.single_shooting.SingleShootingProblem method)</a>
@@ -2324,8 +2377,6 @@
         <li><a href="api/gradgen.html#gradgen.SingleShootingProblem.with_horizon">(gradgen.SingleShootingProblem method)</a>
 </li>
       </ul></li>
-  </ul></td>
-  <td style="width: 33%; vertical-align: top;"><ul>
       <li><a href="api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_input_names">with_input_names() (gradgen.single_shooting.SingleShootingProblem method)</a>
 
       <ul>
@@ -2338,6 +2389,32 @@
         <li><a href="api/gradgen.html#gradgen.SingleShootingProblem.with_penalties">(gradgen.SingleShootingProblem method)</a>
 </li>
       </ul></li>
+      <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_projection">with_projection() (gradgen.squared_distance_to_set.SquaredDistanceToSet method)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.with_projection">(gradgen.SquaredDistanceToSet method)</a>
+</li>
+      </ul></li>
+  </ul></td>
+  <td style="width: 33%; vertical-align: top;"><ul>
+      <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_projection_function">with_projection_function() (gradgen.squared_distance_to_set.SquaredDistanceToSet method)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.with_projection_function">(gradgen.SquaredDistanceToSet method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_rust_projection">with_rust_projection() (gradgen.squared_distance_to_set.SquaredDistanceToSet method)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.with_rust_projection">(gradgen.SquaredDistanceToSet method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_rust_sq_distance">with_rust_sq_distance() (gradgen.squared_distance_to_set.SquaredDistanceToSet method)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.with_rust_sq_distance">(gradgen.SquaredDistanceToSet method)</a>
+</li>
+      </ul></li>
       <li><a href="api/gradgen.html#gradgen.RustBackendConfig.with_scalar_type">with_scalar_type() (gradgen.RustBackendConfig method)</a>
 </li>
       <li><a href="api/gradgen.html#gradgen.CodeGenerationBuilder.with_simplification">with_simplification() (gradgen.CodeGenerationBuilder method)</a>
@@ -2346,6 +2423,18 @@
         <li><a href="api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_simplification">(gradgen.single_shooting.SingleShootingProblem method)</a>
 </li>
         <li><a href="api/gradgen.html#gradgen.SingleShootingProblem.with_simplification">(gradgen.SingleShootingProblem method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_sq_distance">with_sq_distance() (gradgen.squared_distance_to_set.SquaredDistanceToSet method)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.with_sq_distance">(gradgen.SquaredDistanceToSet method)</a>
+</li>
+      </ul></li>
+      <li><a href="api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.with_sq_distance_function">with_sq_distance_function() (gradgen.squared_distance_to_set.SquaredDistanceToSet method)</a>
+
+      <ul>
+        <li><a href="api/gradgen.html#gradgen.SquaredDistanceToSet.with_sq_distance_function">(gradgen.SquaredDistanceToSet method)</a>
 </li>
       </ul></li>
       <li><a href="api/gradgen.html#gradgen.single_shooting.SingleShootingProblem.with_stage_cost">with_stage_cost() (gradgen.single_shooting.SingleShootingProblem method)</a>

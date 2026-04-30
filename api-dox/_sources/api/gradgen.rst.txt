@@ -68,6 +68,14 @@ gradgen.single\_shooting module
    :show-inheritance:
    :undoc-members:
 
+gradgen.squared\_distance\_to\_set module
+-----------------------------------------
+
+.. automodule:: gradgen.squared_distance_to_set
+   :members:
+   :show-inheritance:
+   :undoc-members:
+
 gradgen.sx module
 -----------------
 

@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>gradgen._rust_codegen.builder &mdash; Gradgen API 0.4.2a1</title>
+  <title>gradgen._rust_codegen.builder &mdash; Gradgen API 0.4.2a2</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../../_static/documentation_options.js?v=23b537bc"></script>
       <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
@@ -682,6 +682,17 @@
             <span class="n">simplification</span><span class="p">,</span>
             <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
             <span class="n">function_name</span><span class="o">=</span><span class="n">function_name</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">Function</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="s2">&quot;to_function&quot;</span><span class="p">):</span>
+        <span class="n">lowered_function</span> <span class="o">=</span> <span class="n">function</span><span class="o">.</span><span class="n">to_function</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">function_name</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">_resolve_builder_functions</span><span class="p">(</span>
+            <span class="n">lowered_function</span><span class="p">,</span>
+            <span class="n">config</span><span class="p">,</span>
+            <span class="n">requests</span><span class="p">,</span>
+            <span class="n">simplification</span><span class="p">,</span>
+            <span class="n">include_base_name</span><span class="o">=</span><span class="n">include_base_name</span><span class="p">,</span>
+            <span class="n">function_name</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
         <span class="p">)</span>
 
     <span class="n">base_function</span> <span class="o">=</span> <span class="n">_apply_builder_base_name</span><span class="p">(</span><span class="n">function</span><span class="p">,</span> <span class="n">function_name</span><span class="p">)</span>
