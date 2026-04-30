@@ -21,8 +21,8 @@ where $\Pi_C$ is the projection onto $C$.
 
 Squared distance-to-set functions often play an important role in 
 optimization problems. Here we will see how to define such functions. 
-Gradgen also offers a easy constructors for common sets $C$ such as 
-norm-balls.
+Gradgen also offers easy constructors for common sets $C$ such as
+Euclidean balls, infinity-norm balls, and axis-aligned rectangles.
 
 ## Custom sets
 
@@ -109,6 +109,39 @@ dg_val = dg([1., 1.00])
 ## Common convex sets
 
 ### Norm balls
+
+Gradgen provides factory constructors for the most common convex sets.
+For example, a Euclidean ball centered at the origin with radius 1 can be
+written as
+
+```python
+distance = SquaredDistanceToSet.euclidean_ball(
+    name="unit_ball",
+    center=(0.0, 0.0),
+    radius=1.0,
+)
+```
+
+An infinity-norm ball uses the same calling pattern:
+
+```python
+distance = SquaredDistanceToSet.infinity_ball(
+    name="unit_box",
+    center=(0.0, 0.0),
+    radius=1.0,
+)
+```
+
+For axis-aligned rectangles, the bounds may include ``-inf`` on the lower
+side and ``+inf`` on the upper side:
+
+```python
+distance = SquaredDistanceToSet.rectangle(
+    name="half_infinite_box",
+    xmin=(-1.0, float("-inf")),
+    xmax=(float("inf"), 2.0),
+)
+```
 
 ### Hyperplanes
 

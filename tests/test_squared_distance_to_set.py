@@ -1,9 +1,61 @@
 import unittest
+import math
 
 from gradgen import Function, SX, SXVector, SquaredDistanceToSet
 
 
 class SquaredDistanceToSetTests(unittest.TestCase):
+    def test_euclidean_ball_factory(self) -> None:
+        distance = SquaredDistanceToSet.euclidean_ball(
+            name="unit_ball",
+            center=(0.0, 0.0),
+            radius=1.0,
+        )
+
+        self.assertEqual(distance([3.0, 4.0]), 8.0)
+        self.assertEqual(distance.jacobian()([3.0, 4.0]), (2.4, 3.2))
+        self.assertEqual(distance([0.2, 0.3]), 0.0)
+
+    def test_infinity_ball_factory(self) -> None:
+        distance = SquaredDistanceToSet.infinity_ball(
+            name="unit_infinity_ball",
+            center=(0.0, 0.0),
+            radius=1.0,
+        )
+
+        self.assertEqual(distance([2.0, 3.0]), 2.5)
+        self.assertEqual(distance.jacobian()([2.0, 3.0]), (1.0, 2.0))
+
+    def test_rectangle_factory_supports_infinite_bounds(self) -> None:
+        distance = SquaredDistanceToSet.rectangle(
+            name="half_infinite_box",
+            xmin=(-1.0, -math.inf),
+            xmax=(math.inf, 2.0),
+        )
+
+        self.assertEqual(distance([-3.0, 4.0]), 4.0)
+        self.assertEqual(distance.jacobian()([-3.0, 4.0]), (-2.0, 2.0))
+
+    def test_common_set_factories_validate_bounds(self) -> None:
+        with self.assertRaises(ValueError):
+            SquaredDistanceToSet.euclidean_ball(
+                name="bad_ball",
+                center=(0.0, 0.0),
+                radius=0.0,
+            )
+        with self.assertRaises(ValueError):
+            SquaredDistanceToSet.infinity_ball(
+                name="bad_infinity_ball",
+                center=(0.0, 0.0),
+                radius=-1.0,
+            )
+        with self.assertRaises(ValueError):
+            SquaredDistanceToSet.rectangle(
+                name="bad_rectangle",
+                xmin=(1.0, 0.0),
+                xmax=(0.0, 1.0),
+            )
+
     def test_squared_distance_behaves_like_a_function(self) -> None:
         x = SXVector.sym("x", 2)
         projection = Function(
@@ -30,7 +82,7 @@ class SquaredDistanceToSetTests(unittest.TestCase):
         self.assertEqual(distance.to_function()([1.0, 100.0]), 5000.0)
         self.assertEqual(distance.jacobian()([1.0, 100.0]), (0.0, 100.0))
 
-    def test_squared_distance_supports_symbolic_functions_without_rust_snippets(
+    def test_symbolic_functions_without_rust_snippets(
         self,
     ) -> None:
         x = SXVector.sym("x", 2)
@@ -65,9 +117,7 @@ class SquaredDistanceToSetTests(unittest.TestCase):
         self.assertEqual(f([1.5, -3.0]), 18.0)
         self.assertEqual(f.gradient(0)([1.5, -3.0]), (0.0, -12.0))
 
-    def test_squared_distance_can_be_derived_from_projection_function_alone(
-        self,
-    ) -> None:
+    def test_projection_function_alone(self) -> None:
         x = SXVector.sym("x", 2)
         projection = Function(
             "proj_axis_only",
@@ -86,9 +136,7 @@ class SquaredDistanceToSetTests(unittest.TestCase):
         self.assertEqual(f([1.5, -3.0]), 4.5)
         self.assertEqual(f.gradient(0)([1.5, -3.0]), (0.0, -3.0))
 
-    def test_squared_distance_supports_symbolic_composition_and_gradient(
-        self,
-    ) -> None:
+    def test_symbolic_composition_and_gradient(self) -> None:
         distance = (
             SquaredDistanceToSet(name="dist_to_axis")
             .with_sq_distance(lambda x: 0.5 * x[1] * x[1])
@@ -107,7 +155,7 @@ class SquaredDistanceToSetTests(unittest.TestCase):
         self.assertEqual(f([1.5, -3.0]), 18.0)
         self.assertEqual(f.gradient(0)([1.5, -3.0]), (0.0, -12.0))
 
-    def test_squared_distance_generates_gradient_rust_from_projection(self) -> None:
+    def test_generates_gradient_rust_from_projection(self) -> None:
         distance = (
             SquaredDistanceToSet(name="dist_to_axis_codegen")
             .with_sq_distance(lambda x: 0.5 * x[1] * x[1])
@@ -145,16 +193,18 @@ fn dist_to_axis_codegen_projection(
         self.assertIn("out[0] = x[0] - projection[0];", generated.source)
         self.assertIn("out[1] = x[1] - projection[1];", generated.source)
 
-    def test_squared_distance_requires_projection_before_use(self) -> None:
-        distance = SquaredDistanceToSet(name="missing_projection").with_sq_distance(
-            lambda x: 0.5 * x[0] * x[0]
+    def test_requires_projection_before_use(self) -> None:
+        distance = (
+            SquaredDistanceToSet(name="missing_projection").with_sq_distance(
+                lambda x: 0.5 * x[0] * x[0]
+            )
         )
         x = SXVector.sym("x", 1)
 
         with self.assertRaises(ValueError):
             _ = distance(x)
 
-    def test_squared_distance_validates_projection_function_shape(self) -> None:
+    def test_validates_projection_function_shape(self) -> None:
         x = SXVector.sym("x", 2)
         projection = Function(
             "bad_projection",

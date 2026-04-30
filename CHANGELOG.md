@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added `SquaredDistanceToSet`, a projection-backed primitive for modeling
   half-squared distances to closed convex sets and generating their gradient
   kernels from the projection map. Made `SquaredDistanceToSet` behave more like a regular symbolic function by adding `to_function()`, `jacobian()`, and direct numeric evaluation support, and taught the Rust builder to accept function-like wrappers that lower to `Function`.
+- Added common-set constructors for `SquaredDistanceToSet`, including
+  Euclidean balls, infinity-norm balls, and axis-aligned rectangles with
+  extended-real bounds.
 - Added a Sphinx-based API documentation pipeline that publishes generated
   docstring reference pages to `gh-pages/api-dox/` alongside the Docusaurus
   website. Note: to update the sphinx website, just push a commit with message

@@ -329,6 +329,166 @@ mod integration_sympy_sqdist {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_euclidean_ball_constructor_codegen_matches_sympy(self) -> None:
+        x0, x1 = sp.symbols("x0 x1", real=True)
+        sympy_expr = sp.Rational(1, 2) * (
+            sp.sqrt(x0**2 + x1**2) - 1
+        ) ** 2
+        sympy_gradient = sp.Matrix(
+            [sp.diff(sympy_expr, symbol) for symbol in (x0, x1)]
+        )
+
+        numeric_point = [3.0, 4.0]
+        substitutions = {x0: numeric_point[0], x1: numeric_point[1]}
+        expected_primal = float(sympy_expr.subs(substitutions).evalf())
+        expected_gradient = self._flatten_sympy_matrix(
+            sympy_gradient.subs(substitutions).evalf()
+        )
+
+        distance = SquaredDistanceToSet.euclidean_ball(
+            name="euclidean_ball_sympy",
+            center=(0.0, 0.0),
+            radius=1.0,
+        )
+
+        builder = (
+            CodeGenerationBuilder(distance)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_ball")
+            )
+            .add_primal()
+            .add_gradient()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_ball")
+            primal_codegen, gradient_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_ball {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(numeric_point, "f64")};
+        let mut primal_y = [0.0_f64; 1];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+        assert_close_slice(
+            &primal_y,
+            &{self._rust_array_literal([expected_primal], "f64")},
+            1e-10_f64,
+        );
+
+        let mut gradient_y = [0.0_f64; 2];
+        let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
+        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+        assert_close_slice(
+            &gradient_y,
+            &{self._rust_array_literal(expected_gradient, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_rectangle_constructor_codegen_matches_sympy(self) -> None:
+        x0, x1 = sp.symbols("x0 x1", real=True)
+        sympy_expr = sp.Rational(1, 2) * ((x0 + 1) ** 2 + (x1 - 2) ** 2)
+        sympy_gradient = sp.Matrix(
+            [sp.diff(sympy_expr, symbol) for symbol in (x0, x1)]
+        )
+
+        numeric_point = [-3.0, 4.0]
+        substitutions = {x0: numeric_point[0], x1: numeric_point[1]}
+        expected_primal = float(sympy_expr.subs(substitutions).evalf())
+        expected_gradient = self._flatten_sympy_matrix(
+            sympy_gradient.subs(substitutions).evalf()
+        )
+
+        distance = SquaredDistanceToSet.rectangle(
+            name="rectangle_sympy",
+            xmin=(-1.0, -sp.oo),
+            xmax=(sp.oo, 2.0),
+        )
+
+        builder = (
+            CodeGenerationBuilder(distance)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_rectangle")
+            )
+            .add_primal()
+            .add_gradient()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_rectangle")
+            primal_codegen, gradient_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_rectangle {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(numeric_point, "f64")};
+        let mut primal_y = [0.0_f64; 1];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+        assert_close_slice(
+            &primal_y,
+            &{self._rust_array_literal([expected_primal], "f64")},
+            1e-10_f64,
+        );
+
+        let mut gradient_y = [0.0_f64; 2];
+        let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
+        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+        assert_close_slice(
+            &gradient_y,
+            &{self._rust_array_literal(expected_gradient, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_squared_distance_symbolic_function_codegen_matches_sympy(
         self,
     ) -> None:

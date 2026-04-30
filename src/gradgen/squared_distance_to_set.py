@@ -2,7 +2,9 @@ r"""Helpers for projection-backed half-squared distance primitives."""
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
+from collections.abc import Sequence
 from typing import Callable
 
 from ._custom_elementary import (
@@ -184,6 +186,172 @@ class SquaredDistanceToSet:
         self._rust_projection = snippet
         return self
 
+    @classmethod
+    def euclidean_ball(
+        cls,
+        *,
+        name: str,
+        center: Sequence[object],
+        radius: float | int,
+    ) -> SquaredDistanceToSet:
+        """Construct a half-squared distance to a Euclidean ball.
+
+        Args:
+            name: Public identifier for the constructed distance object.
+            center: Ball center as a sequence of scalar values.
+            radius: Ball radius. The radius must be strictly positive.
+
+        Returns:
+            A :class:`SquaredDistanceToSet` configured for the Euclidean
+            ball ``{x : ||x - center||_2 <= radius}``.
+
+        Raises:
+            ValueError: If the radius is not strictly positive or the
+                provided center is empty.
+        """
+        normalized_center = _coerce_real_sequence(center, label="center")
+        if not normalized_center:
+            raise ValueError("center must not be empty")
+
+        radius_value = _coerce_positive_radius(radius)
+        x = SXVector.sym("x", len(normalized_center))
+        center_vector = SXVector(
+            tuple(SX.const(value) for value in normalized_center)
+        )
+        delta = x - center_vector
+        norm = delta.norm2()
+        scale = SX.const(radius_value) / norm.maximum(SX.const(radius_value))
+        projection = Function(
+            f"{name}_projection",
+            [x],
+            [center_vector + delta * scale],
+            input_names=["x"],
+            output_names=["p"],
+        )
+        return cls(name=name).with_projection_function(projection)
+
+    @classmethod
+    def infinity_ball(
+        cls,
+        *,
+        name: str,
+        center: Sequence[object],
+        radius: float | int,
+    ) -> SquaredDistanceToSet:
+        """Construct a half-squared distance to an infinity-norm ball.
+
+        Args:
+            name: Public identifier for the constructed distance object.
+            center: Ball center as a sequence of scalar values.
+            radius: Ball radius. The radius must be strictly positive.
+
+        Returns:
+            A :class:`SquaredDistanceToSet` configured for the infinity ball
+            ``{x : ||x - center||_∞ <= radius}``.
+
+        Raises:
+            ValueError: If the radius is not strictly positive or the
+                provided center is empty.
+        """
+        normalized_center = _coerce_real_sequence(center, label="center")
+        if not normalized_center:
+            raise ValueError("center must not be empty")
+
+        radius_value = _coerce_positive_radius(radius)
+        x = SXVector.sym("x", len(normalized_center))
+        center_vector = SXVector(
+            tuple(SX.const(value) for value in normalized_center)
+        )
+        lower = SXVector(
+            tuple(
+                SX.const(center_value - radius_value)
+                for center_value in normalized_center
+            )
+        )
+        upper = SXVector(
+            tuple(
+                SX.const(center_value + radius_value)
+                for center_value in normalized_center
+            )
+        )
+        projection = Function(
+            f"{name}_projection",
+            [x],
+            [
+                SXVector(
+                    tuple(
+                        x_i.maximum(lower_i).minimum(upper_i)
+                        for x_i, lower_i, upper_i in zip(
+                            x, lower, upper, strict=True
+                        )
+                    )
+                )
+            ],
+            input_names=["x"],
+            output_names=["p"],
+        )
+        return cls(name=name).with_projection_function(projection)
+
+    @classmethod
+    def rectangle(
+        cls,
+        *,
+        name: str,
+        xmin: Sequence[object],
+        xmax: Sequence[object],
+    ) -> SquaredDistanceToSet:
+        """Construct a half-squared distance to a rectangle.
+
+        Args:
+            name: Public identifier for the constructed distance object.
+            xmin: Lower bounds for each coordinate. Individual entries may
+                be ``-inf``.
+            xmax: Upper bounds for each coordinate. Individual entries may
+                be ``+inf``.
+
+        Returns:
+            A :class:`SquaredDistanceToSet` configured for the rectangle
+            ``{x : xmin <= x <= xmax}``.
+
+        Raises:
+            ValueError: If the bounds have incompatible lengths, any lower
+                bound exceeds its upper bound, or a bound is not a supported
+                extended real number.
+        """
+        normalized_xmin = _coerce_extended_real_sequence(
+            xmin, label="xmin", allow_negative_infinity=True
+        )
+        normalized_xmax = _coerce_extended_real_sequence(
+            xmax, label="xmax", allow_positive_infinity=True
+        )
+        if len(normalized_xmin) != len(normalized_xmax):
+            raise ValueError("xmin and xmax must have the same length")
+        if not normalized_xmin:
+            raise ValueError("rectangle bounds must not be empty")
+
+        x = SXVector.sym("x", len(normalized_xmin))
+        projected_entries: list[SX] = []
+        for x_i, xmin_i, xmax_i in zip(
+            x, normalized_xmin, normalized_xmax, strict=True
+        ):
+            if xmin_i > xmax_i:
+                raise ValueError("xmin must be less than or equal to xmax")
+            projection_entry = x_i
+            if not math.isinf(xmin_i):
+                projection_entry = projection_entry.maximum(SX.const(xmin_i))
+            if not math.isinf(xmax_i):
+                projection_entry = projection_entry.minimum(SX.const(xmax_i))
+            projected_entries.append(projection_entry)
+
+        projection = Function(
+            f"{name}_projection",
+            [x],
+            [SXVector(tuple(projected_entries))],
+            input_names=["x"],
+            output_names=["p"],
+        )
+        return cls(name=name).with_projection_function(projection)
+
     def __call__(
         self,
         value: SXVector | tuple[object, ...] | list[object],
@@ -292,10 +460,16 @@ class SquaredDistanceToSet:
         """
         return getattr(self.to_function(), name)
 
-    def _ensure_registered(self, input_dimension: int) -> RegisteredElementaryFunction:
+    def _ensure_registered(
+        self,
+        input_dimension: int,
+    ) -> RegisteredElementaryFunction:
         """Register the backing custom primitive on first use."""
         self._validate_callbacks()
-        if self._input_dimension is not None and input_dimension != self._input_dimension:
+        if (
+            self._input_dimension is not None
+            and input_dimension != self._input_dimension
+        ):
             raise ValueError(
                 f"SquaredDistanceToSet {self.name!r} expects input length "
                 f"{self._input_dimension}, received {input_dimension}"
@@ -357,7 +531,9 @@ class SquaredDistanceToSet:
         """Forget any cached symbolic :class:`Function` view."""
         self._function_cache = None
 
-    def _build_gradient_callback(self) -> Callable[[object], tuple[object, ...]]:
+    def _build_gradient_callback(
+        self,
+    ) -> Callable[[object], tuple[object, ...]]:
         """Return a callback computing ``x - projection(x)``."""
         projection = self._projection
         if projection is None:
@@ -411,11 +587,16 @@ class SquaredDistanceToSet:
             ]
         )
 
-    def _update_input_dimension_from_function(self, function: Function) -> None:
+    def _update_input_dimension_from_function(
+        self,
+        function: Function,
+    ) -> None:
         """Record and validate the shared symbolic input dimension."""
         vector_input = function.inputs[0]
         if not isinstance(vector_input, SXVector):
-            raise TypeError("SquaredDistanceToSet symbolic inputs must be vectors")
+            raise TypeError(
+                "SquaredDistanceToSet symbolic inputs must be vectors"
+            )
         self._validate_input_dimension(len(vector_input), allow_unset=True)
         self._input_dimension = len(vector_input)
 
@@ -473,3 +654,52 @@ def _coerce_vector_like(value: object) -> tuple[object, ...]:
         raise TypeError(
             "projection callbacks must return vector-like values"
         ) from exc
+
+
+def _coerce_real_sequence(
+    values: Sequence[object],
+    *,
+    label: str,
+) -> tuple[float, ...]:
+    """Return a finite real-valued sequence as floats."""
+    normalized: list[float] = []
+    for value in values:
+        numeric = float(value)
+        if not math.isfinite(numeric):
+            raise ValueError(f"{label} entries must be finite real values")
+        normalized.append(numeric)
+    return tuple(normalized)
+
+
+def _coerce_extended_real_sequence(
+    values: Sequence[object],
+    *,
+    label: str,
+    allow_negative_infinity: bool = False,
+    allow_positive_infinity: bool = False,
+) -> tuple[float, ...]:
+    """Return a sequence of extended real values as floats."""
+    normalized: list[float] = []
+    for value in values:
+        numeric = float(value)
+        if math.isnan(numeric):
+            raise ValueError(f"{label} entries must not be NaN")
+        if math.isinf(numeric):
+            if numeric < 0.0 and not allow_negative_infinity:
+                raise ValueError(
+                    f"{label} entries may not be -inf"
+                )
+            if numeric > 0.0 and not allow_positive_infinity:
+                raise ValueError(
+                    f"{label} entries may not be +inf"
+                )
+        normalized.append(numeric)
+    return tuple(normalized)
+
+
+def _coerce_positive_radius(radius: float | int) -> float:
+    """Return a validated positive radius."""
+    numeric = float(radius)
+    if not math.isfinite(numeric) or numeric <= 0.0:
+        raise ValueError("radius must be strictly positive and finite")
+    return numeric
