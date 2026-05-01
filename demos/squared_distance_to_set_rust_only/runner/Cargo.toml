@@ -1,0 +1,8 @@
+[package]
+name = "squared_distance_to_set_rust_only_runner"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+[dependencies.squared_distance_to_set_rust_only_kernel]
+path = "../squared_distance_to_set_rust_only_kernel"

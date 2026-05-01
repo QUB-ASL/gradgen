@@ -27,6 +27,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added an optional `input_name` argument to the common `SquaredDistanceToSet`
   factory constructors so the generated symbolic helper can use a readable
   input label.
+- Added rust-only registration support for `SquaredDistanceToSet`, so a
+  distance can now be defined with Rust snippets alone, used symbolically in
+  Python, and still generate Rust code without a Python evaluation callback.
 - Added a Sphinx-based API documentation pipeline that publishes generated
   docstring reference pages to `gh-pages/api-dox/` alongside the Docusaurus
   website. Note: to update the sphinx website, just push a commit with message

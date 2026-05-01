@@ -1,11 +1,11 @@
 {
-  "crate_name": "squared_distance_to_set_kernel",
-  "created_at": "2026-05-01T08:32:09.254919Z",
+  "crate_name": "squared_distance_to_set_rust_only_kernel",
+  "created_at": "2026-05-01T08:32:09.461597Z",
   "gradgen_version": "0.4.2a2",
   "functions": [
     {
-      "function_name": "squared_distance_to_set_kernel_distance_energy_f",
-      "workspace_size": 1,
+      "function_name": "squared_distance_to_set_rust_only_kernel_distance_energy_f",
+      "workspace_size": 2,
       "input_names": [
         "x"
       ],
@@ -20,8 +20,8 @@
       ]
     },
     {
-      "function_name": "squared_distance_to_set_kernel_distance_energy_grad_x_f",
-      "workspace_size": 1,
+      "function_name": "squared_distance_to_set_rust_only_kernel_distance_energy_grad_x_f",
+      "workspace_size": 3,
       "input_names": [
         "x"
       ],

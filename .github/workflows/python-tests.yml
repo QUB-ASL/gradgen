@@ -42,6 +42,7 @@ jobs:
           cargo clippy --quiet --manifest-path demos/codegen/codegen_kernel/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/custom_function/custom_function_kernel/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/squared_distance_to_set/squared_distance_to_set_kernel/Cargo.toml -- -D warnings
+          cargo clippy --quiet --manifest-path demos/squared_distance_to_set_rust_only/squared_distance_to_set_rust_only_kernel/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/map_zip/map_zip_kernel/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/multi_function/multi_function_kernel/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/vjp/runner/Cargo.toml -- -D warnings
@@ -56,6 +57,7 @@ jobs:
           cargo run --manifest-path demos/codegen/runner/Cargo.toml 
           cargo run --manifest-path demos/custom_function/runner/Cargo.toml
           cargo run --manifest-path demos/squared_distance_to_set/runner/Cargo.toml
+          cargo run --manifest-path demos/squared_distance_to_set_rust_only/runner/Cargo.toml
           cargo run --manifest-path demos/map_zip/runner/Cargo.toml
           cargo run --manifest-path demos/multi_function/runner/Cargo.toml
           cargo run --manifest-path demos/vjp/runner/Cargo.toml
@@ -69,6 +71,7 @@ jobs:
           cargo clippy --quiet --manifest-path demos/codegen/runner/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/custom_function/runner/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/squared_distance_to_set/runner/Cargo.toml -- -D warnings
+          cargo clippy --quiet --manifest-path demos/squared_distance_to_set_rust_only/runner/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/map_zip/runner/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/multi_function/runner/Cargo.toml -- -D warnings
           cargo clippy --quiet --manifest-path demos/vjp/runner/Cargo.toml -- -D warnings

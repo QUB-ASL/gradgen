@@ -29,6 +29,47 @@ class SquaredDistanceToSetTests(unittest.TestCase):
         self.assertEqual(infinity_ball.to_function().input_names, ("w",))
         self.assertEqual(rectangle.to_function().input_names, ("r",))
 
+    def test_rust_only_distance_supports_symbolic_use(self) -> None:
+        distance = (
+            SquaredDistanceToSet(name="dist_to_axis_rust_only")
+            .with_rust_sq_distance(
+                """
+fn dist_to_axis_rust_only(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+) -> {{ scalar_type }} {
+    let _ = w;
+    0.5_{{ scalar_type }} * x[1] * x[1]
+}
+"""
+            )
+            .with_rust_projection(
+                """
+fn dist_to_axis_rust_only_projection(
+    x: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    out[0] = x[0];
+    out[1] = 0.0_{{ scalar_type }};
+}
+"""
+            )
+        )
+
+        x = SXVector.sym("x", 2)
+        expr = distance(x)
+
+        self.assertEqual(
+            repr(expr),
+            "dist_to_axis_rust_only(SXVector.sym('x', 2))",
+        )
+        self.assertEqual(distance.to_function().input_names, ("x",))
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not support numeric evaluation in Python",
+        ):
+            distance([1.0, 2.0])
+
     def test_euclidean_ball_factory(self) -> None:
         distance = SquaredDistanceToSet.euclidean_ball(
             name="unit_ball",

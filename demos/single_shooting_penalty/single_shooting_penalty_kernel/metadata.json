@@ -1,7 +1,7 @@
 {
   "crate_name": "single_shooting_penalty_kernel",
-  "created_at": "2026-04-30T18:06:16.064743Z",
-  "gradgen_version": "0.4.2a1",
+  "created_at": "2026-05-01T08:32:16.605990Z",
+  "gradgen_version": "0.4.2a2",
   "functions": [
     {
       "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_f_states",

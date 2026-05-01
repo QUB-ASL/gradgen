@@ -408,6 +408,14 @@ class SquaredDistanceToSet:
         """
         vector_value = _coerce_vector_like(value)
         self._validate_input_dimension(len(vector_value), allow_unset=True)
+        if (
+            not self._supports_python_numeric_evaluation()
+            and all(not isinstance(item, SX) for item in vector_value)
+        ):
+            raise ValueError(
+                f"SquaredDistanceToSet {self.name!r} does not support "
+                "numeric evaluation in Python"
+            )
         return self.to_function()(value)
 
     def to_function(self, name: str | None = None) -> Function:
@@ -500,7 +508,6 @@ class SquaredDistanceToSet:
         input_dimension: int,
     ) -> RegisteredElementaryFunction:
         """Register the backing custom primitive on first use."""
-        self._validate_callbacks()
         if (
             self._input_dimension is not None
             and input_dimension != self._input_dimension
@@ -509,16 +516,26 @@ class SquaredDistanceToSet:
                 f"SquaredDistanceToSet {self.name!r} expects input length "
                 f"{self._input_dimension}, received {input_dimension}"
             )
+        if not self._has_primal_implementation():
+            raise ValueError(
+                "SquaredDistanceToSet requires a Python, symbolic, or "
+                "Rust primal implementation"
+            )
 
         try:
             registered = get_registered_elementary_function(self.name)
         except KeyError:
+            gradient_callback = (
+                self._build_gradient_callback()
+                if self._projection is not None
+                else None
+            )
             registered = register_elementary_function(
                 name=self.name,
                 input_dimension=input_dimension,
                 parameter_dimension=0,
                 eval_python=self._sq_distance,
-                jacobian=self._build_gradient_callback(),
+                jacobian=gradient_callback,
                 hessian=None,
                 rust_primal=self._rust_sq_distance,
                 rust_jacobian=self._build_rust_jacobian(input_dimension),
@@ -527,17 +544,6 @@ class SquaredDistanceToSet:
             )
         self._input_dimension = input_dimension
         return registered
-
-    def _validate_callbacks(self) -> None:
-        """Ensure the required Python callbacks have been provided."""
-        if self._sq_distance_function is not None:
-            return
-        if self._projection_function is not None:
-            return
-        if self._sq_distance is None:
-            raise ValueError("SquaredDistanceToSet requires with_sq_distance")
-        if self._projection is None:
-            raise ValueError("SquaredDistanceToSet requires with_projection")
 
     def _build_symbolic_expr(self, value: SXVector) -> SX | None:
         """Build a symbolic expression from configured gradgen Functions."""
@@ -634,6 +640,25 @@ class SquaredDistanceToSet:
             )
         self._validate_input_dimension(len(vector_input), allow_unset=True)
         self._input_dimension = len(vector_input)
+
+    def _has_primal_implementation(self) -> bool:
+        """Return whether a primal implementation is available."""
+        return (
+            self._sq_distance is not None
+            or self._sq_distance_function is not None
+            or self._projection is not None
+            or self._projection_function is not None
+            or self._rust_sq_distance is not None
+        )
+
+    def _supports_python_numeric_evaluation(self) -> bool:
+        """Return whether Python-side numeric evaluation is supported."""
+        return (
+            self._sq_distance is not None
+            or self._sq_distance_function is not None
+            or self._projection is not None
+            or self._projection_function is not None
+        )
 
     def _validate_input_dimension(
         self,
