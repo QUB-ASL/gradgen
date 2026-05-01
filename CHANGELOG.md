@@ -13,14 +13,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   as `.with_horizon(...)`, `.with_dynamics(...)`, `.with_costs(...)`, and
   `.with_penalties(...)`.
 - Added a `demos/single_shooting_penalty` demo showing residual-penalty
-  single-shooting code generation and Rust runner usage. The `demos/single_shooting_penalty` demo also generates and calls its
+  single-shooting code generation and Rust runner usage. 
+  The `demos/single_shooting_penalty` demo also generates and calls its
   Python wrapper module.
 - Automatic differentiation now supports `maximum` and `minimum` with a
   piecewise derivative rule, allowing squared hinge residuals such as
   `maximum(0, z) ** 2` in generated gradient and HVP kernels.
 - Added `SquaredDistanceToSet`, a projection-backed primitive for modeling
   half-squared distances to closed convex sets and generating their gradient
-  kernels from the projection map. Made `SquaredDistanceToSet` behave more like a regular symbolic function by adding `to_function()`, `jacobian()`, and direct numeric evaluation support, and taught the Rust builder to accept function-like wrappers that lower to `Function`.
+  kernels from the projection map. Made `SquaredDistanceToSet` behave more 
+  like a regular symbolic function by adding `to_function()`, `jacobian()`, 
+  and direct numeric evaluation support, and taught the Rust builder to 
+  accept function-like wrappers that lower to `Function`.
 - Added common-set constructors for `SquaredDistanceToSet`, including
   Euclidean balls, infinity-norm balls, and axis-aligned rectangles with
   extended-real bounds.
@@ -33,7 +37,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added a Sphinx-based API documentation pipeline that publishes generated
   docstring reference pages to `gh-pages/api-dox/` alongside the Docusaurus
   website. Note: to update the sphinx website, just push a commit with message
-  starting with `[docit]`. To re-deploy the entire website, run `docs/website/publish.sh --build-api-dox`.
+  starting with `[docit]`. To re-deploy the entire website, run 
+  `docs/website/publish.sh --build-api-dox`.
 - Added `RustBackendConfig().with_build_crate()` to compile the generated
   low-level Rust crate after it is written to disk. The default remains off,
   and generation raises an informative error if `cargo` is not available when
@@ -48,6 +53,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - `RustBackendConfig.with_additional_dependencies(...)` can now attach extra
   Cargo dependencies to the generated manifest, with optional versions
   written into the generated `Cargo.toml`.
+- Generated Rust kernels now always include documentation comments on their
+  public API, including `GradgenError`, `FunctionMetadata`, metadata helpers,
+  and evaluation functions, so crates rendered with `#![forbid(missing_docs)]`
+  continue to build.
+- `generate_rust(...)` now always emits Rust docs and no longer accepts an
+  `emit_docs` switch.
 - `RustBackendConfig.with_header(...)` can now inject custom Rust code at the
   top of generated `lib.rs`, after crate attributes such as `#![no_std]` and
   `#![forbid(unsafe_code)]`.

@@ -4,32 +4,34 @@ sidebar_position: 3
 
 # Automatic differentiation
 
-The current AD layer supports both forward-mode and reverse-mode symbolic differentiation.
+Automatic differentiation (AD) is a core functionality of gradgen.
+Both forward-mode and reverse-mode are implemented.
+Gradgen also supports all common scalar functions such as 
+$\exp$, $\sin$, $\cos$, etc, and lots of special functions 
+such as $\mathrm{erf}$, $\mathrm{erfc}$. For vector variables,
+several functions are supported, such as $\|x\|_1$, $\|x\|_2$,
+$\|x\|_\infty$, $\|x\|_p$, and more. 
 
-Forward-mode entry points:
+Gradgen supports the following AD operations:
+- derivatives of scalar functions $f:\mathbb{R}\to \mathbb{R}$ by forward AD
+- Jacobian-vector products, $JF(x)v$, for functions $F:\mathbb{R}^n\to \mathbb{R}^m$ by forward AD
+- gradients of functions $f:\mathbb{R}^n\to \mathbb{R}$ by reverse AD
+- vector-Jacobian products, $uJF(x)$, by reverse AD
+- Jacobian matrices for functions $F:\mathbb{R}^n\to \mathbb{R}^m$
+- Hessians of functions $f:\mathbb{R}^n\to \mathbb{R}$
 
-- `derivative(expr, wrt)` for scalar derivatives
-- `jvp(expr, wrt, tangent)` for Jacobian-vector products
+Both [symbolic expressions](/gradgen/docs/basics/symbolic) and 
+[functions](/gradgen/docs/basics/functions) can be differentiated.
 
-Reverse-mode entry points:
-
-- `gradient(expr, wrt)` for scalar-output reverse gradients
-- `vjp(expr, wrt, cotangent)` for vector-Jacobian products
-
-Higher-order helpers:
-
-- `jacobian(expr, wrt)`
-- `hessian(expr, wrt)` for scalar-output expressions
-
-Smooth elementary functions such as `atan2`, `hypot`, `asinh`, `acosh`,
-`atanh`, `cbrt`, `erf`, and `erfc` participate in AD. Nonsmooth functions such
-as `min`, `floor`, `ceil`, `round`, `trunc`, `fract`, `signum`, `norm1`, and
-`norm_inf` currently raise if differentiation is requested. `norm_p(...)` and
-`norm_p_to_p(...)` support AD when `p` is a constant greater than `1`.
-
-### Forward mode
+## Forward mode
 
 ### Scalar derivative
+
+We can use `derivative` for the derivative of scalar functions, 
+$f:\mathbb{R}\to \mathbb{R}$; this implements a forward-mode AD.
+
+As an example, for the function $f(x) = \sin(x) + x^2$ we can compute 
+the derivative as follows
 
 ```python
 from gradgen import Function, SX, derivative
@@ -41,6 +43,8 @@ dexpr = derivative(expr, x)
 df = Function("df", [x], [dexpr])
 print(df(2.0))
 ```
+
+Note that the generated expression, `dexpr`, can be [simplified](/gradgen/docs/basics/ad#simplification). This is done by default when you [generate Rust code](/gradgen/docs/basics/codegen).
 
 ### Vector directional derivative
 
@@ -72,7 +76,7 @@ df_dy = f.jvp(0.0, 1.0)
 
 The returned object is another `Function` with the same primal inputs and differentiated outputs.
 
-### Reverse mode
+## Reverse mode
 
 Reverse mode is especially useful for scalar-output expressions with many inputs.
 
@@ -158,7 +162,7 @@ grad_f = some_scalar_function.gradient(0)
 
 This returns a new `Function` whose outputs represent the gradient with respect to the selected input block.
 
-### Jacobians
+## Jacobians
 
 The library also supports symbolic Jacobian construction.
 
@@ -237,7 +241,7 @@ a time. Supported component names are:
 The output order follows the requested component tuple. If `"hvp"` is included,
 the returned function appends a tangent input block.
 
-### Hessians
+## Hessians
 
 Hessians are supported for scalar-output expressions.
 
@@ -280,7 +284,37 @@ To build several blocks at once:
 blocks = some_scalar_function.hvp_blocks()
 ```
 
+## List of supported functions
+
+The following scalar functions, $f:\mathbb{R}\to \mathbb{R}$ are supported.
+Note that all these functions act on vectors elementwise, e.g.,
+for $x\in \mathbb{R}^n$, $\sin(x) = (\sin(x_1), \ldots, \sin(x_n))$.
+
+- **Binary operators:** `+`, `-`, `*`, `/`
+- **Common:** `x**a` ($x^a$), `sqrt` ($\sqrt{x}$)
+- **Trigonometric:** `sin`, `cos`, `tan`
+- **Inverse trigonometric:** `asin`, `acos`, `atan`, `atan2`
+- **Hyperbolic:** `sinh`, `cosh`, `tanh`
+- **Inverse hyperbolic:** `asinh`, `acosh`, `atanh`
+- **Logarithmic:** `log` (natural log), `log10`, `logp1`
+- **Special functions:** `erf`, `erfc`, 
+- **Other:** `abs`, `expm1` ($e^x - 1$), `log1p` ($\log(1+x)$), `cbrt` (cube root), `hypot` ($\mathrm{hypot}(a, b) = \sqrt{a^2 + b^2}$), `maximum` ($\max\{a, b\}$), `minimum` ($\min\{a, b\}$), 
+
+The following functions are available for functions $f:\mathbb{R}^n\to \mathbb{R}$
+
+- **Quadratic form:** `quadform(x, P)`
+- **Bilinear form:** `bilinear_form(x, P, y)`
+- **Norms:** `norm1`
+- **Other:** `sum`, `mean`, `dot`
+
+
 ## Simplification
+
+:::warning TODO
+
+Move this section to [Symbolic Framework](/gradgen/docs/basics/symbolic)
+
+:::
 
 The library includes a bounded symbolic simplifier for expressions and functions.
 

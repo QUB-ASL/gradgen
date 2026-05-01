@@ -321,7 +321,6 @@ def _append_generated_helper(
         function_index=0,
         shared_helper_nodes=(),
         emit_crate_header=False,
-        emit_docs=False,
         function_keyword="fn",
     )
     helper_sources.append(

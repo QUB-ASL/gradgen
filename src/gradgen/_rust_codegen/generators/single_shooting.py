@@ -603,7 +603,6 @@ def _build_single_shooting_driver_result(
         function_index=function_index,
         upper_name=name.upper(),
         emit_crate_header=True,
-        emit_docs=True,
         function_keyword="pub fn",
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,

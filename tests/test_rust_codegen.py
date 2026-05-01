@@ -3531,11 +3531,17 @@ mod tests {{
 
             lib_text = project.lib_rs.read_text(encoding="utf-8")
             header_text = (
-                "#![forbid(unsafe_code)]\n\n"
+                "#![forbid(unsafe_code)]\n"
+                "#![forbid(missing_docs)]\n"
+                "//!\n"
+                "//! Generated Rust kernels emitted by gradgen.\n\n"
                 "use smallvec::{smallvec, SmallVec};"
             )
             self.assertTrue(
-                lib_text.startswith("#![no_std]\n#![forbid(unsafe_code)]")
+                lib_text.startswith(
+                    "#![no_std]\n#![forbid(unsafe_code)]\n"
+                    "#![forbid(missing_docs)]"
+                )
             )
             self.assertIn(header_text, lib_text)
             self.assertIn("fn helper() {}", lib_text)
