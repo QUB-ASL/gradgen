@@ -75,6 +75,12 @@ distance = (
 )
 ```
 
+If you already have Rust implementations of the distance and projection,
+you can register the same object with `.with_rust_sq_distance(...)` and
+`.with_rust_projection(...)` instead. In that mode the object still
+participates in symbolic composition and Rust code generation, but direct
+numeric evaluation in Python is intentionally unavailable.
+
 This object can be used as a function. For example, we can do
 
 ```python
@@ -155,5 +161,83 @@ distance = SquaredDistanceToSet.rectangle(
     name="half_infinite_box",
     xmin=(-1.0, float("-inf")),
     xmax=(float("inf"), 2.0),
+)
+```
+
+## Custom Rust implementations
+
+We can create a squared distance-to-set function by providing 
+Rust implementations of $\operatorname{dist}_{C}^{2}(x)$ and $\Pi_C(x)$.
+For the set $C$ of the section 
+[Custom sets](/gradgen/docs/advanced/sq-dist-set#custom-sets) above, 
+we can define the following custom Rust implementations for the 
+squared distance-to-set and projection functions.
+
+```python
+RUST_PRIMAL = """
+/// Squared distance-to-C
+fn rust_only_sqdist(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+) -> {{ scalar_type }} {
+    let _ = w;
+    0.5_{{ scalar_type }} * x[1] * x[1]
+}
+"""
+
+RUST_PROJECTION = """
+/// Projection to C
+fn rust_only_sqdist_projection(
+    x: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    out[0] = x[0];
+    out[1] = 0.0_{{ scalar_type }};
+}
+"""
+```
+
+We can then create a squared distance-to-set object as follows
+```python {4,5}
+x = SXVector.sym("x", 2)
+distance = (
+    SquaredDistanceToSet(name="rust_only_sqdist")
+    .with_rust_sq_distance(RUST_PRIMAL)
+    .with_rust_projection(RUST_PROJECTION)
+)
+```
+
+Note that here we have not defined Python implementations, so we 
+cannot call this function directly in Python. However, we can 
+compose it with other functions and generate Rust code. 
+We can, for example, define the function 
+```math
+f(x) = \tfrac{1}{2}\operatorname{dist}_{C}^{2}(2\sin(x)),
+```
+where $\sin(x)=[\sin(x_1) ~ \sin(x_2)]$. This is done as follows: 
+
+```python {4}
+f = Function(
+    "distance_energy",
+    [x],
+    [distance(2.0 * x.sin())],
+    input_names=["x"],
+    output_names=["y"],
+)
+```
+
+Lastly, we can generate a Rust crate for the function $f$ 
+
+```python
+project = (
+    CodeGenerationBuilder()
+    .with_backend_config(
+        RustBackendConfig().with_crate_name("asdf")
+    )
+    .for_function(f)
+        .add_primal()
+        .add_gradient()
+    .done()
+    .build()
 )
 ```
