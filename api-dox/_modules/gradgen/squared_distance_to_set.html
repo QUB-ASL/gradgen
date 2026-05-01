@@ -508,6 +508,14 @@
 <span class="sd">        &quot;&quot;&quot;</span>
         <span class="n">vector_value</span> <span class="o">=</span> <span class="n">_coerce_vector_like</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validate_input_dimension</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">vector_value</span><span class="p">),</span> <span class="n">allow_unset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_supports_python_numeric_evaluation</span><span class="p">()</span>
+            <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">SX</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">vector_value</span><span class="p">)</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;SquaredDistanceToSet </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> does not support &quot;</span>
+                <span class="s2">&quot;numeric evaluation in Python&quot;</span>
+            <span class="p">)</span>
         <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">to_function</span><span class="p">()(</span><span class="n">value</span><span class="p">)</span>
 
 <div class="viewcode-block" id="SquaredDistanceToSet.to_function">
@@ -609,7 +617,6 @@
         <span class="n">input_dimension</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RegisteredElementaryFunction</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Register the backing custom primitive on first use.&quot;&quot;&quot;</span>
-        <span class="bp">self</span><span class="o">.</span><span class="n">_validate_callbacks</span><span class="p">()</span>
         <span class="k">if</span> <span class="p">(</span>
             <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
             <span class="ow">and</span> <span class="n">input_dimension</span> <span class="o">!=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span>
@@ -618,16 +625,31 @@
                 <span class="sa">f</span><span class="s2">&quot;SquaredDistanceToSet </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">!r}</span><span class="s2"> expects input length &quot;</span>
                 <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span><span class="si">}</span><span class="s2">, received </span><span class="si">{</span><span class="n">input_dimension</span><span class="si">}</span><span class="s2">&quot;</span>
             <span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_projection_implementation</span><span class="p">()</span>
+        <span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;SquaredDistanceToSet requires with_projection&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">_has_primal_implementation</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;SquaredDistanceToSet requires a Python, symbolic, or &quot;</span>
+                <span class="s2">&quot;Rust primal implementation&quot;</span>
+            <span class="p">)</span>
 
         <span class="k">try</span><span class="p">:</span>
             <span class="n">registered</span> <span class="o">=</span> <span class="n">get_registered_elementary_function</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">)</span>
         <span class="k">except</span> <span class="ne">KeyError</span><span class="p">:</span>
+            <span class="n">gradient_callback</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_build_gradient_callback</span><span class="p">()</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+                <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">)</span>
             <span class="n">registered</span> <span class="o">=</span> <span class="n">register_elementary_function</span><span class="p">(</span>
                 <span class="n">name</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="p">,</span>
                 <span class="n">input_dimension</span><span class="o">=</span><span class="n">input_dimension</span><span class="p">,</span>
                 <span class="n">parameter_dimension</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
                 <span class="n">eval_python</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance</span><span class="p">,</span>
-                <span class="n">jacobian</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_build_gradient_callback</span><span class="p">(),</span>
+                <span class="n">jacobian</span><span class="o">=</span><span class="n">gradient_callback</span><span class="p">,</span>
                 <span class="n">hessian</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
                 <span class="n">rust_primal</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_rust_sq_distance</span><span class="p">,</span>
                 <span class="n">rust_jacobian</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">_build_rust_jacobian</span><span class="p">(</span><span class="n">input_dimension</span><span class="p">),</span>
@@ -636,17 +658,6 @@
             <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span> <span class="o">=</span> <span class="n">input_dimension</span>
         <span class="k">return</span> <span class="n">registered</span>
-
-    <span class="k">def</span><span class="w"> </span><span class="nf">_validate_callbacks</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
-<span class="w">        </span><span class="sd">&quot;&quot;&quot;Ensure the required Python callbacks have been provided.&quot;&quot;&quot;</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">return</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;SquaredDistanceToSet requires with_sq_distance&quot;</span><span class="p">)</span>
-        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
-            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;SquaredDistanceToSet requires with_projection&quot;</span><span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_build_symbolic_expr</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="n">SXVector</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Build a symbolic expression from configured gradgen Functions.&quot;&quot;&quot;</span>
@@ -743,6 +754,33 @@
             <span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_validate_input_dimension</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">vector_input</span><span class="p">),</span> <span class="n">allow_unset</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">vector_input</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_has_primal_implementation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return whether a primal implementation is available.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rust_sq_distance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_supports_python_numeric_evaluation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return whether Python-side numeric evaluation is supported.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sq_distance_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_has_projection_implementation</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return whether a projection implementation is available.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_projection</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_projection_function</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="ow">or</span> <span class="bp">self</span><span class="o">.</span><span class="n">_rust_projection</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+        <span class="p">)</span>
 
     <span class="k">def</span><span class="w"> </span><span class="nf">_validate_input_dimension</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>

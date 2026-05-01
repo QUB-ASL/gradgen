@@ -11472,29 +11472,60 @@ constructors.</p>
 
 <dl class="py function">
 <dt class="sig sig-object py" id="gradgen.generate_rust">
-<span class="sig-prename descclassname"><span class="pre">gradgen.</span></span><span class="sig-name descname"><span class="pre">generate_rust</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backend_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'std'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scalar_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'f64'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">math_library</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shared_helper_nodes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shared_helper_suppressed_custom_wrappers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">emit_crate_header</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">emit_docs</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_keyword</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'pub</span> <span class="pre">fn'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/_rust_codegen/codegen.html#generate_rust"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.generate_rust" title="Link to this definition"></a></dt>
-<dd><p>Generate Rust source code for primal function evaluation.</p>
+<span class="sig-prename descclassname"><span class="pre">gradgen.</span></span><span class="sig-name descname"><span class="pre">generate_rust</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">function</span></span></em>, <em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">config</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">backend_mode</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'std'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scalar_type</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'f64'</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">math_library</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_index</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shared_helper_nodes</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">shared_helper_suppressed_custom_wrappers</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">emit_crate_header</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">function_keyword</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'pub</span> <span class="pre">fn'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/_rust_codegen/codegen.html#generate_rust"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.generate_rust" title="Link to this definition"></a></dt>
+<dd><p>Generate Rust code for a symbolic function or function family.</p>
+<p>This dispatcher inspects the supplied symbolic object and routes it to
+the appropriate Rust generator. It supports plain symbolic functions,
+composed functions, batched functions, single-shooting helpers, and the
+derivative variants built from those abstractions.</p>
 <dl class="field-list simple">
 <dt class="field-odd">Parameters<span class="colon">:</span></dt>
 <dd class="field-odd"><ul class="simple">
-<li><p><strong>function</strong> (<em>object</em>)</p></li>
-<li><p><strong>config</strong> (<a class="reference internal" href="#gradgen.RustBackendConfig" title="gradgen._rust_codegen.config.RustBackendConfig"><em>RustBackendConfig</em></a><em> | </em><em>None</em>)</p></li>
-<li><p><strong>function_name</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
-<li><p><strong>backend_mode</strong> (<em>str</em>)</p></li>
-<li><p><strong>scalar_type</strong> (<em>str</em>)</p></li>
-<li><p><strong>math_library</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
-<li><p><strong>function_index</strong> (<em>int</em>)</p></li>
-<li><p><strong>shared_helper_nodes</strong> (<em>tuple</em><em>[</em><a class="reference internal" href="#gradgen.sx.SXNode" title="gradgen.sx.SXNode"><em>SXNode</em></a><em>, </em><em>...</em><em>] </em><em>| </em><em>None</em>)</p></li>
-<li><p><strong>shared_helper_suppressed_custom_wrappers</strong> (<em>set</em><em>[</em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>str</em><em>]</em><em>] </em><em>| </em><em>None</em>)</p></li>
-<li><p><strong>emit_crate_header</strong> (<em>bool</em>)</p></li>
-<li><p><strong>emit_docs</strong> (<em>bool</em>)</p></li>
-<li><p><strong>function_keyword</strong> (<em>str</em>)</p></li>
+<li><p><strong>function</strong> (<em>object</em>) – The symbolic object to lower to Rust. This may be a
+<a class="reference internal" href="#gradgen.function.Function" title="gradgen.function.Function"><code class="xref py py-class docutils literal notranslate"><span class="pre">Function</span></code></a>, a composed function, a
+batched function, or one of the single-shooting helper types.</p></li>
+<li><p><strong>config</strong> (<a class="reference internal" href="#gradgen.RustBackendConfig" title="gradgen._rust_codegen.config.RustBackendConfig"><em>RustBackendConfig</em></a><em> | </em><em>None</em>) – Optional Rust backend configuration. When omitted, the
+generator uses the default backend settings.</p></li>
+<li><p><strong>function_name</strong> (<em>str</em><em> | </em><em>None</em>) – Optional override for the generated Rust function
+name.</p></li>
+<li><p><strong>backend_mode</strong> (<em>str</em>) – Backend mode used for code generation. The default is
+<code class="docutils literal notranslate"><span class="pre">&quot;std&quot;</span></code>.</p></li>
+<li><p><strong>scalar_type</strong> (<em>str</em>) – Scalar type used in the generated Rust source. The
+default is <code class="docutils literal notranslate"><span class="pre">&quot;f64&quot;</span></code>.</p></li>
+<li><p><strong>math_library</strong> (<em>str</em><em> | </em><em>None</em>) – Optional math library name used in <code class="docutils literal notranslate"><span class="pre">no_std</span></code> mode.</p></li>
+<li><p><strong>function_index</strong> (<em>int</em>) – Index of the function within a multi-function render
+family.</p></li>
+<li><p><strong>shared_helper_nodes</strong> (<em>tuple</em><em>[</em><a class="reference internal" href="#gradgen.sx.SXNode" title="gradgen.sx.SXNode"><em>SXNode</em></a><em>, </em><em>...</em><em>] </em><em>| </em><em>None</em>) – Optional shared symbolic nodes used to keep
+nested helper kernels consistent.</p></li>
+<li><p><strong>shared_helper_suppressed_custom_wrappers</strong> (<em>set</em><em>[</em><em>tuple</em><em>[</em><em>str</em><em>, </em><em>str</em><em>]</em><em>] </em><em>| </em><em>None</em>) – Optional set of custom
+wrapper names to suppress when rendering shared helper kernels.</p></li>
+<li><p><strong>emit_crate_header</strong> (<em>bool</em>) – Whether to emit the crate-level header comments and
+attributes in the generated source.</p></li>
+<li><p><strong>function_keyword</strong> (<em>str</em>) – Rust keyword used for the generated function
+declaration. The default is <code class="docutils literal notranslate"><span class="pre">&quot;pub</span> <span class="pre">fn&quot;</span></code>.</p></li>
 </ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A <a class="reference internal" href="#gradgen.RustCodegenResult" title="gradgen._rust_codegen.models.RustCodegenResult"><code class="xref py py-class docutils literal notranslate"><span class="pre">RustCodegenResult</span></code></a> containing
+the rendered Rust source and its metadata.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If the supplied object is not supported by the Rust
+    codegen pipeline or if the backend configuration is invalid.</p>
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference internal" href="#gradgen.RustCodegenResult" title="gradgen._rust_codegen.models.RustCodegenResult"><em>RustCodegenResult</em></a></p>
 </dd>
 </dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">gradgen</span><span class="w"> </span><span class="kn">import</span> <span class="n">Function</span><span class="p">,</span> <span class="n">SX</span><span class="p">,</span> <span class="n">generate_rust</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">SX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">f</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span><span class="s2">&quot;square&quot;</span><span class="p">,</span> <span class="p">[</span><span class="n">x</span><span class="p">],</span> <span class="p">[</span><span class="n">x</span> <span class="o">*</span> <span class="n">x</span><span class="p">],</span> <span class="n">input_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;x&quot;</span><span class="p">],</span> <span class="n">output_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;y&quot;</span><span class="p">])</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span> <span class="o">=</span> <span class="n">generate_rust</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">result</span><span class="o">.</span><span class="n">python_name</span>
+<span class="go">&#39;square&#39;</span>
+</pre></div>
+</div>
 </dd></dl>
 
 <dl class="py function">

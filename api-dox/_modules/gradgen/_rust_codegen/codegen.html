@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>gradgen._rust_codegen.codegen &mdash; Gradgen API 0.4.2a1</title>
+  <title>gradgen._rust_codegen.codegen &mdash; Gradgen API 0.4.2a2</title>
       <link rel="stylesheet" type="text/css" href="../../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../../_static/documentation_options.js?v=144dbdd6"></script>
+      <script src="../../../_static/documentation_options.js?v=23b537bc"></script>
       <script src="../../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../../_static/js/theme.js"></script>
@@ -154,10 +154,55 @@
     <span class="n">shared_helper_nodes</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SXNode</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">shared_helper_suppressed_custom_wrappers</span><span class="p">:</span> <span class="n">SET_TUPLE_STR</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
     <span class="n">emit_crate_header</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
-    <span class="n">emit_docs</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
     <span class="n">function_keyword</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">&quot;pub fn&quot;</span><span class="p">,</span>
 <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">RustCodegenResult</span><span class="p">:</span>
-<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate Rust source code for primal function evaluation.&quot;&quot;&quot;</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Generate Rust code for a symbolic function or function family.</span>
+
+<span class="sd">    This dispatcher inspects the supplied symbolic object and routes it to</span>
+<span class="sd">    the appropriate Rust generator. It supports plain symbolic functions,</span>
+<span class="sd">    composed functions, batched functions, single-shooting helpers, and the</span>
+<span class="sd">    derivative variants built from those abstractions.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        function: The symbolic object to lower to Rust. This may be a</span>
+<span class="sd">            :class:`~gradgen.function.Function`, a composed function, a</span>
+<span class="sd">            batched function, or one of the single-shooting helper types.</span>
+<span class="sd">        config: Optional Rust backend configuration. When omitted, the</span>
+<span class="sd">            generator uses the default backend settings.</span>
+<span class="sd">        function_name: Optional override for the generated Rust function</span>
+<span class="sd">            name.</span>
+<span class="sd">        backend_mode: Backend mode used for code generation. The default is</span>
+<span class="sd">            ``&quot;std&quot;``.</span>
+<span class="sd">        scalar_type: Scalar type used in the generated Rust source. The</span>
+<span class="sd">            default is ``&quot;f64&quot;``.</span>
+<span class="sd">        math_library: Optional math library name used in ``no_std`` mode.</span>
+<span class="sd">        function_index: Index of the function within a multi-function render</span>
+<span class="sd">            family.</span>
+<span class="sd">        shared_helper_nodes: Optional shared symbolic nodes used to keep</span>
+<span class="sd">            nested helper kernels consistent.</span>
+<span class="sd">        shared_helper_suppressed_custom_wrappers: Optional set of custom</span>
+<span class="sd">            wrapper names to suppress when rendering shared helper kernels.</span>
+<span class="sd">        emit_crate_header: Whether to emit the crate-level header comments and</span>
+<span class="sd">            attributes in the generated source.</span>
+<span class="sd">        function_keyword: Rust keyword used for the generated function</span>
+<span class="sd">            declaration. The default is ``&quot;pub fn&quot;``.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A :class:`~gradgen._rust_codegen.models.RustCodegenResult` containing</span>
+<span class="sd">        the rendered Rust source and its metadata.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the supplied object is not supported by the Rust</span>
+<span class="sd">            codegen pipeline or if the backend configuration is invalid.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        &gt;&gt;&gt; from gradgen import Function, SX, generate_rust</span>
+<span class="sd">        &gt;&gt;&gt; x = SX.sym(&quot;x&quot;)</span>
+<span class="sd">        &gt;&gt;&gt; f = Function(&quot;square&quot;, [x], [x * x], input_names=[&quot;x&quot;], output_names=[&quot;y&quot;])</span>
+<span class="sd">        &gt;&gt;&gt; result = generate_rust(f)</span>
+<span class="sd">        &gt;&gt;&gt; result.python_name</span>
+<span class="sd">        &#39;square&#39;</span>
+<span class="sd">    &quot;&quot;&quot;</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..composer</span><span class="w"> </span><span class="kn">import</span> <span class="n">FunctionComposition</span>
     <span class="kn">from</span><span class="w"> </span><span class="nn">..composed_function</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
         <span class="n">ComposedFunction</span><span class="p">,</span>
@@ -515,7 +560,6 @@
         <span class="n">function_index</span><span class="o">=</span><span class="n">function_index</span><span class="p">,</span>
         <span class="n">upper_name</span><span class="o">=</span><span class="n">name</span><span class="o">.</span><span class="n">upper</span><span class="p">(),</span>
         <span class="n">emit_crate_header</span><span class="o">=</span><span class="n">emit_crate_header</span><span class="p">,</span>
-        <span class="n">emit_docs</span><span class="o">=</span><span class="n">emit_docs</span><span class="p">,</span>
         <span class="n">function_keyword</span><span class="o">=</span><span class="n">function_keyword</span><span class="p">,</span>
         <span class="n">backend_mode</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">backend_mode</span><span class="p">,</span>
         <span class="n">scalar_type</span><span class="o">=</span><span class="n">resolved_config</span><span class="o">.</span><span class="n">scalar_type</span><span class="p">,</span>
