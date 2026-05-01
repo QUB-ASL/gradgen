@@ -18,12 +18,15 @@ f = Function("f", [x, y], [x + y, x * y])
 
 where for `f` we have specified that it is a function of the input 
 variables `x` and `y` and returns two outputs. Mathematically, it is 
-the function $f:\mathbb{R} \times \mathbb{R} \to \mathbb{R}$ with
+the function
+$f:\mathbb{R} \times \mathbb{R} \to \mathbb{R}$ with
 
-$$f(x, y) = 
+```math
+f(x, y) = 
 \begin{bmatrix}
-x + y \\\\ xy
-\end{bmatrix}.$$
+x + y \\ xy
+\end{bmatrix}.
+```
 
 The function `f` can be called with numerical arguments
 
@@ -80,17 +83,24 @@ print(h0)
 ## Composition of functions
 
 Functions can be composed in a very natural manner. 
-Suppose we have a function $f:\mathbb{R}^2 \times \mathbb{R} \to \mathbb{R}$
+Suppose we have a function
+$f:\mathbb{R}^2 \times \mathbb{R} \to \mathbb{R}$
 given by 
 
-$$f(x, a) = \Vert (a^2 + 1) x \Vert_{\infty},$$
+```math
+f(x, a) = \Vert (a^2 + 1) x \Vert_{\infty},
+```
 
-and we have the function $g: \mathbb{R}^2 \to \mathbb{R}^2$ given by 
+and we have the function
+$g: \mathbb{R}^2 \to \mathbb{R}^2$ given by 
 
-$$g(x) = \frac{x}{\Vert x \Vert_2^2}.$$
+```math
+g(x) = \frac{x}{\Vert x \Vert_2^2}.
+```
 
 We can then define the function 
-$h:\mathbb{R}^2 \times \mathbb{R} \to \mathbb{R}$ given by $h(x, a) = f(g(x), a)$. 
+$h:\mathbb{R}^2 \times \mathbb{R} \to \mathbb{R}$
+given by $h(x, a) = f(g(x), a)$. 
 This can be defined as follows
 
 ```python 

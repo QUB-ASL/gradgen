@@ -51,6 +51,7 @@ from .single_shooting import (
     SingleShootingPrimalFunction,
     SingleShootingProblem,
 )
+from .squared_distance_to_set import SquaredDistanceToSet
 from ._rust_codegen.codegen import (
     create_multi_function_rust_project,
     generate_rust
@@ -126,6 +127,7 @@ __all__ = [
     "SingleShootingJointFunction",
     "SingleShootingPrimalFunction",
     "SingleShootingProblem",
+    "SquaredDistanceToSet",
     "acosh",
     "acos",
     "asinh",

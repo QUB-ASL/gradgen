@@ -559,6 +559,17 @@ def _resolve_builder_functions(
             function_name=function_name,
         )
 
+    if not isinstance(function, Function) and hasattr(function, "to_function"):
+        lowered_function = function.to_function(name=function_name)
+        return _resolve_builder_functions(
+            lowered_function,
+            config,
+            requests,
+            simplification,
+            include_base_name=include_base_name,
+            function_name=None,
+        )
+
     base_function = _apply_builder_base_name(function, function_name)
     crate_prefix = sanitize_ident(config.crate_name or base_function.name)
     resolved: list[BuilderSource] = []

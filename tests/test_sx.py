@@ -39,7 +39,7 @@ from gradgen.sx import (
     vector,
 )
 import gradgen
-from gradgen import Function
+from gradgen import Function, SquaredDistanceToSet
 
 
 class SXTests(unittest.TestCase):
@@ -246,6 +246,20 @@ class SXTests(unittest.TestCase):
         self.assertEqual(repr(c), "SX.const(2.0)")
         self.assertEqual(repr(-x), "neg(SX.sym('x'))")
         self.assertEqual(repr(x + c), "add(SX.const(2.0), SX.sym('x'))")
+
+    def test_custom_vector_repr_uses_registered_name_and_compact_input(
+        self,
+    ) -> None:
+        distance = (
+            SquaredDistanceToSet(name="dist_to_axis_repr")
+            .with_sq_distance(lambda x: 0.5 * x[1] * x[1])
+            .with_projection(lambda x: (x[0], 0.0))
+        )
+        x = SXVector.sym("x", 2)
+
+        expr = distance(x)
+
+        self.assertEqual(repr(expr), "dist_to_axis_repr(SXVector.sym('x', 2))")
 
     def test_symbol_metadata_is_validated(self) -> None:
         with self.assertRaises(TypeError):

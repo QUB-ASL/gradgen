@@ -13,7 +13,7 @@ sidebar_position: 5
 Once you have generated a Rust crate for your functions, you can consume it directly from Python. 
 This is done by using `.with_enable_python_interface()` as shown below
 
-```python
+```python {19}
 x = SXVector.sym("x", 2)
 w = SXVector.sym("w", 1)
 
@@ -65,8 +65,10 @@ RustBackendConfig().with_build_crate()
 ```
 
 That step is optional and defaults to off. When it is enabled, Gradgen runs
-`cargo build` for the generated low-level crate and raises an informative error
-if `cargo` is not installed.
+`cargo build --release` for the generated low-level crate by default and
+raises an informative error if `cargo` is not installed. If you want a faster
+debug-style build during development, use
+`RustBackendConfig().with_build_profile("debug")`.
 
 You can now use this as a **python module**. You can then do
 
@@ -213,7 +215,7 @@ print(xyz.all_functions())
 
 and you can call, say, the function bundle `magic_f_jf_hvp_x` as follows:
 
-```
+```python
 # Allocate memory by creating a workspace object
 wspace = xyz.workspace_for_function('magic_f_jf_hvp_x')
 

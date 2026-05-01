@@ -1,0 +1,244 @@
+---
+sidebar_position: 2
+---
+
+
+# Squared distance to set
+
+
+Let $C$ be a nonempty, closed, convex set. The squared (Euclidean) distance-to-set function, 
+```math
+\operatorname{dist}_{C}^{2}(x) = \inf_{y \in C} \|y - x\|^{2},
+```
+is well defined.
+Its gradient is 
+
+```math 
+\nabla \left(\tfrac{1}{2}\operatorname{dist}_{C}^{2}(x)\right) = x-\Pi_C(x), 
+```
+
+where $\Pi_C$ is the projection onto $C$.
+
+Squared distance-to-set functions often play an important role in 
+optimization problems. Here we will see how to define such functions. 
+Gradgen also offers easy constructors for common sets $C$ such as
+Euclidean balls, infinity-norm balls, and axis-aligned rectangles.
+
+## Custom sets
+
+The user needs to specify the squared distance-to-set function 
+and the projection operator. For simple sets, such as norm-balls,
+rectangles, etc, see the section on [common convex sets](/gradgen/docs/advanced/sq-dist-set#common-convex-sets) below.
+
+As an example, suppose $C = \{x\in\mathbb{R}^2: x_2 = 0\}$.
+Then,
+```math
+\operatorname{dist}_{C}^{2}(x) = x_2^2,
+```
+and 
+```math
+\Pi_{C}^{2}(x) = (x_1, 0).
+```
+Firsly, we need to define the above functions as instances of [`Function`](/gradgen/docs/basics/functions)
+
+```python
+# Symbol
+x = SXVector.sym("x", 2)
+
+# Projection function
+projection = Function(
+    "projection",
+    [x],
+    [SXVector((x[0], SX.const(0.0)))],
+    input_names=["x"],
+    output_names=["p"],
+)
+
+# Squared distance-to-set function
+sq_distance = Function(
+    "sq_distance",
+    [x],
+    [0.5 * x[1] * x[1]],
+    input_names=["x"],
+    output_names=["d"],
+)
+```
+
+Then, we need to bundle the above functions in a `SquaredDistanceToSet` 
+as follows
+
+```python
+distance = (
+    SquaredDistanceToSet(name="dist_to_axis")
+    .with_projection_function(projection)
+    .with_sq_distance_function(sq_distance)
+)
+```
+
+If you already have Rust implementations of the distance and projection,
+you can register the same object with `.with_rust_sq_distance(...)` and
+`.with_rust_projection(...)` instead. In that mode the object still
+participates in symbolic composition and Rust code generation, but direct
+numeric evaluation in Python is intentionally unavailable.
+
+This object can be used as a function. For example, we can do
+
+```python
+distance_value = distance([1., 100.])
+```
+
+We can also define the gradient of the distance function 
+and call it as a function 
+
+```python
+grad_dist = distance.gradient()
+grad_dist_val = grad_dist([1., 1.00])
+```
+
+We can also use the `distance` in other functions (we can compose 
+it with other functions). For example, we can define the function 
+$g(x) = \mathrm{dist}_C^2(x / \|x\|^2)$ and compute its derivative:
+
+```python
+g = Function(
+    "magic",
+    [x],
+    [distance(x / x.norm2sq())],
+    input_names=["x"],
+    output_names=["g"],
+)
+dg = g.gradient()
+dg_val = dg([1., 1.00])
+```
+
+
+## Common convex sets
+
+Gradgen provides factory-type constructors for the most common convex sets.
+
+### Norm balls
+
+A norm-ball centered at a point $x_0$ and with radius $r>0$ is the set 
+```math
+B = \{x\in\mathbb{R}^n: \|x - x_0\| \leq r\}.
+```
+
+A Euclidean ball centered at the origin with radius 1 can be
+written as
+
+```python
+distance = SquaredDistanceToSet.euclidean_ball(
+    name="unit_ball",
+    center=(0.0, 0.0),
+    radius=1.0,
+    input_name="z",
+)
+```
+
+Similary, we can construct infinity-norm balls:
+
+```python
+distance = SquaredDistanceToSet.infinity_ball(
+    name="unit_box",
+    center=(0.0, 0.0),
+    radius=1.0,
+)
+```
+
+### Rectangles
+
+We call a rectangle a set of the form 
+```math
+C = \{x\in\mathbb{R}^n: x_{\rm min} \leq x \leq x_{\rm max}\},
+```
+where some of the elements of $x_{\min}$ are allowed to be $-\infty$
+and some elements of $x_{\rm max}$ can be $+\infty$. 
+For example, we can define $C = \{x\in\mathbb{R}^2: x_1 \geq -1, x_2 \leq 2\}$
+as follows
+
+```python
+distance = SquaredDistanceToSet.rectangle(
+    name="half_infinite_box",
+    xmin=(-1.0, float("-inf")),
+    xmax=(float("inf"), 2.0),
+)
+```
+
+## Custom Rust implementations
+
+We can create a squared distance-to-set function by providing 
+Rust implementations of $\operatorname{dist}_{C}^{2}(x)$ and $\Pi_C(x)$.
+For the set $C$ of the section 
+[Custom sets](/gradgen/docs/advanced/sq-dist-set#custom-sets) above, 
+we can define the following custom Rust implementations for the 
+squared distance-to-set and projection functions.
+
+```python
+RUST_PRIMAL = """
+/// Squared distance-to-C
+fn rust_only_sqdist(
+    x: &[{{ scalar_type }}],
+    w: &[{{ scalar_type }}],
+) -> {{ scalar_type }} {
+    let _ = w;
+    0.5_{{ scalar_type }} * x[1] * x[1]
+}
+"""
+
+RUST_PROJECTION = """
+/// Projection to C
+fn rust_only_sqdist_projection(
+    x: &[{{ scalar_type }}],
+    out: &mut [{{ scalar_type }}],
+) {
+    out[0] = x[0];
+    out[1] = 0.0_{{ scalar_type }};
+}
+"""
+```
+
+We can then create a squared distance-to-set object as follows
+```python {4,5}
+x = SXVector.sym("x", 2)
+distance = (
+    SquaredDistanceToSet(name="rust_only_sqdist")
+    .with_rust_sq_distance(RUST_PRIMAL)
+    .with_rust_projection(RUST_PROJECTION)
+)
+```
+
+Note that here we have not defined Python implementations, so we 
+cannot call this function directly in Python. However, we can 
+compose it with other functions and generate Rust code. 
+We can, for example, define the function 
+```math
+f(x) = \tfrac{1}{2}\operatorname{dist}_{C}^{2}(2\sin(x)),
+```
+where $\sin(x)=[\sin(x_1) ~ \sin(x_2)]$. This is done as follows: 
+
+```python {4}
+f = Function(
+    "distance_energy",
+    [x],
+    [distance(2.0 * x.sin())],
+    input_names=["x"],
+    output_names=["y"],
+)
+```
+
+Lastly, we can generate a Rust crate for the function $f$ 
+using [`CodeGenerationBuilder`](/gradgen/docs/basics/codegen)
+
+```python
+project = (
+    CodeGenerationBuilder()
+    .with_backend_config(
+        RustBackendConfig().with_crate_name("asdf")
+    )
+    .for_function(f)
+        .add_primal()
+        .add_gradient()
+    .done()
+    .build()
+)
+```

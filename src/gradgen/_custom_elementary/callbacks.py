@@ -76,6 +76,11 @@ def evaluate_custom_jacobian(
     params: tuple[float, ...],
 ) -> float | tuple[float, ...]:
     """Evaluate the custom Jacobian callback numerically."""
+    if spec.jacobian is None:
+        raise ValueError(
+            f"custom function {spec.name!r} does not support numeric "
+            "Jacobian evaluation"
+        )
     expr = invoke_custom_callback(spec.jacobian, value, params, spec.parameter_dimension)
     if spec.is_scalar:
         return coerce_numeric_scalar(
@@ -95,6 +100,11 @@ def evaluate_custom_hessian(
     params: tuple[float, ...],
 ) -> float | tuple[tuple[float, ...], ...]:
     """Evaluate the custom Hessian callback numerically."""
+    if spec.hessian is None:
+        raise ValueError(
+            f"custom function {spec.name!r} does not support numeric "
+            "Hessian evaluation"
+        )
     expr = invoke_custom_callback(spec.hessian, value, params, spec.parameter_dimension)
     if spec.is_scalar:
         return coerce_numeric_scalar(
@@ -128,6 +138,11 @@ def evaluate_custom_hvp(
             "vector custom HVP builders must return a numeric vector-like value with matching length",
         )
 
+    if spec.hessian is None:
+        raise ValueError(
+            f"custom function {spec.name!r} does not support numeric HVP "
+            "evaluation"
+        )
     hessian = evaluate_custom_hessian(spec, value, params)
     if spec.is_scalar:
         if not isinstance(tangent, (int, float)):
@@ -156,8 +171,10 @@ def validate_registered_function(spec: RegisteredElementaryFunction) -> None:
         x = 0.5
         tangent = 1.25
         params = tuple(spec.parameter_defaults)
-        _ = evaluate_custom_jacobian(spec, x, params)
-        _ = evaluate_custom_hessian(spec, x, params)
+        if spec.jacobian is not None:
+            _ = evaluate_custom_jacobian(spec, x, params)
+        if spec.hessian is not None:
+            _ = evaluate_custom_hessian(spec, x, params)
         if spec.hvp is not None:
             _ = evaluate_custom_hvp(spec, x, tangent, params)
         return

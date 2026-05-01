@@ -41,7 +41,7 @@ x = x[0]
 
 Lastly, note that `x[a:b]` returns an `SXVector` view.
 
-```
+```python {3}
 n = 10
 x = SXVector.sym("x", n)
 x_slice = x[1:4] # <-- this is (x[1], x[2], x[3])
@@ -50,7 +50,7 @@ x_slice = x[1:4] # <-- this is (x[1], x[2], x[3])
 ## Symbolic expressions
 
 Using scalar and vector symbols we can construct symbolic expressions. 
-For example, to define the function $f(x) = ux/\Vert x \Vert_1$ we can do  
+For example, to define the function $f(x) = ux/\Vert x \Vert_\{1\}$ we can do  
 
 ```python
 x = SXVector.sym("x", 5)
@@ -63,7 +63,7 @@ Several operations are supported. Indicatively, we support the operators `**`;
 to define the expression $f = 1 + 0.1  z - 4 z^3$ we can write
 
 ```python
-z = SX.sym("u")
+z = SX.sym("z")
 
 f = 1 + 0.1 * z - 4 * z**3
 ```

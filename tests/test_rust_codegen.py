@@ -26,6 +26,7 @@ from gradgen import (
     SXVector,
     SingleShootingBundle,
     SingleShootingProblem,
+    SquaredDistanceToSet,
     bilinear_form,
     clear_registered_elementary_functions,
     create_multi_function_rust_project,
@@ -1425,7 +1426,8 @@ mod single_shooting_multi_u_tests {{
 
             self.assertIsNotNone(project)
             run_cargo_build.assert_called_once_with(
-                Path(tmpdir).resolve() / "energy_kernel"
+                Path(tmpdir).resolve() / "energy_kernel",
+                "release",
             )
 
     def test_create_rust_project_raises_when_cargo_missing_for_build(
@@ -1568,7 +1570,77 @@ mod single_shooting_multi_u_tests {{
         ):
             builder.build(Path(tmpdir) / "my_crates")
             run_cargo_build.assert_called_once_with(
-                Path(tmpdir).resolve() / "my_crates" / "abc"
+                Path(tmpdir).resolve() / "my_crates" / "abc",
+                "release",
+            )
+
+    def test_builder_build_can_override_build_profile(self) -> None:
+        x = SXVector.sym("x", 2)
+        f = Function(
+            "energy", [x], [x.norm2sq()], input_names=["x"], output_names=["y"]
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("abc")
+                .with_build_crate(True)
+                .with_build_profile("debug")
+            )
+            .for_function(f)
+            .add_primal()
+            .done()
+        )
+
+        with (
+            TemporaryDirectory() as tmpdir,
+            patch.object(
+                rust_codegen_module,
+                "_run_cargo_build",
+            ) as run_cargo_build,
+        ):
+            builder.build(Path(tmpdir) / "my_crates")
+            run_cargo_build.assert_called_once_with(
+                Path(tmpdir).resolve() / "my_crates" / "abc",
+                "debug",
+            )
+
+    def test_builder_accepts_squared_distance_to_set(self) -> None:
+        x = SXVector.sym("x", 2)
+        projection = Function(
+            "proj_axis",
+            [x],
+            [SXVector((x[0], SX.const(0.0)))],
+            input_names=["x"],
+            output_names=["p"],
+        )
+        sq_distance = Function(
+            "sqdist_axis",
+            [x],
+            [0.5 * x[1] * x[1]],
+            input_names=["x"],
+            output_names=["d"],
+        )
+        distance = (
+            SquaredDistanceToSet(name="dist_to_axis_codegen")
+            .with_projection_function(projection)
+            .with_sq_distance_function(sq_distance)
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(RustBackendConfig().with_crate_name("abc"))
+            .for_function(distance)
+            .add_primal()
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "my_crates")
+            self.assertEqual(
+                project.project_dir,
+                Path(tmpdir).resolve() / "my_crates" / "abc",
             )
 
     def test_python_interface_is_importable(self) -> None:
@@ -3459,11 +3531,17 @@ mod tests {{
 
             lib_text = project.lib_rs.read_text(encoding="utf-8")
             header_text = (
-                "#![forbid(unsafe_code)]\n\n"
+                "#![forbid(unsafe_code)]\n"
+                "#![forbid(missing_docs)]\n"
+                "//!\n"
+                "//! Generated Rust kernels emitted by gradgen.\n\n"
                 "use smallvec::{smallvec, SmallVec};"
             )
             self.assertTrue(
-                lib_text.startswith("#![no_std]\n#![forbid(unsafe_code)]")
+                lib_text.startswith(
+                    "#![no_std]\n#![forbid(unsafe_code)]\n"
+                    "#![forbid(missing_docs)]"
+                )
             )
             self.assertIn(header_text, lib_text)
             self.assertIn("fn helper() {}", lib_text)

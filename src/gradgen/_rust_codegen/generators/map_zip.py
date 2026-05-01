@@ -124,7 +124,6 @@ def _generate_batched_primal_rust(
         function_index=0,
         shared_helper_nodes=tuple(helper_function.nodes),
         emit_crate_header=False,
-        emit_docs=False,
         function_keyword="fn",
     )
 
@@ -221,7 +220,6 @@ def _generate_batched_primal_rust(
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
         emit_crate_header=True,
-        emit_docs=True,
         function_keyword="pub fn",
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
@@ -335,7 +333,6 @@ def _generate_batched_jacobian_rust(
         function_index=0,
         shared_helper_nodes=tuple(local_jacobian.nodes),
         emit_crate_header=False,
-        emit_docs=False,
         function_keyword="fn",
     )
 
@@ -469,7 +466,6 @@ def _generate_batched_jacobian_rust(
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
         emit_crate_header=True,
-        emit_docs=True,
         function_keyword="pub fn",
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
@@ -579,7 +575,6 @@ def _generate_reduced_primal_rust(
         function_index=0,
         shared_helper_nodes=tuple(helper_function.nodes),
         emit_crate_header=False,
-        emit_docs=False,
         function_keyword="fn",
     )
 
@@ -690,7 +685,6 @@ def _generate_reduced_primal_rust(
         function_label=_format_rust_string_literal(name),
         function_index=function_index,
         emit_crate_header=True,
-        emit_docs=True,
         function_keyword="pub fn",
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,

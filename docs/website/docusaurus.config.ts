@@ -1,6 +1,8 @@
 import {themes as prismThemes} from 'prism-react-renderer';
 import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
 
 // This runs in Node.js - Don't use client-side code here (browser APIs, JSX...)
 
@@ -17,6 +19,14 @@ const config: Config = {
 
   url: 'https://qub-asl.github.io',
   baseUrl,
+
+    stylesheets: [
+    {
+      href: 'https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css',
+      type: 'text/css',
+      crossorigin: 'anonymous',
+    },
+  ],
 
   organizationName: 'QUB-ASL',
   projectName: 'gradgen',
@@ -37,12 +47,12 @@ const config: Config = {
   },
 
   scripts: [
-    `${baseUrl}js/mathjax-config.js`,
-    {
-      src: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
-      defer: true,
-    },
-  ],
+  `${baseUrl}js/mathjax-config.js`,
+  {
+    src: 'https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js',
+    defer: true,
+  },
+],
 
   i18n: {
     defaultLocale: 'en',
@@ -56,6 +66,8 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/QUB-ASL/gradgen/tree/main/docs/website/',
+          remarkPlugins: [remarkMath],
+          rehypePlugins: [rehypeKatex],
         },
         blog: {
           showReadingTime: true,

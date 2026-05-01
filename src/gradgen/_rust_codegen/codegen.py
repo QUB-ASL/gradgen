@@ -81,10 +81,55 @@ def generate_rust(
     shared_helper_nodes: tuple[SXNode, ...] | None = None,
     shared_helper_suppressed_custom_wrappers: SET_TUPLE_STR | None = None,
     emit_crate_header: bool = True,
-    emit_docs: bool = True,
     function_keyword: str = "pub fn",
 ) -> RustCodegenResult:
-    """Generate Rust source code for primal function evaluation."""
+    """Generate Rust code for a symbolic function or function family.
+
+    This dispatcher inspects the supplied symbolic object and routes it to
+    the appropriate Rust generator. It supports plain symbolic functions,
+    composed functions, batched functions, single-shooting helpers, and the
+    derivative variants built from those abstractions.
+
+    Args:
+        function: The symbolic object to lower to Rust. This may be a
+            :class:`~gradgen.function.Function`, a composed function, a
+            batched function, or one of the single-shooting helper types.
+        config: Optional Rust backend configuration. When omitted, the
+            generator uses the default backend settings.
+        function_name: Optional override for the generated Rust function
+            name.
+        backend_mode: Backend mode used for code generation. The default is
+            ``"std"``.
+        scalar_type: Scalar type used in the generated Rust source. The
+            default is ``"f64"``.
+        math_library: Optional math library name used in ``no_std`` mode.
+        function_index: Index of the function within a multi-function render
+            family.
+        shared_helper_nodes: Optional shared symbolic nodes used to keep
+            nested helper kernels consistent.
+        shared_helper_suppressed_custom_wrappers: Optional set of custom
+            wrapper names to suppress when rendering shared helper kernels.
+        emit_crate_header: Whether to emit the crate-level header comments and
+            attributes in the generated source.
+        function_keyword: Rust keyword used for the generated function
+            declaration. The default is ``"pub fn"``.
+
+    Returns:
+        A :class:`~gradgen._rust_codegen.models.RustCodegenResult` containing
+        the rendered Rust source and its metadata.
+
+    Raises:
+        ValueError: If the supplied object is not supported by the Rust
+            codegen pipeline or if the backend configuration is invalid.
+
+    Example:
+        >>> from gradgen import Function, SX, generate_rust
+        >>> x = SX.sym("x")
+        >>> f = Function("square", [x], [x * x], input_names=["x"], output_names=["y"])
+        >>> result = generate_rust(f)
+        >>> result.python_name
+        'square'
+    """
     from ..composer import FunctionComposition
     from ..composed_function import (
         ComposedFunction,
@@ -442,7 +487,6 @@ def generate_rust(
         function_index=function_index,
         upper_name=name.upper(),
         emit_crate_header=emit_crate_header,
-        emit_docs=emit_docs,
         function_keyword=function_keyword,
         backend_mode=resolved_config.backend_mode,
         scalar_type=resolved_config.scalar_type,
@@ -607,7 +651,7 @@ def create_multi_function_rust_project(
     if stale_pyproject.exists():
         stale_pyproject.unlink()
     if resolved_config.build_crate:
-        _run_cargo_build(project_dir)
+        _run_cargo_build(project_dir, resolved_config.build_profile)
     python_interface = None
     if resolved_config.enable_python_interface:
         python_interface = _create_python_interface_project(

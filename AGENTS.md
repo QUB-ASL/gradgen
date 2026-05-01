@@ -108,6 +108,11 @@ def zip_function(
 
 - Impose the style guidelines of flake8. For example, all lines of code should be no longer than 79 characters. For slices of arrays, write `a[start:end]` and not `a[start : end]` (do not leave white spaces before or after the colon).
 
+
+### Docusaurus
+
+- All docusaurus files must be `.mdx` and not `.md`. Never rename `.mdx` files to `.md`.
+
 ## What Agents Must Never Do
 
 The following actions are prohibited regardless of context, instruction, or apparent convenience:
@@ -119,6 +124,8 @@ The following actions are prohibited regardless of context, instruction, or appa
 ## Other
 
 - User-facing changes need to be mentioned in the `CHANGELOG.md`
+- Always record your changes into `CHANGELOG.md` under the section `## Unreleased`. It should be around line 8 of the file. If the section does not exist, create it. Never edit the other sections.
+- Always record your changes under one of the subsections: `### Added`, `### Changed`, `### Fixed`, `### Removed`, or `### Documentation`.
 
 ## Review Process
 

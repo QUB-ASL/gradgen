@@ -19,6 +19,7 @@ from .validation import (
 RustBackendMode = str
 RustScalarType = str
 CargoDependency = tuple[str, str | None]
+RustBuildProfile = str
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +35,7 @@ class RustBackendConfig:
     enable_python_interface: bool = False
     build_python_interface: bool = True
     build_crate: bool = False
+    build_profile: RustBuildProfile = "release"
     additional_dependencies: tuple[CargoDependency, ...] = ()
 
     def with_backend_mode(self,
@@ -103,10 +105,35 @@ class RustBackendConfig:
         return replace(self, build_python_interface=build_python_interface)
 
     def with_build_crate(self, build_crate: bool = True) -> RustBackendConfig:
-        """
-        Return a copy with low-level crate compilation enabled or disabled.
+        """Return a copy with crate compilation enabled or disabled.
+
+        Args:
+            build_crate: Whether Gradgen should compile the generated
+                low-level Rust crate after writing it to disk.
+
+        Returns:
+            A copy of the config with crate compilation enabled or disabled.
         """
         return replace(self, build_crate=build_crate)
+
+    def with_build_profile(
+        self,
+        build_profile: RustBuildProfile,
+    ) -> RustBackendConfig:
+        """Return a copy with a different Cargo build profile.
+
+        Args:
+            build_profile: Cargo profile used when ``build_crate`` is enabled.
+                Supported values are ``"debug"`` and ``"release"``.
+
+        Returns:
+            A copy of the config with the requested build profile.
+        """
+        if build_profile not in {"debug", "release"}:
+            raise ValueError(
+                "build_profile must be either 'debug' or 'release'"
+            )
+        return replace(self, build_profile=build_profile)
 
     def with_additional_dependencies(
         self,
