@@ -516,6 +516,11 @@ class SquaredDistanceToSet:
                 f"SquaredDistanceToSet {self.name!r} expects input length "
                 f"{self._input_dimension}, received {input_dimension}"
             )
+        if (
+            self._sq_distance is not None
+            and not self._has_projection_implementation()
+        ):
+            raise ValueError("SquaredDistanceToSet requires with_projection")
         if not self._has_primal_implementation():
             raise ValueError(
                 "SquaredDistanceToSet requires a Python, symbolic, or "
@@ -658,6 +663,14 @@ class SquaredDistanceToSet:
             or self._sq_distance_function is not None
             or self._projection is not None
             or self._projection_function is not None
+        )
+
+    def _has_projection_implementation(self) -> bool:
+        """Return whether a projection implementation is available."""
+        return (
+            self._projection is not None
+            or self._projection_function is not None
+            or self._rust_projection is not None
         )
 
     def _validate_input_dimension(
