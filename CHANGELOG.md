@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
-## Unreleased
+
+
+## 0.5.0 - 01-05-2026
+
+[![PyPI](https://img.shields.io/badge/gradgen-v0.5.0-blue)](https://pypi.org/project/gradgen/0.5.0)
+[![PyPI](https://img.shields.io/badge/release-v0.5.0-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.5.0)
+
 
 ### Added
 
