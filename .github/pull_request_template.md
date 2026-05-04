@@ -26,6 +26,7 @@ Either:
 
 - [ ] API documentation updated
 - [ ] Appropriate testing
+- [ ] Create a demo in `demos/`, if necessary
 - [ ] Update `CHANGELOG`
-- [ ] Update webpage documentation, if necessary
+- [ ] Update webpage documentation (incl. Google Colab demo), if necessary
 - [ ] Bump versions in `pyproject.toml`, if necessary
