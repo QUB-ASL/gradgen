@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## Unreleased
+
+### Added
+
+- Added `SquaredDistanceToSet.second_order_cone(...)` for Rust-backed
+  half-squared distance and projection generation for second-order cones
+  of the form `{x = (y, t) : ||y||_2 <= alpha t}`.
+
 
 ## 0.5.0 - 01-05-2026
 

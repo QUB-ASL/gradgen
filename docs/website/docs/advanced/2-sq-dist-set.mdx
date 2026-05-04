@@ -164,6 +164,29 @@ distance = SquaredDistanceToSet.rectangle(
 )
 ```
 
+
+### Second-order cones
+
+Gradgen also provides a Rust-backed constructor for second-order cones of
+the form
+```math
+C_\alpha = \{x=(y,t)\in\mathbb{R}^n: \|y\|_2 \leq \alpha t\},
+```
+where $alpha > 0$ is a constant parameter.
+
+```python
+distance = SquaredDistanceToSet.second_order_cone(
+    name="soc_penalty",
+    alpha=2.0,
+    dimension=3,
+)
+```
+
+This constructor currently provides Rust implementations for the
+projection and squared distance, so it can be composed symbolically
+and used for Rust code generation, but it does not support direct numeric
+evaluation in Python.
+
 ## Custom Rust implementations
 
 We can create a squared distance-to-set function by providing 

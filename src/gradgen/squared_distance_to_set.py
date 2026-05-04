@@ -387,6 +387,118 @@ class SquaredDistanceToSet:
             _input_name=resolved_input_name,
         ).with_projection_function(projection)
 
+    @classmethod
+    def second_order_cone(
+        cls,
+        *,
+        name: str,
+        alpha: float | int,
+        dimension: int,
+        input_name: str | None = None,
+    ) -> SquaredDistanceToSet:
+        r"""Construct a half-squared distance to a second-order cone.
+
+        The supported cone is
+
+        .. math::
+
+            C_\alpha = \{x = (y, t) : \lVert y \rVert_2 \leq \alpha t\},
+
+        where ``x`` has length ``dimension``, ``y`` collects the first
+        ``dimension - 1`` entries, and ``t`` is the last entry.
+
+        This constructor is Rust-only: it provides custom Rust helpers for
+        the half-squared distance and the cone projection, but does not
+        expose a Python numeric evaluation callback or symbolic helper
+        function.
+
+        Args:
+            name: Public identifier for the constructed distance object.
+            alpha: Positive cone scaling parameter.
+            dimension: Total dimension of ``x = (y, t)``. The dimension must
+                be at least ``2``.
+            input_name: Optional symbolic input name used by the generated
+                internal function. When omitted, ``"x"`` is used.
+
+        Returns:
+            A :class:`SquaredDistanceToSet` configured for the second-order
+            cone ``{x = (y, t) : ||y||_2 <= alpha * t}``.
+
+        Raises:
+            ValueError: If ``alpha`` is not strictly positive and finite, or
+                if ``dimension`` is smaller than ``2``.
+        """
+        alpha_value = _coerce_positive_radius(alpha)
+        dimension_value = _coerce_input_dimension(
+            dimension,
+            label="dimension",
+            minimum=2,
+        )
+        resolved_input_name = _coerce_symbol_name(
+            "x" if input_name is None else input_name,
+            label="input_name",
+        )
+        alpha_literal = repr(alpha_value)
+
+        rust_projection = f"""
+fn {name}_projection(
+    x: &[{{{{ scalar_type }}}}],
+    out: &mut [{{{{ scalar_type }}}}],
+) {{
+    let alpha = {alpha_literal}_{{{{ scalar_type }}}};
+    let one = 1.0_{{{{ scalar_type }}}};
+    let zero = 0.0_{{{{ scalar_type }}}};
+    let last = x.len() - 1;
+    let t = x[last];
+    let mut sum_sq = zero;
+    for value in &x[..last] {{
+        sum_sq += *value * *value;
+    }}
+    let norm_y = sum_sq.sqrt();
+
+    if alpha * norm_y <= -t {{
+        out.fill(zero);
+        return;
+    }}
+
+    if norm_y <= alpha * t {{
+        out.copy_from_slice(x);
+        return;
+    }}
+
+    let beta = (alpha * norm_y + t) / (alpha * alpha + one);
+    let scale = alpha * beta / norm_y;
+    for index in 0..last {{
+        out[index] = scale * x[index];
+    }}
+    out[last] = beta;
+}}
+"""
+
+        rust_sq_distance = f"""
+fn {name}(
+    x: &[{{{{ scalar_type }}}}],
+    w: &[{{{{ scalar_type }}}}],
+) -> {{{{ scalar_type }}}} {{
+    let _ = w;
+    let mut projection = [0.0_{{{{ scalar_type }}}}; {dimension_value}];
+    {name}_projection(x, &mut projection);
+    let mut sum = 0.0_{{{{ scalar_type }}}};
+    for index in 0..{dimension_value} {{
+        let delta = x[index] - projection[index];
+        sum += delta * delta;
+    }}
+    0.5_{{{{ scalar_type }}}} * sum
+}}
+"""
+
+        return (
+            cls(name=name, _input_name=resolved_input_name)
+            .with_rust_projection(rust_projection)
+            .with_rust_sq_distance(rust_sq_distance)
+            ._with_input_dimension(dimension_value)
+        )
+
     def __call__(
         self,
         value: SXVector | tuple[object, ...] | list[object],
@@ -576,6 +688,14 @@ class SquaredDistanceToSet:
     def _invalidate_function_cache(self) -> None:
         """Forget any cached symbolic :class:`Function` view."""
         self._function_cache = None
+
+    def _with_input_dimension(
+        self,
+        input_dimension: int,
+    ) -> SquaredDistanceToSet:
+        """Record the known input dimension for fluent constructors."""
+        self._input_dimension = input_dimension
+        return self
 
     def _build_gradient_callback(
         self,
@@ -776,6 +896,20 @@ def _coerce_positive_radius(radius: float | int) -> float:
     if not math.isfinite(numeric) or numeric <= 0.0:
         raise ValueError("radius must be strictly positive and finite")
     return numeric
+
+
+def _coerce_input_dimension(
+    value: object,
+    *,
+    label: str,
+    minimum: int,
+) -> int:
+    """Return a validated integer input dimension."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ValueError(f"{label} must be an integer")
+    if value < minimum:
+        raise ValueError(f"{label} must be at least {minimum}")
+    return value
 
 
 def _coerce_symbol_name(value: object, *, label: str) -> str:
