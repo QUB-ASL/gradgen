@@ -29,6 +29,25 @@ class SquaredDistanceToSetTests(unittest.TestCase):
         self.assertEqual(infinity_ball.to_function().input_names, ("w",))
         self.assertEqual(rectangle.to_function().input_names, ("r",))
 
+    def test_second_order_cone_factory_supports_symbolic_use(self) -> None:
+        distance = SquaredDistanceToSet.second_order_cone(
+            name="named_soc",
+            alpha=2.0,
+            dimension=3,
+            input_name="z",
+        )
+
+        x = SXVector.sym("z", 3)
+        expr = distance(x)
+
+        self.assertEqual(repr(expr), "named_soc(SXVector.sym('z', 3))")
+        self.assertEqual(distance.to_function().input_names, ("z",))
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not support numeric evaluation in Python",
+        ):
+            distance([3.0, 4.0, 1.0])
+
     def test_rust_only_distance_supports_symbolic_use(self) -> None:
         distance = (
             SquaredDistanceToSet(name="dist_to_axis_rust_only")
@@ -119,6 +138,18 @@ fn dist_to_axis_rust_only_projection(
                 name="bad_rectangle",
                 xmin=(1.0, 0.0),
                 xmax=(0.0, 1.0),
+            )
+        with self.assertRaises(ValueError):
+            SquaredDistanceToSet.second_order_cone(
+                name="bad_soc_alpha",
+                alpha=0.0,
+                dimension=3,
+            )
+        with self.assertRaises(ValueError):
+            SquaredDistanceToSet.second_order_cone(
+                name="bad_soc_dimension",
+                alpha=1.0,
+                dimension=1,
             )
 
     def test_squared_distance_behaves_like_a_function(self) -> None:

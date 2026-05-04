@@ -489,6 +489,71 @@ mod integration_sympy_rectangle {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_second_order_cone_constructor_codegen_matches_reference(
+        self,
+    ) -> None:
+        distance = SquaredDistanceToSet.second_order_cone(
+            name="soc_sympy",
+            alpha=2.0,
+            dimension=3,
+        )
+
+        builder = (
+            CodeGenerationBuilder(distance)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_soc")
+            )
+            .add_primal()
+            .add_gradient()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_soc")
+            primal_codegen, gradient_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_soc {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    fn run_case(x: [f64; 3], expected_primal: f64, expected_gradient: [f64; 3]) {{
+        let mut primal_y = [0.0_f64; 1];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+        assert_close_slice(&primal_y, &[expected_primal], 1e-10_f64);
+
+        let mut gradient_y = [0.0_f64; 3];
+        let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
+        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+        assert_close_slice(&gradient_y, &expected_gradient, 1e-10_f64);
+    }}
+
+    #[test]
+    fn matches_reference_values_in_all_projection_regions() {{
+        run_case([3.0_f64, 4.0_f64, 1.0_f64], 0.9_f64, [0.36_f64, 0.48_f64, -1.2_f64]);
+        run_case([0.5_f64, 0.25_f64, 1.0_f64], 0.0_f64, [0.0_f64, 0.0_f64, 0.0_f64]);
+        run_case([1.0_f64, 0.0_f64, -3.0_f64], 5.0_f64, [1.0_f64, 0.0_f64, -3.0_f64]);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_rust_only_squared_distance_codegen_matches_sympy(self) -> None:
         x0, x1 = sp.symbols("x0 x1", real=True)
         sympy_expr = sp.Integer(2) * x1**2
