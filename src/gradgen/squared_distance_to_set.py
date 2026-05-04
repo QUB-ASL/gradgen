@@ -424,9 +424,19 @@ class SquaredDistanceToSet:
             A :class:`SquaredDistanceToSet` configured for the second-order
             cone ``{x = (y, t) : ||y||_2 <= alpha * t}``.
 
+        Example:
+            >>> from gradgen import SXVector, SquaredDistanceToSet
+            >>> distance = SquaredDistanceToSet.second_order_cone(
+            ...     name="soc_penalty",
+            ...     alpha=2.0,
+            ...     dimension=3,
+            ... )
+            >>> x = SXVector.sym("x", 3)
+            >>> expr = distance(x)
+
         Raises:
             ValueError: If ``alpha`` is not strictly positive and finite, or
-                if ``dimension`` is smaller than ``2``.
+                if ``dimension`` is less than ``2``.
         """
         alpha_value = _coerce_positive_radius(alpha)
         dimension_value = _coerce_input_dimension(
