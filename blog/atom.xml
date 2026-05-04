@@ -43,7 +43,10 @@ This will decrease significantly the compilation times (from minutes to seconds)
         <link href="https://qub-asl.github.io/gradgen/blog/api-docs"/>
         <updated>2026-04-30T00:00:00.000Z</updated>
         <summary type="html"><![CDATA[The API docs of gradgen are now available here. The API docs have been generated automatically from the docstrings in the code using Sphinx.]]></summary>
-        <content type="html"><![CDATA[<p>The API docs of gradgen are now available <a href="https://qub-asl.github.io/gradgen/api-dox/" target="_blank" rel="noopener noreferrer" class="">here</a>. The API docs have been generated automatically from the docstrings in the code using <a href="https://www.sphinx-doc.org/en/master/" target="_blank" rel="noopener noreferrer" class="">Sphinx</a>.</p>]]></content>
+        <content type="html"><![CDATA[<p>The API docs of gradgen are now available <a href="https://qub-asl.github.io/gradgen/api-dox/" target="_blank" rel="noopener noreferrer" class="">here</a>. The API docs have been generated automatically from the docstrings in the code using <a href="https://www.sphinx-doc.org/en/master/" target="_blank" rel="noopener noreferrer" class="">Sphinx</a>.</p>
+<p>For example, you can find detailed API docs for the <a href="https://qub-asl.github.io/gradgen/api-dox/api/gradgen.html#module-gradgen.single_shooting" target="_blank" rel="noopener noreferrer" class=""><code>SingleShootingBundle</code></a> class, <a href="https://qub-asl.github.io/gradgen/api-dox/api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet" target="_blank" rel="noopener noreferrer" class=""><code>SquaredDistanceToSet</code></a> and a lot more.</p>
+<p>The API docs are still under development. Currently, the majority of public API endpoints (classes, methods, functions) have API docs. The next step will be to include examples and code snippets everywhere.</p>
+<p>Note that best way to get started with gradgen is our <a class="" href="https://qub-asl.github.io/gradgen/docs/category/learn">online documentation</a>, not the API docs.</p>]]></content>
         <author>
             <name>Pantelis Sopasakis</name>
             <uri>https://github.com/alphaville</uri>
