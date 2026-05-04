@@ -1,12 +1,23 @@
 ---
 sidebar_position: 1
+description: "Gradgen is a Python library for symbolic automatic differentiation and Rust code generation, with support for embeddable no_std kernels and optimal control workflows."
+keywords:
+  - Gradgen
+  - Rust code generation
+  - automatic differentiation
+  - symbolic expressions
+  - no_std
+  - optimal control
+last_update:
+  date: 2026-04-30
+  author: Pantelis Sopasakis
 ---
 
 # Welcome to Gradgen
 
 **Gradgen** is a Python library for symbolic automatic differentiation and Rust code generation. It helps you build efficient computational kernels with automatic differentiation capabilities.
 
-<img src="https://camo.githubusercontent.com/0a0a39c7417ae1cc88302a16176929a06aa01de5680f7d3f41bb06e1de7e6284/68747470733a2f2f692e706f7374696d672e63632f47334d32737a7a352f4c6f676f2d4d616b722d347a2d484b61302e706e67" style="margin: auto; display: block; width: 16%">
+<img src="/gradgen/img/gradgen.png" style="margin: auto; display: block; width: 16%" alt="gradgen logo">
 
 ## What is Gradgen?
 
@@ -57,4 +68,3 @@ print(result.source)
 - **Symbolic simplification**: Automatic expression simplification
 - **Common Subexpression Elimination**: Optimize generated code
 - **Multiple AD modes**: Forward-mode JVP and reverse-mode VJP
-

@@ -66,6 +66,8 @@ const config: Config = {
         docs: {
           sidebarPath: './sidebars.ts',
           editUrl: 'https://github.com/QUB-ASL/gradgen/tree/main/docs/website/',
+          showLastUpdateAuthor: true,
+          showLastUpdateTime: true,
           remarkPlugins: [remarkMath],
           rehypePlugins: [rehypeKatex],
         },
@@ -79,6 +81,13 @@ const config: Config = {
           onInlineTags: 'warn',
           onInlineAuthors: 'warn',
           onUntruncatedBlogPosts: 'warn',
+        },
+        sitemap: {
+          lastmod: 'date',
+          changefreq: 'weekly',
+          priority: 0.5,
+          ignorePatterns: ['/tags/**'],
+          filename: 'sitemap.xml',
         },
         theme: {
           customCss: './src/css/custom.css',

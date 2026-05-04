@@ -18,6 +18,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - Added page metadata to the Docusaurus docs under `docs/website/docs` to
   improve SEO, link previews, and page-specific discoverability.
+- Added SEO-oriented metadata to the Docusaurus intro page, including a
+  description, keywords, and social preview image.
+- Added `last_update` metadata to all pages
 
 
 ### Added
