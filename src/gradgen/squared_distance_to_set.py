@@ -458,25 +458,28 @@ fn {name}_projection(
     let alpha = {alpha_literal}_{{{{ scalar_type }}}};
     let one = 1.0_{{{{ scalar_type }}}};
     let zero = 0.0_{{{{ scalar_type }}}};
+    let alpha_sq = alpha * alpha;
+    let alpha_sq_plus_one = alpha_sq + one;
     let last = x.len() - 1;
     let t = x[last];
+    let t_sq = t * t;
     let mut sum_sq = zero;
     for value in &x[..last] {{
         sum_sq += *value * *value;
     }}
-    let norm_y = sum_sq.sqrt();
 
-    if alpha * norm_y <= -t {{
+    if t <= zero && alpha_sq * sum_sq <= t_sq {{
         out.fill(zero);
         return;
     }}
 
-    if norm_y <= alpha * t {{
+    if t >= zero && sum_sq <= alpha_sq * t_sq {{
         out.copy_from_slice(x);
         return;
     }}
 
-    let beta = (alpha * norm_y + t) / (alpha * alpha + one);
+    let norm_y = sum_sq.sqrt();
+    let beta = (alpha * norm_y + t) / alpha_sq_plus_one;
     let scale = alpha * beta / norm_y;
     for index in 0..last {{
         out[index] = scale * x[index];
@@ -491,14 +494,41 @@ fn {name}(
     w: &[{{{{ scalar_type }}}}],
 ) -> {{{{ scalar_type }}}} {{
     let _ = w;
-    let mut projection = [0.0_{{{{ scalar_type }}}}; {dimension_value}];
-    {name}_projection(x, &mut projection);
-    let mut sum = 0.0_{{{{ scalar_type }}}};
-    for index in 0..{dimension_value} {{
-        let delta = x[index] - projection[index];
-        sum += delta * delta;
+    let alpha = {alpha_literal}_{{{{ scalar_type }}}};
+    let one = 1.0_{{{{ scalar_type }}}};
+    let zero = 0.0_{{{{ scalar_type }}}};
+    let alpha_sq = alpha * alpha;
+    let alpha_sq_plus_one = alpha_sq + one;
+    let last = x.len() - 1;
+    let t = x[last];
+    let t_sq = t * t;
+    let mut sum_sq = zero;
+    for value in &x[..last] {{
+        sum_sq += *value * *value;
     }}
-    0.5_{{{{ scalar_type }}}} * sum
+
+    if t <= zero && alpha_sq * sum_sq <= t_sq {{
+        let mut dist_sq = t_sq;
+        for value in &x[..last] {{
+            dist_sq += *value * *value;
+        }}
+        return 0.5_{{{{ scalar_type }}}} * dist_sq;
+    }}
+
+    if t >= zero && sum_sq <= alpha_sq * t_sq {{
+        return zero;
+    }}
+
+    let norm_y = sum_sq.sqrt();
+    let beta = (alpha * norm_y + t) / alpha_sq_plus_one;
+    let y_scale = one - (alpha * beta / norm_y);
+    let dt = t - beta;
+    let mut dist_sq = dt * dt;
+    for value in &x[..last] {{
+        let delta = y_scale * *value;
+        dist_sq += delta * delta;
+    }}
+    0.5_{{{{ scalar_type }}}} * dist_sq
 }}
 """
 

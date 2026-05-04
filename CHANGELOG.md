@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   half-squared distance and projection generation for second-order cones
   of the form `{x = (y, t) : ||y||_2 <= alpha t}`.
 
+### Changed
+
+- Optimized the generated Rust helpers for
+  `SquaredDistanceToSet.second_order_cone(...)` so the projection defers
+  `sqrt(...)` to the nontrivial branch, and the primal helper computes the
+  half-squared distance directly without first materializing the projection.
+
 
 ## 0.5.0 - 01-05-2026
 

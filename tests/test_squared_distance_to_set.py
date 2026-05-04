@@ -289,6 +289,28 @@ fn dist_to_axis_codegen_projection(
         self.assertIn("out[0] = x[0] - projection[0];", generated.source)
         self.assertIn("out[1] = x[1] - projection[1];", generated.source)
 
+    def test_second_order_cone_rust_projection_defers_sqrt(self) -> None:
+        distance = SquaredDistanceToSet.second_order_cone(
+            name="soc_codegen",
+            alpha=2.0,
+            dimension=3,
+        )
+        x = SXVector.sym("x", 3)
+        f = Function("f", [x], [distance(x)], input_names=["x"])
+
+        generated = f.gradient(0).generate_rust(backend_mode="no_std")
+
+        self.assertIn("let alpha_sq = alpha * alpha;", generated.source)
+        self.assertIn(
+            "if t <= zero && alpha_sq * sum_sq <= t_sq {",
+            generated.source,
+        )
+        self.assertIn(
+            "if t >= zero && sum_sq <= alpha_sq * t_sq {",
+            generated.source,
+        )
+        self.assertIn("let norm_y = sum_sq.sqrt();", generated.source)
+
     def test_requires_projection_before_use(self) -> None:
         distance = (
             SquaredDistanceToSet(name="missing_projection").with_sq_distance(
