@@ -508,11 +508,7 @@ fn {name}(
     }}
 
     if t <= zero && alpha_sq * sum_sq <= t_sq {{
-        let mut dist_sq = t_sq;
-        for value in &x[..last] {{
-            dist_sq += *value * *value;
-        }}
-        return 0.5_{{{{ scalar_type }}}} * dist_sq;
+        return 0.5_{{{{ scalar_type }}}} * (t_sq + sum_sq);
     }}
 
     if t >= zero && sum_sq <= alpha_sq * t_sq {{
@@ -523,11 +519,7 @@ fn {name}(
     let beta = (alpha * norm_y + t) / alpha_sq_plus_one;
     let y_scale = one - (alpha * beta / norm_y);
     let dt = t - beta;
-    let mut dist_sq = dt * dt;
-    for value in &x[..last] {{
-        let delta = y_scale * *value;
-        dist_sq += delta * delta;
-    }}
+    let dist_sq = y_scale * y_scale * sum_sq + dt * dt;
     0.5_{{{{ scalar_type }}}} * dist_sq
 }}
 """

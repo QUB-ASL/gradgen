@@ -298,7 +298,7 @@ fn dist_to_axis_codegen_projection(
         x = SXVector.sym("x", 3)
         f = Function("f", [x], [distance(x)], input_names=["x"])
 
-        generated = f.gradient(0).generate_rust(backend_mode="no_std")
+        generated = f.generate_rust(backend_mode="no_std")
 
         self.assertIn("let alpha_sq = alpha * alpha;", generated.source)
         self.assertIn(
@@ -310,6 +310,14 @@ fn dist_to_axis_codegen_projection(
             generated.source,
         )
         self.assertIn("let norm_y = sum_sq.sqrt();", generated.source)
+        self.assertIn(
+            "return 0.5_f64 * (t_sq + sum_sq);",
+            generated.source,
+        )
+        self.assertIn(
+            "let dist_sq = y_scale * y_scale * sum_sq + dt * dt;",
+            generated.source,
+        )
 
     def test_requires_projection_before_use(self) -> None:
         distance = (
