@@ -16,6 +16,7 @@ class RustBackendConfigTests(unittest.TestCase):
         self.assertTrue(config.build_python_interface)
         self.assertFalse(config.build_crate)
         self.assertEqual(config.build_profile, "release")
+        self.assertFalse(config.prefer_direct_output_sinks)
 
     def test_enable_python_interface_defaults_to_true(self) -> None:
         config = RustBackendConfig().with_enable_python_interface()
@@ -48,3 +49,7 @@ class RustBackendConfigTests(unittest.TestCase):
             "use smallvec::{smallvec};"
         )
         self.assertEqual(config.header, "use smallvec::{smallvec};")
+
+    def test_direct_output_sinks_can_be_enabled(self) -> None:
+        config = RustBackendConfig().with_prefer_direct_output_sinks()
+        self.assertTrue(config.prefer_direct_output_sinks)

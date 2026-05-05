@@ -534,6 +534,29 @@ mod {module_name} {{
         self.assertIn("work[0] += 1.0_f64;", result.source)
         self.assertIn("y[0] = work[0];", result.source)
 
+    def test_prefer_direct_output_sinks_inlines_single_use_outputs(
+        self,
+    ) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "square_plus_one",
+            [x],
+            [x * x + 1],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust(
+            config=RustBackendConfig().with_prefer_direct_output_sinks()
+        )
+
+        self.assertEqual(result.workspace_size, 0)
+        self.assertTrue(
+            "y[0] = 1.0_f64 + x[0] * x[0];" in result.source
+            or "y[0] = x[0] * x[0] + 1.0_f64;" in result.source
+        )
+        self.assertNotIn("work[0] =", result.source)
+
     def test_generates_vector_function_with_deterministic_workspace_layout(
         self,
     ) -> None:

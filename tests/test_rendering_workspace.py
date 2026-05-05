@@ -51,6 +51,24 @@ class RenderingWorkspaceTests(unittest.TestCase):
         self.assertGreaterEqual(workspace_size, 1)
         self.assertTrue(workspace_map)
 
+    def test_allocate_workspace_slots_prefers_reused_intermediates_only(self) -> None:
+        x = SXVector.sym("x", 2)
+        shared = x[0] + x[1]
+        function = Function(
+            "demo",
+            [x],
+            [shared * shared],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        workspace_map, workspace_size = _allocate_workspace_slots(
+            function,
+            prefer_direct_output_sinks=True,
+        )
+        self.assertEqual(workspace_size, 1)
+        self.assertEqual(len(workspace_map), 1)
+
     def test_workspace_assignment_skips_noop_updates(self) -> None:
         x = SX.sym("x")
         base = x + 1.0

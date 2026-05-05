@@ -401,6 +401,9 @@ def generate_rust(
     workspace_map, workspace_size = _allocate_workspace_slots(
         function,
         output_refs=tuple(materialized_output_refs),
+        prefer_direct_output_sinks=(
+            resolved_config.prefer_direct_output_sinks
+        ),
     )
 
     for node, work_index in workspace_map.items():
