@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Added an opt-in direct-output lowering mode for Rust code generation so
+  single-use intermediates can be inlined into final outputs instead of being
+  copied through workspace slots. Enabled it in the codegen demo and the
+  private `qwerty` repro.
 - Optimized the generated Rust helpers for
   `SquaredDistanceToSet.second_order_cone(...)` so the projection defers
   `sqrt(...)` to the nontrivial branch, and the primal helper computes the
