@@ -231,6 +231,7 @@ class SquaredDistanceToSet:
         )
         radius_literal = repr(radius_value)
         center_literal = _render_rust_real_array_literal(normalized_center)
+        zero_center = all(center == 0.0 for center in normalized_center)
 
         def projection(
             value: SXVector | tuple[object, ...] | list[object],
@@ -281,7 +282,51 @@ class SquaredDistanceToSet:
             excess = max(norm - radius_value, 0.0)
             return 0.5 * excess * excess
 
-        rust_projection = f"""
+        if zero_center:
+            rust_projection = f"""
+fn {name}_projection(
+    x: &[{{{{ scalar_type }}}}],
+    out: &mut [{{{{ scalar_type }}}}],
+) {{
+    let radius = {radius_literal}_{{{{ scalar_type }}}};
+    let zero = 0.0_{{{{ scalar_type }}}};
+    let mut sum_sq = zero;
+    for index in 0..{len(normalized_center)} {{
+        out[index] = x[index];
+        sum_sq += x[index] * x[index];
+    }}
+    let norm = {{{{ sqrt(sum_sq) }}}};
+    if norm <= radius {{
+        return;
+    }}
+    let scale = radius / norm;
+    for index in 0..{len(normalized_center)} {{
+        out[index] *= scale;
+    }}
+}}
+"""
+            rust_sq_distance = f"""
+fn {name}(
+    x: &[{{{{ scalar_type }}}}],
+    w: &[{{{{ scalar_type }}}}],
+) -> {{{{ scalar_type }}}} {{
+    let _ = w;
+    let radius = {radius_literal}_{{{{ scalar_type }}}};
+    let zero = 0.0_{{{{ scalar_type }}}};
+    let mut sum_sq = zero;
+    for index in 0..{len(normalized_center)} {{
+        sum_sq += x[index] * x[index];
+    }}
+    let norm = {{{{ sqrt(sum_sq) }}}};
+    if norm <= radius {{
+        return zero;
+    }}
+    let excess = norm - radius;
+    0.5_{{{{ scalar_type }}}} * excess * excess
+}}
+"""
+        else:
+            rust_projection = f"""
 fn {name}_projection(
     x: &[{{{{ scalar_type }}}}],
     out: &mut [{{{{ scalar_type }}}}],
@@ -305,8 +350,7 @@ fn {name}_projection(
     }}
 }}
 """
-
-        rust_sq_distance = f"""
+            rust_sq_distance = f"""
 fn {name}(
     x: &[{{{{ scalar_type }}}}],
     w: &[{{{{ scalar_type }}}}],
