@@ -125,3 +125,12 @@ print("Generated Rust crate:", project.project_dir)
 print("Generated Rust functions:")
 for codegen in project.codegens:
     print(" -", codegen.function_name)
+
+import single_shooting_kernel as ss # noqa: E402
+
+print(ss.__all__)
+
+
+ws = ss.workspace_for_function('mpc_cost_f_states')
+print(ws)
+print(ss.mpc_cost_f_states([1., 2.], [0.1]*5, [1, 3], ws))

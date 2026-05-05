@@ -38,6 +38,7 @@ from .rendering import (
     _emit_node_expr,
     _emit_workspace_assignment,
     _flatten_arg,
+    _format_float,
     _format_rust_string_literal,
     _identify_direct_custom_output_marker,
     _reemit_direct_output_helper_call,
@@ -67,6 +68,112 @@ from ..sx import SX, SXNode
 SET_TUPLE_STR = set[tuple[str, str]]
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _flatten_output_terms(expr: SX) -> list[tuple[float, SX]]:
+    """Return signed additive terms for a scalar output expression."""
+    terms: list[tuple[float, SX]] = []
+
+    def visit(node: SX, sign: float) -> None:
+        if node.op == "add":
+            visit(node.args[0], sign)
+            visit(node.args[1], sign)
+            return
+        if node.op == "sub":
+            visit(node.args[0], sign)
+            visit(node.args[1], -sign)
+            return
+        if node.op == "neg":
+            visit(node.args[0], -sign)
+            return
+        terms.append((sign, node))
+
+    visit(expr, 1.0)
+    return [
+        (sign, term)
+        for sign, term in terms
+        if not (term.op == "const" and term.value == 0.0)
+    ]
+
+
+def _emit_output_accumulation_lines(
+    expr: SX,
+    target: str,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> list[str]:
+    """Emit readable accumulation statements for a scalar output expression."""
+    terms = _flatten_output_terms(expr)
+    zero_ref = _format_float(0.0, scalar_type)
+    if not terms:
+        return [f"{target} = {zero_ref};"]
+
+    def emit_term(term: SX) -> str:
+        return _emit_expr_ref(
+            term,
+            scalar_bindings,
+            workspace_map,
+            backend_mode,
+            scalar_type,
+            math_library,
+        )
+
+    first_sign, first_term = terms[0]
+    first_ref = emit_term(first_term)
+    if len(terms) == 1:
+        if first_sign >= 0.0:
+            return [f"{target} = {first_ref};"]
+        return [f"{target} = -{first_ref};"]
+
+    lines = [
+        f"{target} = {first_ref};"
+        if first_sign >= 0.0
+        else f"{target} = -{first_ref};"
+    ]
+    for sign, term in terms[1:]:
+        ref = emit_term(term)
+        operator = "+=" if sign >= 0.0 else "-="
+        lines.append(f"{target} {operator} {ref};")
+    return lines
+
+
+def _emit_simple_output_ref(
+    expr: SX,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str | None:
+    """Return a direct reference when an output is a single positive term."""
+    terms = _flatten_output_terms(expr)
+    if len(terms) != 1:
+        return None
+    sign, term = terms[0]
+    if sign < 0.0:
+        return None
+    return _emit_expr_ref(
+        term,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+
+
+def _parse_workspace_ref(ref: str, workspace_name: str) -> int | None:
+    """Return the workspace index encoded in a generated slice reference."""
+    prefix = f"{workspace_name}["
+    if not ref.startswith(prefix) or not ref.endswith("]"):
+        return None
+    index_text = ref[len(prefix):-1]
+    if not index_text.isdigit():
+        return None
+    return int(index_text)
 
 
 def generate_rust(
@@ -401,10 +508,8 @@ def generate_rust(
     workspace_map, workspace_size = _allocate_workspace_slots(
         function,
         output_refs=tuple(materialized_output_refs),
-        prefer_direct_output_sinks=(
-            resolved_config.prefer_direct_output_sinks
-        ),
     )
+    workspace_name = "work" if workspace_map else "_work"
 
     for node, work_index in workspace_map.items():
         rhs = _emit_node_expr(
@@ -429,7 +534,8 @@ def generate_rust(
             computation_lines.append(assignment)
 
     for output_spec, output_arg, direct_helper_call in zip(
-            output_specs, function.outputs, direct_output_helpers):
+        output_specs, function.outputs, direct_output_helpers
+    ):
         _assert, _in_return, _out_return = _emit_exact_length_assert(
             output_spec.rust_name,
             output_spec.raw_name,
@@ -451,8 +557,13 @@ def generate_rust(
                 )
             )
             continue
+        scalar_output_lines: list[list[str]] = []
+        scalar_output_workspace_indices: list[int | None] = []
+        can_copy_from_workspace = workspace_name == "work" and (
+            output_spec.size > 1
+        )
         for scalar_index, scalar in enumerate(_flatten_arg(output_arg)):
-            output_ref = _emit_expr_ref(
+            output_ref = _emit_simple_output_ref(
                 scalar,
                 scalar_bindings,
                 workspace_map,
@@ -460,11 +571,47 @@ def generate_rust(
                 resolved_config.scalar_type,
                 resolved_math_library,
             )
-            output_write_lines.append(
-                f"{output_spec.rust_name}[{scalar_index}] = {output_ref};"
+            if output_ref is not None:
+                workspace_index = _parse_workspace_ref(
+                    output_ref, workspace_name
+                )
+                if workspace_index is None:
+                    can_copy_from_workspace = False
+                scalar_output_workspace_indices.append(workspace_index)
+                scalar_output_lines.append(
+                    [f"{output_spec.rust_name}[{scalar_index}] = {output_ref};"]
+                )
+                continue
+            can_copy_from_workspace = False
+            scalar_output_workspace_indices.append(None)
+            scalar_output_lines.append(
+                _emit_output_accumulation_lines(
+                    scalar,
+                    f"{output_spec.rust_name}[{scalar_index}]",
+                    scalar_bindings,
+                    workspace_map,
+                    resolved_config.backend_mode,
+                    resolved_config.scalar_type,
+                    resolved_math_library,
+                )
             )
-
-    workspace_name = "work" if workspace_map else "_work"
+        if can_copy_from_workspace and all(
+            index is not None for index in scalar_output_workspace_indices
+        ):
+            start = scalar_output_workspace_indices[0]
+            if all(
+                index == start + offset
+                for offset, index in enumerate(
+                    scalar_output_workspace_indices
+                )
+            ):
+                output_write_lines.append(
+                    f"{output_spec.rust_name}.copy_from_slice("
+                    f"&{workspace_name}[{start}..{start + output_spec.size}]);"
+                )
+                continue
+        for lines in scalar_output_lines:
+            output_write_lines.extend(lines)
 
     parameters = ", ".join(
         [

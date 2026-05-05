@@ -16,10 +16,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
-- Added an opt-in direct-output lowering mode for Rust code generation so
-  single-use intermediates can be inlined into final outputs instead of being
-  copied through workspace slots. Enabled it in the codegen demo and the
-  private `qwerty` repro.
+- Removed the `with_prefer_direct_output_sinks` Rust backend config toggle and
+  made additive output accumulation the default lowering style for final
+  outputs. Generated kernels now write readable incremental updates directly
+  into the output slices whenever possible.
+- Emitted `copy_from_slice` for contiguous vector outputs backed by workspace
+  slices, replacing element-by-element final copy assignments with idiomatic
+  slice copies where possible.
 - Optimized the generated Rust helpers for
   `SquaredDistanceToSet.second_order_cone(...)` so the projection defers
   `sqrt(...)` to the nontrivial branch, and the primal helper computes the

@@ -534,9 +534,7 @@ mod {module_name} {{
         self.assertIn("work[0] += 1.0_f64;", result.source)
         self.assertIn("y[0] = work[0];", result.source)
 
-    def test_prefer_direct_output_sinks_inlines_single_use_outputs(
-        self,
-    ) -> None:
+    def test_single_use_outputs_are_lowered_directly(self) -> None:
         x = SX.sym("x")
         f = Function(
             "square_plus_one",
@@ -546,16 +544,51 @@ mod {module_name} {{
             output_names=["y"],
         )
 
-        result = f.generate_rust(
-            config=RustBackendConfig().with_prefer_direct_output_sinks()
-        )
+        result = f.generate_rust()
 
         self.assertEqual(result.workspace_size, 0)
-        self.assertTrue(
-            "y[0] = 1.0_f64 + x[0] * x[0];" in result.source
-            or "y[0] = x[0] * x[0] + 1.0_f64;" in result.source
-        )
+        self.assertIn("y[0] =", result.source)
+        self.assertIn("x[0] * x[0]", result.source)
+        self.assertIn("1.0_f64", result.source)
         self.assertNotIn("work[0] =", result.source)
+
+    def test_single_shooting_helpers_lower_outputs_directly(self) -> None:
+        problem = self._build_single_shooting_problem(horizon=2)
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("single_shooting_kernel")
+            )
+            .for_function(problem)
+            .add_gradient(include_states=True)
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "single_shooting_kernel")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(",
+            lib_text,
+        )
+        helper_start = lib_text.index(
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_x("
+        )
+        helper_end = lib_text.index(
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(",
+            helper_start,
+        )
+        helper_text = lib_text[helper_start:helper_end]
+        self.assertIn("vjp_x[0] =", helper_text)
+        self.assertIn("vjp_x[1] =", helper_text)
+        self.assertNotIn("copy_from_slice", helper_text)
+        self.assertNotIn("vjp_x[0] = work[0];", helper_text)
+        self.assertNotIn("vjp_x[1] = work[1];", helper_text)
+        self.assertNotIn("work[0] =", helper_text)
+        self.assertNotIn("work[1] =", helper_text)
 
     def test_generates_vector_function_with_deterministic_workspace_layout(
         self,
@@ -583,16 +616,17 @@ mod {module_name} {{
         self.assertIn(
             "pub fn kernel_meta() -> FunctionMetadata {", result.source
         )
-        self.assertIn("workspace_size: 3,", result.source)
+        self.assertIn("workspace_size: 0,", result.source)
         self.assertIn("pub fn kernel(", result.source)
         self.assertIn(
-            'WorkspaceTooSmall("work expected at least 3")',
+            'WorkspaceTooSmall("work expected at least 0")',
             result.source,
         )
-        self.assertIn("work[0] = x[0] * y[0];", result.source)
-        self.assertIn("work[1] = x[1] * y[1];", result.source)
-        self.assertIn("work[0] += work[1];", result.source)
-        self.assertIn("dot[0] = work[0];", result.source)
+        self.assertIn("dot[0] =", result.source)
+        self.assertIn("sum[0] =", result.source)
+        self.assertIn("sum[1] =", result.source)
+        self.assertNotIn("work[0] = x[0] * y[0];", result.source)
+        self.assertNotIn("copy_from_slice", result.source)
 
     def test_single_shooting_codegen_matches_manual_reference(self) -> None:
         problem = self._build_single_shooting_problem(horizon=3)

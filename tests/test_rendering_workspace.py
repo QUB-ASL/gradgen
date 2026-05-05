@@ -37,7 +37,7 @@ class RenderingWorkspaceTests(unittest.TestCase):
         self.assertTrue(any(node.op == "mul" for node in required))
         self.assertTrue(all(node.op not in {"symbol", "const"} for node in required))
 
-    def test_allocate_workspace_slots_returns_non_empty_allocation_for_nontrivial_function(self) -> None:
+    def test_allocate_workspace_slots_returns_empty_allocation_for_single_use_expression(self) -> None:
         x = SXVector.sym("x", 1)
         function = Function(
             "demo",
@@ -48,10 +48,10 @@ class RenderingWorkspaceTests(unittest.TestCase):
         )
 
         workspace_map, workspace_size = _allocate_workspace_slots(function)
-        self.assertGreaterEqual(workspace_size, 1)
-        self.assertTrue(workspace_map)
+        self.assertEqual(workspace_size, 0)
+        self.assertFalse(workspace_map)
 
-    def test_allocate_workspace_slots_prefers_reused_intermediates_only(self) -> None:
+    def test_allocate_workspace_slots_reuses_shared_intermediates(self) -> None:
         x = SXVector.sym("x", 2)
         shared = x[0] + x[1]
         function = Function(
@@ -62,10 +62,7 @@ class RenderingWorkspaceTests(unittest.TestCase):
             output_names=["y"],
         )
 
-        workspace_map, workspace_size = _allocate_workspace_slots(
-            function,
-            prefer_direct_output_sinks=True,
-        )
+        workspace_map, workspace_size = _allocate_workspace_slots(function)
         self.assertEqual(workspace_size, 1)
         self.assertEqual(len(workspace_map), 1)
 

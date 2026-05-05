@@ -134,7 +134,7 @@ fn module_all_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
 #[pyfunction(name = "__getattr__")]
 fn module_getattr(name: &str) -> PyResult<String> {
     match name {
-        "__version__" => Ok("0.9.0".to_string()),
+        "__version__" => Ok("0.24.0".to_string()),
         _ => Err(PyAttributeError::new_err(format!(
             "module has no attribute {name:?}"
         ))),
@@ -144,8 +144,8 @@ fn module_getattr(name: &str) -> PyResult<String> {
 fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<Py<Workspace>> {
     match function_name {
         "mpc_cost_f_states" | "single_shooting_kernel_mpc_cost_f_states" => {
-            let mut values = Vec::with_capacity(8);
-            values.resize(8, 0.0_f64);
+            let mut values = Vec::with_capacity(5);
+            values.resize(5, 0.0_f64);
             Py::new(
                 py,
                 Workspace {
@@ -155,8 +155,8 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
             )
         }
         "mpc_cost_grad_states_u_seq" | "single_shooting_kernel_mpc_cost_grad_states_u_seq" => {
-            let mut values = Vec::with_capacity(14);
-            values.resize(14, 0.0_f64);
+            let mut values = Vec::with_capacity(11);
+            values.resize(11, 0.0_f64);
             Py::new(
                 py,
                 Workspace {
@@ -166,8 +166,8 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
             )
         }
         "mpc_cost_hvp_states_u_seq" | "single_shooting_kernel_mpc_cost_hvp_states_u_seq" => {
-            let mut values = Vec::with_capacity(32);
-            values.resize(32, 0.0_f64);
+            let mut values = Vec::with_capacity(29);
+            values.resize(29, 0.0_f64);
             Py::new(
                 py,
                 Workspace {
@@ -177,8 +177,8 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
             )
         }
         "mpc_cost_f_grad_states_u_seq" | "single_shooting_kernel_mpc_cost_f_grad_states_u_seq" => {
-            let mut values = Vec::with_capacity(15);
-            values.resize(15, 0.0_f64);
+            let mut values = Vec::with_capacity(12);
+            values.resize(12, 0.0_f64);
             Py::new(
                 py,
                 Workspace {

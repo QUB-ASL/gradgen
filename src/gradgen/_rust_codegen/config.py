@@ -37,7 +37,6 @@ class RustBackendConfig:
     build_crate: bool = False
     build_profile: RustBuildProfile = "release"
     additional_dependencies: tuple[CargoDependency, ...] = ()
-    prefer_direct_output_sinks: bool = False
 
     def with_backend_mode(self,
                           backend_mode: RustBackendMode) \
@@ -165,25 +164,3 @@ class RustBackendConfig:
                 )
             normalized.append((name, version))
         return replace(self, additional_dependencies=tuple(normalized))
-
-    def with_prefer_direct_output_sinks(
-        self,
-        prefer_direct_output_sinks: bool = True,
-    ) -> RustBackendConfig:
-        """Return a copy with direct-output sink lowering enabled.
-
-        When enabled, Rust code generation prefers to inline single-use
-        subexpressions directly into the final output expressions and only
-        materializes reused intermediates in workspace storage.
-
-        Args:
-            prefer_direct_output_sinks: Whether to enable the more direct
-                output-sinking lowering strategy.
-
-        Returns:
-            A copy of the config with the requested lowering preference.
-        """
-        return replace(
-            self,
-            prefer_direct_output_sinks=prefer_direct_output_sinks,
-        )

@@ -172,7 +172,6 @@ def _allocate_workspace_slots(
     function,
     *,
     output_refs: tuple[SX, ...] | None = None,
-    prefer_direct_output_sinks: bool = False,
 ) -> tuple[dict[SXNode, int], int]:
     """Assign reusable workspace slots based on each node's last use."""
     if output_refs is None:
@@ -182,24 +181,15 @@ def _allocate_workspace_slots(
             for scalar in _flatten_arg(output)
         )
     required_nodes = _collect_required_workspace_nodes(output_refs)
-
-    if prefer_direct_output_sinks:
-        use_counts = _count_node_uses(output_refs)
-        workspace_nodes = [
-            node
-            for node in function.nodes
-            if node.op not in {"symbol", "const"}
-            and node in required_nodes
-            and use_counts.get(node, 0) > 1
-        ]
-        return {node: index for index, node in enumerate(workspace_nodes)}, len(
-            workspace_nodes
-        )
-
+    use_counts = _count_node_uses(output_refs)
     workspace_nodes = [
         node
         for node in function.nodes
-        if node.op not in {"symbol", "const"} and node in required_nodes
+        if (
+            node.op not in {"symbol", "const"}
+            and node in required_nodes
+            and use_counts.get(node, 0) > 1
+        )
     ]
     if not workspace_nodes:
         return {}, 0

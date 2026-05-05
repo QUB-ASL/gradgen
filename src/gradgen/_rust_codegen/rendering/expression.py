@@ -59,22 +59,22 @@ def _emit_math_call(
     """Emit a Rust math call for the selected backend mode."""
     if backend_mode == "std":
         if op == "pow":
-            return f"{args[0]}.powf({args[1]})"
+            return f"({args[0]}).powf({args[1]})"
         if op == "atan2":
-            return f"{args[0]}.atan2({args[1]})"
+            return f"({args[0]}).atan2({args[1]})"
         if op == "hypot":
-            return f"{args[0]}.hypot({args[1]})"
+            return f"({args[0]}).hypot({args[1]})"
         if op == "min":
-            return f"{args[0]}.min({args[1]})"
+            return f"({args[0]}).min({args[1]})"
         if op == "max":
-            return f"{args[0]}.max({args[1]})"
+            return f"({args[0]}).max({args[1]})"
         if op == "log":
-            return f"{args[0]}.ln()"
+            return f"({args[0]}).ln()"
         if op == "log1p":
-            return f"{args[0]}.ln_1p()"
+            return f"({args[0]}).ln_1p()"
         if op == "expm1":
-            return f"{args[0]}.exp_m1()"
-        return f"{args[0]}.{op}()"
+            return f"({args[0]}).exp_m1()"
+        return f"({args[0]}).{op}()"
 
     if op == "fract":
         trunc_expr = _emit_math_call(
