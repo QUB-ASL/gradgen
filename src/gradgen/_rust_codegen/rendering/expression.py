@@ -522,7 +522,27 @@ def _emit_binary_infix_node(
 ) -> str:
     """Emit a simple binary infix Rust expression."""
     operator = _BINARY_INFIX_OPERATORS[expr.op]
-    return f"{args[0]} {operator} {args[1]}"
+    rendered_args = [
+        f"({arg})" if child.op not in {"const", "symbol"} else arg
+        for child, arg in zip(expr.args, args)
+    ]
+    return f"{rendered_args[0]} {operator} {rendered_args[1]}"
+
+
+def _emit_nary_infix_node(
+    expr: SX,
+    args: tuple[str, ...],
+    *_unused,
+) -> str:
+    """Emit a variadic infix expression for associative operators."""
+    operator = _BINARY_INFIX_OPERATORS[expr.op]
+    if len(args) == 1:
+        return args[0]
+    rendered_args = [
+        f"({arg})" if child.op not in {"const", "symbol"} else arg
+        for child, arg in zip(expr.args, args)
+    ]
+    return f" {operator} ".join(rendered_args)
 
 
 def _emit_binary_math_node(
@@ -557,7 +577,10 @@ def _emit_pow_node(
     """Emit a Rust power expression with a square fast path."""
     del scalar_bindings, workspace_map
     if expr.args[1].op == "const" and expr.args[1].value == 2.0:
-        return f"{args[0]} * {args[0]}"
+        base_ref = args[0]
+        if expr.args[0].op not in {"const", "symbol"}:
+            base_ref = f"({base_ref})"
+        return f"{base_ref} * {base_ref}"
     return _emit_math_call(
         "pow",
         args,
@@ -946,9 +969,9 @@ def _emit_vector_reduction_node(
 
 
 _NODE_EXPR_DISPATCH = {
-    "add": _emit_binary_infix_node,
+    "add": _emit_nary_infix_node,
     "sub": _emit_binary_infix_node,
-    "mul": _emit_binary_infix_node,
+    "mul": _emit_nary_infix_node,
     "div": _emit_binary_infix_node,
     "pow": _emit_pow_node,
     "atan2": _emit_binary_math_node,

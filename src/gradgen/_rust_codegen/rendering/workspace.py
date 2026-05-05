@@ -29,58 +29,10 @@ def _emit_workspace_assignment(
     scalar_type: RustScalarType,
     math_library: str,
 ) -> str:
-    """Emit one workspace assignment, using compound operators when safe."""
-    target = f"work[{work_index}]"
-    expr = SX(node)
-    zero_ref = _format_float(0.0, scalar_type)
-    one_ref = _format_float(1.0, scalar_type)
-
-    if expr.op in {"add", "sub", "mul", "div"}:
-        left, right = expr.args
-        left_is_target = _workspace_ref_for_node(left.node, workspace_map) == target
-        right_is_target = _workspace_ref_for_node(right.node, workspace_map) == target
-        if left_is_target:
-            other_ref = _emit_expr_ref(
-                right,
-                scalar_bindings,
-                workspace_map,
-                backend_mode,
-                scalar_type,
-                math_library,
-            )
-            if (
-                (expr.op in {"add", "sub"} and other_ref == zero_ref)
-                or (expr.op in {"mul", "div"} and other_ref == one_ref)
-            ):
-                return ""
-            operator = {
-                "add": "+=",
-                "sub": "-=",
-                "mul": "*=",
-                "div": "/=",
-            }[expr.op]
-            return f"{target} {operator} {other_ref};"
-        if expr.op in {"add", "mul"} and right_is_target:
-            other_ref = _emit_expr_ref(
-                left,
-                scalar_bindings,
-                workspace_map,
-                backend_mode,
-                scalar_type,
-                math_library,
-            )
-            if (
-                (expr.op == "add" and other_ref == zero_ref)
-                or (expr.op == "mul" and other_ref == one_ref)
-            ):
-                return ""
-            operator = {
-                "add": "+=",
-                "mul": "*=",
-            }[expr.op]
-            return f"{target} {operator} {other_ref};"
-
-    return f"{target} = {rhs};"
+    """Emit one workspace assignment."""
+    del node, scalar_bindings, workspace_map, backend_mode, scalar_type
+    del math_library
+    return f"work[{work_index}] = {rhs};"
 
 
 def _emit_exact_length_assert(rust_name: str, display_name: str, expected_size: int) -> tuple[str, str, str]:
@@ -197,7 +149,7 @@ def _allocate_workspace_slots(
     node_index = {node: index for index, node in enumerate(workspace_nodes)}
     last_use = {node: index for index, node in enumerate(workspace_nodes)}
 
-    for index, node in enumerate(workspace_nodes):
+    for index, node in enumerate(function.nodes):
         for child in node.args:
             if child in node_index:
                 last_use[child] = max(last_use[child], index)
@@ -205,25 +157,16 @@ def _allocate_workspace_slots(
     output_base = len(workspace_nodes)
     for offset, scalar in enumerate(output_refs):
         if scalar.node in node_index:
-            last_use[scalar.node] = max(last_use[scalar.node], output_base + offset)
+            last_use[scalar.node] = max(
+                last_use[scalar.node], output_base + offset + 1
+            )
 
-    available_slots: list[int] = []
-    expiring_by_index: dict[int, list[int]] = {}
     workspace_map: dict[SXNode, int] = {}
     next_slot = 0
 
     for index, node in enumerate(workspace_nodes):
-        for slot in expiring_by_index.pop(index, []):
-            available_slots.append(slot)
-
-        if available_slots:
-            slot = min(available_slots)
-            available_slots.remove(slot)
-        else:
-            slot = next_slot
-            next_slot += 1
-
+        slot = next_slot
+        next_slot += 1
         workspace_map[node] = slot
-        expiring_by_index.setdefault(last_use[node], []).append(slot)
 
     return workspace_map, next_slot

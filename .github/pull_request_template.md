@@ -28,5 +28,6 @@ Either:
 - [ ] Appropriate testing
 - [ ] Create a demo in `demos/`, if necessary
 - [ ] Update `CHANGELOG`
-- [ ] Update webpage documentation (incl. Google Colab demo), if necessary
+- [ ] Update webpage documentation (incl. Google Colab demo), if necessary; update `last_update` metadata
 - [ ] Bump versions in `pyproject.toml`, if necessary
+- [ ] If a new version is being released, write blog post

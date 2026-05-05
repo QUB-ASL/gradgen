@@ -79,7 +79,9 @@ pub fn codegen_kernel_energy_f(
     if energy.len() != 1 {
         return Err(GradgenError::OutputTooSmall("energy expected length 1"));
     };
-    energy[0] = libm::sin(x[0]) * u[0] + norm2sq(x) + x[1] * x[2];
+    energy[0] = libm::sin(x[0]) * u[0];
+    energy[0] += norm2sq(x);
+    energy[0] += x[1] * x[2];
     Ok(())
 }
 
@@ -129,9 +131,12 @@ pub fn codegen_kernel_energy_jf_x(
             "jacobian_energy expected length 3",
         ));
     };
-    jacobian_energy[0] = 2.0_f64 * x[0] + libm::cos(x[0]) * u[0];
-    jacobian_energy[1] = 2.0_f64 * x[1] + x[2];
-    jacobian_energy[2] = 2.0_f64 * x[2] + x[1];
+    jacobian_energy[0] = 2.0_f64 * x[0];
+    jacobian_energy[0] += libm::cos(x[0]) * u[0];
+    jacobian_energy[1] = 2.0_f64 * x[1];
+    jacobian_energy[1] += x[2];
+    jacobian_energy[2] = 2.0_f64 * x[2];
+    jacobian_energy[2] += x[1];
     Ok(())
 }
 
@@ -228,7 +233,8 @@ pub fn codegen_kernel_coupling_f(
     if coupling.len() != 1 {
         return Err(GradgenError::OutputTooSmall("coupling expected length 1"));
     };
-    coupling[0] = libm::exp(u[0]) + x[0] * x[1];
+    coupling[0] = libm::exp(u[0]);
+    coupling[0] += x[0] * x[1];
     Ok(())
 }
 

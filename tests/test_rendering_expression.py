@@ -16,7 +16,7 @@ class RenderingExpressionTests(unittest.TestCase):
         self.assertEqual(_match_contiguous_slice(("a[0]", "a[1]")), "a")
 
     def test_emit_math_call_uses_std_backend_methods(self) -> None:
-        self.assertEqual(_emit_math_call("sin", ("x",), "std", "f64", None), "x.sin()")
+        self.assertEqual(_emit_math_call("sin", ("x",), "std", "f64", None), "(x).sin()")
 
     def test_emit_math_call_uses_no_std_math_library(self) -> None:
         self.assertEqual(_emit_math_call("pow", ("x", "y"), "no_std", "f32", "libm"), "libm::powf(x, y)")
@@ -51,6 +51,24 @@ class RenderingExpressionTests(unittest.TestCase):
                 None,
             ),
             "1.0_f64 + x",
+        )
+
+    def test_emit_node_expr_parenthesizes_square_bases(self) -> None:
+        x = SX.sym("x")
+        p = SX.sym("p")
+        from gradgen.simplify import simplify
+
+        expr = simplify((x - p) * (x - p), "basic")
+        self.assertEqual(
+            _emit_node_expr(
+                expr,
+                {x.node: "x", p.node: "p"},
+                {},
+                "std",
+                "f64",
+                None,
+            ),
+            "((-p) + x) * ((-p) + x)",
         )
 
     def test_emit_norm_abs_expr_uses_std_abs(self) -> None:

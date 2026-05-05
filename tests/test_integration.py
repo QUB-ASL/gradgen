@@ -113,17 +113,23 @@ mod integration_sympy_scalar {{
         let x = {self._rust_array_literal(numeric_point, "f64")};
         let mut primal_y = [0.0_f64; 1];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+            assert!(
+                {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work).is_ok()
+            );
         assert_close_slice(&primal_y, &{self._rust_array_literal([expected_primal], "f64")}, 1e-10_f64);
 
         let mut gradient_y = [0.0_f64; 5];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+            assert!(
+                {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work).is_ok()
+            );
         assert_close_slice(&gradient_y, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-10_f64);
 
         let mut hessian_y = [0.0_f64; 25];
         let mut hessian_work = [0.0_f64; {hessian_codegen.workspace_size}];
-        {hessian_codegen.function_name}(&x, &mut hessian_y, &mut hessian_work);
+            assert!(
+                {hessian_codegen.function_name}(&x, &mut hessian_y, &mut hessian_work).is_ok()
+            );
         assert_close_slice(&hessian_y, &{self._rust_array_literal(expected_hessian, "f64")}, 1e-10_f64);
     }}
 }}
@@ -199,17 +205,23 @@ mod integration_sympy_vector {{
         let cotangent_y = {self._rust_array_literal(cotangent, "f64")};
         let mut primal_y = [0.0_f64; 3];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+            assert!(
+                {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work).is_ok()
+            );
         assert_close_slice(&primal_y, &{self._rust_array_literal(expected_primal, "f64")}, 1e-10_f64);
 
         let mut jacobian_y = [0.0_f64; 12];
         let mut jacobian_work = [0.0_f64; {jacobian_codegen.workspace_size}];
-        {jacobian_codegen.function_name}(&x, &mut jacobian_y, &mut jacobian_work);
+            assert!(
+                {jacobian_codegen.function_name}(&x, &mut jacobian_y, &mut jacobian_work).is_ok()
+            );
         assert_close_slice(&jacobian_y, &{self._rust_array_literal(expected_jacobian, "f64")}, 1e-10_f64);
 
         let mut vjp_y = [0.0_f64; 4];
         let mut vjp_work = [0.0_f64; {vjp_codegen.workspace_size}];
-        {vjp_codegen.function_name}(&x, &cotangent_y, &mut vjp_y, &mut vjp_work);
+        assert!(
+            {vjp_codegen.function_name}(&x, &cotangent_y, &mut vjp_y, &mut vjp_work).is_ok()
+        );
         assert_close_slice(&vjp_y, &{self._rust_array_literal(expected_vjp, "f64")}, 1e-10_f64);
     }}
 }}
@@ -306,7 +318,9 @@ mod integration_sympy_sqdist {{
         let x = {self._rust_array_literal(numeric_point, "f64")};
         let mut primal_y = [0.0_f64; 1];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+            assert!(
+                {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work).is_ok()
+            );
         assert_close_slice(
             &primal_y,
             &{self._rust_array_literal([expected_primal], "f64")},
@@ -315,7 +329,9 @@ mod integration_sympy_sqdist {{
 
         let mut gradient_y = [0.0_f64; 2];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+            assert!(
+                {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work).is_ok()
+            );
         assert_close_slice(
             &gradient_y,
             &{self._rust_array_literal(expected_gradient, "f64")},
@@ -387,7 +403,9 @@ mod integration_sympy_ball {{
         let x = {self._rust_array_literal(numeric_point, "f64")};
         let mut primal_y = [0.0_f64; 1];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+            assert!(
+                {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work).is_ok()
+            );
         assert_close_slice(
             &primal_y,
             &{self._rust_array_literal([expected_primal], "f64")},
@@ -396,7 +414,9 @@ mod integration_sympy_ball {{
 
         let mut gradient_y = [0.0_f64; 2];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+            assert!(
+                {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work).is_ok()
+            );
         assert_close_slice(
             &gradient_y,
             &{self._rust_array_literal(expected_gradient, "f64")},
@@ -466,7 +486,9 @@ mod integration_sympy_rectangle {{
         let x = {self._rust_array_literal(numeric_point, "f64")};
         let mut primal_y = [0.0_f64; 1];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+            assert!(
+                {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work).is_ok()
+            );
         assert_close_slice(
             &primal_y,
             &{self._rust_array_literal([expected_primal], "f64")},
@@ -475,7 +497,9 @@ mod integration_sympy_rectangle {{
 
         let mut gradient_y = [0.0_f64; 2];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+            assert!(
+                {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work).is_ok()
+            );
         assert_close_slice(
             &gradient_y,
             &{self._rust_array_literal(expected_gradient, "f64")},
@@ -532,12 +556,16 @@ mod integration_sympy_soc {{
     fn run_case(x: [f64; 3], expected_primal: f64, expected_gradient: [f64; 3]) {{
         let mut primal_y = [0.0_f64; 1];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+            assert!(
+                {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work).is_ok()
+            );
         assert_close_slice(&primal_y, &[expected_primal], 1e-10_f64);
 
         let mut gradient_y = [0.0_f64; 3];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+            assert!(
+                {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work).is_ok()
+            );
         assert_close_slice(&gradient_y, &expected_gradient, 1e-10_f64);
     }}
 
@@ -638,7 +666,9 @@ mod integration_rust_only_sqdist {{
         let x = {self._rust_array_literal(numeric_point, "f64")};
         let mut primal_y = [0.0_f64; 1];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+            assert!(
+                {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work).is_ok()
+            );
         assert_close_slice(
             &primal_y,
             &{self._rust_array_literal([expected_primal], "f64")},
@@ -647,7 +677,9 @@ mod integration_rust_only_sqdist {{
 
         let mut gradient_y = [0.0_f64; 2];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+            assert!(
+                {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work).is_ok()
+            );
         assert_close_slice(
             &gradient_y,
             &{self._rust_array_literal(expected_gradient, "f64")},
@@ -733,7 +765,9 @@ mod integration_sympy_sqdist_symbolic {{
         let x = {self._rust_array_literal(numeric_point, "f64")};
         let mut primal_y = [0.0_f64; 1];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work);
+        assert!(
+            {primal_codegen.function_name}(&x, &mut primal_y, &mut primal_work).is_ok()
+        );
         assert_close_slice(
             &primal_y,
             &{self._rust_array_literal([expected_primal], "f64")},
@@ -742,7 +776,9 @@ mod integration_sympy_sqdist_symbolic {{
 
         let mut gradient_y = [0.0_f64; 2];
         let mut gradient_work = [0.0_f64; {gradient_codegen.workspace_size}];
-        {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work);
+        assert!(
+            {gradient_codegen.function_name}(&x, &mut gradient_y, &mut gradient_work).is_ok()
+        );
         assert_close_slice(
             &gradient_y,
             &{self._rust_array_literal(expected_gradient, "f64")},
@@ -1161,12 +1197,16 @@ mod integration_sympy_map_zip_pipeline {{
 
         let mut primal_y_seq = [0.0_f64; 4];
         let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
-        {primal_codegen.function_name}(&z_seq, &w_seq, &mut primal_y_seq, &mut primal_work);
+        assert!(
+            {primal_codegen.function_name}(&z_seq, &w_seq, &mut primal_y_seq, &mut primal_work).is_ok()
+        );
         assert_close_slice(&primal_y_seq, &{self._rust_array_literal(expected_primal, "f64")}, 1e-10_f64);
 
         let mut jacobian_y_seq = [0.0_f64; 32];
         let mut jacobian_work = [0.0_f64; {jacobian_codegen.workspace_size}];
-        {jacobian_codegen.function_name}(&z_seq, &w_seq, &mut jacobian_y_seq, &mut jacobian_work);
+        assert!(
+            {jacobian_codegen.function_name}(&z_seq, &w_seq, &mut jacobian_y_seq, &mut jacobian_work).is_ok()
+        );
         assert_close_slice(&jacobian_y_seq, &{self._rust_array_literal(expected_jacobian, "f64")}, 1e-10_f64);
     }}
 }}
@@ -1903,7 +1943,9 @@ mod integration_sympy_single_shooting {{
         let mut gradient_u_seq = [0.0_f64; 6];
         let mut x_traj = [0.0_f64; 8];
         let mut work = [0.0_f64; {joint_codegen.workspace_size}];
-        {joint_codegen.function_name}(&x0, &u_seq, &p, &mut cost, &mut gradient_u_seq, &mut x_traj, &mut work);
+        assert!(
+            {joint_codegen.function_name}(&x0, &u_seq, &p, &mut cost, &mut gradient_u_seq, &mut x_traj, &mut work).is_ok()
+        );
 
         assert_close_slice(&cost, &{self._rust_array_literal([expected_cost], "f64")}, 1e-10_f64);
         assert_close_slice(&gradient_u_seq, &{self._rust_array_literal(expected_gradient, "f64")}, 1e-10_f64);

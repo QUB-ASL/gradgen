@@ -66,7 +66,7 @@ class RenderingWorkspaceTests(unittest.TestCase):
         self.assertEqual(workspace_size, 1)
         self.assertEqual(len(workspace_map), 1)
 
-    def test_workspace_assignment_skips_noop_updates(self) -> None:
+    def test_workspace_assignment_uses_plain_assignments(self) -> None:
         x = SX.sym("x")
         base = x + 1.0
         add_zero = base + 0.0
@@ -85,7 +85,7 @@ class RenderingWorkspaceTests(unittest.TestCase):
                 "f64",
                 None,
             ),
-            "",
+            "work[0] = rhs;",
         )
         self.assertEqual(
             _emit_workspace_assignment(
@@ -98,5 +98,5 @@ class RenderingWorkspaceTests(unittest.TestCase):
                 "f64",
                 None,
             ),
-            "",
+            "work[0] = rhs;",
         )

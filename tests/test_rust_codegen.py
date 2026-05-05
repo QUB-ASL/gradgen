@@ -493,7 +493,7 @@ mod {module_name} {{
             "pub fn square_plus_one_meta() -> FunctionMetadata {",
             result.source,
         )
-        self.assertIn("workspace_size: 1,", result.source)
+        self.assertIn("workspace_size: 0,", result.source)
         self.assertIn("/// Arguments:", result.source)
         self.assertIn("/// - `x`:", result.source)
         self.assertIn(
@@ -511,15 +511,7 @@ mod {module_name} {{
             result.source,
         )
         self.assertIn(
-            "Expected length: at least 1.",
-            result.source,
-        )
-        self.assertIn(
             "pub fn square_plus_one(",
-            result.source,
-        )
-        self.assertIn(
-            'WorkspaceTooSmall("work expected at least 1")',
             result.source,
         )
         self.assertIn(
@@ -530,9 +522,8 @@ mod {module_name} {{
             'OutputTooSmall("y expected length 1")',
             result.source,
         )
-        self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[0] += 1.0_f64;", result.source)
-        self.assertIn("y[0] = work[0];", result.source)
+        self.assertIn("y[0] = 1.0_f64;", result.source)
+        self.assertIn("y[0] += x[0] * x[0];", result.source)
 
     def test_single_use_outputs_are_lowered_directly(self) -> None:
         x = SX.sym("x")
@@ -1281,7 +1272,7 @@ mod single_shooting_multi_u_tests {{
                 [
                     {
                         "function_name": "energy",
-                        "workspace_size": 1,
+                        "workspace_size": 0,
                         "input_names": ["x"],
                         "input_sizes": [2],
                         "output_names": ["y"],
@@ -1886,11 +1877,9 @@ mod single_shooting_multi_u_tests {{
             project = builder.build(Path(tmpdir) / "simplified_builder")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("work[0] = x[0] * x[0];", lib_text)
-            self.assertIn("work[0] = 2.0_f64 * x[0];", lib_text)
-            self.assertIn("work[0] = 2.0_f64 * v_x[0];", lib_text)
-            self.assertIn("work[1] = 2.0_f64 * x[0];", lib_text)
-            self.assertIn("work[2] = 2.0_f64 * v_x[0];", lib_text)
+            self.assertIn("y[0] = x[0] * x[0];", lib_text)
+            self.assertIn("jacobian_y[0] = 2.0_f64 * x[0];", lib_text)
+            self.assertIn("hvp_y[0] = 2.0_f64 * v_x[0];", lib_text)
 
     def test_code_generation_builder_supports_vjp_generation(self) -> None:
         x = SXVector.sym("x", 2)
@@ -2912,19 +2901,16 @@ mod tests {{
         self.assertIn(
             (
                 "pub fn square_plus_one(x: &[f32], y: &mut [f32], "
-                "work: &mut [f32]) -> Result<(), GradgenError> "
+                "_work: &mut [f32]) -> Result<(), GradgenError> "
             ),
             result.source,
         )
         self.assertIn(
-            (
-                "if work.is_empty() { "
-                "return Err(GradgenError::WorkspaceTooSmall("
-                '"work expected at least 1")); };'
-            ),
+            "workspace_size: 0,",
             result.source,
         )
-        self.assertIn("work[0] += 1.0_f32;", result.source)
+        self.assertIn("y[0] = 1.0_f32;", result.source)
+        self.assertIn("y[0] += x[0] * x[0];", result.source)
 
     def test_no_std_f32_codegen_uses_libm_f32_entry_points(self) -> None:
         x = SX.sym("x")
@@ -3152,12 +3138,12 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "work[0] = quadform(&[2.0_f64, 2.0_f64, 0.0_f64, 3.0_f64], 2, x);",
+            "qx[0] = quadform(&[2.0_f64, 2.0_f64, 0.0_f64, 3.0_f64], 2, x);",
             result.source,
         )
         self.assertIn(
             (
-                "work[1] = bilinear_form(x, &[2.0_f64, 1.0_f64, "
+                "bxy[0] = bilinear_form(x, &[2.0_f64, 1.0_f64, "
                 "1.0_f64, 3.0_f64], 2, 2, y);"
             ),
             result.source,
@@ -3326,9 +3312,10 @@ mod tests {{
 
         self.assertEqual(result.source.count("x[0] * x[0]"), 1)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[0] += 1.0_f64;", result.source)
-        self.assertIn("work[1] = work[0] * work[0];", result.source)
-        self.assertIn("work[0] += work[1];", result.source)
+        self.assertIn("work[1] = 1.0_f64 + (work[0]);", result.source)
+        self.assertIn("y[0] = 1.0_f64;", result.source)
+        self.assertIn("y[0] += work[0];", result.source)
+        self.assertIn("y[0] += (work[1]) * (work[1]);", result.source)
 
     def test_generated_code_uses_rust_math_methods(self) -> None:
         x = SX.sym("x")
@@ -4424,10 +4411,11 @@ fn weighted_sqnorm_no_dead_work_hvp(
             self.assertIn(
                 (
                     "pub fn trig_kernel(x: &[f32], y: &mut [f32], "
-                    "work: &mut [f32]) -> Result<(), GradgenError> "
+                    "_work: &mut [f32]) -> Result<(), GradgenError> "
                 ),
                 lib_text,
             )
+            self.assertIn("workspace_size: 0,", lib_text)
 
             try:
                 completed = self._run_cargo(
@@ -4793,9 +4781,9 @@ mod tests {
             single_crate_f_hvp_meta().workspace_size
         ];
 
-        single_crate_f_f(&x, &mut y, &mut work_f);
-        single_crate_f_grad(&x, &mut y_grad, &mut work_grad);
-        single_crate_f_hvp(&x, &v_x, &mut y_hvp, &mut work_hvp);
+            assert!(single_crate_f_f(&x, &mut y, &mut work_f).is_ok());
+            assert!(single_crate_f_grad(&x, &mut y_grad, &mut work_grad).is_ok());
+            assert!(single_crate_f_hvp(&x, &v_x, &mut y_hvp, &mut work_hvp).is_ok());
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(y_grad, [10.0_f64, 11.0_f64]);
@@ -4843,7 +4831,7 @@ mod tests {
         let mut jacobian_y = [0.0_f64, 0.0_f64];
         let mut work = vec![0.0_f64; joint_f_f_jf_meta().workspace_size];
 
-        joint_f_f_jf(&x, &mut y, &mut jacobian_y, &mut work);
+        assert!(joint_f_f_jf(&x, &mut y, &mut jacobian_y, &mut work).is_ok());
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);

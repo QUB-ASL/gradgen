@@ -35,6 +35,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   so trivial `+ 0` and `* 1` wrappers no longer force workspace code, direct
   Jacobian helper calls can be emitted again, and synthesized Jacobian
   helpers now use loops instead of fully unrolled per-component assignments.
+- Fixed workspace liveness tracking in Rust codegen so shared intermediates
+  are not overwritten before their final consumers, restoring correct
+  generated derivatives and other workspace-heavy kernels.
+
+### Fixed
+
+- Fixed Rust rendering of squared expressions so non-atomic bases are
+  parenthesized before applying the square fast path. This restores correct
+  code generation for terms such as `(x - p)^2` in simplified single-shooting
+  costs and similar expressions.
 - Optimized `SquaredDistanceToSet.euclidean_ball(...)` Rust code generation by
   routing it through compact Rust helper snippets and Python callbacks,
   avoiding scalarized symbolic expansions such as `x[i] - 0` chains and
