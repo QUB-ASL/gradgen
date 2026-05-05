@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   routing it through compact Rust helper snippets and Python callbacks,
   avoiding scalarized symbolic expansions such as `x[i] - 0` chains and
   enabling loop-based primal and Jacobian kernels.
+- Optimized `SquaredDistanceToSet.infinity_ball(...)` Rust code generation in
+  the same way, including a zero-center fast path and compact loop-based
+  primal, projection, and Jacobian helpers.
 
 
 ## 0.5.0 - 01-05-2026

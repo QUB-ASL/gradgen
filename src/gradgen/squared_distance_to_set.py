@@ -417,42 +417,132 @@ fn {name}(
             "x" if input_name is None else input_name,
             label="input_name",
         )
-        x = SXVector.sym(resolved_input_name, len(normalized_center))
         center_vector = SXVector(
             tuple(SX.const(value) for value in normalized_center)
         )
-        lower = SXVector(
-            tuple(
-                SX.const(center_value - radius_value)
-                for center_value in normalized_center
-            )
-        )
-        upper = SXVector(
-            tuple(
-                SX.const(center_value + radius_value)
-                for center_value in normalized_center
-            )
-        )
-        projection = Function(
-            f"{name}_projection",
-            [x],
-            [
-                SXVector(
-                    tuple(
-                        x_i.maximum(lower_i).minimum(upper_i)
-                        for x_i, lower_i, upper_i in zip(
-                            x, lower, upper, strict=True
-                        )
+        radius_literal = repr(radius_value)
+        center_literal = _render_rust_real_array_literal(normalized_center)
+        zero_center = all(center == 0.0 for center in normalized_center)
+
+        def projection(
+            value: SXVector | tuple[object, ...] | list[object],
+        ) -> tuple[object, ...]:
+            vector_value = _coerce_vector_like(value)
+            if any(isinstance(item, SX) for item in vector_value):
+                symbolic_value = SXVector(tuple(vector_value))
+                projected = tuple(
+                    (x_i - center_i)
+                    .maximum(SX.const(-radius_value))
+                    .minimum(SX.const(radius_value))
+                    + center_i
+                    for x_i, center_i in zip(
+                        symbolic_value,
+                        center_vector,
+                        strict=True,
                     )
                 )
-            ],
-            input_names=[resolved_input_name],
-            output_names=["p"],
+                return projected
+
+            return tuple(
+                min(
+                    max(float(component), center - radius_value),
+                    center + radius_value,
+                )
+                for component, center in zip(
+                    vector_value,
+                    normalized_center,
+                    strict=True,
+                )
+            )
+
+        def sq_distance(
+            value: SXVector | tuple[object, ...] | list[object],
+        ) -> float:
+            vector_value = _coerce_vector_like(value)
+            total = 0.0
+            for component, center in zip(
+                vector_value,
+                normalized_center,
+                strict=True,
+            ):
+                excess = abs(float(component) - center) - radius_value
+                positive_excess = max(excess, 0.0)
+                total += positive_excess * positive_excess
+            return 0.5 * total
+
+        if zero_center:
+            rust_projection = f"""
+fn {name}_projection(
+    x: &[{{{{ scalar_type }}}}],
+    out: &mut [{{{{ scalar_type }}}}],
+) {{
+    let radius = {radius_literal}_{{{{ scalar_type }}}};
+    for index in 0..{len(normalized_center)} {{
+        let delta = x[index];
+        out[index] = delta.max(-radius).min(radius);
+    }}
+}}
+"""
+            rust_sq_distance = f"""
+fn {name}(
+    x: &[{{{{ scalar_type }}}}],
+    w: &[{{{{ scalar_type }}}}],
+) -> {{{{ scalar_type }}}} {{
+    let _ = w;
+    let radius = {radius_literal}_{{{{ scalar_type }}}};
+    let zero = 0.0_{{{{ scalar_type }}}};
+    let mut sum_sq = zero;
+    for index in 0..{len(normalized_center)} {{
+        let delta = x[index];
+        let excess = delta.abs() - radius;
+        let positive_excess = excess.max(zero);
+        sum_sq += positive_excess * positive_excess;
+    }}
+    0.5_{{{{ scalar_type }}}} * sum_sq
+}}
+"""
+        else:
+            rust_projection = f"""
+fn {name}_projection(
+    x: &[{{{{ scalar_type }}}}],
+    out: &mut [{{{{ scalar_type }}}}],
+) {{
+    let center = {center_literal};
+    let radius = {radius_literal}_{{{{ scalar_type }}}};
+    for index in 0..{len(normalized_center)} {{
+        let delta = x[index] - center[index];
+        out[index] = center[index] + delta.max(-radius).min(radius);
+    }}
+}}
+"""
+            rust_sq_distance = f"""
+fn {name}(
+    x: &[{{{{ scalar_type }}}}],
+    w: &[{{{{ scalar_type }}}}],
+) -> {{{{ scalar_type }}}} {{
+    let _ = w;
+    let center = {center_literal};
+    let radius = {radius_literal}_{{{{ scalar_type }}}};
+    let zero = 0.0_{{{{ scalar_type }}}};
+    let mut sum_sq = zero;
+    for index in 0..{len(normalized_center)} {{
+        let delta = x[index] - center[index];
+        let excess = delta.abs() - radius;
+        let positive_excess = excess.max(zero);
+        sum_sq += positive_excess * positive_excess;
+    }}
+    0.5_{{{{ scalar_type }}}} * sum_sq
+}}
+"""
+
+        return (
+            cls(name=name, _input_name=resolved_input_name)
+            .with_sq_distance(sq_distance)
+            .with_projection(projection)
+            .with_rust_projection(rust_projection)
+            .with_rust_sq_distance(rust_sq_distance)
+            ._with_input_dimension(len(normalized_center))
         )
-        return cls(
-            name=name,
-            _input_name=resolved_input_name,
-        ).with_projection_function(projection)
 
     @classmethod
     def rectangle(

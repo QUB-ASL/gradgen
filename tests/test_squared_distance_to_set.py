@@ -140,6 +140,37 @@ fn dist_to_axis_rust_only_projection(
         self.assertEqual(distance([2.0, 3.0]), 2.5)
         self.assertEqual(distance.jacobian()([2.0, 3.0]), (1.0, 2.0))
 
+    def test_infinity_ball_codegen_uses_compact_rust_helpers(self) -> None:
+        distance = SquaredDistanceToSet.infinity_ball(
+            name="unit_infinity_ball_codegen",
+            center=(0.0,) * 20,
+            radius=1.0,
+        )
+        x = SXVector.sym("x", 20)
+        f = Function("f", [x], [distance(x)], input_names=["x"])
+
+        primal = f.generate_rust(backend_mode="no_std")
+        gradient = f.gradient(0).generate_rust(backend_mode="no_std")
+
+        self.assertNotIn("let center = [0.0_f64; 20];", primal.source)
+        self.assertNotIn("x[index] - center[index]", primal.source)
+        self.assertIn("let delta = x[index];", primal.source)
+        self.assertIn("for index in 0..20 {", primal.source)
+        self.assertIn(
+            "fn unit_infinity_ball_codegen_projection(",
+            gradient.source,
+        )
+        self.assertNotIn("let center = [0.0_f64; 20];", gradient.source)
+        self.assertIn("let delta = x[index];", gradient.source)
+        self.assertIn(
+            "unit_infinity_ball_codegen_jacobian(x, &[], o0);",
+            gradient.source,
+        )
+        self.assertNotIn(
+            "unit_infinity_ball_codegen_jacobian_component",
+            gradient.source,
+        )
+
     def test_rectangle_factory_supports_infinite_bounds(self) -> None:
         distance = SquaredDistanceToSet.rectangle(
             name="half_infinite_box",
