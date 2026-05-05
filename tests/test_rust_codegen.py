@@ -618,10 +618,7 @@ mod {module_name} {{
         )
         self.assertIn("workspace_size: 0,", result.source)
         self.assertIn("pub fn kernel(", result.source)
-        self.assertIn(
-            'WorkspaceTooSmall("work expected at least 0")',
-            result.source,
-        )
+        self.assertIn("_work: &mut [f64]", result.source)
         self.assertIn("dot[0] =", result.source)
         self.assertIn("sum[0] =", result.source)
         self.assertIn("sum[1] =", result.source)
