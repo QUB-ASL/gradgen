@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 [![PyPI](https://img.shields.io/badge/gradgen-v0.5.0-blue)](https://pypi.org/project/gradgen/0.5.0)
 [![PyPI](https://img.shields.io/badge/release-v0.5.0-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.5.0)
 
+## Unreleased
+
+### Changed
+
+- Added page metadata to the Docusaurus docs under `docs/website/docs` to
+  improve SEO, link previews, and page-specific discoverability.
+- Added SEO-oriented metadata to the Docusaurus intro page, including a
+  description, keywords, and social preview image.
+- Added `last_update` metadata to all pages
+
 
 ### Added
 
