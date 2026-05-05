@@ -478,7 +478,7 @@ fn {name}_projection(
         return;
     }}
 
-    let norm_y = sum_sq.sqrt();
+    let norm_y = {{{{ sqrt(sum_sq) }}}};
     let beta = (alpha * norm_y + t) / alpha_sq_plus_one;
     let scale = alpha * beta / norm_y;
     for index in 0..last {{
@@ -515,7 +515,7 @@ fn {name}(
         return zero;
     }}
 
-    let norm_y = sum_sq.sqrt();
+    let norm_y = {{{{ sqrt(sum_sq) }}}};
     let beta = (alpha * norm_y + t) / alpha_sq_plus_one;
     let y_scale = one - (alpha * beta / norm_y);
     let dt = t - beta;

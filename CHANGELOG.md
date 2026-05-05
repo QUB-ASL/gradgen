@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `SquaredDistanceToSet.second_order_cone(...)` so the projection defers
   `sqrt(...)` to the nontrivial branch, and the primal helper computes the
   half-squared distance directly without first materializing the projection.
+- Fixed Rust-backed custom snippets used by
+  `SquaredDistanceToSet.second_order_cone(...)` so generated `no_std`
+  crates use the configured math library for `sqrt(...)` instead of calling
+  an unavailable inherent floating-point method.
 
 
 ## 0.5.0 - 01-05-2026

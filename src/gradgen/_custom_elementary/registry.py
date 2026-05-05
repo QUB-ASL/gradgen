@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Sequence
 
 from ..sx import SX, SXVector
@@ -87,7 +88,31 @@ def render_custom_rust_snippet(
     """Render a user-provided Rust snippet with simple placeholders."""
     rendered = snippet.replace("{{ scalar_type }}", scalar_type)
     rendered = rendered.replace("{{ math_library }}", math_library or "")
+    rendered = _render_sqrt_placeholders(
+        rendered,
+        scalar_type=scalar_type,
+        math_library=math_library,
+    )
     return tuple(line.rstrip() for line in rendered.strip().splitlines())
+
+
+def _render_sqrt_placeholders(
+    snippet: str,
+    *,
+    scalar_type: str,
+    math_library: str | None,
+) -> str:
+    """Replace ``{{ sqrt(expr) }}`` placeholders in Rust snippets."""
+    pattern = re.compile(r"\{\{\s*sqrt\((.*?)\)\s*\}\}")
+
+    def replace(match: re.Match[str]) -> str:
+        expr = match.group(1).strip()
+        if math_library is None:
+            return f"({expr}).sqrt()"
+        function_name = "sqrtf" if scalar_type == "f32" else "sqrt"
+        return f"{math_library}::{function_name}({expr})"
+
+    return pattern.sub(replace, snippet)
 
 
 def parse_custom_scalar_args(

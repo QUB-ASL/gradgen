@@ -309,7 +309,7 @@ fn dist_to_axis_codegen_projection(
             "if t >= zero && sum_sq <= alpha_sq * t_sq {",
             generated.source,
         )
-        self.assertIn("let norm_y = sum_sq.sqrt();", generated.source)
+        self.assertIn("let norm_y = libm::sqrt(sum_sq);", generated.source)
         self.assertIn(
             "return 0.5_f64 * (t_sq + sum_sq);",
             generated.source,
