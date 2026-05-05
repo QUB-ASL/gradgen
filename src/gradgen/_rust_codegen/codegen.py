@@ -412,18 +412,18 @@ def generate_rust(
             resolved_config.scalar_type,
             resolved_math_library,
         )
-        computation_lines.append(
-            _emit_workspace_assignment(
-                node,
-                work_index,
-                rhs,
-                scalar_bindings,
-                workspace_map,
-                resolved_config.backend_mode,
-                resolved_config.scalar_type,
-                resolved_math_library,
-            )
+        assignment = _emit_workspace_assignment(
+            node,
+            work_index,
+            rhs,
+            scalar_bindings,
+            workspace_map,
+            resolved_config.backend_mode,
+            resolved_config.scalar_type,
+            resolved_math_library,
         )
+        if assignment:
+            computation_lines.append(assignment)
 
     for output_spec, output_arg, direct_helper_call in zip(
             output_specs, function.outputs, direct_output_helpers):

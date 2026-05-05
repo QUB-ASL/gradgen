@@ -5,6 +5,7 @@ from __future__ import annotations
 from ...sx import SX, SXNode
 from ..config import RustBackendMode, RustScalarType
 from .expression import _emit_expr_ref
+from .util import _format_float
 from .util import _flatten_arg
 
 
@@ -29,6 +30,8 @@ def _emit_workspace_assignment(
     """Emit one workspace assignment, using compound operators when safe."""
     target = f"work[{work_index}]"
     expr = SX(node)
+    zero_ref = _format_float(0.0, scalar_type)
+    one_ref = _format_float(1.0, scalar_type)
 
     if expr.op in {"add", "sub", "mul", "div"}:
         left, right = expr.args
@@ -43,6 +46,11 @@ def _emit_workspace_assignment(
                 scalar_type,
                 math_library,
             )
+            if (
+                (expr.op in {"add", "sub"} and other_ref == zero_ref)
+                or (expr.op in {"mul", "div"} and other_ref == one_ref)
+            ):
+                return ""
             operator = {
                 "add": "+=",
                 "sub": "-=",
@@ -59,6 +67,11 @@ def _emit_workspace_assignment(
                 scalar_type,
                 math_library,
             )
+            if (
+                (expr.op == "add" and other_ref == zero_ref)
+                or (expr.op == "mul" and other_ref == one_ref)
+            ):
+                return ""
             operator = {
                 "add": "+=",
                 "mul": "*=",

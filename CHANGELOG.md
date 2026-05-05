@@ -24,6 +24,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `SquaredDistanceToSet.second_order_cone(...)` so generated `no_std`
   crates use the configured math library for `sqrt(...)` instead of calling
   an unavailable inherent floating-point method.
+- Optimized generated Rust gradients for projection-backed custom distances
+  so trivial `+ 0` and `* 1` wrappers no longer force workspace code, direct
+  Jacobian helper calls can be emitted again, and synthesized Jacobian
+  helpers now use loops instead of fully unrolled per-component assignments.
 
 
 ## 0.5.0 - 01-05-2026

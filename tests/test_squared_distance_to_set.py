@@ -286,8 +286,15 @@ fn dist_to_axis_codegen_projection(
         generated = f.gradient(0).generate_rust(backend_mode="no_std")
 
         self.assertIn("dist_to_axis_codegen_projection", generated.source)
-        self.assertIn("out[0] = x[0] - projection[0];", generated.source)
-        self.assertIn("out[1] = x[1] - projection[1];", generated.source)
+        self.assertIn(
+            "for index in 0..2 {\n        out[index] = x[index] - "
+            "projection[index];\n    }",
+            generated.source,
+        )
+        self.assertIn(
+            "dist_to_axis_codegen_jacobian(x, &[], o0);",
+            generated.source,
+        )
 
     def test_second_order_cone_rust_projection_defers_sqrt(self) -> None:
         distance = SquaredDistanceToSet.second_order_cone(
@@ -318,6 +325,32 @@ fn dist_to_axis_codegen_projection(
             "let dist_sq = y_scale * y_scale * sum_sq + dt * dt;",
             generated.source,
         )
+
+    def test_second_order_cone_gradient_codegen_uses_looped_jacobian(self) -> None:
+        distance = SquaredDistanceToSet.second_order_cone(
+            name="soc_grad_codegen",
+            alpha=2.0,
+            dimension=20,
+        )
+        x = SXVector.sym("x", 20)
+        f = Function("f", [x], [distance(x)], input_names=["x"])
+
+        generated = f.gradient(0).generate_rust(backend_mode="no_std")
+
+        self.assertIn(
+            "for index in 0..20 {",
+            generated.source,
+        )
+        self.assertIn(
+            "out[index] = x[index] - projection[index];",
+            generated.source,
+        )
+        self.assertIn(
+            "soc_grad_codegen_jacobian(x, &[], o0);",
+            generated.source,
+        )
+        self.assertNotIn("soc_grad_codegen_jacobian_component", generated.source)
+        self.assertNotIn("+= 0.0_f64;", generated.source)
 
     def test_requires_projection_before_use(self) -> None:
         distance = (

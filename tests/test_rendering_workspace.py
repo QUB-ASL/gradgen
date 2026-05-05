@@ -7,6 +7,7 @@ from gradgen._rust_codegen.rendering.workspace import (
     _collect_required_workspace_nodes,
     _emit_exact_length_assert,
     _emit_min_length_assert,
+    _emit_workspace_assignment,
     _workspace_ref_for_node,
 )
 from gradgen.sx import SX, SXNode
@@ -49,3 +50,38 @@ class RenderingWorkspaceTests(unittest.TestCase):
         workspace_map, workspace_size = _allocate_workspace_slots(function)
         self.assertGreaterEqual(workspace_size, 1)
         self.assertTrue(workspace_map)
+
+    def test_workspace_assignment_skips_noop_updates(self) -> None:
+        x = SX.sym("x")
+        base = x + 1.0
+        add_zero = base + 0.0
+        mul_one = base * 1.0
+
+        workspace_map = {base.node: 0, add_zero.node: 0, mul_one.node: 0}
+
+        self.assertEqual(
+            _emit_workspace_assignment(
+                add_zero.node,
+                0,
+                "rhs",
+                {x.node: "x"},
+                workspace_map,
+                "std",
+                "f64",
+                None,
+            ),
+            "",
+        )
+        self.assertEqual(
+            _emit_workspace_assignment(
+                mul_one.node,
+                0,
+                "rhs",
+                {x.node: "x"},
+                workspace_map,
+                "std",
+                "f64",
+                None,
+            ),
+            "",
+        )

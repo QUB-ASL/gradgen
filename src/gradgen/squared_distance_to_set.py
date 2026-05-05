@@ -774,13 +774,9 @@ fn {name}(
                     f"[0.0_{{{{ scalar_type }}}}; {input_dimension}];"
                 ),
                 f"    {self.name}_projection(x, &mut projection);",
-                *[
-                    (
-                        f"    out[{index}] = x[{index}] - "
-                        f"projection[{index}];"
-                    )
-                    for index in range(input_dimension)
-                ],
+                f"    for index in 0..{input_dimension} {{",
+                "        out[index] = x[index] - projection[index];",
+                "    }",
                 "}",
             ]
         )
