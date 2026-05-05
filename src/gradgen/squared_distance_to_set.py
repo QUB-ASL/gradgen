@@ -226,24 +226,117 @@ class SquaredDistanceToSet:
             "x" if input_name is None else input_name,
             label="input_name",
         )
-        x = SXVector.sym(resolved_input_name, len(normalized_center))
         center_vector = SXVector(
             tuple(SX.const(value) for value in normalized_center)
         )
-        delta = x - center_vector
-        norm = delta.norm2()
-        scale = SX.const(radius_value) / norm.maximum(SX.const(radius_value))
-        projection = Function(
-            f"{name}_projection",
-            [x],
-            [center_vector + delta * scale],
-            input_names=[resolved_input_name],
-            output_names=["p"],
+        radius_literal = repr(radius_value)
+        center_literal = _render_rust_real_array_literal(normalized_center)
+
+        def projection(
+            value: SXVector | tuple[object, ...] | list[object],
+        ) -> tuple[object, ...]:
+            vector_value = _coerce_vector_like(value)
+            if any(isinstance(item, SX) for item in vector_value):
+                symbolic_value = SXVector(tuple(vector_value))
+                delta = symbolic_value - center_vector
+                norm = delta.norm2()
+                scale = (
+                    SX.const(radius_value)
+                    / norm.maximum(SX.const(radius_value))
+                )
+                return tuple(center_vector + (delta * scale))
+
+            delta = tuple(
+                float(component) - center
+                for component, center in zip(
+                    vector_value,
+                    normalized_center,
+                    strict=True,
+                )
+            )
+            norm = math.sqrt(sum(component * component for component in delta))
+            scale = radius_value / max(norm, radius_value)
+            return tuple(
+                center + (component * scale)
+                for component, center in zip(
+                    delta,
+                    normalized_center,
+                    strict=True,
+                )
+            )
+
+        def sq_distance(
+            value: SXVector | tuple[object, ...] | list[object],
+        ) -> float:
+            vector_value = _coerce_vector_like(value)
+            delta = tuple(
+                float(component) - center
+                for component, center in zip(
+                    vector_value,
+                    normalized_center,
+                    strict=True,
+                )
+            )
+            norm = math.sqrt(sum(component * component for component in delta))
+            excess = max(norm - radius_value, 0.0)
+            return 0.5 * excess * excess
+
+        rust_projection = f"""
+fn {name}_projection(
+    x: &[{{{{ scalar_type }}}}],
+    out: &mut [{{{{ scalar_type }}}}],
+) {{
+    let center = {center_literal};
+    let radius = {radius_literal}_{{{{ scalar_type }}}};
+    let zero = 0.0_{{{{ scalar_type }}}};
+    let mut sum_sq = zero;
+    for index in 0..{len(normalized_center)} {{
+        out[index] = x[index] - center[index];
+        sum_sq += out[index] * out[index];
+    }}
+    let norm = {{{{ sqrt(sum_sq) }}}};
+    if norm <= radius {{
+        out.copy_from_slice(x);
+        return;
+    }}
+    let scale = radius / norm;
+    for index in 0..{len(normalized_center)} {{
+        out[index] = center[index] + out[index] * scale;
+    }}
+}}
+"""
+
+        rust_sq_distance = f"""
+fn {name}(
+    x: &[{{{{ scalar_type }}}}],
+    w: &[{{{{ scalar_type }}}}],
+) -> {{{{ scalar_type }}}} {{
+    let _ = w;
+    let center = {center_literal};
+    let radius = {radius_literal}_{{{{ scalar_type }}}};
+    let zero = 0.0_{{{{ scalar_type }}}};
+    let mut sum_sq = zero;
+    for index in 0..{len(normalized_center)} {{
+        let delta = x[index] - center[index];
+        sum_sq += delta * delta;
+    }}
+    let norm = {{{{ sqrt(sum_sq) }}}};
+    if norm <= radius {{
+        return zero;
+    }}
+    let excess = norm - radius;
+    0.5_{{{{ scalar_type }}}} * excess * excess
+}}
+"""
+
+        return (
+            cls(name=name, _input_name=resolved_input_name)
+            .with_sq_distance(sq_distance)
+            .with_projection(projection)
+            .with_rust_projection(rust_projection)
+            .with_rust_sq_distance(rust_sq_distance)
+            ._with_input_dimension(len(normalized_center))
         )
-        return cls(
-            name=name,
-            _input_name=resolved_input_name,
-        ).with_projection_function(projection)
 
     @classmethod
     def infinity_ball(
@@ -938,6 +1031,18 @@ def _coerce_input_dimension(
     if value < minimum:
         raise ValueError(f"{label} must be at least {minimum}")
     return value
+
+
+def _render_rust_real_array_literal(values: Sequence[float]) -> str:
+    """Return a Rust array literal using ``{{ scalar_type }}`` suffixes."""
+    if not values:
+        return "[]"
+    if all(value == values[0] for value in values[1:]):
+        return f"[{repr(values[0])}_{{{{ scalar_type }}}}; {len(values)}]"
+    rendered_values = ", ".join(
+        f"{repr(value)}_{{{{ scalar_type }}}}" for value in values
+    )
+    return f"[{rendered_values}]"
 
 
 def _coerce_symbol_name(value: object, *, label: str) -> str:

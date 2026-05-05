@@ -100,6 +100,36 @@ fn dist_to_axis_rust_only_projection(
         self.assertEqual(distance.jacobian()([3.0, 4.0]), (2.4, 3.2))
         self.assertEqual(distance([0.2, 0.3]), 0.0)
 
+    def test_euclidean_ball_codegen_uses_compact_rust_helpers(self) -> None:
+        distance = SquaredDistanceToSet.euclidean_ball(
+            name="unit_ball_codegen",
+            center=(0.0,) * 20,
+            radius=1.0,
+        )
+        x = SXVector.sym("x", 20)
+        f = Function("f", [x], [distance(x)], input_names=["x"])
+
+        primal = f.generate_rust(backend_mode="no_std")
+        gradient = f.gradient(0).generate_rust(backend_mode="no_std")
+
+        self.assertNotIn("let center = [0.0_f64; 20];", primal.source)
+        self.assertNotIn("x[index] - center[index]", primal.source)
+        self.assertIn("sum_sq += x[index] * x[index];", primal.source)
+        self.assertIn("for index in 0..20 {", primal.source)
+        self.assertNotIn("x[0] - 0.0_f64", primal.source)
+        self.assertIn(
+            "fn unit_ball_codegen_projection(",
+            gradient.source,
+        )
+        self.assertNotIn("let center = [0.0_f64; 20];", gradient.source)
+        self.assertNotIn("x[index] - center[index]", gradient.source)
+        self.assertIn("out[index] = x[index];", gradient.source)
+        self.assertIn(
+            "unit_ball_codegen_jacobian(x, &[], o0);",
+            gradient.source,
+        )
+        self.assertNotIn("unit_ball_codegen_jacobian_component", gradient.source)
+
     def test_infinity_ball_factory(self) -> None:
         distance = SquaredDistanceToSet.infinity_ball(
             name="unit_infinity_ball",

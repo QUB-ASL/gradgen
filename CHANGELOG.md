@@ -28,6 +28,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   so trivial `+ 0` and `* 1` wrappers no longer force workspace code, direct
   Jacobian helper calls can be emitted again, and synthesized Jacobian
   helpers now use loops instead of fully unrolled per-component assignments.
+- Optimized `SquaredDistanceToSet.euclidean_ball(...)` Rust code generation by
+  routing it through compact Rust helper snippets and Python callbacks,
+  avoiding scalarized symbolic expansions such as `x[i] - 0` chains and
+  enabling loop-based primal and Jacobian kernels.
 
 
 ## 0.5.0 - 01-05-2026
