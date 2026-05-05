@@ -126,6 +126,8 @@ B = \{x\in\mathbb{R}^n: \|x - x_0\| \leq r\}.
 A Euclidean ball centered at the origin with radius 1 can be
 written as
 
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1y5gcUEKxsku7jJxTY-uWk1aYZhw8pfDC?usp=sharing)
+
 ```python
 distance = SquaredDistanceToSet.euclidean_ball(
     name="unit_ball",
@@ -136,6 +138,8 @@ distance = SquaredDistanceToSet.euclidean_ball(
 ```
 
 Similary, we can construct infinity-norm balls:
+
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1y5gcUEKxsku7jJxTY-uWk1aYZhw8pfDC?usp=sharing)
 
 ```python
 distance = SquaredDistanceToSet.infinity_ball(
@@ -167,12 +171,15 @@ distance = SquaredDistanceToSet.rectangle(
 
 ### Second-order cones
 
+
 Gradgen also provides a Rust-backed constructor for second-order cones of
 the form
 ```math
 C_\alpha = \{x=(y,t)\in\mathbb{R}^n: \|y\|_2 \leq \alpha t\},
 ```
-where $alpha > 0$ is a constant parameter.
+where $\alpha > 0$ is a constant parameter.
+
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1WBIH8jNSRkS6navXOwXWE5AYfHavjaMx?usp=sharing)
 
 ```python
 distance = SquaredDistanceToSet.second_order_cone(
