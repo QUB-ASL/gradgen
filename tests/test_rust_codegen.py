@@ -5022,7 +5022,7 @@ mod joint_hessian_tests {
             self.assertIn(
                 (
                     "pub fn my_kernel_f_f(x: &[f32], y: &mut [f32], "
-                    "work: &mut [f32]) -> Result<(), GradgenError> "
+                    "_work: &mut [f32]) -> Result<(), GradgenError> "
                 ),
                 lib_text,
             )
