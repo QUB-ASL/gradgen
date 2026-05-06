@@ -441,19 +441,35 @@ class SX:
         return _unary("neg", self)
 
     def __lt__(self, other: object) -> SX:
-        """Return the symbolic strict less-than comparison."""
+        """Return the symbolic strict less-than comparison.
+
+        Returns:
+            A new ``SX`` expression.
+        """
         return _binary("lt", self, other)
 
     def __le__(self, other: object) -> SX:
-        """Return the symbolic less-than-or-equal comparison."""
+        """Return the symbolic less-than-or-equal comparison.
+
+        Returns:
+            A new ``SX`` expression.
+        """
         return _binary("le", self, other)
 
     def __gt__(self, other: object) -> SX:
-        """Return the symbolic strict greater-than comparison."""
+        """Return the symbolic strict greater-than comparison.
+
+        Returns:
+            A new ``SX`` expression.
+        """
         return _binary("gt", self, other)
 
     def __ge__(self, other: object) -> SX:
-        """Return the symbolic greater-than-or-equal comparison."""
+        """Return the symbolic greater-than-or-equal comparison.
+
+        Returns:
+            A new ``SX`` expression.
+        """
         return _binary("ge", self, other)
 
     def sin(self) -> SX:

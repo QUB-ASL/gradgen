@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
+- Added symbolic comparisons (`<`, `<=`, `>`, `>=`) and
+  `if_else(if_true, if_false, condition)` for piecewise scalar and
+  elementwise-vector expressions.
+
 ### Changed
 
 ### Fixed
@@ -34,6 +38,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   made additive output accumulation the default lowering style for final
   outputs. Generated kernels now write readable incremental updates directly
   into the output slices whenever possible.
+- Added automatic differentiation and Rust code generation support for
+  branchwise `if_else(...)` expressions, with derivatives following the
+  active branch and treating the condition as nondifferentiated.
 - Emitted `copy_from_slice` for contiguous vector outputs backed by workspace
   slices, replacing element-by-element final copy assignments with idiomatic
   slice copies where possible.

@@ -3097,7 +3097,7 @@ mod tests {{
 
         self.assertIn("if p[0] >= ", result.source)
         self.assertIn(".sin()", result.source)
-        self.assertIn("y[0] += if", result.source)
+        self.assertIn("y[0] = if", result.source)
 
     def test_no_std_codegen_supports_extended_libm_functions(self) -> None:
         x = SX.sym("x")
