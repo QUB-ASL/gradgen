@@ -1743,6 +1743,78 @@ mod single_shooting_multi_u_tests {{
             self.assertIn("all_functions", completed.stdout)
             self.assertIn("energy", completed.stdout)
 
+    def test_second_order_cone_python_interface_is_importable(self) -> None:
+        x = SXVector.sym("x", 3)
+        distance = SquaredDistanceToSet.second_order_cone(
+            name="soc_penalty",
+            alpha=2.0,
+            dimension=3,
+        )
+        energy = Function(
+            "soc_kernel_energy",
+            [x],
+            [distance(x)],
+            input_names=["x"],
+            output_names=["energy"],
+        )
+        energy_grad_x = energy.gradient(0, name="soc_kernel_energy_grad_x")
+
+        config = (
+            RustBackendConfig()
+            .with_crate_name("soc_kernel")
+            .with_enable_python_interface(True)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_multi_function_rust_project(
+                (energy, energy_grad_x),
+                Path(tmpdir) / "soc_kernel",
+                config=config,
+            )
+            assert project.python_interface is not None
+
+            scratch_dir = Path(tmpdir) / "scratch"
+            scratch_dir.mkdir()
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import soc_kernel\n"
+                        "print(soc_kernel.__all__)\n"
+                        "print(soc_kernel.all_functions())\n"
+                        "print(soc_kernel.function_info('energy'))\n"
+                        "print(soc_kernel.function_info('energy_grad_x'))\n"
+                        "energy_ws = "
+                        "soc_kernel.workspace_for_function('energy')\n"
+                        "grad_ws = "
+                        "soc_kernel.workspace_for_function('energy_grad_x')\n"
+                        "print("
+                        "soc_kernel.energy([3.0, 4.0, 1.0], energy_ws)"
+                        ")\n"
+                        "print("
+                        "soc_kernel.energy_grad_x([3.0, 4.0, 1.0], grad_ws)"
+                        ")\n"
+                    ),
+                ],
+                cwd=scratch_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertIn("Workspace", completed.stdout)
+            self.assertIn("all_functions", completed.stdout)
+            self.assertIn("energy", completed.stdout)
+            self.assertIn("energy_grad_x", completed.stdout)
+            self.assertIn("0.8999999999999999", completed.stdout)
+            self.assertIn(
+                "[0.35999999999999943, 0.47999999999999954, "
+                "-1.2000000000000002]",
+                completed.stdout,
+            )
+
     def test_single_output_python_interface_returns_dictionary(self) -> None:
         x = SXVector.sym("x", 2)
         w = SXVector.sym("w", 1)
