@@ -1472,7 +1472,7 @@ mod single_shooting_multi_u_tests {{
             self.assertIsNotNone(project)
             run_cargo_build.assert_called_once_with(
                 Path(tmpdir).resolve() / "energy_kernel",
-                "release",
+                "debug",
             )
 
     def test_create_rust_project_raises_when_cargo_missing_for_build(
@@ -1616,7 +1616,7 @@ mod single_shooting_multi_u_tests {{
             builder.build(Path(tmpdir) / "my_crates")
             run_cargo_build.assert_called_once_with(
                 Path(tmpdir).resolve() / "my_crates" / "abc",
-                "release",
+                "debug",
             )
 
     def test_builder_build_can_override_build_profile(self) -> None:
