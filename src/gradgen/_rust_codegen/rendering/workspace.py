@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 from ...sx import SX, SXNode
 from ..config import RustBackendMode, RustScalarType
 from .expression import _emit_expr_ref
+from .util import _format_float
 from .util import _flatten_arg
 
 
@@ -26,46 +29,10 @@ def _emit_workspace_assignment(
     scalar_type: RustScalarType,
     math_library: str,
 ) -> str:
-    """Emit one workspace assignment, using compound operators when safe."""
-    target = f"work[{work_index}]"
-    expr = SX(node)
-
-    if expr.op in {"add", "sub", "mul", "div"}:
-        left, right = expr.args
-        left_is_target = _workspace_ref_for_node(left.node, workspace_map) == target
-        right_is_target = _workspace_ref_for_node(right.node, workspace_map) == target
-        if left_is_target:
-            other_ref = _emit_expr_ref(
-                right,
-                scalar_bindings,
-                workspace_map,
-                backend_mode,
-                scalar_type,
-                math_library,
-            )
-            operator = {
-                "add": "+=",
-                "sub": "-=",
-                "mul": "*=",
-                "div": "/=",
-            }[expr.op]
-            return f"{target} {operator} {other_ref};"
-        if expr.op in {"add", "mul"} and right_is_target:
-            other_ref = _emit_expr_ref(
-                left,
-                scalar_bindings,
-                workspace_map,
-                backend_mode,
-                scalar_type,
-                math_library,
-            )
-            operator = {
-                "add": "+=",
-                "mul": "*=",
-            }[expr.op]
-            return f"{target} {operator} {other_ref};"
-
-    return f"{target} = {rhs};"
+    """Emit one workspace assignment."""
+    del node, scalar_bindings, workspace_map, backend_mode, scalar_type
+    del math_library
+    return f"work[{work_index}] = {rhs};"
 
 
 def _emit_exact_length_assert(rust_name: str, display_name: str, expected_size: int) -> tuple[str, str, str]:
@@ -139,6 +106,20 @@ def _collect_reachable_nodes(output_refs: tuple[SX, ...]) -> set[SXNode]:
     return reachable
 
 
+def _count_node_uses(output_refs: tuple[SX, ...]) -> dict[SXNode, int]:
+    """Count how many times each node is referenced in the output DAG."""
+    counts: dict[SXNode, int] = Counter()
+
+    def record(node: SXNode) -> None:
+        counts[node] += 1
+        for arg in node.args:
+            record(arg)
+
+    for expr in output_refs:
+        record(expr.node)
+    return counts
+
+
 def _allocate_workspace_slots(
     function,
     *,
@@ -146,12 +127,21 @@ def _allocate_workspace_slots(
 ) -> tuple[dict[SXNode, int], int]:
     """Assign reusable workspace slots based on each node's last use."""
     if output_refs is None:
-        output_refs = tuple(scalar for output in function.outputs for scalar in _flatten_arg(output))
+        output_refs = tuple(
+            scalar
+            for output in function.outputs
+            for scalar in _flatten_arg(output)
+        )
     required_nodes = _collect_required_workspace_nodes(output_refs)
+    use_counts = _count_node_uses(output_refs)
     workspace_nodes = [
         node
         for node in function.nodes
-        if node.op not in {"symbol", "const"} and node in required_nodes
+        if (
+            node.op not in {"symbol", "const"}
+            and node in required_nodes
+            and use_counts.get(node, 0) > 1
+        )
     ]
     if not workspace_nodes:
         return {}, 0
@@ -159,7 +149,7 @@ def _allocate_workspace_slots(
     node_index = {node: index for index, node in enumerate(workspace_nodes)}
     last_use = {node: index for index, node in enumerate(workspace_nodes)}
 
-    for index, node in enumerate(workspace_nodes):
+    for index, node in enumerate(function.nodes):
         for child in node.args:
             if child in node_index:
                 last_use[child] = max(last_use[child], index)
@@ -167,25 +157,16 @@ def _allocate_workspace_slots(
     output_base = len(workspace_nodes)
     for offset, scalar in enumerate(output_refs):
         if scalar.node in node_index:
-            last_use[scalar.node] = max(last_use[scalar.node], output_base + offset)
+            last_use[scalar.node] = max(
+                last_use[scalar.node], output_base + offset + 1
+            )
 
-    available_slots: list[int] = []
-    expiring_by_index: dict[int, list[int]] = {}
     workspace_map: dict[SXNode, int] = {}
     next_slot = 0
 
     for index, node in enumerate(workspace_nodes):
-        for slot in expiring_by_index.pop(index, []):
-            available_slots.append(slot)
-
-        if available_slots:
-            slot = min(available_slots)
-            available_slots.remove(slot)
-        else:
-            slot = next_slot
-            next_slot += 1
-
+        slot = next_slot
+        next_slot += 1
         workspace_map[node] = slot
-        expiring_by_index.setdefault(last_use[node], []).append(slot)
 
     return workspace_map, next_slot

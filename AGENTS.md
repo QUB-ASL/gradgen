@@ -111,7 +111,7 @@ def zip_function(
 
 ### Docusaurus
 
-- All docusaurus files must be `.mdx` and not `.md`. Never rename `.mdx` files to `.md`.
+- All docusaurus files, with the possible exception of blog posts, must be `.mdx` and not `.md`. Never rename `.mdx` files to `.md`.
 
 ## What Agents Must Never Do
 

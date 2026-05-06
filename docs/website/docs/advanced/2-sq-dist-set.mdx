@@ -15,7 +15,7 @@ keywords:
   - rectangle
   - distance to set
 last_update:
-  date: 2026-04-30
+  date: 2026-05-05
   author: Pantelis Sopasakis
 ---
 
@@ -143,6 +143,8 @@ B = \{x\in\mathbb{R}^n: \|x - x_0\| \leq r\}.
 A Euclidean ball centered at the origin with radius 1 can be
 written as
 
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1y5gcUEKxsku7jJxTY-uWk1aYZhw8pfDC?usp=sharing)
+
 ```python
 distance = SquaredDistanceToSet.euclidean_ball(
     name="unit_ball",
@@ -153,6 +155,8 @@ distance = SquaredDistanceToSet.euclidean_ball(
 ```
 
 Similary, we can construct infinity-norm balls:
+
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1y5gcUEKxsku7jJxTY-uWk1aYZhw8pfDC?usp=sharing)
 
 ```python
 distance = SquaredDistanceToSet.infinity_ball(
@@ -180,6 +184,32 @@ distance = SquaredDistanceToSet.rectangle(
     xmax=(float("inf"), 2.0),
 )
 ```
+
+
+### Second-order cones
+
+
+Gradgen also provides a Rust-backed constructor for second-order cones of
+the form
+```math
+C_\alpha = \{x=(y,t)\in\mathbb{R}^n: \|y\|_2 \leq \alpha t\},
+```
+where $\alpha > 0$ is a constant parameter.
+
+[![Try it In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/drive/1WBIH8jNSRkS6navXOwXWE5AYfHavjaMx?usp=sharing)
+
+```python
+distance = SquaredDistanceToSet.second_order_cone(
+    name="soc_penalty",
+    alpha=2.0,
+    dimension=3,
+)
+```
+
+This constructor currently provides Rust implementations for the
+projection and squared distance, so it can be composed symbolically
+and used for Rust code generation, but it does not support direct numeric
+evaluation in Python.
 
 ## Custom Rust implementations
 

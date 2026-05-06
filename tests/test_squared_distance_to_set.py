@@ -29,6 +29,25 @@ class SquaredDistanceToSetTests(unittest.TestCase):
         self.assertEqual(infinity_ball.to_function().input_names, ("w",))
         self.assertEqual(rectangle.to_function().input_names, ("r",))
 
+    def test_second_order_cone_factory_supports_symbolic_use(self) -> None:
+        distance = SquaredDistanceToSet.second_order_cone(
+            name="named_soc",
+            alpha=2.0,
+            dimension=3,
+            input_name="z",
+        )
+
+        x = SXVector.sym("z", 3)
+        expr = distance(x)
+
+        self.assertEqual(repr(expr), "named_soc(SXVector.sym('z', 3))")
+        self.assertEqual(distance.to_function().input_names, ("z",))
+        with self.assertRaisesRegex(
+            ValueError,
+            "does not support numeric evaluation in Python",
+        ):
+            distance([3.0, 4.0, 1.0])
+
     def test_rust_only_distance_supports_symbolic_use(self) -> None:
         distance = (
             SquaredDistanceToSet(name="dist_to_axis_rust_only")
@@ -81,6 +100,36 @@ fn dist_to_axis_rust_only_projection(
         self.assertEqual(distance.jacobian()([3.0, 4.0]), (2.4, 3.2))
         self.assertEqual(distance([0.2, 0.3]), 0.0)
 
+    def test_euclidean_ball_codegen_uses_compact_rust_helpers(self) -> None:
+        distance = SquaredDistanceToSet.euclidean_ball(
+            name="unit_ball_codegen",
+            center=(0.0,) * 20,
+            radius=1.0,
+        )
+        x = SXVector.sym("x", 20)
+        f = Function("f", [x], [distance(x)], input_names=["x"])
+
+        primal = f.generate_rust(backend_mode="no_std")
+        gradient = f.gradient(0).generate_rust(backend_mode="no_std")
+
+        self.assertNotIn("let center = [0.0_f64; 20];", primal.source)
+        self.assertNotIn("x[index] - center[index]", primal.source)
+        self.assertIn("sum_sq += x[index] * x[index];", primal.source)
+        self.assertIn("for index in 0..20 {", primal.source)
+        self.assertNotIn("x[0] - 0.0_f64", primal.source)
+        self.assertIn(
+            "fn unit_ball_codegen_projection(",
+            gradient.source,
+        )
+        self.assertNotIn("let center = [0.0_f64; 20];", gradient.source)
+        self.assertNotIn("x[index] - center[index]", gradient.source)
+        self.assertIn("out[index] = x[index];", gradient.source)
+        self.assertIn(
+            "unit_ball_codegen_jacobian(x, &[], o0);",
+            gradient.source,
+        )
+        self.assertNotIn("unit_ball_codegen_jacobian_component", gradient.source)
+
     def test_infinity_ball_factory(self) -> None:
         distance = SquaredDistanceToSet.infinity_ball(
             name="unit_infinity_ball",
@@ -90,6 +139,37 @@ fn dist_to_axis_rust_only_projection(
 
         self.assertEqual(distance([2.0, 3.0]), 2.5)
         self.assertEqual(distance.jacobian()([2.0, 3.0]), (1.0, 2.0))
+
+    def test_infinity_ball_codegen_uses_compact_rust_helpers(self) -> None:
+        distance = SquaredDistanceToSet.infinity_ball(
+            name="unit_infinity_ball_codegen",
+            center=(0.0,) * 20,
+            radius=1.0,
+        )
+        x = SXVector.sym("x", 20)
+        f = Function("f", [x], [distance(x)], input_names=["x"])
+
+        primal = f.generate_rust(backend_mode="no_std")
+        gradient = f.gradient(0).generate_rust(backend_mode="no_std")
+
+        self.assertNotIn("let center = [0.0_f64; 20];", primal.source)
+        self.assertNotIn("x[index] - center[index]", primal.source)
+        self.assertIn("let delta = x[index];", primal.source)
+        self.assertIn("for index in 0..20 {", primal.source)
+        self.assertIn(
+            "fn unit_infinity_ball_codegen_projection(",
+            gradient.source,
+        )
+        self.assertNotIn("let center = [0.0_f64; 20];", gradient.source)
+        self.assertIn("let delta = x[index];", gradient.source)
+        self.assertIn(
+            "unit_infinity_ball_codegen_jacobian(x, &[], o0);",
+            gradient.source,
+        )
+        self.assertNotIn(
+            "unit_infinity_ball_codegen_jacobian_component",
+            gradient.source,
+        )
 
     def test_rectangle_factory_supports_infinite_bounds(self) -> None:
         distance = SquaredDistanceToSet.rectangle(
@@ -119,6 +199,18 @@ fn dist_to_axis_rust_only_projection(
                 name="bad_rectangle",
                 xmin=(1.0, 0.0),
                 xmax=(0.0, 1.0),
+            )
+        with self.assertRaises(ValueError):
+            SquaredDistanceToSet.second_order_cone(
+                name="bad_soc_alpha",
+                alpha=0.0,
+                dimension=3,
+            )
+        with self.assertRaises(ValueError):
+            SquaredDistanceToSet.second_order_cone(
+                name="bad_soc_dimension",
+                alpha=1.0,
+                dimension=1,
             )
 
     def test_squared_distance_behaves_like_a_function(self) -> None:
@@ -255,8 +347,71 @@ fn dist_to_axis_codegen_projection(
         generated = f.gradient(0).generate_rust(backend_mode="no_std")
 
         self.assertIn("dist_to_axis_codegen_projection", generated.source)
-        self.assertIn("out[0] = x[0] - projection[0];", generated.source)
-        self.assertIn("out[1] = x[1] - projection[1];", generated.source)
+        self.assertIn(
+            "for index in 0..2 {\n        out[index] = x[index] - "
+            "projection[index];\n    }",
+            generated.source,
+        )
+        self.assertIn(
+            "dist_to_axis_codegen_jacobian(x, &[], o0);",
+            generated.source,
+        )
+
+    def test_second_order_cone_rust_projection_defers_sqrt(self) -> None:
+        distance = SquaredDistanceToSet.second_order_cone(
+            name="soc_codegen",
+            alpha=2.0,
+            dimension=3,
+        )
+        x = SXVector.sym("x", 3)
+        f = Function("f", [x], [distance(x)], input_names=["x"])
+
+        generated = f.generate_rust(backend_mode="no_std")
+
+        self.assertIn("let alpha_sq = alpha * alpha;", generated.source)
+        self.assertIn(
+            "if t <= zero && alpha_sq * sum_sq <= t_sq {",
+            generated.source,
+        )
+        self.assertIn(
+            "if t >= zero && sum_sq <= alpha_sq * t_sq {",
+            generated.source,
+        )
+        self.assertIn("let norm_y = libm::sqrt(sum_sq);", generated.source)
+        self.assertIn(
+            "return 0.5_f64 * (t_sq + sum_sq);",
+            generated.source,
+        )
+        self.assertIn(
+            "let dist_sq = y_scale * y_scale * sum_sq + dt * dt;",
+            generated.source,
+        )
+
+    def test_second_order_cone_gradient_codegen_uses_looped_jacobian(self) -> None:
+        distance = SquaredDistanceToSet.second_order_cone(
+            name="soc_grad_codegen",
+            alpha=2.0,
+            dimension=20,
+        )
+        x = SXVector.sym("x", 20)
+        f = Function("f", [x], [distance(x)], input_names=["x"])
+
+        generated = f.gradient(0).generate_rust(backend_mode="no_std")
+
+        self.assertIn(
+            "for index in 0..20 {",
+            generated.source,
+        )
+        self.assertIn(
+            "out[index] = x[index] - projection[index];",
+            generated.source,
+        )
+        self.assertIn(
+            "soc_grad_codegen_jacobian(x, &[], o0);",
+            generated.source,
+        )
+        self.assertNotIn("soc_grad_codegen_jacobian_component", generated.source)
+        self.assertNotIn("+= 0.0_f64;", generated.source)
 
     def test_requires_projection_before_use(self) -> None:
         distance = (

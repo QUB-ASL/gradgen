@@ -15,4 +15,4 @@ class RenderTests(unittest.TestCase):
 
     def test_emit_math_call_uses_std_backend_methods(self) -> None:
         self.assertEqual(
-            _emit_math_call("sin", ("x",), "std", "f64", None), "x.sin()")
+            _emit_math_call("sin", ("x",), "std", "f64", None), "(x).sin()")

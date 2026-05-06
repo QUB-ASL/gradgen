@@ -493,7 +493,7 @@ mod {module_name} {{
             "pub fn square_plus_one_meta() -> FunctionMetadata {",
             result.source,
         )
-        self.assertIn("workspace_size: 1,", result.source)
+        self.assertIn("workspace_size: 0,", result.source)
         self.assertIn("/// Arguments:", result.source)
         self.assertIn("/// - `x`:", result.source)
         self.assertIn(
@@ -511,15 +511,7 @@ mod {module_name} {{
             result.source,
         )
         self.assertIn(
-            "Expected length: at least 1.",
-            result.source,
-        )
-        self.assertIn(
             "pub fn square_plus_one(",
-            result.source,
-        )
-        self.assertIn(
-            'WorkspaceTooSmall("work expected at least 1")',
             result.source,
         )
         self.assertIn(
@@ -530,9 +522,64 @@ mod {module_name} {{
             'OutputTooSmall("y expected length 1")',
             result.source,
         )
-        self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[0] += 1.0_f64;", result.source)
-        self.assertIn("y[0] = work[0];", result.source)
+        self.assertIn("y[0] = 1.0_f64;", result.source)
+        self.assertIn("y[0] += x[0] * x[0];", result.source)
+
+    def test_single_use_outputs_are_lowered_directly(self) -> None:
+        x = SX.sym("x")
+        f = Function(
+            "square_plus_one",
+            [x],
+            [x * x + 1],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertEqual(result.workspace_size, 0)
+        self.assertIn("y[0] =", result.source)
+        self.assertIn("x[0] * x[0]", result.source)
+        self.assertIn("1.0_f64", result.source)
+        self.assertNotIn("work[0] =", result.source)
+
+    def test_single_shooting_helpers_lower_outputs_directly(self) -> None:
+        problem = self._build_single_shooting_problem(horizon=2)
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig()
+                .with_crate_name("single_shooting_kernel")
+            )
+            .for_function(problem)
+            .add_gradient(include_states=True)
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "single_shooting_kernel")
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(",
+            lib_text,
+        )
+        helper_start = lib_text.index(
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_x("
+        )
+        helper_end = lib_text.index(
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(",
+            helper_start,
+        )
+        helper_text = lib_text[helper_start:helper_end]
+        self.assertIn("vjp_x[0] =", helper_text)
+        self.assertIn("vjp_x[1] =", helper_text)
+        self.assertNotIn("copy_from_slice", helper_text)
+        self.assertNotIn("vjp_x[0] = work[0];", helper_text)
+        self.assertNotIn("vjp_x[1] = work[1];", helper_text)
+        self.assertNotIn("work[0] =", helper_text)
+        self.assertNotIn("work[1] =", helper_text)
 
     def test_generates_vector_function_with_deterministic_workspace_layout(
         self,
@@ -560,16 +607,14 @@ mod {module_name} {{
         self.assertIn(
             "pub fn kernel_meta() -> FunctionMetadata {", result.source
         )
-        self.assertIn("workspace_size: 3,", result.source)
+        self.assertIn("workspace_size: 0,", result.source)
         self.assertIn("pub fn kernel(", result.source)
-        self.assertIn(
-            'WorkspaceTooSmall("work expected at least 3")',
-            result.source,
-        )
-        self.assertIn("work[0] = x[0] * y[0];", result.source)
-        self.assertIn("work[1] = x[1] * y[1];", result.source)
-        self.assertIn("work[0] += work[1];", result.source)
-        self.assertIn("dot[0] = work[0];", result.source)
+        self.assertIn("_work: &mut [f64]", result.source)
+        self.assertIn("dot[0] =", result.source)
+        self.assertIn("sum[0] =", result.source)
+        self.assertIn("sum[1] =", result.source)
+        self.assertNotIn("work[0] = x[0] * y[0];", result.source)
+        self.assertNotIn("copy_from_slice", result.source)
 
     def test_single_shooting_codegen_matches_manual_reference(self) -> None:
         problem = self._build_single_shooting_problem(horizon=3)
@@ -1227,7 +1272,7 @@ mod single_shooting_multi_u_tests {{
                 [
                     {
                         "function_name": "energy",
-                        "workspace_size": 1,
+                        "workspace_size": 0,
                         "input_names": ["x"],
                         "input_sizes": [2],
                         "output_names": ["y"],
@@ -1413,6 +1458,7 @@ mod single_shooting_multi_u_tests {{
         )
 
         config = RustBackendConfig().with_build_crate(True)
+        config = config.with_build_profile("debug")
 
         with (
             TemporaryDirectory() as tmpdir,
@@ -1427,7 +1473,7 @@ mod single_shooting_multi_u_tests {{
             self.assertIsNotNone(project)
             run_cargo_build.assert_called_once_with(
                 Path(tmpdir).resolve() / "energy_kernel",
-                "release",
+                "debug",
             )
 
     def test_create_rust_project_raises_when_cargo_missing_for_build(
@@ -1451,7 +1497,11 @@ mod single_shooting_multi_u_tests {{
                 create_rust_project(
                     f,
                     Path(tmpdir) / "energy_kernel",
-                    config=RustBackendConfig().with_build_crate(True),
+                    config=(
+                        RustBackendConfig()
+                        .with_build_crate(True)
+                        .with_build_profile("debug")
+                    ),
                 )
 
     def test_create_rust_project_with_python_interface_builds(self) -> None:
@@ -1555,6 +1605,7 @@ mod single_shooting_multi_u_tests {{
                 RustBackendConfig()
                 .with_crate_name("abc")
                 .with_build_crate(True)
+                .with_build_profile("debug")
             )
             .for_function(f)
             .add_primal()
@@ -1571,7 +1622,7 @@ mod single_shooting_multi_u_tests {{
             builder.build(Path(tmpdir) / "my_crates")
             run_cargo_build.assert_called_once_with(
                 Path(tmpdir).resolve() / "my_crates" / "abc",
-                "release",
+                "debug",
             )
 
     def test_builder_build_can_override_build_profile(self) -> None:
@@ -1691,6 +1742,78 @@ mod single_shooting_multi_u_tests {{
             self.assertIn("Workspace", completed.stdout)
             self.assertIn("all_functions", completed.stdout)
             self.assertIn("energy", completed.stdout)
+
+    def test_second_order_cone_python_interface_is_importable(self) -> None:
+        x = SXVector.sym("x", 3)
+        distance = SquaredDistanceToSet.second_order_cone(
+            name="soc_penalty",
+            alpha=2.0,
+            dimension=3,
+        )
+        energy = Function(
+            "soc_kernel_energy",
+            [x],
+            [distance(x)],
+            input_names=["x"],
+            output_names=["energy"],
+        )
+        energy_grad_x = energy.gradient(0, name="soc_kernel_energy_grad_x")
+
+        config = (
+            RustBackendConfig()
+            .with_crate_name("soc_kernel")
+            .with_enable_python_interface(True)
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = create_multi_function_rust_project(
+                (energy, energy_grad_x),
+                Path(tmpdir) / "soc_kernel",
+                config=config,
+            )
+            assert project.python_interface is not None
+
+            scratch_dir = Path(tmpdir) / "scratch"
+            scratch_dir.mkdir()
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "-c",
+                    (
+                        "import soc_kernel\n"
+                        "print(soc_kernel.__all__)\n"
+                        "print(soc_kernel.all_functions())\n"
+                        "print(soc_kernel.function_info('energy'))\n"
+                        "print(soc_kernel.function_info('energy_grad_x'))\n"
+                        "energy_ws = "
+                        "soc_kernel.workspace_for_function('energy')\n"
+                        "grad_ws = "
+                        "soc_kernel.workspace_for_function('energy_grad_x')\n"
+                        "print("
+                        "soc_kernel.energy([3.0, 4.0, 1.0], energy_ws)"
+                        ")\n"
+                        "print("
+                        "soc_kernel.energy_grad_x([3.0, 4.0, 1.0], grad_ws)"
+                        ")\n"
+                    ),
+                ],
+                cwd=scratch_dir,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+
+            self.assertIn("Workspace", completed.stdout)
+            self.assertIn("all_functions", completed.stdout)
+            self.assertIn("energy", completed.stdout)
+            self.assertIn("energy_grad_x", completed.stdout)
+            self.assertIn("0.8999999999999999", completed.stdout)
+            self.assertIn(
+                "[0.35999999999999943, 0.47999999999999954, "
+                "-1.2000000000000002]",
+                completed.stdout,
+            )
 
     def test_single_output_python_interface_returns_dictionary(self) -> None:
         x = SXVector.sym("x", 2)
@@ -1832,11 +1955,9 @@ mod single_shooting_multi_u_tests {{
             project = builder.build(Path(tmpdir) / "simplified_builder")
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
-            self.assertIn("work[0] = x[0] * x[0];", lib_text)
-            self.assertIn("work[0] = 2.0_f64 * x[0];", lib_text)
-            self.assertIn("work[0] = 2.0_f64 * v_x[0];", lib_text)
-            self.assertIn("work[1] = 2.0_f64 * x[0];", lib_text)
-            self.assertIn("work[2] = 2.0_f64 * v_x[0];", lib_text)
+            self.assertIn("y[0] = x[0] * x[0];", lib_text)
+            self.assertIn("jacobian_y[0] = 2.0_f64 * x[0];", lib_text)
+            self.assertIn("hvp_y[0] = 2.0_f64 * v_x[0];", lib_text)
 
     def test_code_generation_builder_supports_vjp_generation(self) -> None:
         x = SXVector.sym("x", 2)
@@ -2858,19 +2979,16 @@ mod tests {{
         self.assertIn(
             (
                 "pub fn square_plus_one(x: &[f32], y: &mut [f32], "
-                "work: &mut [f32]) -> Result<(), GradgenError> "
+                "_work: &mut [f32]) -> Result<(), GradgenError> "
             ),
             result.source,
         )
         self.assertIn(
-            (
-                "if work.is_empty() { "
-                "return Err(GradgenError::WorkspaceTooSmall("
-                '"work expected at least 1")); };'
-            ),
+            "workspace_size: 0,",
             result.source,
         )
-        self.assertIn("work[0] += 1.0_f32;", result.source)
+        self.assertIn("y[0] = 1.0_f32;", result.source)
+        self.assertIn("y[0] += x[0] * x[0];", result.source)
 
     def test_no_std_f32_codegen_uses_libm_f32_entry_points(self) -> None:
         x = SX.sym("x")
@@ -3098,12 +3216,12 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "work[0] = quadform(&[2.0_f64, 2.0_f64, 0.0_f64, 3.0_f64], 2, x);",
+            "qx[0] = quadform(&[2.0_f64, 2.0_f64, 0.0_f64, 3.0_f64], 2, x);",
             result.source,
         )
         self.assertIn(
             (
-                "work[1] = bilinear_form(x, &[2.0_f64, 1.0_f64, "
+                "bxy[0] = bilinear_form(x, &[2.0_f64, 1.0_f64, "
                 "1.0_f64, 3.0_f64], 2, 2, y);"
             ),
             result.source,
@@ -3272,9 +3390,10 @@ mod tests {{
 
         self.assertEqual(result.source.count("x[0] * x[0]"), 1)
         self.assertIn("work[0] = x[0] * x[0];", result.source)
-        self.assertIn("work[0] += 1.0_f64;", result.source)
-        self.assertIn("work[1] = work[0] * work[0];", result.source)
-        self.assertIn("work[0] += work[1];", result.source)
+        self.assertIn("work[1] = 1.0_f64 + (work[0]);", result.source)
+        self.assertIn("y[0] = 1.0_f64;", result.source)
+        self.assertIn("y[0] += work[0];", result.source)
+        self.assertIn("y[0] += (work[1]) * (work[1]);", result.source)
 
     def test_generated_code_uses_rust_math_methods(self) -> None:
         x = SX.sym("x")
@@ -4370,10 +4489,11 @@ fn weighted_sqnorm_no_dead_work_hvp(
             self.assertIn(
                 (
                     "pub fn trig_kernel(x: &[f32], y: &mut [f32], "
-                    "work: &mut [f32]) -> Result<(), GradgenError> "
+                    "_work: &mut [f32]) -> Result<(), GradgenError> "
                 ),
                 lib_text,
             )
+            self.assertIn("workspace_size: 0,", lib_text)
 
             try:
                 completed = self._run_cargo(
@@ -4739,9 +4859,9 @@ mod tests {
             single_crate_f_hvp_meta().workspace_size
         ];
 
-        single_crate_f_f(&x, &mut y, &mut work_f);
-        single_crate_f_grad(&x, &mut y_grad, &mut work_grad);
-        single_crate_f_hvp(&x, &v_x, &mut y_hvp, &mut work_hvp);
+            assert!(single_crate_f_f(&x, &mut y, &mut work_f).is_ok());
+            assert!(single_crate_f_grad(&x, &mut y_grad, &mut work_grad).is_ok());
+            assert!(single_crate_f_hvp(&x, &v_x, &mut y_hvp, &mut work_hvp).is_ok());
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(y_grad, [10.0_f64, 11.0_f64]);
@@ -4789,7 +4909,7 @@ mod tests {
         let mut jacobian_y = [0.0_f64, 0.0_f64];
         let mut work = vec![0.0_f64; joint_f_f_jf_meta().workspace_size];
 
-        joint_f_f_jf(&x, &mut y, &mut jacobian_y, &mut work);
+        assert!(joint_f_f_jf(&x, &mut y, &mut jacobian_y, &mut work).is_ok());
 
         assert_eq!(y[0], 37.0_f64);
         assert_eq!(jacobian_y, [10.0_f64, 11.0_f64]);
@@ -4965,7 +5085,7 @@ mod joint_hessian_tests {
             self.assertIn(
                 (
                     "pub fn my_kernel_f_f(x: &[f32], y: &mut [f32], "
-                    "work: &mut [f32]) -> Result<(), GradgenError> "
+                    "_work: &mut [f32]) -> Result<(), GradgenError> "
                 ),
                 lib_text,
             )

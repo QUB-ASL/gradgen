@@ -312,7 +312,16 @@ def _match_custom_vector_derivative_output(
         else "custom_vector_hvp_component"
     )
     if any(element.op != expected_op for element in output_arg):
-        return None
+        passthrough_components = [
+            _match_passthrough_custom_vector_derivative_component(
+                element,
+                expected_op=expected_op,
+            )
+            for element in output_arg
+        ]
+        if any(component is None for component in passthrough_components):
+            return None
+        output_arg = SXVector(tuple(passthrough_components))
 
     if derivative_kind == "jacobian":
         parsed = [parse_custom_vector_jacobian_component_args(element.name, element.args) for element in output_arg]
@@ -416,6 +425,43 @@ def _match_passthrough_custom_vector_hessian_entry(expr: SX) -> SX | None:
             return _match_passthrough_custom_vector_hessian_entry(right)
         if _is_passthrough_zero(right):
             return _match_passthrough_custom_vector_hessian_entry(left)
+        return None
+    return None
+
+
+def _match_passthrough_custom_vector_derivative_component(
+    expr: SX,
+    *,
+    expected_op: str,
+) -> SX | None:
+    """Return the underlying custom derivative component via wrappers."""
+    if expr.op == expected_op:
+        return expr
+    if expr.op == "mul":
+        left, right = expr.args
+        if _is_passthrough_one(left):
+            return _match_passthrough_custom_vector_derivative_component(
+                right,
+                expected_op=expected_op,
+            )
+        if _is_passthrough_one(right):
+            return _match_passthrough_custom_vector_derivative_component(
+                left,
+                expected_op=expected_op,
+            )
+        return None
+    if expr.op == "add":
+        left, right = expr.args
+        if _is_passthrough_zero(left):
+            return _match_passthrough_custom_vector_derivative_component(
+                right,
+                expected_op=expected_op,
+            )
+        if _is_passthrough_zero(right):
+            return _match_passthrough_custom_vector_derivative_component(
+                left,
+                expected_op=expected_op,
+            )
         return None
     return None
 

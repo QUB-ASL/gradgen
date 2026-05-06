@@ -1,10 +1,18 @@
 #![no_std]
 #![forbid(unsafe_code)]
+#![forbid(missing_docs)]
+//!
+//! Generated Rust kernels emitted by gradgen.
 
+/// Errors returned by generated Rust kernels when their input slices,
+/// output slices, or workspace slice are too small.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GradgenError {
+    /// The mutable workspace slice was smaller than required.
     WorkspaceTooSmall(&'static str),
+    /// An input slice was smaller than required.
     InputTooSmall(&'static str),
+    /// An output slice was smaller than required.
     OutputTooSmall(&'static str),
 }
 
@@ -32,7 +40,7 @@ pub struct FunctionMetadata {
 pub fn codegen_kernel_energy_f_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_energy_f",
-        workspace_size: 2,
+        workspace_size: 0,
         input_names: &["x", "u"],
         input_sizes: &[3, 1],
         output_names: &["energy"],
@@ -55,16 +63,13 @@ pub fn codegen_kernel_energy_f_meta() -> FunctionMetadata {
 ///   primal output slice for the declared result `energy`
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 2.
+///   while evaluating this kernel. Expected length: at least 0.
 pub fn codegen_kernel_energy_f(
     x: &[f64],
     u: &[f64],
     energy: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 2 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
-    };
     if x.len() != 3 {
         return Err(GradgenError::InputTooSmall("x expected length 3"));
     };
@@ -74,13 +79,9 @@ pub fn codegen_kernel_energy_f(
     if energy.len() != 1 {
         return Err(GradgenError::OutputTooSmall("energy expected length 1"));
     };
-    work[0] = libm::sin(x[0]);
-    work[0] *= u[0];
-    work[1] = norm2sq(x);
-    work[0] += work[1];
-    work[1] = x[1] * x[2];
-    work[0] += work[1];
-    energy[0] = work[0];
+    energy[0] = libm::sin(x[0]) * u[0];
+    energy[0] += norm2sq(x);
+    energy[0] += x[1] * x[2];
     Ok(())
 }
 
@@ -88,7 +89,7 @@ pub fn codegen_kernel_energy_f(
 pub fn codegen_kernel_energy_jf_x_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_energy_jf_x",
-        workspace_size: 3,
+        workspace_size: 0,
         input_names: &["x", "u"],
         input_sizes: &[3, 1],
         output_names: &["jacobian_energy"],
@@ -112,16 +113,13 @@ pub fn codegen_kernel_energy_jf_x_meta() -> FunctionMetadata {
 ///   `energy`
 ///   Expected length: 3.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 3.
+///   while evaluating this kernel. Expected length: at least 0.
 pub fn codegen_kernel_energy_jf_x(
     x: &[f64],
     u: &[f64],
     jacobian_energy: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 3 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 3"));
-    };
     if x.len() != 3 {
         return Err(GradgenError::InputTooSmall("x expected length 3"));
     };
@@ -133,17 +131,12 @@ pub fn codegen_kernel_energy_jf_x(
             "jacobian_energy expected length 3",
         ));
     };
-    work[0] = 2.0_f64 * x[0];
-    work[1] = libm::cos(x[0]);
-    work[1] *= u[0];
-    work[0] += work[1];
-    work[1] = 2.0_f64 * x[1];
-    work[1] += x[2];
-    work[2] = 2.0_f64 * x[2];
-    work[2] += x[1];
-    jacobian_energy[0] = work[0];
-    jacobian_energy[1] = work[1];
-    jacobian_energy[2] = work[2];
+    jacobian_energy[0] = 2.0_f64 * x[0];
+    jacobian_energy[0] += libm::cos(x[0]) * u[0];
+    jacobian_energy[1] = 2.0_f64 * x[1];
+    jacobian_energy[1] += x[2];
+    jacobian_energy[2] = 2.0_f64 * x[2];
+    jacobian_energy[2] += x[1];
     Ok(())
 }
 
@@ -151,7 +144,7 @@ pub fn codegen_kernel_energy_jf_x(
 pub fn codegen_kernel_energy_jf_u_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_energy_jf_u",
-        workspace_size: 1,
+        workspace_size: 0,
         input_names: &["x", "u"],
         input_sizes: &[3, 1],
         output_names: &["jacobian_energy"],
@@ -175,16 +168,13 @@ pub fn codegen_kernel_energy_jf_u_meta() -> FunctionMetadata {
 ///   `energy`
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 1.
+///   while evaluating this kernel. Expected length: at least 0.
 pub fn codegen_kernel_energy_jf_u(
     x: &[f64],
     u: &[f64],
     jacobian_energy: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.is_empty() {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 1"));
-    };
     if x.len() != 3 {
         return Err(GradgenError::InputTooSmall("x expected length 3"));
     };
@@ -196,8 +186,7 @@ pub fn codegen_kernel_energy_jf_u(
             "jacobian_energy expected length 1",
         ));
     };
-    work[0] = libm::sin(x[0]);
-    jacobian_energy[0] = work[0];
+    jacobian_energy[0] = libm::sin(x[0]);
     Ok(())
 }
 
@@ -205,7 +194,7 @@ pub fn codegen_kernel_energy_jf_u(
 pub fn codegen_kernel_coupling_f_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_coupling_f",
-        workspace_size: 2,
+        workspace_size: 0,
         input_names: &["x", "u"],
         input_sizes: &[3, 1],
         output_names: &["coupling"],
@@ -228,16 +217,13 @@ pub fn codegen_kernel_coupling_f_meta() -> FunctionMetadata {
 ///   primal output slice for the declared result `coupling`
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 2.
+///   while evaluating this kernel. Expected length: at least 0.
 pub fn codegen_kernel_coupling_f(
     x: &[f64],
     u: &[f64],
     coupling: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 2 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 2"));
-    };
     if x.len() != 3 {
         return Err(GradgenError::InputTooSmall("x expected length 3"));
     };
@@ -247,10 +233,8 @@ pub fn codegen_kernel_coupling_f(
     if coupling.len() != 1 {
         return Err(GradgenError::OutputTooSmall("coupling expected length 1"));
     };
-    work[0] = libm::exp(u[0]);
-    work[1] = x[0] * x[1];
-    work[0] += work[1];
-    coupling[0] = work[0];
+    coupling[0] = libm::exp(u[0]);
+    coupling[0] += x[0] * x[1];
     Ok(())
 }
 
@@ -310,7 +294,7 @@ pub fn codegen_kernel_coupling_jf_x(
 pub fn codegen_kernel_coupling_jf_u_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "codegen_kernel_coupling_jf_u",
-        workspace_size: 1,
+        workspace_size: 0,
         input_names: &["x", "u"],
         input_sizes: &[3, 1],
         output_names: &["jacobian_coupling"],
@@ -334,16 +318,13 @@ pub fn codegen_kernel_coupling_jf_u_meta() -> FunctionMetadata {
 ///   `coupling`
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 1.
+///   while evaluating this kernel. Expected length: at least 0.
 pub fn codegen_kernel_coupling_jf_u(
     x: &[f64],
     u: &[f64],
     jacobian_coupling: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.is_empty() {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 1"));
-    };
     if x.len() != 3 {
         return Err(GradgenError::InputTooSmall("x expected length 3"));
     };
@@ -355,7 +336,6 @@ pub fn codegen_kernel_coupling_jf_u(
             "jacobian_coupling expected length 1",
         ));
     };
-    work[0] = libm::exp(u[0]);
-    jacobian_coupling[0] = work[0];
+    jacobian_coupling[0] = libm::exp(u[0]);
     Ok(())
 }

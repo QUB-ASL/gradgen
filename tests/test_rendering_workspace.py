@@ -7,6 +7,7 @@ from gradgen._rust_codegen.rendering.workspace import (
     _collect_required_workspace_nodes,
     _emit_exact_length_assert,
     _emit_min_length_assert,
+    _emit_workspace_assignment,
     _workspace_ref_for_node,
 )
 from gradgen.sx import SX, SXNode
@@ -36,7 +37,7 @@ class RenderingWorkspaceTests(unittest.TestCase):
         self.assertTrue(any(node.op == "mul" for node in required))
         self.assertTrue(all(node.op not in {"symbol", "const"} for node in required))
 
-    def test_allocate_workspace_slots_returns_non_empty_allocation_for_nontrivial_function(self) -> None:
+    def test_allocate_workspace_slots_returns_empty_allocation_for_single_use_expression(self) -> None:
         x = SXVector.sym("x", 1)
         function = Function(
             "demo",
@@ -47,5 +48,55 @@ class RenderingWorkspaceTests(unittest.TestCase):
         )
 
         workspace_map, workspace_size = _allocate_workspace_slots(function)
-        self.assertGreaterEqual(workspace_size, 1)
-        self.assertTrue(workspace_map)
+        self.assertEqual(workspace_size, 0)
+        self.assertFalse(workspace_map)
+
+    def test_allocate_workspace_slots_reuses_shared_intermediates(self) -> None:
+        x = SXVector.sym("x", 2)
+        shared = x[0] + x[1]
+        function = Function(
+            "demo",
+            [x],
+            [shared * shared],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        workspace_map, workspace_size = _allocate_workspace_slots(function)
+        self.assertEqual(workspace_size, 1)
+        self.assertEqual(len(workspace_map), 1)
+
+    def test_workspace_assignment_uses_plain_assignments(self) -> None:
+        x = SX.sym("x")
+        base = x + 1.0
+        add_zero = base + 0.0
+        mul_one = base * 1.0
+
+        workspace_map = {base.node: 0, add_zero.node: 0, mul_one.node: 0}
+
+        self.assertEqual(
+            _emit_workspace_assignment(
+                add_zero.node,
+                0,
+                "rhs",
+                {x.node: "x"},
+                workspace_map,
+                "std",
+                "f64",
+                None,
+            ),
+            "work[0] = rhs;",
+        )
+        self.assertEqual(
+            _emit_workspace_assignment(
+                mul_one.node,
+                0,
+                "rhs",
+                {x.node: "x"},
+                workspace_map,
+                "std",
+                "f64",
+                None,
+            ),
+            "work[0] = rhs;",
+        )

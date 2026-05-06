@@ -635,14 +635,9 @@ def _generate_reduced_primal_rust(
     out_name = output_specs[0].rust_name
 
     computation_lines: list[str] = []
-    if helper_workspace_size > 0:
-        computation_lines.append(
-            f"let (acc_work, helper_work) = "
-            f"work.split_at_mut({temp_acc_size});"
-        )
-    else:
-        computation_lines.append("let acc_work = work;")
-        computation_lines.append("let helper_work = &mut work[..0];")
+    computation_lines.append(
+        f"let (acc_work, helper_work) = work.split_at_mut({temp_acc_size});"
+    )
     computation_lines.append(
         f"let (acc_curr_buf, acc_next_buf) = "
         f"acc_work.split_at_mut({accumulator_size});"
