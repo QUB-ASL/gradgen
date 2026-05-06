@@ -12,6 +12,7 @@ import traceback
 import sys
 import venv
 
+import gradgen
 import gradgen._rust_codegen.codegen as rust_codegen_module
 import gradgen.single_shooting as single_shooting_module
 from gradgen._rust_codegen.project_support import _gradgen_version
@@ -3079,6 +3080,24 @@ mod tests {{
         self.assertIn(".atan2(", result.source)
         self.assertIn(".hypot(", result.source)
         self.assertIn(".min(", result.source)
+
+    def test_generated_code_supports_if_else_and_comparisons(self) -> None:
+        x = SX.sym("x")
+        p = SX.sym("p")
+        expr = gradgen.if_else(x * x, p * x, p >= (x * x).sin())
+        f = Function(
+            "piecewise",
+            [x, p],
+            [expr],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("if p[0] >= ", result.source)
+        self.assertIn(".sin()", result.source)
+        self.assertIn("y[0] += if", result.source)
 
     def test_no_std_codegen_supports_extended_libm_functions(self) -> None:
         x = SX.sym("x")

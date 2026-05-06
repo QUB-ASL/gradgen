@@ -440,6 +440,22 @@ class SX:
 
         return _unary("neg", self)
 
+    def __lt__(self, other: object) -> SX:
+        """Return the symbolic strict less-than comparison."""
+        return _binary("lt", self, other)
+
+    def __le__(self, other: object) -> SX:
+        """Return the symbolic less-than-or-equal comparison."""
+        return _binary("le", self, other)
+
+    def __gt__(self, other: object) -> SX:
+        """Return the symbolic strict greater-than comparison."""
+        return _binary("gt", self, other)
+
+    def __ge__(self, other: object) -> SX:
+        """Return the symbolic greater-than-or-equal comparison."""
+        return _binary("ge", self, other)
+
     def sin(self) -> SX:
         """Return the symbolic sine of ``self``.
 
@@ -768,6 +784,13 @@ class SX:
         custom_repr = _format_custom_repr(self)
         if custom_repr is not None:
             return custom_repr
+        if len(self.node.args) == 3:
+            return (
+                f"{self.op}("
+                f"{SX(self.node.args[0])!r}, "
+                f"{SX(self.node.args[1])!r}, "
+                f"{SX(self.node.args[2])!r})"
+            )
         if len(self.node.args) == 1:
             return f"{self.op}({SX(self.node.args[0])!r})"
         if len(self.node.args) == 2:
@@ -2176,6 +2199,67 @@ def minimum(lhs: object, rhs: object) -> SX:
         A new ``SX`` expression representing ``min(lhs, rhs)``.
     """
     return _binary("min", lhs, rhs)
+
+
+@overload
+def if_else(if_true: object, if_false: object, condition: object) -> SX:
+    pass
+
+
+@overload
+def if_else(
+    if_true: SXVector,
+    if_false: SXVector,
+    condition: object,
+) -> SXVector:
+    pass
+
+
+def if_else(
+    if_true: object,
+    if_false: object,
+    condition: object,
+) -> SX | SXVector:
+    """Return a symbolic branch selected by ``condition``.
+
+    The condition is treated numerically: zero selects ``if_false`` and
+    any nonzero value selects ``if_true``. Comparison expressions such as
+    ``x >= y`` therefore work naturally as conditions.
+
+    Args:
+        if_true: Expression returned when ``condition`` is true.
+        if_false: Expression returned when ``condition`` is false.
+        condition: Scalar-like selector expression.
+
+    Returns:
+        A scalar ``SX`` expression, or an ``SXVector`` when both branches
+        are vectors of the same length.
+    """
+    if isinstance(if_true, SXVector) or isinstance(if_false, SXVector):
+        true_vector = _coerce_vector(if_true)
+        false_vector = _coerce_vector(if_false)
+        if len(true_vector) != len(false_vector):
+            raise ValueError("if_else vector branches must have the same length")
+        return SXVector(
+            tuple(
+                if_else(true_item, false_item, condition)
+                for true_item, false_item in zip(
+                    true_vector,
+                    false_vector,
+                    strict=True,
+                )
+            )
+        )
+    return SX(
+        SXNode.make(
+            "if_else",
+            (
+                _coerce(if_true).node,
+                _coerce(if_false).node,
+                _coerce_scalar(condition).node,
+            ),
+        )
+    )
 
 
 def vector(values: Iterable[object]) -> SXVector:

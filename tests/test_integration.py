@@ -18,6 +18,7 @@ from gradgen import (
     SingleShootingBundle,
     SingleShootingProblem,
     SquaredDistanceToSet,
+    if_else,
     map_function,
     reduce_function,
     zip_function,
@@ -289,6 +290,127 @@ mod integration_sympy_gradient {{
             &{self._rust_array_literal(expected, "f64")},
             1e-10_f64,
         );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_if_else_matches_sympy_off_switching_surface(self) -> None:
+        x_sym, p_sym = sp.symbols("x p", real=True)
+        sympy_expr = sp.Piecewise(
+            (x_sym**2, p_sym >= sp.sin(x_sym**2)),
+            (p_sym * x_sym, True),
+        )
+        sympy_dx = sp.diff(sympy_expr, x_sym)
+        sympy_dp = sp.diff(sympy_expr, p_sym)
+
+        x = SX.sym("x")
+        p = SX.sym("p")
+        expr = if_else(x * x, p * x, p >= (x * x).sin())
+        base_function = Function(
+            "piecewise_parity",
+            [x, p],
+            [expr],
+            input_names=["x", "p"],
+            output_names=["f"],
+        )
+        grad_x_function = base_function.gradient(0, name="piecewise_grad_x")
+        grad_p_function = base_function.gradient(1, name="piecewise_grad_p")
+
+        point_true = [0.5, 1.0]
+        point_false = [0.5, 0.1]
+        expected_primal = []
+        expected_grad_x = []
+        expected_grad_p = []
+        for point in (point_true, point_false):
+            substitutions = {x_sym: point[0], p_sym: point[1]}
+            expected_primal.append(float(sympy_expr.subs(substitutions).evalf()))
+            expected_grad_x.append(float(sympy_dx.subs(substitutions).evalf()))
+            expected_grad_p.append(float(sympy_dp.subs(substitutions).evalf()))
+
+        builder = (
+            CodeGenerationBuilder(base_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_if_else")
+            )
+            .add_primal()
+            .add_gradient(wrt=["x", "p"])
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_if_else")
+            primal_codegen, grad_x_codegen, grad_p_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_if_else {{
+    use super::*;
+
+    fn assert_close(actual: f64, expected: f64, tolerance: f64) {{
+        assert!(
+            (actual - expected).abs() <= tolerance,
+            "expected {{expected}}, got {{actual}}"
+        );
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let points = [
+            ([0.5_f64], [1.0_f64],
+             {expected_primal[0]!r}_f64,
+             {expected_grad_x[0]!r}_f64,
+             {expected_grad_p[0]!r}_f64),
+            ([0.5_f64], [0.1_f64],
+             {expected_primal[1]!r}_f64,
+             {expected_grad_x[1]!r}_f64,
+             {expected_grad_p[1]!r}_f64),
+        ];
+
+        for (x, p, expected_primal, expected_grad_x, expected_grad_p)
+            in points
+        {{
+            let mut primal = [0.0_f64; 1];
+            let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+            assert!(
+                {primal_codegen.function_name}(
+                    &x,
+                    &p,
+                    &mut primal,
+                    &mut primal_work,
+                ).is_ok()
+            );
+            assert_close(primal[0], expected_primal, 1e-10_f64);
+
+            let mut grad_x = [0.0_f64; 1];
+            let mut grad_x_work = [0.0_f64; {grad_x_codegen.workspace_size}];
+            assert!(
+                {grad_x_codegen.function_name}(
+                    &x,
+                    &p,
+                    &mut grad_x,
+                    &mut grad_x_work,
+                ).is_ok()
+            );
+            assert_close(grad_x[0], expected_grad_x, 1e-10_f64);
+
+            let mut grad_p = [0.0_f64; 1];
+            let mut grad_p_work = [0.0_f64; {grad_p_codegen.workspace_size}];
+            assert!(
+                {grad_p_codegen.function_name}(
+                    &x,
+                    &p,
+                    &mut grad_p,
+                    &mut grad_p_work,
+                ).is_ok()
+            );
+            assert_close(grad_p[0], expected_grad_p, 1e-10_f64);
+        }}
     }}
 }}
 """.lstrip(),

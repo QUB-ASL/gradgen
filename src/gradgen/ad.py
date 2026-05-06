@@ -9,6 +9,7 @@ from .sx import (
     SXNode,
     SXVector,
     bilinear_form,
+    if_else,
     matrix_add,
     matrix_transpose,
     matvec,
@@ -699,6 +700,24 @@ def _differentiate_signum(
     return SX.const(0.0)
 
 
+def _differentiate_comparison(
+    expr: SX,
+    args: tuple[SX, ...],
+    tangents: tuple[SX, ...],
+) -> SX:
+    del expr, args, tangents
+    return SX.const(0.0)
+
+
+def _differentiate_if_else(
+    expr: SX,
+    args: tuple[SX, ...],
+    tangents: tuple[SX, ...],
+) -> SX:
+    del expr
+    return if_else(tangents[0], tangents[1], args[2])
+
+
 _CUSTOM_DIFFERENTIATION_RULES: dict[str, DifferentiateRule] = {
     "custom_scalar": _differentiate_custom_scalar,
     "custom_scalar_jacobian": _differentiate_custom_scalar_jacobian,
@@ -740,8 +759,13 @@ _SIMPLE_DIFFERENTIATION_RULES: dict[str, DifferentiateRule] = {
     "hypot": lambda expr, args, tangents: (
         ((args[0] * tangents[0]) + (args[1] * tangents[1])) / expr
     ),
+    "lt": _differentiate_comparison,
+    "le": _differentiate_comparison,
+    "gt": _differentiate_comparison,
+    "ge": _differentiate_comparison,
     "max": _differentiate_max,
     "min": _differentiate_min,
+    "if_else": _differentiate_if_else,
     "neg": _differentiate_neg,
     "sin": _differentiate_sin,
     "cos": _differentiate_cos,
@@ -1412,6 +1436,37 @@ def _propagate_reverse_signum(
     return
 
 
+def _propagate_reverse_comparison(
+    node: SXNode,
+    expr: SX,
+    args: tuple[SX, ...],
+    adjoint: SX,
+    adjoints: dict[SXNode, SX],
+) -> None:
+    del node, expr, args, adjoint, adjoints
+    return
+
+
+def _propagate_reverse_if_else(
+    node: SXNode,
+    expr: SX,
+    args: tuple[SX, ...],
+    adjoint: SX,
+    adjoints: dict[SXNode, SX],
+) -> None:
+    del expr
+    _accumulate_adjoint(
+        adjoints,
+        node.args[0],
+        if_else(adjoint, SX.const(0.0), args[2]),
+    )
+    _accumulate_adjoint(
+        adjoints,
+        node.args[1],
+        if_else(SX.const(0.0), adjoint, args[2]),
+    )
+
+
 def _propagate_reverse_norm2(
     node: SXNode,
     expr: SX,
@@ -1511,6 +1566,10 @@ _REVERSE_DISPATCH: dict[str, ReverseRule] = {
     "pow": _propagate_reverse_pow,
     "atan2": _propagate_reverse_atan2,
     "hypot": _propagate_reverse_hypot,
+    "lt": _propagate_reverse_comparison,
+    "le": _propagate_reverse_comparison,
+    "gt": _propagate_reverse_comparison,
+    "ge": _propagate_reverse_comparison,
     "sum": _propagate_reverse_sum,
     "prod": _propagate_reverse_prod,
     "mean": _propagate_reverse_mean,
@@ -1542,6 +1601,7 @@ _REVERSE_DISPATCH: dict[str, ReverseRule] = {
     "abs": _propagate_reverse_abs,
     "max": _propagate_reverse_max,
     "min": _propagate_reverse_min,
+    "if_else": _propagate_reverse_if_else,
     "signum": _propagate_reverse_signum,
     "custom_scalar_hvp": _raise_reverse_unsupported,
     "custom_scalar_hessian": _raise_reverse_unsupported,

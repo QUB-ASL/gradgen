@@ -22,6 +22,7 @@ from gradgen.sx import (
     floor,
     fract,
     hypot,
+    if_else,
     log,
     log1p,
     matvec,
@@ -107,6 +108,7 @@ class SXTests(unittest.TestCase):
 
     def test_unary_operations_create_expected_ops(self) -> None:
         x = SX.sym("x")
+        y = SX.sym("y")
 
         self.assertEqual(sin(x).op, "sin")
         self.assertEqual(cos(x).op, "cos")
@@ -139,6 +141,11 @@ class SXTests(unittest.TestCase):
         self.assertEqual(x.abs().op, "abs")
         self.assertEqual(maximum(x, 1).op, "max")
         self.assertEqual(minimum(x, 1).op, "min")
+        self.assertEqual((x < y).op, "lt")
+        self.assertEqual((x <= y).op, "le")
+        self.assertEqual((x > y).op, "gt")
+        self.assertEqual((x >= y).op, "ge")
+        self.assertEqual(if_else(x, y, x >= y).op, "if_else")
         self.assertEqual((-x).op, "neg")
 
     def test_top_level_package_exports_unary_helpers(self) -> None:
@@ -174,6 +181,19 @@ class SXTests(unittest.TestCase):
         self.assertEqual(gradgen.hypot(x, 1).op, "hypot")
         self.assertEqual(gradgen.maximum(x, 1).op, "max")
         self.assertEqual(gradgen.minimum(x, 1).op, "min")
+        self.assertEqual(gradgen.if_else(x, 1.0, x >= 0.0).op, "if_else")
+
+    def test_if_else_supports_vector_branches(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+        selector = x[0] >= y[0]
+
+        result = if_else(x, y, selector)
+
+        self.assertIsInstance(result, SXVector)
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].op, "if_else")
+        self.assertEqual(result[1].op, "if_else")
 
     def test_numeric_operands_coerced_for_binary_ops(self) -> None:
         x = SX.sym("x")
