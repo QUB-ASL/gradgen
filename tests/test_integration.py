@@ -139,6 +139,332 @@ mod integration_sympy_scalar {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+
+class DerivativeSympyIntegrationTests(IntegrationTests):
+    def test_scalar_derivative_matches_sympy(self) -> None:
+        x_sym, y_sym = sp.symbols("x y", real=True)
+        sympy_expr = (
+            (x_sym - y_sym) ** 2
+            + sp.sqrt(x_sym + 5)
+            + sp.log(1 + y_sym**2)
+            + sp.sin(x_sym * y_sym)
+        )
+        sympy_dx = sp.diff(sympy_expr, x_sym)
+
+        x = SX.sym("x")
+        y = SX.sym("y")
+        expr = (
+            (x - y) * (x - y)
+            + (x + 5).sqrt()
+            + (1 + y * y).log()
+            + (x * y).sin()
+        )
+        base_function = Function(
+            "scalar_derivative",
+            [x, y],
+            [expr],
+            input_names=["x", "y"],
+            output_names=["f"],
+        )
+        derivative_function = base_function.gradient(0)
+
+        point = [1.25, -0.75]
+        substitutions = dict(zip((x_sym, y_sym), point))
+        expected = float(sympy_dx.subs(substitutions).evalf())
+
+        builder = (
+            CodeGenerationBuilder(derivative_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_scalar_derivative")
+            )
+            .add_primal()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_scalar_derivative")
+            (codegen,) = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_scalar_derivative {{
+    use super::*;
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = [1.25_f64];
+        let y = [-0.75_f64];
+        let mut output = [0.0_f64; 1];
+        let mut work = [0.0_f64; {codegen.workspace_size}];
+        assert!(
+            {codegen.function_name}(&x, &y, &mut output, &mut work).is_ok()
+        );
+        assert!((output[0] - {expected!r}_f64).abs() <= 1e-10_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_gradient_matches_sympy(self) -> None:
+        x0, x1, x2, x3 = sp.symbols("x0:4", real=True)
+        sympy_expr = (
+            x0 * sp.sin(x1)
+            + sp.exp(x2 * x3)
+            + sp.log(1 + x0**2 + x2**2)
+            + sp.sqrt(x1 + 4)
+            + x3 * x0
+        )
+        sympy_gradient = sp.Matrix(
+            [sp.diff(sympy_expr, symbol) for symbol in (x0, x1, x2, x3)]
+        )
+
+        x = SXVector.sym("x", 4)
+        expr = (
+            x[0] * x[1].sin()
+            + (x[2] * x[3]).exp()
+            + (1 + x[0] * x[0] + x[2] * x[2]).log()
+            + (x[1] + 4).sqrt()
+            + x[3] * x[0]
+        )
+        base_function = Function(
+            "gradient_parity",
+            [x],
+            [expr],
+            input_names=["x"],
+            output_names=["f"],
+        )
+        gradient_function = base_function.gradient(0)
+
+        point = [0.4, 0.5, -0.7, 1.1]
+        substitutions = dict(zip((x0, x1, x2, x3), point))
+        expected = self._flatten_sympy_matrix(
+            sympy_gradient.subs(substitutions).evalf()
+        )
+
+        builder = (
+            CodeGenerationBuilder(gradient_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_gradient")
+            )
+            .add_primal()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_gradient")
+            (codegen,) = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_gradient {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = [0.4_f64, 0.5_f64, -0.7_f64, 1.1_f64];
+        let mut output = [0.0_f64; 4];
+        let mut work = [0.0_f64; {codegen.workspace_size}];
+        assert!(
+            {codegen.function_name}(&x, &mut output, &mut work).is_ok()
+        );
+        assert_close_slice(
+            &output,
+            &{self._rust_array_literal(expected, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_jacobian_matches_sympy(self) -> None:
+        x0, x1, x2, x3 = sp.symbols("x0:4", real=True)
+        sympy_outputs = sp.Matrix(
+            [
+                (x0 - x1) ** 2 + sp.sin(x2),
+                sp.exp(x1 - x3) + x0**2,
+                sp.log(1 + x0**2 + x2**2) + sp.sqrt(x3 + 4),
+            ]
+        )
+        sympy_jacobian = sympy_outputs.jacobian((x0, x1, x2, x3))
+
+        x = SXVector.sym("x", 4)
+        outputs = SXVector(
+            (
+                (x[0] - x[1]) * (x[0] - x[1]) + x[2].sin(),
+                (x[1] - x[3]).exp() + x[0] * x[0],
+                (1 + x[0] * x[0] + x[2] * x[2]).log() + (x[3] + 4).sqrt(),
+            )
+        )
+        base_function = Function(
+            "jacobian_parity",
+            [x],
+            [outputs],
+            input_names=["x"],
+            output_names=["y"],
+        )
+        jacobian_function = base_function.jacobian(0)
+
+        point = [0.7, -1.1, 0.4, 0.2]
+        substitutions = dict(zip((x0, x1, x2, x3), point))
+        expected = self._flatten_sympy_matrix(
+            sympy_jacobian.subs(substitutions).evalf()
+        )
+
+        builder = (
+            CodeGenerationBuilder(jacobian_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_jacobian")
+            )
+            .add_primal()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_jacobian")
+            (codegen,) = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_jacobian {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = [0.7_f64, -1.1_f64, 0.4_f64, 0.2_f64];
+        let mut output = [0.0_f64; 12];
+        let mut work = [0.0_f64; {codegen.workspace_size}];
+        assert!(
+            {codegen.function_name}(&x, &mut output, &mut work).is_ok()
+        );
+        assert_close_slice(
+            &output,
+            &{self._rust_array_literal(expected, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_hessian_matches_sympy(self) -> None:
+        x0, x1, x2 = sp.symbols("x0:3", real=True)
+        sympy_expr = (
+            (x0 - x1) ** 2
+            + sp.exp(x2 * x0)
+            + sp.log(1 + x1**2)
+            + sp.sqrt(x2 + 4)
+        )
+        sympy_hessian = sp.hessian(sympy_expr, (x0, x1, x2))
+
+        x = SXVector.sym("x", 3)
+        expr = (
+            (x[0] - x[1]) * (x[0] - x[1])
+            + (x[2] * x[0]).exp()
+            + (1 + x[1] * x[1]).log()
+            + (x[2] + 4).sqrt()
+        )
+        base_function = Function(
+            "hessian_parity",
+            [x],
+            [expr],
+            input_names=["x"],
+            output_names=["f"],
+        )
+        hessian_function = base_function.hessian(0)
+
+        point = [0.8, -0.4, 0.6]
+        substitutions = dict(zip((x0, x1, x2), point))
+        expected = self._flatten_sympy_matrix(
+            sympy_hessian.subs(substitutions).evalf()
+        )
+
+        builder = (
+            CodeGenerationBuilder(hessian_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_hessian")
+            )
+            .add_primal()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_hessian")
+            (codegen,) = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_hessian {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = [0.8_f64, -0.4_f64, 0.6_f64];
+        let mut output = [0.0_f64; 9];
+        let mut work = [0.0_f64; {codegen.workspace_size}];
+        assert!(
+            {codegen.function_name}(&x, &mut output, &mut work).is_ok()
+        );
+        assert_close_slice(
+            &output,
+            &{self._rust_array_literal(expected, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
     def test_vector_function_matches_sympy_jacobian_and_vjp(self) -> None:
         x_symbols = sp.symbols("x0:4", real=True)
         sympy_outputs = sp.Matrix(
