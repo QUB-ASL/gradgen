@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>gradgen package &mdash; Gradgen API 0.5.0</title>
+  <title>gradgen package &mdash; Gradgen API 0.5.1</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../_static/documentation_options.js?v=1dd76d02"></script>
+      <script src="../_static/documentation_options.js?v=b9afe91b"></script>
       <script src="../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
@@ -3611,6 +3611,68 @@ internal function. When omitted, <code class="docutils literal notranslate"><spa
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.squared_distance_to_set.SquaredDistanceToSet.second_order_cone">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">second_order_cone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dimension</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.second_order_cone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet.second_order_cone" title="Link to this definition"></a></dt>
+<dd><p>Construct a half-squared distance to a second-order cone.</p>
+<p>The supported cone is</p>
+<div class="math notranslate nohighlight">
+\[C_\alpha = \{x = (y, t) : \lVert y \rVert_2 \leq \alpha t\},\]</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">x</span></code> has length <code class="docutils literal notranslate"><span class="pre">dimension</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code> collects the first
+<code class="docutils literal notranslate"><span class="pre">dimension</span> <span class="pre">-</span> <span class="pre">1</span></code> entries, and <code class="docutils literal notranslate"><span class="pre">t</span></code> is the last entry.</p>
+<p>This constructor is Rust-only: it provides custom Rust helpers for
+the half-squared distance and the cone projection, but does not
+expose a Python numeric evaluation callback or symbolic helper
+function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Public identifier for the constructed distance object.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em><em> | </em><em>int</em>) – Positive cone scaling parameter.</p></li>
+<li><p><strong>dimension</strong> (<em>int</em>) – Total dimension of <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">(y,</span> <span class="pre">t)</span></code>. The dimension must
+be at least <code class="docutils literal notranslate"><span class="pre">2</span></code>.</p></li>
+<li><p><strong>input_name</strong> (<em>str</em><em> | </em><em>None</em>) – Optional symbolic input name used by the generated
+internal function. When omitted, <code class="docutils literal notranslate"><span class="pre">&quot;x&quot;</span></code> is used.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A <a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><code class="xref py py-class docutils literal notranslate"><span class="pre">SquaredDistanceToSet</span></code></a> configured for the second-order
+cone <code class="docutils literal notranslate"><span class="pre">{x</span> <span class="pre">=</span> <span class="pre">(y,</span> <span class="pre">t)</span> <span class="pre">:</span> <span class="pre">||y||_2</span> <span class="pre">&lt;=</span> <span class="pre">alpha</span> <span class="pre">*</span> <span class="pre">t}</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">gradgen</span><span class="w"> </span><span class="kn">import</span> <span class="n">SXVector</span><span class="p">,</span> <span class="n">SquaredDistanceToSet</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">distance</span> <span class="o">=</span> <span class="n">SquaredDistanceToSet</span><span class="o">.</span><span class="n">second_order_cone</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;soc_penalty&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">alpha</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">dimension</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">expr</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">alpha</span></code> is not strictly positive and finite, or
+    if <code class="docutils literal notranslate"><span class="pre">dimension</span></code> is less than <code class="docutils literal notranslate"><span class="pre">2</span></code>.</p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>)</p></li>
+<li><p><strong>alpha</strong> (<em>float</em><em> | </em><em>int</em>)</p></li>
+<li><p><strong>dimension</strong> (<em>int</em>)</p></li>
+<li><p><strong>input_name</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -10551,6 +10613,68 @@ internal function. When omitted, <code class="docutils literal notranslate"><spa
 </dd>
 <dt class="field-even">Return type<span class="colon">:</span></dt>
 <dd class="field-even"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="gradgen.SquaredDistanceToSet.second_order_cone">
+<span class="property"><span class="k"><span class="pre">classmethod</span></span><span class="w"> </span></span><span class="sig-name descname"><span class="pre">second_order_cone</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">name</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">alpha</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dimension</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">input_name</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/squared_distance_to_set.html#SquaredDistanceToSet.second_order_cone"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SquaredDistanceToSet.second_order_cone" title="Link to this definition"></a></dt>
+<dd><p>Construct a half-squared distance to a second-order cone.</p>
+<p>The supported cone is</p>
+<div class="math notranslate nohighlight">
+\[C_\alpha = \{x = (y, t) : \lVert y \rVert_2 \leq \alpha t\},\]</div>
+<p>where <code class="docutils literal notranslate"><span class="pre">x</span></code> has length <code class="docutils literal notranslate"><span class="pre">dimension</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code> collects the first
+<code class="docutils literal notranslate"><span class="pre">dimension</span> <span class="pre">-</span> <span class="pre">1</span></code> entries, and <code class="docutils literal notranslate"><span class="pre">t</span></code> is the last entry.</p>
+<p>This constructor is Rust-only: it provides custom Rust helpers for
+the half-squared distance and the cone projection, but does not
+expose a Python numeric evaluation callback or symbolic helper
+function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>) – Public identifier for the constructed distance object.</p></li>
+<li><p><strong>alpha</strong> (<em>float</em><em> | </em><em>int</em>) – Positive cone scaling parameter.</p></li>
+<li><p><strong>dimension</strong> (<em>int</em>) – Total dimension of <code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">=</span> <span class="pre">(y,</span> <span class="pre">t)</span></code>. The dimension must
+be at least <code class="docutils literal notranslate"><span class="pre">2</span></code>.</p></li>
+<li><p><strong>input_name</strong> (<em>str</em><em> | </em><em>None</em>) – Optional symbolic input name used by the generated
+internal function. When omitted, <code class="docutils literal notranslate"><span class="pre">&quot;x&quot;</span></code> is used.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A <a class="reference internal" href="#gradgen.SquaredDistanceToSet" title="gradgen.SquaredDistanceToSet"><code class="xref py py-class docutils literal notranslate"><span class="pre">SquaredDistanceToSet</span></code></a> configured for the second-order
+cone <code class="docutils literal notranslate"><span class="pre">{x</span> <span class="pre">=</span> <span class="pre">(y,</span> <span class="pre">t)</span> <span class="pre">:</span> <span class="pre">||y||_2</span> <span class="pre">&lt;=</span> <span class="pre">alpha</span> <span class="pre">*</span> <span class="pre">t}</span></code>.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
+</dd>
+</dl>
+<p class="rubric">Example</p>
+<div class="doctest highlight-default notranslate"><div class="highlight"><pre><span></span><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">gradgen</span><span class="w"> </span><span class="kn">import</span> <span class="n">SXVector</span><span class="p">,</span> <span class="n">SquaredDistanceToSet</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">distance</span> <span class="o">=</span> <span class="n">SquaredDistanceToSet</span><span class="o">.</span><span class="n">second_order_cone</span><span class="p">(</span>
+<span class="gp">... </span>    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;soc_penalty&quot;</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">alpha</span><span class="o">=</span><span class="mf">2.0</span><span class="p">,</span>
+<span class="gp">... </span>    <span class="n">dimension</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span>
+<span class="gp">... </span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">x</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="mi">3</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">expr</span> <span class="o">=</span> <span class="n">distance</span><span class="p">(</span><span class="n">x</span><span class="p">)</span>
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – If <code class="docutils literal notranslate"><span class="pre">alpha</span></code> is not strictly positive and finite, or
+    if <code class="docutils literal notranslate"><span class="pre">dimension</span></code> is less than <code class="docutils literal notranslate"><span class="pre">2</span></code>.</p>
+</dd>
+<dt class="field-even">Parameters<span class="colon">:</span></dt>
+<dd class="field-even"><ul class="simple">
+<li><p><strong>name</strong> (<em>str</em>)</p></li>
+<li><p><strong>alpha</strong> (<em>float</em><em> | </em><em>int</em>)</p></li>
+<li><p><strong>dimension</strong> (<em>int</em>)</p></li>
+<li><p><strong>input_name</strong> (<em>str</em><em> | </em><em>None</em>)</p></li>
+</ul>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.squared_distance_to_set.SquaredDistanceToSet" title="gradgen.squared_distance_to_set.SquaredDistanceToSet"><em>SquaredDistanceToSet</em></a></p>
 </dd>
 </dl>
 </dd></dl>

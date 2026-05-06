@@ -4,10 +4,27 @@
         <title>Gradgen Blog</title>
         <link>https://qub-asl.github.io/gradgen/blog</link>
         <description>Gradgen Blog</description>
-        <lastBuildDate>Sat, 02 May 2026 00:00:00 GMT</lastBuildDate>
+        <lastBuildDate>Wed, 06 May 2026 00:00:00 GMT</lastBuildDate>
         <docs>https://validator.w3.org/feed/docs/rss2.html</docs>
         <generator>https://github.com/jpmonette/feed</generator>
         <language>en</language>
+        <item>
+            <title><![CDATA[Gradgen v0.5.1 brings new features and improvements]]></title>
+            <link>https://qub-asl.github.io/gradgen/blog/v0.5.1</link>
+            <guid>https://qub-asl.github.io/gradgen/blog/v0.5.1</guid>
+            <pubDate>Wed, 06 May 2026 00:00:00 GMT</pubDate>
+            <description><![CDATA[Gradgen v0.5.1]]></description>
+            <content:encoded><![CDATA[<p><a href="https://github.com/QUB-ASL/gradgen/releases/tag/v0.5.1" target="_blank" rel="noopener noreferrer" class="">Gradgen v0.5.1</a> brings second-order cones (SOCs), which are useful in convex optimization. It also brings significant improvements in the generated code leading to a more "economic" allocation of workspace memory. Earlier, workspace would almost always be required, whereas now we check whether the output variable can serve as workspace. More thorough unit testing is also done (we now have 538 unit tests running on GitHub Actions). This includes integration tests where we compare the results obtained by gradgen to <a href="https://www.sympy.org/en/index.html" target="_blank" rel="noopener noreferrer" class=""><code>sympy</code></a>.</p>
+<p>Gradgen v0.5.1 can be installed using <code>pip</code>:</p>
+<div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#393A34"><span class="token plain">pip install gradgen==0.5.1</span><br></span></code></pre></div></div>
+<p>Upcoming developments:</p>
+<ul>
+<li class="">Improved documentation and examples, including Python notebooks on Google Colab and demos</li>
+<li class="">Benchmarks</li>
+<li class="">Support for the forward-backward envelope in optimal control problems</li>
+</ul>]]></content:encoded>
+            <category>New version</category>
+        </item>
         <item>
             <title><![CDATA[What's new in v0.5.0]]></title>
             <link>https://qub-asl.github.io/gradgen/blog/v0.5.0</link>

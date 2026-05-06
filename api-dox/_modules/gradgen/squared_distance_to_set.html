@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>gradgen.squared_distance_to_set &mdash; Gradgen API 0.5.0</title>
+  <title>gradgen.squared_distance_to_set &mdash; Gradgen API 0.5.1</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../_static/documentation_options.js?v=1dd76d02"></script>
+      <script src="../../_static/documentation_options.js?v=b9afe91b"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/js/theme.js"></script>
@@ -319,24 +319,161 @@
             <span class="s2">&quot;x&quot;</span> <span class="k">if</span> <span class="n">input_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">input_name</span><span class="p">,</span>
             <span class="n">label</span><span class="o">=</span><span class="s2">&quot;input_name&quot;</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="n">resolved_input_name</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">))</span>
         <span class="n">center_vector</span> <span class="o">=</span> <span class="n">SXVector</span><span class="p">(</span>
             <span class="nb">tuple</span><span class="p">(</span><span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">normalized_center</span><span class="p">)</span>
         <span class="p">)</span>
-        <span class="n">delta</span> <span class="o">=</span> <span class="n">x</span> <span class="o">-</span> <span class="n">center_vector</span>
-        <span class="n">norm</span> <span class="o">=</span> <span class="n">delta</span><span class="o">.</span><span class="n">norm2</span><span class="p">()</span>
-        <span class="n">scale</span> <span class="o">=</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">radius_value</span><span class="p">)</span> <span class="o">/</span> <span class="n">norm</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">radius_value</span><span class="p">))</span>
-        <span class="n">projection</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_projection&quot;</span><span class="p">,</span>
-            <span class="p">[</span><span class="n">x</span><span class="p">],</span>
-            <span class="p">[</span><span class="n">center_vector</span> <span class="o">+</span> <span class="n">delta</span> <span class="o">*</span> <span class="n">scale</span><span class="p">],</span>
-            <span class="n">input_names</span><span class="o">=</span><span class="p">[</span><span class="n">resolved_input_name</span><span class="p">],</span>
-            <span class="n">output_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;p&quot;</span><span class="p">],</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
-            <span class="n">_input_name</span><span class="o">=</span><span class="n">resolved_input_name</span><span class="p">,</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">with_projection_function</span><span class="p">(</span><span class="n">projection</span><span class="p">)</span></div>
+        <span class="n">radius_literal</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">radius_value</span><span class="p">)</span>
+        <span class="n">center_literal</span> <span class="o">=</span> <span class="n">_render_rust_real_array_literal</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span>
+        <span class="n">zero_center</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">center</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="k">for</span> <span class="n">center</span> <span class="ow">in</span> <span class="n">normalized_center</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">projection</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">:</span> <span class="n">SXVector</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">object</span><span class="p">],</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+            <span class="n">vector_value</span> <span class="o">=</span> <span class="n">_coerce_vector_like</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">SX</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">vector_value</span><span class="p">):</span>
+                <span class="n">symbolic_value</span> <span class="o">=</span> <span class="n">SXVector</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">vector_value</span><span class="p">))</span>
+                <span class="n">delta</span> <span class="o">=</span> <span class="n">symbolic_value</span> <span class="o">-</span> <span class="n">center_vector</span>
+                <span class="n">norm</span> <span class="o">=</span> <span class="n">delta</span><span class="o">.</span><span class="n">norm2</span><span class="p">()</span>
+                <span class="n">scale</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">radius_value</span><span class="p">)</span>
+                    <span class="o">/</span> <span class="n">norm</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">radius_value</span><span class="p">))</span>
+                <span class="p">)</span>
+                <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span><span class="n">center_vector</span> <span class="o">+</span> <span class="p">(</span><span class="n">delta</span> <span class="o">*</span> <span class="n">scale</span><span class="p">))</span>
+
+            <span class="n">delta</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+                <span class="nb">float</span><span class="p">(</span><span class="n">component</span><span class="p">)</span> <span class="o">-</span> <span class="n">center</span>
+                <span class="k">for</span> <span class="n">component</span><span class="p">,</span> <span class="n">center</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                    <span class="n">vector_value</span><span class="p">,</span>
+                    <span class="n">normalized_center</span><span class="p">,</span>
+                    <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">component</span> <span class="o">*</span> <span class="n">component</span> <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">delta</span><span class="p">))</span>
+            <span class="n">scale</span> <span class="o">=</span> <span class="n">radius_value</span> <span class="o">/</span> <span class="nb">max</span><span class="p">(</span><span class="n">norm</span><span class="p">,</span> <span class="n">radius_value</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+                <span class="n">center</span> <span class="o">+</span> <span class="p">(</span><span class="n">component</span> <span class="o">*</span> <span class="n">scale</span><span class="p">)</span>
+                <span class="k">for</span> <span class="n">component</span><span class="p">,</span> <span class="n">center</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                    <span class="n">delta</span><span class="p">,</span>
+                    <span class="n">normalized_center</span><span class="p">,</span>
+                    <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">sq_distance</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">:</span> <span class="n">SXVector</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">object</span><span class="p">],</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+            <span class="n">vector_value</span> <span class="o">=</span> <span class="n">_coerce_vector_like</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">delta</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+                <span class="nb">float</span><span class="p">(</span><span class="n">component</span><span class="p">)</span> <span class="o">-</span> <span class="n">center</span>
+                <span class="k">for</span> <span class="n">component</span><span class="p">,</span> <span class="n">center</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                    <span class="n">vector_value</span><span class="p">,</span>
+                    <span class="n">normalized_center</span><span class="p">,</span>
+                    <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+            <span class="n">norm</span> <span class="o">=</span> <span class="n">math</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="nb">sum</span><span class="p">(</span><span class="n">component</span> <span class="o">*</span> <span class="n">component</span> <span class="k">for</span> <span class="n">component</span> <span class="ow">in</span> <span class="n">delta</span><span class="p">))</span>
+            <span class="n">excess</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">norm</span> <span class="o">-</span> <span class="n">radius_value</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+            <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">excess</span> <span class="o">*</span> <span class="n">excess</span>
+
+        <span class="k">if</span> <span class="n">zero_center</span><span class="p">:</span>
+            <span class="n">rust_projection</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_projection(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    out: &amp;mut [</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) </span><span class="se">{{</span>
+<span class="s2">    let radius = </span><span class="si">{</span><span class="n">radius_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let zero = 0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let mut sum_sq = zero;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        out[index] = x[index];</span>
+<span class="s2">        sum_sq += x[index] * x[index];</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    let norm = </span><span class="se">{{{{</span><span class="s2"> sqrt(sum_sq) </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    if norm &lt;= radius </span><span class="se">{{</span>
+<span class="s2">        return;</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    let scale = radius / norm;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        out[index] *= scale;</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+            <span class="n">rust_sq_distance</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    w: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) -&gt; </span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">    let _ = w;</span>
+<span class="s2">    let radius = </span><span class="si">{</span><span class="n">radius_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let zero = 0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let mut sum_sq = zero;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        sum_sq += x[index] * x[index];</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    let norm = </span><span class="se">{{{{</span><span class="s2"> sqrt(sum_sq) </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    if norm &lt;= radius </span><span class="se">{{</span>
+<span class="s2">        return zero;</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    let excess = norm - radius;</span>
+<span class="s2">    0.5_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> * excess * excess</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rust_projection</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_projection(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    out: &amp;mut [</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) </span><span class="se">{{</span>
+<span class="s2">    let center = </span><span class="si">{</span><span class="n">center_literal</span><span class="si">}</span><span class="s2">;</span>
+<span class="s2">    let radius = </span><span class="si">{</span><span class="n">radius_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let zero = 0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let mut sum_sq = zero;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        out[index] = x[index] - center[index];</span>
+<span class="s2">        sum_sq += out[index] * out[index];</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    let norm = </span><span class="se">{{{{</span><span class="s2"> sqrt(sum_sq) </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    if norm &lt;= radius </span><span class="se">{{</span>
+<span class="s2">        out.copy_from_slice(x);</span>
+<span class="s2">        return;</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    let scale = radius / norm;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        out[index] = center[index] + out[index] * scale;</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+            <span class="n">rust_sq_distance</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    w: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) -&gt; </span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">    let _ = w;</span>
+<span class="s2">    let center = </span><span class="si">{</span><span class="n">center_literal</span><span class="si">}</span><span class="s2">;</span>
+<span class="s2">    let radius = </span><span class="si">{</span><span class="n">radius_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let zero = 0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let mut sum_sq = zero;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        let delta = x[index] - center[index];</span>
+<span class="s2">        sum_sq += delta * delta;</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    let norm = </span><span class="se">{{{{</span><span class="s2"> sqrt(sum_sq) </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    if norm &lt;= radius </span><span class="se">{{</span>
+<span class="s2">        return zero;</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    let excess = norm - radius;</span>
+<span class="s2">    0.5_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> * excess * excess</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">cls</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">_input_name</span><span class="o">=</span><span class="n">resolved_input_name</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_sq_distance</span><span class="p">(</span><span class="n">sq_distance</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_projection</span><span class="p">(</span><span class="n">projection</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_rust_projection</span><span class="p">(</span><span class="n">rust_projection</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_rust_sq_distance</span><span class="p">(</span><span class="n">rust_sq_distance</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">_with_input_dimension</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">))</span>
+        <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SquaredDistanceToSet.infinity_ball">
@@ -376,42 +513,132 @@
             <span class="s2">&quot;x&quot;</span> <span class="k">if</span> <span class="n">input_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">input_name</span><span class="p">,</span>
             <span class="n">label</span><span class="o">=</span><span class="s2">&quot;input_name&quot;</span><span class="p">,</span>
         <span class="p">)</span>
-        <span class="n">x</span> <span class="o">=</span> <span class="n">SXVector</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="n">resolved_input_name</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">))</span>
         <span class="n">center_vector</span> <span class="o">=</span> <span class="n">SXVector</span><span class="p">(</span>
             <span class="nb">tuple</span><span class="p">(</span><span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">normalized_center</span><span class="p">)</span>
         <span class="p">)</span>
-        <span class="n">lower</span> <span class="o">=</span> <span class="n">SXVector</span><span class="p">(</span>
-            <span class="nb">tuple</span><span class="p">(</span>
-                <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">center_value</span> <span class="o">-</span> <span class="n">radius_value</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">center_value</span> <span class="ow">in</span> <span class="n">normalized_center</span>
-            <span class="p">)</span>
-        <span class="p">)</span>
-        <span class="n">upper</span> <span class="o">=</span> <span class="n">SXVector</span><span class="p">(</span>
-            <span class="nb">tuple</span><span class="p">(</span>
-                <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">center_value</span> <span class="o">+</span> <span class="n">radius_value</span><span class="p">)</span>
-                <span class="k">for</span> <span class="n">center_value</span> <span class="ow">in</span> <span class="n">normalized_center</span>
-            <span class="p">)</span>
-        <span class="p">)</span>
-        <span class="n">projection</span> <span class="o">=</span> <span class="n">Function</span><span class="p">(</span>
-            <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_projection&quot;</span><span class="p">,</span>
-            <span class="p">[</span><span class="n">x</span><span class="p">],</span>
-            <span class="p">[</span>
-                <span class="n">SXVector</span><span class="p">(</span>
-                    <span class="nb">tuple</span><span class="p">(</span>
-                        <span class="n">x_i</span><span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">lower_i</span><span class="p">)</span><span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">upper_i</span><span class="p">)</span>
-                        <span class="k">for</span> <span class="n">x_i</span><span class="p">,</span> <span class="n">lower_i</span><span class="p">,</span> <span class="n">upper_i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
-                            <span class="n">x</span><span class="p">,</span> <span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="p">,</span> <span class="n">strict</span><span class="o">=</span><span class="kc">True</span>
-                        <span class="p">)</span>
+        <span class="n">radius_literal</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">radius_value</span><span class="p">)</span>
+        <span class="n">center_literal</span> <span class="o">=</span> <span class="n">_render_rust_real_array_literal</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span>
+        <span class="n">zero_center</span> <span class="o">=</span> <span class="nb">all</span><span class="p">(</span><span class="n">center</span> <span class="o">==</span> <span class="mf">0.0</span> <span class="k">for</span> <span class="n">center</span> <span class="ow">in</span> <span class="n">normalized_center</span><span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">projection</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">:</span> <span class="n">SXVector</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">object</span><span class="p">],</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+            <span class="n">vector_value</span> <span class="o">=</span> <span class="n">_coerce_vector_like</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="k">if</span> <span class="nb">any</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">item</span><span class="p">,</span> <span class="n">SX</span><span class="p">)</span> <span class="k">for</span> <span class="n">item</span> <span class="ow">in</span> <span class="n">vector_value</span><span class="p">):</span>
+                <span class="n">symbolic_value</span> <span class="o">=</span> <span class="n">SXVector</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">vector_value</span><span class="p">))</span>
+                <span class="n">projected</span> <span class="o">=</span> <span class="nb">tuple</span><span class="p">(</span>
+                    <span class="p">(</span><span class="n">x_i</span> <span class="o">-</span> <span class="n">center_i</span><span class="p">)</span>
+                    <span class="o">.</span><span class="n">maximum</span><span class="p">(</span><span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="o">-</span><span class="n">radius_value</span><span class="p">))</span>
+                    <span class="o">.</span><span class="n">minimum</span><span class="p">(</span><span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="n">radius_value</span><span class="p">))</span>
+                    <span class="o">+</span> <span class="n">center_i</span>
+                    <span class="k">for</span> <span class="n">x_i</span><span class="p">,</span> <span class="n">center_i</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                        <span class="n">symbolic_value</span><span class="p">,</span>
+                        <span class="n">center_vector</span><span class="p">,</span>
+                        <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
                     <span class="p">)</span>
                 <span class="p">)</span>
-            <span class="p">],</span>
-            <span class="n">input_names</span><span class="o">=</span><span class="p">[</span><span class="n">resolved_input_name</span><span class="p">],</span>
-            <span class="n">output_names</span><span class="o">=</span><span class="p">[</span><span class="s2">&quot;p&quot;</span><span class="p">],</span>
-        <span class="p">)</span>
-        <span class="k">return</span> <span class="bp">cls</span><span class="p">(</span>
-            <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
-            <span class="n">_input_name</span><span class="o">=</span><span class="n">resolved_input_name</span><span class="p">,</span>
-        <span class="p">)</span><span class="o">.</span><span class="n">with_projection_function</span><span class="p">(</span><span class="n">projection</span><span class="p">)</span></div>
+                <span class="k">return</span> <span class="n">projected</span>
+
+            <span class="k">return</span> <span class="nb">tuple</span><span class="p">(</span>
+                <span class="nb">min</span><span class="p">(</span>
+                    <span class="nb">max</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">component</span><span class="p">),</span> <span class="n">center</span> <span class="o">-</span> <span class="n">radius_value</span><span class="p">),</span>
+                    <span class="n">center</span> <span class="o">+</span> <span class="n">radius_value</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">component</span><span class="p">,</span> <span class="n">center</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                    <span class="n">vector_value</span><span class="p">,</span>
+                    <span class="n">normalized_center</span><span class="p">,</span>
+                    <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">)</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">sq_distance</span><span class="p">(</span>
+            <span class="n">value</span><span class="p">:</span> <span class="n">SXVector</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">object</span><span class="p">],</span>
+        <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span><span class="p">:</span>
+            <span class="n">vector_value</span> <span class="o">=</span> <span class="n">_coerce_vector_like</span><span class="p">(</span><span class="n">value</span><span class="p">)</span>
+            <span class="n">total</span> <span class="o">=</span> <span class="mf">0.0</span>
+            <span class="k">for</span> <span class="n">component</span><span class="p">,</span> <span class="n">center</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span>
+                <span class="n">vector_value</span><span class="p">,</span>
+                <span class="n">normalized_center</span><span class="p">,</span>
+                <span class="n">strict</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="p">):</span>
+                <span class="n">excess</span> <span class="o">=</span> <span class="nb">abs</span><span class="p">(</span><span class="nb">float</span><span class="p">(</span><span class="n">component</span><span class="p">)</span> <span class="o">-</span> <span class="n">center</span><span class="p">)</span> <span class="o">-</span> <span class="n">radius_value</span>
+                <span class="n">positive_excess</span> <span class="o">=</span> <span class="nb">max</span><span class="p">(</span><span class="n">excess</span><span class="p">,</span> <span class="mf">0.0</span><span class="p">)</span>
+                <span class="n">total</span> <span class="o">+=</span> <span class="n">positive_excess</span> <span class="o">*</span> <span class="n">positive_excess</span>
+            <span class="k">return</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">total</span>
+
+        <span class="k">if</span> <span class="n">zero_center</span><span class="p">:</span>
+            <span class="n">rust_projection</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_projection(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    out: &amp;mut [</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) </span><span class="se">{{</span>
+<span class="s2">    let radius = </span><span class="si">{</span><span class="n">radius_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        let delta = x[index];</span>
+<span class="s2">        out[index] = delta.max(-radius).min(radius);</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+            <span class="n">rust_sq_distance</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    w: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) -&gt; </span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">    let _ = w;</span>
+<span class="s2">    let radius = </span><span class="si">{</span><span class="n">radius_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let zero = 0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let mut sum_sq = zero;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        let delta = x[index];</span>
+<span class="s2">        let excess = delta.abs() - radius;</span>
+<span class="s2">        let positive_excess = excess.max(zero);</span>
+<span class="s2">        sum_sq += positive_excess * positive_excess;</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    0.5_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> * sum_sq</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">rust_projection</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_projection(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    out: &amp;mut [</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) </span><span class="se">{{</span>
+<span class="s2">    let center = </span><span class="si">{</span><span class="n">center_literal</span><span class="si">}</span><span class="s2">;</span>
+<span class="s2">    let radius = </span><span class="si">{</span><span class="n">radius_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        let delta = x[index] - center[index];</span>
+<span class="s2">        out[index] = center[index] + delta.max(-radius).min(radius);</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+            <span class="n">rust_sq_distance</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    w: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) -&gt; </span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">    let _ = w;</span>
+<span class="s2">    let center = </span><span class="si">{</span><span class="n">center_literal</span><span class="si">}</span><span class="s2">;</span>
+<span class="s2">    let radius = </span><span class="si">{</span><span class="n">radius_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let zero = 0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let mut sum_sq = zero;</span>
+<span class="s2">    for index in 0..</span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">)</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">        let delta = x[index] - center[index];</span>
+<span class="s2">        let excess = delta.abs() - radius;</span>
+<span class="s2">        let positive_excess = excess.max(zero);</span>
+<span class="s2">        sum_sq += positive_excess * positive_excess;</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    0.5_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> * sum_sq</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">cls</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">_input_name</span><span class="o">=</span><span class="n">resolved_input_name</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_sq_distance</span><span class="p">(</span><span class="n">sq_distance</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_projection</span><span class="p">(</span><span class="n">projection</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_rust_projection</span><span class="p">(</span><span class="n">rust_projection</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_rust_sq_distance</span><span class="p">(</span><span class="n">rust_sq_distance</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">_with_input_dimension</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">normalized_center</span><span class="p">))</span>
+        <span class="p">)</span></div>
 
 
 <div class="viewcode-block" id="SquaredDistanceToSet.rectangle">
@@ -485,6 +712,153 @@
             <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
             <span class="n">_input_name</span><span class="o">=</span><span class="n">resolved_input_name</span><span class="p">,</span>
         <span class="p">)</span><span class="o">.</span><span class="n">with_projection_function</span><span class="p">(</span><span class="n">projection</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SquaredDistanceToSet.second_order_cone">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.squared_distance_to_set.SquaredDistanceToSet.second_order_cone">[docs]</a>
+    <span class="nd">@classmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">second_order_cone</span><span class="p">(</span>
+        <span class="bp">cls</span><span class="p">,</span>
+        <span class="o">*</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">dimension</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">input_name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SquaredDistanceToSet</span><span class="p">:</span>
+<span class="w">        </span><span class="sa">r</span><span class="sd">&quot;&quot;&quot;Construct a half-squared distance to a second-order cone.</span>
+
+<span class="sd">        The supported cone is</span>
+
+<span class="sd">        .. math::</span>
+
+<span class="sd">            C_\alpha = \{x = (y, t) : \lVert y \rVert_2 \leq \alpha t\},</span>
+
+<span class="sd">        where ``x`` has length ``dimension``, ``y`` collects the first</span>
+<span class="sd">        ``dimension - 1`` entries, and ``t`` is the last entry.</span>
+
+<span class="sd">        This constructor is Rust-only: it provides custom Rust helpers for</span>
+<span class="sd">        the half-squared distance and the cone projection, but does not</span>
+<span class="sd">        expose a Python numeric evaluation callback or symbolic helper</span>
+<span class="sd">        function.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: Public identifier for the constructed distance object.</span>
+<span class="sd">            alpha: Positive cone scaling parameter.</span>
+<span class="sd">            dimension: Total dimension of ``x = (y, t)``. The dimension must</span>
+<span class="sd">                be at least ``2``.</span>
+<span class="sd">            input_name: Optional symbolic input name used by the generated</span>
+<span class="sd">                internal function. When omitted, ``&quot;x&quot;`` is used.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A :class:`SquaredDistanceToSet` configured for the second-order</span>
+<span class="sd">            cone ``{x = (y, t) : ||y||_2 &lt;= alpha * t}``.</span>
+
+<span class="sd">        Example:</span>
+<span class="sd">            &gt;&gt;&gt; from gradgen import SXVector, SquaredDistanceToSet</span>
+<span class="sd">            &gt;&gt;&gt; distance = SquaredDistanceToSet.second_order_cone(</span>
+<span class="sd">            ...     name=&quot;soc_penalty&quot;,</span>
+<span class="sd">            ...     alpha=2.0,</span>
+<span class="sd">            ...     dimension=3,</span>
+<span class="sd">            ... )</span>
+<span class="sd">            &gt;&gt;&gt; x = SXVector.sym(&quot;x&quot;, 3)</span>
+<span class="sd">            &gt;&gt;&gt; expr = distance(x)</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If ``alpha`` is not strictly positive and finite, or</span>
+<span class="sd">                if ``dimension`` is less than ``2``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">alpha_value</span> <span class="o">=</span> <span class="n">_coerce_positive_radius</span><span class="p">(</span><span class="n">alpha</span><span class="p">)</span>
+        <span class="n">dimension_value</span> <span class="o">=</span> <span class="n">_coerce_input_dimension</span><span class="p">(</span>
+            <span class="n">dimension</span><span class="p">,</span>
+            <span class="n">label</span><span class="o">=</span><span class="s2">&quot;dimension&quot;</span><span class="p">,</span>
+            <span class="n">minimum</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">resolved_input_name</span> <span class="o">=</span> <span class="n">_coerce_symbol_name</span><span class="p">(</span>
+            <span class="s2">&quot;x&quot;</span> <span class="k">if</span> <span class="n">input_name</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">input_name</span><span class="p">,</span>
+            <span class="n">label</span><span class="o">=</span><span class="s2">&quot;input_name&quot;</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">alpha_literal</span> <span class="o">=</span> <span class="nb">repr</span><span class="p">(</span><span class="n">alpha_value</span><span class="p">)</span>
+
+        <span class="n">rust_projection</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_projection(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    out: &amp;mut [</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) </span><span class="se">{{</span>
+<span class="s2">    let alpha = </span><span class="si">{</span><span class="n">alpha_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let one = 1.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let zero = 0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let alpha_sq = alpha * alpha;</span>
+<span class="s2">    let alpha_sq_plus_one = alpha_sq + one;</span>
+<span class="s2">    let last = x.len() - 1;</span>
+<span class="s2">    let t = x[last];</span>
+<span class="s2">    let t_sq = t * t;</span>
+<span class="s2">    let mut sum_sq = zero;</span>
+<span class="s2">    for value in &amp;x[..last] </span><span class="se">{{</span>
+<span class="s2">        sum_sq += *value * *value;</span>
+<span class="s2">    </span><span class="se">}}</span>
+
+<span class="s2">    if t &lt;= zero &amp;&amp; alpha_sq * sum_sq &lt;= t_sq </span><span class="se">{{</span>
+<span class="s2">        out.fill(zero);</span>
+<span class="s2">        return;</span>
+<span class="s2">    </span><span class="se">}}</span>
+
+<span class="s2">    if t &gt;= zero &amp;&amp; sum_sq &lt;= alpha_sq * t_sq </span><span class="se">{{</span>
+<span class="s2">        out.copy_from_slice(x);</span>
+<span class="s2">        return;</span>
+<span class="s2">    </span><span class="se">}}</span>
+
+<span class="s2">    let norm_y = </span><span class="se">{{{{</span><span class="s2"> sqrt(sum_sq) </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let beta = (alpha * norm_y + t) / alpha_sq_plus_one;</span>
+<span class="s2">    let scale = alpha * beta / norm_y;</span>
+<span class="s2">    for index in 0..last </span><span class="se">{{</span>
+<span class="s2">        out[index] = scale * x[index];</span>
+<span class="s2">    </span><span class="se">}}</span>
+<span class="s2">    out[last] = beta;</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+        <span class="n">rust_sq_distance</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;&quot;&quot;</span>
+<span class="s2">fn </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">(</span>
+<span class="s2">    x: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">    w: &amp;[</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">],</span>
+<span class="s2">) -&gt; </span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> </span><span class="se">{{</span>
+<span class="s2">    let _ = w;</span>
+<span class="s2">    let alpha = </span><span class="si">{</span><span class="n">alpha_literal</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let one = 1.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let zero = 0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let alpha_sq = alpha * alpha;</span>
+<span class="s2">    let alpha_sq_plus_one = alpha_sq + one;</span>
+<span class="s2">    let last = x.len() - 1;</span>
+<span class="s2">    let t = x[last];</span>
+<span class="s2">    let t_sq = t * t;</span>
+<span class="s2">    let mut sum_sq = zero;</span>
+<span class="s2">    for value in &amp;x[..last] </span><span class="se">{{</span>
+<span class="s2">        sum_sq += *value * *value;</span>
+<span class="s2">    </span><span class="se">}}</span>
+
+<span class="s2">    if t &lt;= zero &amp;&amp; alpha_sq * sum_sq &lt;= t_sq </span><span class="se">{{</span>
+<span class="s2">        return 0.5_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> * (t_sq + sum_sq);</span>
+<span class="s2">    </span><span class="se">}}</span>
+
+<span class="s2">    if t &gt;= zero &amp;&amp; sum_sq &lt;= alpha_sq * t_sq </span><span class="se">{{</span>
+<span class="s2">        return zero;</span>
+<span class="s2">    </span><span class="se">}}</span>
+
+<span class="s2">    let norm_y = </span><span class="se">{{{{</span><span class="s2"> sqrt(sum_sq) </span><span class="se">}}}}</span><span class="s2">;</span>
+<span class="s2">    let beta = (alpha * norm_y + t) / alpha_sq_plus_one;</span>
+<span class="s2">    let y_scale = one - (alpha * beta / norm_y);</span>
+<span class="s2">    let dt = t - beta;</span>
+<span class="s2">    let dist_sq = y_scale * y_scale * sum_sq + dt * dt;</span>
+<span class="s2">    0.5_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2"> * dist_sq</span>
+<span class="se">}}</span>
+<span class="s2">&quot;&quot;&quot;</span>
+
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">cls</span><span class="p">(</span><span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span> <span class="n">_input_name</span><span class="o">=</span><span class="n">resolved_input_name</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_rust_projection</span><span class="p">(</span><span class="n">rust_projection</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">with_rust_sq_distance</span><span class="p">(</span><span class="n">rust_sq_distance</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">_with_input_dimension</span><span class="p">(</span><span class="n">dimension_value</span><span class="p">)</span>
+        <span class="p">)</span></div>
 
 
     <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
@@ -686,6 +1060,14 @@
 <span class="w">        </span><span class="sd">&quot;&quot;&quot;Forget any cached symbolic :class:`Function` view.&quot;&quot;&quot;</span>
         <span class="bp">self</span><span class="o">.</span><span class="n">_function_cache</span> <span class="o">=</span> <span class="kc">None</span>
 
+    <span class="k">def</span><span class="w"> </span><span class="nf">_with_input_dimension</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">input_dimension</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SquaredDistanceToSet</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Record the known input dimension for fluent constructors.&quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_input_dimension</span> <span class="o">=</span> <span class="n">input_dimension</span>
+        <span class="k">return</span> <span class="bp">self</span>
+
     <span class="k">def</span><span class="w"> </span><span class="nf">_build_gradient_callback</span><span class="p">(</span>
         <span class="bp">self</span><span class="p">,</span>
     <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="nb">object</span><span class="p">],</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">object</span><span class="p">,</span> <span class="o">...</span><span class="p">]]:</span>
@@ -731,13 +1113,9 @@
                     <span class="sa">f</span><span class="s2">&quot;[0.0_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">; </span><span class="si">{</span><span class="n">input_dimension</span><span class="si">}</span><span class="s2">];&quot;</span>
                 <span class="p">),</span>
                 <span class="sa">f</span><span class="s2">&quot;    </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_projection(x, &amp;mut projection);&quot;</span><span class="p">,</span>
-                <span class="o">*</span><span class="p">[</span>
-                    <span class="p">(</span>
-                        <span class="sa">f</span><span class="s2">&quot;    out[</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">] = x[</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">] - &quot;</span>
-                        <span class="sa">f</span><span class="s2">&quot;projection[</span><span class="si">{</span><span class="n">index</span><span class="si">}</span><span class="s2">];&quot;</span>
-                    <span class="p">)</span>
-                    <span class="k">for</span> <span class="n">index</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">input_dimension</span><span class="p">)</span>
-                <span class="p">],</span>
+                <span class="sa">f</span><span class="s2">&quot;    for index in 0..</span><span class="si">{</span><span class="n">input_dimension</span><span class="si">}</span><span class="s2"> </span><span class="se">{{</span><span class="s2">&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;        out[index] = x[index] - projection[index];&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;    }&quot;</span><span class="p">,</span>
                 <span class="s2">&quot;}&quot;</span><span class="p">,</span>
             <span class="p">]</span>
         <span class="p">)</span>
@@ -886,6 +1264,32 @@
     <span class="k">if</span> <span class="ow">not</span> <span class="n">math</span><span class="o">.</span><span class="n">isfinite</span><span class="p">(</span><span class="n">numeric</span><span class="p">)</span> <span class="ow">or</span> <span class="n">numeric</span> <span class="o">&lt;=</span> <span class="mf">0.0</span><span class="p">:</span>
         <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;radius must be strictly positive and finite&quot;</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">numeric</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_coerce_input_dimension</span><span class="p">(</span>
+    <span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+    <span class="n">minimum</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a validated integer input dimension.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">bool</span><span class="p">)</span> <span class="ow">or</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">value</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> must be an integer&quot;</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">value</span> <span class="o">&lt;</span> <span class="n">minimum</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">label</span><span class="si">}</span><span class="s2"> must be at least </span><span class="si">{</span><span class="n">minimum</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">value</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_render_rust_real_array_literal</span><span class="p">(</span><span class="n">values</span><span class="p">:</span> <span class="n">Sequence</span><span class="p">[</span><span class="nb">float</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return a Rust array literal using ``{{ scalar_type }}`` suffixes.&quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">values</span><span class="p">:</span>
+        <span class="k">return</span> <span class="s2">&quot;[]&quot;</span>
+    <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">value</span> <span class="o">==</span> <span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">[</span><span class="mi">1</span><span class="p">:]):</span>
+        <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">values</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">; </span><span class="si">{</span><span class="nb">len</span><span class="p">(</span><span class="n">values</span><span class="p">)</span><span class="si">}</span><span class="s2">]&quot;</span>
+    <span class="n">rendered_values</span> <span class="o">=</span> <span class="s2">&quot;, &quot;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="nb">repr</span><span class="p">(</span><span class="n">value</span><span class="p">)</span><span class="si">}</span><span class="s2">_</span><span class="se">{{{{</span><span class="s2"> scalar_type </span><span class="se">}}}}</span><span class="s2">&quot;</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="sa">f</span><span class="s2">&quot;[</span><span class="si">{</span><span class="n">rendered_values</span><span class="si">}</span><span class="s2">]&quot;</span>
 
 
 <span class="k">def</span><span class="w"> </span><span class="nf">_coerce_symbol_name</span><span class="p">(</span><span class="n">value</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
