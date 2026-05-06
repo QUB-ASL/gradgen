@@ -1458,6 +1458,7 @@ mod single_shooting_multi_u_tests {{
         )
 
         config = RustBackendConfig().with_build_crate(True)
+        config = config.with_build_profile("debug")
 
         with (
             TemporaryDirectory() as tmpdir,
@@ -1496,7 +1497,11 @@ mod single_shooting_multi_u_tests {{
                 create_rust_project(
                     f,
                     Path(tmpdir) / "energy_kernel",
-                    config=RustBackendConfig().with_build_crate(True),
+                    config=(
+                        RustBackendConfig()
+                        .with_build_crate(True)
+                        .with_build_profile("debug")
+                    ),
                 )
 
     def test_create_rust_project_with_python_interface_builds(self) -> None:
@@ -1600,6 +1605,7 @@ mod single_shooting_multi_u_tests {{
                 RustBackendConfig()
                 .with_crate_name("abc")
                 .with_build_crate(True)
+                .with_build_profile("debug")
             )
             .for_function(f)
             .add_primal()
