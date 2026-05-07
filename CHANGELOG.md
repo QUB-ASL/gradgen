@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## 0.5.1 - 06-05-2026
 
+[![PyPI](https://img.shields.io/badge/gradgen-v0.5.1-blue)](https://pypi.org/project/gradgen/0.5.1)
+[![PyPI](https://img.shields.io/badge/release-v0.5.1-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.5.1)
+
 ### Added
 
 - Added `SquaredDistanceToSet.second_order_cone(...)` for Rust-backed
