@@ -21,6 +21,27 @@ last_update:
 
 ## Unit tests 
 
+Firstly activate the virtual environment and install gradgen locally using `pip install -e .`. Then, run all unit tests with 
+```bash
+pytest tests/
+```
+To run a specific test suite, do, for example,
+```bash
+pytest tests/test_ad.py 
+```
+To run specific tests, e.g., those tests that include `norm_p` in their name, do 
+```
+pytest tests/ -k norm_p
+```
+
+## Coverage
+
+Create a coverage report by running
+```bash
+scripts/coverage.sh 
+```
+Aim for a minimum of 90% coverage in all files, but don't forget that coverage is just a number. A high coverage does not imply good testing. Always aim for a combination of simple unit tests, tests to catch corner cases, and integration tests where we compare the results obtained by gradgen to the results obtained by `sympy`.
+
 ## Docusaurus website
 
 To publish the website alongside the sphinx API docs, run 
@@ -28,6 +49,39 @@ To publish the website alongside the sphinx API docs, run
 docs/website/publish.sh --build-api-dox
 ```
 
+## Benchmarks
+
+Coming soon
+
 ## Devops
 
 ### Versions and releases
+
+Here is a checklist before releasing a new version:
+
+- [ ] API documentation
+- [ ] Unit tests
+- [ ] Integration tests
+- [ ] Demo in `demos/`
+- [ ] `CHANGELOG` updated
+- [ ] Webpage documentation (incl. `last_update`) updated
+- [ ] Google Colab demo?
+- [ ] Bump versions in `pyproject.toml`
+- [ ] Blog post with summary of key changes
+
+Release with 
+
+```bash
+scripts/publish.sh
+```
+
+after releasing
+
+- [ ] Update website docs ([link](/gradgen/docs/extras/1-for-devs#docusaurus-website))
+- [ ] Create tag with 
+```bash
+git tag -a v0.X.X -m "v0.X.X"
+```
+- [ ] Create release on GitHub
+
+
