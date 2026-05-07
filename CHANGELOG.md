@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ## 0.5.2 - 07-05-2025
 
+[![PyPI](https://img.shields.io/badge/gradgen-v0.5.2-blue)](https://pypi.org/project/gradgen/0.5.2)
+[![PyPI](https://img.shields.io/badge/release-v0.5.2-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.5.2)
+
 ### Added
 
 - Added symbolic comparisons (`<`, `<=`, `>`, `>=`) and
