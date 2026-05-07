@@ -450,6 +450,18 @@ def _special_norm_p(args: tuple[SX, ...], name: str | None) -> SX:
     return _same_shape_node("norm_p", args, name)
 
 
+def _special_if_else(args: tuple[SX, ...], name: str | None) -> SX:
+    true_branch, false_branch, condition = args
+    del name
+    if true_branch.node is false_branch.node:
+        return true_branch
+    if _is_const(condition):
+        if _const_value(condition) != 0.0:
+            return true_branch
+        return false_branch
+    return _same_shape_node("if_else", args)
+
+
 def _simplify_neg(args: tuple[SX, ...]) -> SX:
     """Simplify a negation expression."""
     arg = args[0]
@@ -503,6 +515,10 @@ def _simplify_binary(op: str, args: tuple[SX, ...]) -> SX:
             return SX.const(0.0)
         if _is_one(left):
             return SX.const(1.0)
+    if op in {"lt", "gt"} and left.node is right.node:
+        return SX.const(0.0)
+    if op in {"le", "ge"} and left.node is right.node:
+        return SX.const(1.0)
     return SX(SXNode.make(op, (left.node, right.node)))
 
 
@@ -547,6 +563,7 @@ _SPECIAL_RULES = {
     "norm_inf": _special_norm_inf,
     "norm_p_to_p": _special_norm_p_to_p,
     "norm_p": _special_norm_p,
+    "if_else": _special_if_else,
 }
 
 
@@ -668,6 +685,14 @@ def _evaluate_const_op(op: str, left: float, right: float) -> float:
         return left / right
     if op == "pow":
         return left**right
+    if op == "lt":
+        return 1.0 if left < right else 0.0
+    if op == "le":
+        return 1.0 if left <= right else 0.0
+    if op == "gt":
+        return 1.0 if left > right else 0.0
+    if op == "ge":
+        return 1.0 if left >= right else 0.0
     if op == "atan2":
         return math.atan2(left, right)
     if op == "hypot":

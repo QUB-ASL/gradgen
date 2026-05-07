@@ -14,7 +14,7 @@ keywords:
   - bilinear form
   - gradgen
 last_update:
-  date: 2026-05-04
+  date: 2026-05-07
   author: Pantelis Sopasakis
 ---
 
@@ -245,3 +245,71 @@ Note that we unpack `*x` and `*y` to pass them to the constructor.
 If you omit the unpacking, the constructor stores nested vectors instead of
 flattening them. For packed state and parameter vectors, the unpacked form is
 usually what you want.
+
+## Expressions defined piecewise
+
+Often we need to define expressions piecewise. As an example, take
+
+```math
+f = \begin{cases}
+0, & \text{ if } x < p 
+\\
+(x-p)^2, & \text{ if } x \geq p 
+\end{cases}
+```
+
+This defines a function $f(x, p)$.
+
+More generally, we can have an expression
+
+```math
+f = \begin{cases}
+f_1, & \text{ if } (\text{condition})
+\\
+f_2, & \text{ otherwise}
+\end{cases}
+```
+
+where $f_1$ and $f_2$ are expressions and the condition is an inequality
+(using the operators `<`, `<=`, `>`, or `>=`) involving symbols. 
+Such piecewise expressions can be defined using `if_else(f1, f2, condition)`. 
+Here is an example for the above function
+
+```python
+x = SX.sym("x")
+p = SX.sym("p")
+f = if_else(0, (x-p)**2, x < p)
+```
+
+The derivative of an expression defined piecewise is the piecewise function
+
+```math
+f' = \begin{cases}
+f_1', & \text{ if } (\text{condition})
+\\
+f_2', & \text{ otherwise}
+\end{cases}
+```
+
+Note that the function $f$ may not be differentiable everywhere. Nevertheless, 
+gradgen will always compute a derivative, provided $f_1$ and $f_2$ are differentiable.
+
+<details>
+
+Consisder the Heaviside function which is
+
+```python
+x = SX.sym("x")
+f = if_else(0, 1, x < 0)
+```
+
+We know that $f'(x) = 0$ for all $x\neq 0$, while at $x=0$ the derivative 
+is not defined. However, at $x=0$ gradgen uses the branch $f(x) = 1$ and computes
+the derivative; it is
+
+```python
+df = Function("f", [x], [gradient(f, x)])
+print(df(0)) # prints 0.0
+```
+
+</details>

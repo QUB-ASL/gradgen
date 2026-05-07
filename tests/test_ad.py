@@ -10,6 +10,7 @@ from gradgen import (
     derivative,
     gradient,
     hessian,
+    if_else,
     jacobian,
     jvp,
     matvec,
@@ -69,6 +70,19 @@ class ForwardADTests(unittest.TestCase):
         self.assertEqual(derivative_function(0.0), 0.0)
         self.assertEqual(derivative_function(1.0), 2.0)
 
+    def test_forward_derivative_of_if_else_follows_active_branch(self) -> None:
+        x = SX.sym("x")
+        p = SX.sym("p")
+        expr = if_else(x * x, p * x, p >= x.sin())
+        derivative_function = Function(
+            "piecewise_derivative",
+            [x, p],
+            [derivative(expr, x)],
+        )
+
+        self.assertAlmostEqual(derivative_function(0.5, 1.0), 1.0)
+        self.assertAlmostEqual(derivative_function(0.5, 0.1), 0.1)
+
     def test_forward_rules_for_unary_ops_match_numeric_evaluation(self) -> None:
         x = SX.sym("x")
         expr = x.sin() + x.cos() + x.exp() + x.log() + x.sqrt()
@@ -126,6 +140,40 @@ class ForwardADTests(unittest.TestCase):
         result = evaluator([0.0, 0.0])
 
         self.assertEqual(result, (1.0, 2.0))
+
+    def test_vector_if_else_primal_and_jacobians_follow_active_branch(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 2)
+        p = SX.sym("p")
+        expr = if_else(
+            SXVector((x[0] * x[0], x[1] + 1.0)),
+            SXVector((p * x[0], p - x[1])),
+            p >= 0.0,
+        )
+        base_function = Function(
+            "vector_piecewise",
+            [x, p],
+            [expr],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+        jac_x = base_function.jacobian(0)
+        jac_p = base_function.jacobian(1)
+
+        self.assertEqual(base_function([2.0, 3.0], 1.0), (4.0, 4.0))
+        self.assertEqual(
+            jac_x([2.0, 3.0], 1.0),
+            (4.0, 0.0, 0.0, 1.0),
+        )
+        self.assertEqual(jac_p([2.0, 3.0], 1.0), (0.0, 0.0))
+
+        self.assertEqual(base_function([2.0, 3.0], -2.0), (-4.0, -5.0))
+        self.assertEqual(
+            jac_x([2.0, 3.0], -2.0),
+            (-2.0, 0.0, 0.0, -1.0),
+        )
+        self.assertEqual(jac_p([2.0, 3.0], -2.0), (2.0, 1.0))
 
     def test_jvp_of_vector_product_uses_all_other_factors(self) -> None:
         x = SXVector.sym("x", 3)
@@ -252,6 +300,17 @@ class ReverseADTests(unittest.TestCase):
         evaluator = Function("grad", [x], [grad])
 
         self.assertEqual(evaluator([3.0, 4.0]), (6.0, 8.0))
+
+    def test_reverse_gradient_of_if_else_follows_active_branch(self) -> None:
+        x = SX.sym("x")
+        p = SX.sym("p")
+        expr = if_else(x * x, p * x, p >= x.sin())
+        grad_x = gradient(expr, x)
+        grad_p = gradient(expr, p)
+        evaluator = Function("piecewise_grad", [x, p], [grad_x, grad_p])
+
+        self.assertEqual(evaluator(0.5, 1.0), (1.0, 0.0))
+        self.assertEqual(evaluator(0.5, 0.1), (0.1, 0.5))
 
     def test_vector_output_vjp_returns_scalar_sensitivity(self) -> None:
         x = SX.sym("x")

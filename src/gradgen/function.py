@@ -1340,6 +1340,10 @@ _SCALAR_BINARY_DISPATCH: dict[str, Callable[[tuple[float, ...]], float]] = {
     "mul": lambda args: args[0] * args[1],
     "div": lambda args: args[0] / args[1],
     "pow": lambda args: args[0] ** args[1],
+    "lt": lambda args: 1.0 if args[0] < args[1] else 0.0,
+    "le": lambda args: 1.0 if args[0] <= args[1] else 0.0,
+    "gt": lambda args: 1.0 if args[0] > args[1] else 0.0,
+    "ge": lambda args: 1.0 if args[0] >= args[1] else 0.0,
     "min": lambda args: min(args[0], args[1]),
     "max": lambda args: max(args[0], args[1]),
     "atan2": lambda args: math.atan2(args[0], args[1]),
@@ -1378,6 +1382,7 @@ _SCALAR_UNARY_DISPATCH: dict[str, Callable[[tuple[float, ...]], float]] = {
 }
 
 _SCALAR_NARY_DISPATCH: dict[str, Callable[[tuple[float, ...]], float]] = {
+    "if_else": lambda args: args[0] if args[2] != 0.0 else args[1],
     "sum": lambda args: sum(args),
     "prod": _evaluate_prod,
     "reduce_max": lambda args: max(args),

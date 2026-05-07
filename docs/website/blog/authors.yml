@@ -4,6 +4,10 @@ pantelis:
   url: https://github.com/alphaville
   image_url: https://www.qub.ac.uk/schools/media/Media1218037smxx.png 
   page: true
+  socials:
+    github: alphaville
+    linkedin: sopasakis
+
 # yangshun:
 #   name: Yangshun Tay
 #   title: Ex-Meta Staff Engineer, Co-founder GreatFrontEnd

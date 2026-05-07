@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
 
+## 0.5.2 - 07-05-2025
+
+[![PyPI](https://img.shields.io/badge/gradgen-v0.5.2-blue)](https://pypi.org/project/gradgen/0.5.2)
+[![PyPI](https://img.shields.io/badge/release-v0.5.2-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.5.2)
+
+### Added
+
+- Added symbolic comparisons (`<`, `<=`, `>`, `>=`) and
+  `if_else(if_true, if_false, condition)` for piecewise scalar and
+  elementwise-vector expressions. Support for AD (piecewise). Website docs added.
+  Thoroughly tested (incl. integration tests, comparisons with sympy).
+
+
+
 ## 0.5.1 - 06-05-2026
 
 [![PyPI](https://img.shields.io/badge/gradgen-v0.5.1-blue)](https://pypi.org/project/gradgen/0.5.1)
@@ -28,6 +42,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   made additive output accumulation the default lowering style for final
   outputs. Generated kernels now write readable incremental updates directly
   into the output slices whenever possible.
+- Added automatic differentiation and Rust code generation support for
+  branchwise `if_else(...)` expressions, with derivatives following the
+  active branch and treating the condition as nondifferentiated.
 - Emitted `copy_from_slice` for contiguous vector outputs backed by workspace
   slices, replacing element-by-element final copy assignments with idiomatic
   slice copies where possible.
@@ -66,8 +83,6 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 [![PyPI](https://img.shields.io/badge/gradgen-v0.5.0-blue)](https://pypi.org/project/gradgen/0.5.0)
 [![PyPI](https://img.shields.io/badge/release-v0.5.0-yellow)](https://github.com/QUB-ASL/gradgen/releases/tag/v0.5.0)
-
-## Unreleased
 
 ### Changed
 
@@ -314,6 +329,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Documentation
 
+- Added API docstrings for the scalar and vector overloads of
+  `if_else(...)`.
 - Created project website using Docusaurus v3. Added user-friendly documentation and
   links to Google Colab Python notebooks.
 

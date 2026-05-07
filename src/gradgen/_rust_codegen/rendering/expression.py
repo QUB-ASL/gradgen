@@ -470,6 +470,13 @@ _BINARY_MATH_OPERATORS = {
     "max": "max",
 }
 
+_BINARY_COMPARISON_OPERATORS = {
+    "lt": "<",
+    "le": "<=",
+    "gt": ">",
+    "ge": ">=",
+}
+
 _UNARY_MATH_OPERATORS = {
     "sin": "sin",
     "cos": "cos",
@@ -562,6 +569,56 @@ def _emit_binary_math_node(
         backend_mode,
         scalar_type,
         math_library,
+    )
+
+
+def _emit_binary_comparison_node(
+    expr: SX,
+    args: tuple[str, ...],
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str:
+    """Emit a numeric 1-or-0 expression for a binary comparison."""
+    del scalar_bindings, workspace_map, backend_mode, math_library
+    operator = _BINARY_COMPARISON_OPERATORS[expr.op]
+    return (
+        f"if {args[0]} {operator} {args[1]} "
+        f"{{ 1.0_{scalar_type} }} else {{ 0.0_{scalar_type} }}"
+    )
+
+
+def _emit_if_else_node(
+    expr: SX,
+    args: tuple[str, ...],
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str:
+    """Emit a ternary-like scalar branch expression."""
+    condition = expr.args[2]
+    bool_condition = f"({args[2]}) != 0.0_{scalar_type}"
+    if condition.op in _BINARY_COMPARISON_OPERATORS:
+        condition_args = tuple(
+            _emit_expr_ref(
+                arg,
+                scalar_bindings,
+                workspace_map,
+                backend_mode,
+                scalar_type,
+                math_library,
+            )
+            for arg in condition.args
+        )
+        operator = _BINARY_COMPARISON_OPERATORS[condition.op]
+        bool_condition = f"{condition_args[0]} {operator} {condition_args[1]}"
+    return (
+        f"if {bool_condition} "
+        f"{{ {args[0]} }} else {{ {args[1]} }}"
     )
 
 
@@ -978,6 +1035,11 @@ _NODE_EXPR_DISPATCH = {
     "hypot": _emit_binary_math_node,
     "min": _emit_binary_math_node,
     "max": _emit_binary_math_node,
+    "lt": _emit_binary_comparison_node,
+    "le": _emit_binary_comparison_node,
+    "gt": _emit_binary_comparison_node,
+    "ge": _emit_binary_comparison_node,
+    "if_else": _emit_if_else_node,
     "neg": _emit_unary_node,
     "sin": _emit_unary_node,
     "cos": _emit_unary_node,
