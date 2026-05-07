@@ -141,6 +141,40 @@ class ForwardADTests(unittest.TestCase):
 
         self.assertEqual(result, (1.0, 2.0))
 
+    def test_vector_if_else_primal_and_jacobians_follow_active_branch(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 2)
+        p = SX.sym("p")
+        expr = if_else(
+            SXVector((x[0] * x[0], x[1] + 1.0)),
+            SXVector((p * x[0], p - x[1])),
+            p >= 0.0,
+        )
+        base_function = Function(
+            "vector_piecewise",
+            [x, p],
+            [expr],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+        jac_x = base_function.jacobian(0)
+        jac_p = base_function.jacobian(1)
+
+        self.assertEqual(base_function([2.0, 3.0], 1.0), (4.0, 4.0))
+        self.assertEqual(
+            jac_x([2.0, 3.0], 1.0),
+            (4.0, 0.0, 0.0, 1.0),
+        )
+        self.assertEqual(jac_p([2.0, 3.0], 1.0), (0.0, 0.0))
+
+        self.assertEqual(base_function([2.0, 3.0], -2.0), (-4.0, -5.0))
+        self.assertEqual(
+            jac_x([2.0, 3.0], -2.0),
+            (-2.0, 0.0, 0.0, -1.0),
+        )
+        self.assertEqual(jac_p([2.0, 3.0], -2.0), (2.0, 1.0))
+
     def test_jvp_of_vector_product_uses_all_other_factors(self) -> None:
         x = SXVector.sym("x", 3)
         # For f(x) = x0 * x1 * x2, the directional derivative is

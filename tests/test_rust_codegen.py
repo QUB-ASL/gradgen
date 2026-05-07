@@ -3099,6 +3099,44 @@ mod tests {{
         self.assertIn(".sin()", result.source)
         self.assertIn("y[0] = if", result.source)
 
+    def test_generated_code_supports_if_else_with_truthy_condition(self) -> None:
+        x = SX.sym("x")
+        p = SX.sym("p")
+        expr = gradgen.if_else(x * x, p * x, p)
+        f = Function(
+            "piecewise_truthy",
+            [x, p],
+            [expr],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("if (p[0]) != 0.0_f64", result.source)
+        self.assertIn("y[0] = if", result.source)
+
+    def test_generated_code_supports_vector_if_else(self) -> None:
+        x = SXVector.sym("x", 2)
+        p = SX.sym("p")
+        expr = gradgen.if_else(
+            SXVector((x[0] * x[0], x[1] + 1.0)),
+            SXVector((p * x[0], p - x[1])),
+            p >= 0.0,
+        )
+        f = Function(
+            "vector_piecewise",
+            [x, p],
+            [expr],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("y[0] = if p[0] >= 0.0_f64", result.source)
+        self.assertIn("y[1] = if p[0] >= 0.0_f64", result.source)
+
     def test_no_std_codegen_supports_extended_libm_functions(self) -> None:
         x = SX.sym("x")
         expr = (

@@ -7,6 +7,7 @@ from gradgen import (
     SXVector,
     derivative,
     hessian,
+    if_else,
     matvec,
     quadform,
     bilinear_form,
@@ -176,6 +177,18 @@ class SimplifyTests(unittest.TestCase):
         self.assertEqual(simplify(SX.const(1.0).log()).value, 0.0)
         self.assertEqual(simplify(SX.const(1.0).sqrt()).value, 1.0)
         self.assertEqual(simplify(SX.const(0.0).cos()).value, 1.0)
+
+    def test_simplify_folds_if_else_equal_branches_and_constants(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+
+        same_branch = simplify(if_else(x, x, y >= 0.0), max_effort="medium")
+        true_branch = simplify(if_else(x, y, 1.0), max_effort="medium")
+        false_branch = simplify(if_else(x, y, 0.0), max_effort="medium")
+
+        self.assertIs(same_branch.node, x.node)
+        self.assertIs(true_branch.node, x.node)
+        self.assertIs(false_branch.node, y.node)
 
     def test_simplify_respects_effort_none(self) -> None:
         x = SX.sym("x")
