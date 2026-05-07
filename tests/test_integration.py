@@ -320,16 +320,31 @@ mod integration_sympy_gradient {{
         grad_x_function = base_function.gradient(0, name="piecewise_grad_x")
         grad_p_function = base_function.gradient(1, name="piecewise_grad_p")
 
-        point_true = [0.5, 1.0]
-        point_false = [0.5, 0.1]
-        expected_primal = []
-        expected_grad_x = []
-        expected_grad_p = []
-        for point in (point_true, point_false):
+        points = [
+            [0.5, 1.0],
+            [0.5, 0.1],
+            [-0.7, 0.8],
+            [1.2, -0.4],
+        ]
+        expected_primal: list[float] = []
+        expected_grad_x: list[float] = []
+        expected_grad_p: list[float] = []
+        for point in points:
             substitutions = {x_sym: point[0], p_sym: point[1]}
             expected_primal.append(float(sympy_expr.subs(substitutions).evalf()))
             expected_grad_x.append(float(sympy_dx.subs(substitutions).evalf()))
             expected_grad_p.append(float(sympy_dp.subs(substitutions).evalf()))
+
+        for point, primal, grad_x, grad_p in zip(
+            points,
+            expected_primal,
+            expected_grad_x,
+            expected_grad_p,
+            strict=True,
+        ):
+            self.assertAlmostEqual(base_function(*point), primal)
+            self.assertAlmostEqual(grad_x_function(*point), grad_x)
+            self.assertAlmostEqual(grad_p_function(*point), grad_p)
 
         builder = (
             CodeGenerationBuilder(base_function)
@@ -370,6 +385,14 @@ mod integration_sympy_if_else {{
              {expected_primal[1]!r}_f64,
              {expected_grad_x[1]!r}_f64,
              {expected_grad_p[1]!r}_f64),
+            ([-0.7_f64], [0.8_f64],
+             {expected_primal[2]!r}_f64,
+             {expected_grad_x[2]!r}_f64,
+             {expected_grad_p[2]!r}_f64),
+            ([1.2_f64], [-0.4_f64],
+             {expected_primal[3]!r}_f64,
+             {expected_grad_x[3]!r}_f64,
+             {expected_grad_p[3]!r}_f64),
         ];
 
         for (x, p, expected_primal, expected_grad_x, expected_grad_p)
