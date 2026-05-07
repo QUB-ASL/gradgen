@@ -6,14 +6,14 @@
   <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>gradgen package &mdash; Gradgen API 0.5.1</title>
+  <title>gradgen package &mdash; Gradgen API 0.5.2</title>
       <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../_static/jquery.js?v=5d32c60e"></script>
       <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../_static/documentation_options.js?v=b9afe91b"></script>
+      <script src="../_static/documentation_options.js?v=8e576371"></script>
       <script src="../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../_static/sphinx_highlight.js?v=6ffebe34"></script>
       <script defer="defer" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-mml-chtml.js"></script>
@@ -139,6 +139,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.hypot"><code class="docutils literal notranslate"><span class="pre">hypot()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.maximum"><code class="docutils literal notranslate"><span class="pre">maximum()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.minimum"><code class="docutils literal notranslate"><span class="pre">minimum()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.if_else"><code class="docutils literal notranslate"><span class="pre">if_else()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.vector"><code class="docutils literal notranslate"><span class="pre">vector()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.matvec"><code class="docutils literal notranslate"><span class="pre">matvec()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.quadform"><code class="docutils literal notranslate"><span class="pre">quadform()</span></code></a></li>
@@ -209,6 +210,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.get_registered_elementary_function"><code class="docutils literal notranslate"><span class="pre">get_registered_elementary_function()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.hessian"><code class="docutils literal notranslate"><span class="pre">hessian()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.hypot"><code class="docutils literal notranslate"><span class="pre">hypot()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gradgen.if_else"><code class="docutils literal notranslate"><span class="pre">if_else()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.jacobian"><code class="docutils literal notranslate"><span class="pre">jacobian()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.jvp"><code class="docutils literal notranslate"><span class="pre">jvp()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.log"><code class="docutils literal notranslate"><span class="pre">log()</span></code></a></li>
@@ -5720,6 +5722,33 @@ constructors.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#gradgen.sx.SX" title="gradgen.sx.SX"><em>SX</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gradgen.sx.if_else">
+<span class="sig-prename descclassname"><span class="pre">gradgen.sx.</span></span><span class="sig-name descname"><span class="pre">if_else</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">if_true</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">if_false</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">condition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#gradgen.sx.SX" title="gradgen.sx.SX"><span class="pre">SX</span></a></span></span><a class="reference internal" href="../_modules/gradgen/sx.html#if_else"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.sx.if_else" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">gradgen.sx.</span></span><span class="sig-name descname"><span class="pre">if_else</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">if_true</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><span class="pre">SXVector</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">if_false</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><span class="pre">SXVector</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">condition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><span class="pre">SXVector</span></a></span></span></dt>
+<dd><p>Return a symbolic branch selected by <code class="docutils literal notranslate"><span class="pre">condition</span></code>.</p>
+<p>The condition is treated numerically: zero selects <code class="docutils literal notranslate"><span class="pre">if_false</span></code> and
+any nonzero value selects <code class="docutils literal notranslate"><span class="pre">if_true</span></code>. Comparison expressions such as
+<code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">&gt;=</span> <span class="pre">y</span></code> therefore work naturally as conditions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>if_true</strong> (<em>object</em>) – Expression returned when <code class="docutils literal notranslate"><span class="pre">condition</span></code> is true.</p></li>
+<li><p><strong>if_false</strong> (<em>object</em>) – Expression returned when <code class="docutils literal notranslate"><span class="pre">condition</span></code> is false.</p></li>
+<li><p><strong>condition</strong> (<em>object</em>) – Scalar-like selector expression.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A scalar <code class="docutils literal notranslate"><span class="pre">SX</span></code> expression, or an <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> when both branches
+are vectors of the same length.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.sx.SX" title="gradgen.sx.SX"><em>SX</em></a> | <a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><em>SXVector</em></a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -11300,6 +11329,33 @@ constructors.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#gradgen.sx.SX" title="gradgen.sx.SX"><em>SX</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gradgen.if_else">
+<span class="sig-prename descclassname"><span class="pre">gradgen.</span></span><span class="sig-name descname"><span class="pre">if_else</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">if_true</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">if_false</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">condition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#gradgen.sx.SX" title="gradgen.sx.SX"><span class="pre">SX</span></a></span></span><a class="reference internal" href="../_modules/gradgen/sx.html#if_else"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.if_else" title="Link to this definition"></a></dt>
+<dt class="sig sig-object py">
+<span class="sig-prename descclassname"><span class="pre">gradgen.</span></span><span class="sig-name descname"><span class="pre">if_else</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">if_true</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><span class="pre">SXVector</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">if_false</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><span class="pre">SXVector</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">condition</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">object</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><span class="pre">SXVector</span></a></span></span></dt>
+<dd><p>Return a symbolic branch selected by <code class="docutils literal notranslate"><span class="pre">condition</span></code>.</p>
+<p>The condition is treated numerically: zero selects <code class="docutils literal notranslate"><span class="pre">if_false</span></code> and
+any nonzero value selects <code class="docutils literal notranslate"><span class="pre">if_true</span></code>. Comparison expressions such as
+<code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">&gt;=</span> <span class="pre">y</span></code> therefore work naturally as conditions.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>if_true</strong> (<em>object</em>) – Expression returned when <code class="docutils literal notranslate"><span class="pre">condition</span></code> is true.</p></li>
+<li><p><strong>if_false</strong> (<em>object</em>) – Expression returned when <code class="docutils literal notranslate"><span class="pre">condition</span></code> is false.</p></li>
+<li><p><strong>condition</strong> (<em>object</em>) – Scalar-like selector expression.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>A scalar <code class="docutils literal notranslate"><span class="pre">SX</span></code> expression, or an <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> when both branches
+are vectors of the same length.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#gradgen.sx.SX" title="gradgen.sx.SX"><em>SX</em></a> | <a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><em>SXVector</em></a></p>
 </dd>
 </dl>
 </dd></dl>

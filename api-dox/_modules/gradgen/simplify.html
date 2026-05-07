@@ -5,14 +5,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>gradgen.simplify &mdash; Gradgen API 0.5.1</title>
+  <title>gradgen.simplify &mdash; Gradgen API 0.5.2</title>
       <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
       <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=9edc463e" />
 
   
       <script src="../../_static/jquery.js?v=5d32c60e"></script>
       <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
-      <script src="../../_static/documentation_options.js?v=b9afe91b"></script>
+      <script src="../../_static/documentation_options.js?v=8e576371"></script>
       <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
       <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
     <script src="../../_static/js/theme.js"></script>
@@ -524,6 +524,18 @@
     <span class="k">return</span> <span class="n">_same_shape_node</span><span class="p">(</span><span class="s2">&quot;norm_p&quot;</span><span class="p">,</span> <span class="n">args</span><span class="p">,</span> <span class="n">name</span><span class="p">)</span>
 
 
+<span class="k">def</span><span class="w"> </span><span class="nf">_special_if_else</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SX</span><span class="p">,</span> <span class="o">...</span><span class="p">],</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
+    <span class="n">true_branch</span><span class="p">,</span> <span class="n">false_branch</span><span class="p">,</span> <span class="n">condition</span> <span class="o">=</span> <span class="n">args</span>
+    <span class="k">del</span> <span class="n">name</span>
+    <span class="k">if</span> <span class="n">true_branch</span><span class="o">.</span><span class="n">node</span> <span class="ow">is</span> <span class="n">false_branch</span><span class="o">.</span><span class="n">node</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">true_branch</span>
+    <span class="k">if</span> <span class="n">_is_const</span><span class="p">(</span><span class="n">condition</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">_const_value</span><span class="p">(</span><span class="n">condition</span><span class="p">)</span> <span class="o">!=</span> <span class="mf">0.0</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">true_branch</span>
+        <span class="k">return</span> <span class="n">false_branch</span>
+    <span class="k">return</span> <span class="n">_same_shape_node</span><span class="p">(</span><span class="s2">&quot;if_else&quot;</span><span class="p">,</span> <span class="n">args</span><span class="p">)</span>
+
+
 <span class="k">def</span><span class="w"> </span><span class="nf">_simplify_neg</span><span class="p">(</span><span class="n">args</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">SX</span><span class="p">,</span> <span class="o">...</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
 <span class="w">    </span><span class="sd">&quot;&quot;&quot;Simplify a negation expression.&quot;&quot;&quot;</span>
     <span class="n">arg</span> <span class="o">=</span> <span class="n">args</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
@@ -577,6 +589,10 @@
             <span class="k">return</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
         <span class="k">if</span> <span class="n">_is_one</span><span class="p">(</span><span class="n">left</span><span class="p">):</span>
             <span class="k">return</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;lt&quot;</span><span class="p">,</span> <span class="s2">&quot;gt&quot;</span><span class="p">}</span> <span class="ow">and</span> <span class="n">left</span><span class="o">.</span><span class="n">node</span> <span class="ow">is</span> <span class="n">right</span><span class="o">.</span><span class="n">node</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">0.0</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="ow">in</span> <span class="p">{</span><span class="s2">&quot;le&quot;</span><span class="p">,</span> <span class="s2">&quot;ge&quot;</span><span class="p">}</span> <span class="ow">and</span> <span class="n">left</span><span class="o">.</span><span class="n">node</span> <span class="ow">is</span> <span class="n">right</span><span class="o">.</span><span class="n">node</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">SX</span><span class="o">.</span><span class="n">const</span><span class="p">(</span><span class="mf">1.0</span><span class="p">)</span>
     <span class="k">return</span> <span class="n">SX</span><span class="p">(</span><span class="n">SXNode</span><span class="o">.</span><span class="n">make</span><span class="p">(</span><span class="n">op</span><span class="p">,</span> <span class="p">(</span><span class="n">left</span><span class="o">.</span><span class="n">node</span><span class="p">,</span> <span class="n">right</span><span class="o">.</span><span class="n">node</span><span class="p">)))</span>
 
 
@@ -621,6 +637,7 @@
     <span class="s2">&quot;norm_inf&quot;</span><span class="p">:</span> <span class="n">_special_norm_inf</span><span class="p">,</span>
     <span class="s2">&quot;norm_p_to_p&quot;</span><span class="p">:</span> <span class="n">_special_norm_p_to_p</span><span class="p">,</span>
     <span class="s2">&quot;norm_p&quot;</span><span class="p">:</span> <span class="n">_special_norm_p</span><span class="p">,</span>
+    <span class="s2">&quot;if_else&quot;</span><span class="p">:</span> <span class="n">_special_if_else</span><span class="p">,</span>
 <span class="p">}</span>
 
 
@@ -742,6 +759,14 @@
         <span class="k">return</span> <span class="n">left</span> <span class="o">/</span> <span class="n">right</span>
     <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;pow&quot;</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">left</span><span class="o">**</span><span class="n">right</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;lt&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">left</span> <span class="o">&lt;</span> <span class="n">right</span> <span class="k">else</span> <span class="mf">0.0</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;le&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">left</span> <span class="o">&lt;=</span> <span class="n">right</span> <span class="k">else</span> <span class="mf">0.0</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;gt&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">left</span> <span class="o">&gt;</span> <span class="n">right</span> <span class="k">else</span> <span class="mf">0.0</span>
+    <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;ge&quot;</span><span class="p">:</span>
+        <span class="k">return</span> <span class="mf">1.0</span> <span class="k">if</span> <span class="n">left</span> <span class="o">&gt;=</span> <span class="n">right</span> <span class="k">else</span> <span class="mf">0.0</span>
     <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;atan2&quot;</span><span class="p">:</span>
         <span class="k">return</span> <span class="n">math</span><span class="o">.</span><span class="n">atan2</span><span class="p">(</span><span class="n">left</span><span class="p">,</span> <span class="n">right</span><span class="p">)</span>
     <span class="k">if</span> <span class="n">op</span> <span class="o">==</span> <span class="s2">&quot;hypot&quot;</span><span class="p">:</span>
