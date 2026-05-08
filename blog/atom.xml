@@ -2,17 +2,39 @@
 <feed xmlns="http://www.w3.org/2005/Atom">
     <id>https://qub-asl.github.io/gradgen/blog</id>
     <title>Gradgen Blog</title>
-    <updated>2026-05-06T00:00:00.000Z</updated>
+    <updated>2026-05-07T00:00:00.000Z</updated>
     <generator>https://github.com/jpmonette/feed</generator>
     <link rel="alternate" href="https://qub-asl.github.io/gradgen/blog"/>
     <subtitle>Gradgen Blog</subtitle>
     <icon>https://qub-asl.github.io/gradgen/img/favicon.ico</icon>
     <entry>
+        <title type="html"><![CDATA[Functions defined piecewise]]></title>
+        <id>https://qub-asl.github.io/gradgen/blog/if-else</id>
+        <link href="https://qub-asl.github.io/gradgen/blog/if-else"/>
+        <updated>2026-05-07T00:00:00.000Z</updated>
+        <summary type="html"><![CDATA[Gradgen v0.5.2]]></summary>
+        <content type="html"><![CDATA[<p><a href="https://github.com/QUB-ASL/gradgen/releases/tag/v0.5.2" target="_blank" rel="noopener noreferrer" class="">Gradgen v0.5.2</a> brings functions defined piecewise using <a class="" href="https://qub-asl.github.io/gradgen/docs/basics/symbolic#expressions-defined-piecewise"><code>if_else</code></a>. Moreover, gradgen allows the differentiation of these functions.</p>
+<p>The user can define symbolic expressions of the following form</p>
+<p>$$f = \begin{cases}
+f_1, &amp; \text{ if } (\text{condition})
+\\
+f_2, &amp; \text{ otherwise}
+\end{cases}$$</p>
+<p>For example, the Heaviside functions with parameters $p$, that is
+$f(x) = 0$ if $x &lt; p$ and $f(x) = 1$ if $x \geq p$ is defined as</p>
+<div class="language-python codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-python codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#393A34"><span class="token plain">x </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> SX</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">sym</span><span class="token punctuation" style="color:#393A34">(</span><span class="token string" style="color:#e3116c">"x"</span><span class="token punctuation" style="color:#393A34">)</span><span class="token plain"></span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">p </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> SX</span><span class="token punctuation" style="color:#393A34">.</span><span class="token plain">sym</span><span class="token punctuation" style="color:#393A34">(</span><span class="token string" style="color:#e3116c">"p"</span><span class="token punctuation" style="color:#393A34">)</span><span class="token plain"></span><br></span><span class="token-line" style="color:#393A34"><span class="token plain">f </span><span class="token operator" style="color:#393A34">=</span><span class="token plain"> if_else</span><span class="token punctuation" style="color:#393A34">(</span><span class="token number" style="color:#36acaa">0</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> </span><span class="token number" style="color:#36acaa">1</span><span class="token punctuation" style="color:#393A34">,</span><span class="token plain"> x </span><span class="token operator" style="color:#393A34">&lt;</span><span class="token plain"> p</span><span class="token punctuation" style="color:#393A34">)</span><br></span></code></pre></div></div>]]></content>
+        <author>
+            <name>Pantelis Sopasakis</name>
+            <uri>https://github.com/alphaville</uri>
+        </author>
+        <category label="New version" term="New version"/>
+    </entry>
+    <entry>
         <title type="html"><![CDATA[Gradgen v0.5.1 brings new features and improvements]]></title>
         <id>https://qub-asl.github.io/gradgen/blog/v0.5.1</id>
         <link href="https://qub-asl.github.io/gradgen/blog/v0.5.1"/>
         <updated>2026-05-06T00:00:00.000Z</updated>
-        <summary type="html"><![CDATA[Gradgen v0.5.1]]></summary>
+        <summary type="html"><![CDATA[Gradgen v0.5.1 introduces a bunch of new functionality and performance improvements from second-order cones to efficient memory allocation]]></summary>
         <content type="html"><![CDATA[<p><a href="https://github.com/QUB-ASL/gradgen/releases/tag/v0.5.1" target="_blank" rel="noopener noreferrer" class="">Gradgen v0.5.1</a> brings second-order cones (SOCs), which are useful in convex optimization. It also brings significant improvements in the generated code leading to a more "economic" allocation of workspace memory. Earlier, workspace would almost always be required, whereas now we check whether the output variable can serve as workspace. More thorough unit testing is also done (we now have 538 unit tests running on GitHub Actions). This includes integration tests where we compare the results obtained by gradgen to <a href="https://www.sympy.org/en/index.html" target="_blank" rel="noopener noreferrer" class=""><code>sympy</code></a>.</p>
 <p>Gradgen v0.5.1 can be installed using <code>pip</code>:</p>
 <div class="language-bash codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#393A34;--prism-background-color:#f6f8fa"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-bash codeBlock_bY9V thin-scrollbar" style="color:#393A34;background-color:#f6f8fa"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#393A34"><span class="token plain">pip install gradgen==0.5.1</span><br></span></code></pre></div></div>

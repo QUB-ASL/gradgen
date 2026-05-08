@@ -141,6 +141,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.minimum"><code class="docutils literal notranslate"><span class="pre">minimum()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.if_else"><code class="docutils literal notranslate"><span class="pre">if_else()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.vector"><code class="docutils literal notranslate"><span class="pre">vector()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.cross"><code class="docutils literal notranslate"><span class="pre">cross()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.matvec"><code class="docutils literal notranslate"><span class="pre">matvec()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.quadform"><code class="docutils literal notranslate"><span class="pre">quadform()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.sx.bilinear_form"><code class="docutils literal notranslate"><span class="pre">bilinear_form()</span></code></a></li>
@@ -194,6 +195,7 @@
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.const"><code class="docutils literal notranslate"><span class="pre">const()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.cos"><code class="docutils literal notranslate"><span class="pre">cos()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.cosh"><code class="docutils literal notranslate"><span class="pre">cosh()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#gradgen.cross"><code class="docutils literal notranslate"><span class="pre">cross()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.cse"><code class="docutils literal notranslate"><span class="pre">cse()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.create_rust_project"><code class="docutils literal notranslate"><span class="pre">create_rust_project()</span></code></a></li>
 <li class="toctree-l4"><a class="reference internal" href="#gradgen.create_rust_derivative_bundle"><code class="docutils literal notranslate"><span class="pre">create_rust_derivative_bundle()</span></code></a></li>
@@ -4942,6 +4944,31 @@ entry.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="gradgen.sx.SXVector.cross">
+<span class="sig-name descname"><span class="pre">cross</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/sx.html#SXVector.cross"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.sx.SXVector.cross" title="Link to this definition"></a></dt>
+<dd><p>Return the symbolic three-dimensional cross product.</p>
+<p>Both operands must be three-dimensional vectors. The resulting
+symbolic vector is built from the standard determinant formula,
+so automatic differentiation and code generation work through the
+existing scalar operators.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>other</strong> (<em>object</em>) – Vector-like operand with length three.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> representing <code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">x</span> <span class="pre">other</span></code>.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – Raised when either operand does not have length
+    three.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><em>SXVector</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="gradgen.sx.SXVector.sum">
 <span class="sig-name descname"><span class="pre">sum</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/sx.html#SXVector.sum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.sx.SXVector.sum" title="Link to this definition"></a></dt>
 <dd><p>Return the sum of all vector elements.</p>
@@ -5768,6 +5795,32 @@ symbolic.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><em>SXVector</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gradgen.sx.cross">
+<span class="sig-prename descclassname"><span class="pre">gradgen.sx.</span></span><span class="sig-name descname"><span class="pre">cross</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lhs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/sx.html#cross"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.sx.cross" title="Link to this definition"></a></dt>
+<dd><p>Return the symbolic three-dimensional cross product.</p>
+<p>This helper coerces both operands to <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> values and returns
+their standard three-dimensional cross product.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lhs</strong> (<em>object</em>) – First vector-like operand with length three.</p></li>
+<li><p><strong>rhs</strong> (<em>object</em>) – Second vector-like operand with length three.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> representing <code class="docutils literal notranslate"><span class="pre">lhs</span> <span class="pre">x</span> <span class="pre">rhs</span></code>.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – Raised when either operand does not have length
+    three, or when their lengths do not match.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><em>SXVector</em></a></p>
 </dd>
 </dl>
 </dd></dl>
@@ -9238,6 +9291,31 @@ entry.</p>
 </dd></dl>
 
 <dl class="py method">
+<dt class="sig sig-object py" id="gradgen.SXVector.cross">
+<span class="sig-name descname"><span class="pre">cross</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">other</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/sx.html#SXVector.cross"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SXVector.cross" title="Link to this definition"></a></dt>
+<dd><p>Return the symbolic three-dimensional cross product.</p>
+<p>Both operands must be three-dimensional vectors. The resulting
+symbolic vector is built from the standard determinant formula,
+so automatic differentiation and code generation work through the
+existing scalar operators.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>other</strong> (<em>object</em>) – Vector-like operand with length three.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> representing <code class="docutils literal notranslate"><span class="pre">self</span> <span class="pre">x</span> <span class="pre">other</span></code>.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – Raised when either operand does not have length
+    three.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><em>SXVector</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
 <dt class="sig sig-object py" id="gradgen.SXVector.sum">
 <span class="sig-name descname"><span class="pre">sum</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/sx.html#SXVector.sum"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.SXVector.sum" title="Link to this definition"></a></dt>
 <dd><p>Return the sum of all vector elements.</p>
@@ -11025,6 +11103,32 @@ constructors.</p>
 </dd>
 <dt class="field-odd">Return type<span class="colon">:</span></dt>
 <dd class="field-odd"><p><a class="reference internal" href="#gradgen.sx.SX" title="gradgen.sx.SX"><em>SX</em></a></p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="gradgen.cross">
+<span class="sig-prename descclassname"><span class="pre">gradgen.</span></span><span class="sig-name descname"><span class="pre">cross</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">lhs</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">rhs</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/gradgen/sx.html#cross"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#gradgen.cross" title="Link to this definition"></a></dt>
+<dd><p>Return the symbolic three-dimensional cross product.</p>
+<p>This helper coerces both operands to <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> values and returns
+their standard three-dimensional cross product.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>lhs</strong> (<em>object</em>) – First vector-like operand with length three.</p></li>
+<li><p><strong>rhs</strong> (<em>object</em>) – Second vector-like operand with length three.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>An <code class="docutils literal notranslate"><span class="pre">SXVector</span></code> representing <code class="docutils literal notranslate"><span class="pre">lhs</span> <span class="pre">x</span> <span class="pre">rhs</span></code>.</p>
+</dd>
+<dt class="field-odd">Raises<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>ValueError</strong> – Raised when either operand does not have length
+    three, or when their lengths do not match.</p>
+</dd>
+<dt class="field-even">Return type<span class="colon">:</span></dt>
+<dd class="field-even"><p><a class="reference internal" href="#gradgen.sx.SXVector" title="gradgen.sx.SXVector"><em>SXVector</em></a></p>
 </dd>
 </dl>
 </dd></dl>

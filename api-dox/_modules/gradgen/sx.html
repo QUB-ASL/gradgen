@@ -1635,6 +1635,42 @@
         <span class="k">return</span> <span class="n">total</span></div>
 
 
+<div class="viewcode-block" id="SXVector.cross">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.sx.SXVector.cross">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">cross</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">other</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SXVector</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the symbolic three-dimensional cross product.</span>
+
+<span class="sd">        Both operands must be three-dimensional vectors. The resulting</span>
+<span class="sd">        symbolic vector is built from the standard determinant formula,</span>
+<span class="sd">        so automatic differentiation and code generation work through the</span>
+<span class="sd">        existing scalar operators.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            other: Vector-like operand with length three.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            An ``SXVector`` representing ``self x other``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: Raised when either operand does not have length</span>
+<span class="sd">                three.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">vector</span> <span class="o">=</span> <span class="n">_coerce_vector</span><span class="p">(</span><span class="n">other</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_check_same_length</span><span class="p">(</span><span class="n">vector</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">3</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;cross product is only defined for three-dimensional &quot;</span>
+                <span class="s2">&quot;vectors&quot;</span>
+            <span class="p">)</span>
+        <span class="k">return</span> <span class="n">SXVector</span><span class="p">(</span>
+            <span class="p">(</span>
+                <span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">vector</span><span class="p">[</span><span class="mi">2</span><span class="p">])</span> <span class="o">-</span> <span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">vector</span><span class="p">[</span><span class="mi">1</span><span class="p">]),</span>
+                <span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span> <span class="o">*</span> <span class="n">vector</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span> <span class="o">-</span> <span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">vector</span><span class="p">[</span><span class="mi">2</span><span class="p">]),</span>
+                <span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">*</span> <span class="n">vector</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span> <span class="o">-</span> <span class="p">(</span><span class="bp">self</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="n">vector</span><span class="p">[</span><span class="mi">0</span><span class="p">]),</span>
+            <span class="p">)</span>
+        <span class="p">)</span></div>
+
+
 <div class="viewcode-block" id="SXVector.sum">
 <a class="viewcode-back" href="../../api/gradgen.html#gradgen.sx.SXVector.sum">[docs]</a>
     <span class="k">def</span><span class="w"> </span><span class="nf">sum</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SX</span><span class="p">:</span>
@@ -2691,6 +2727,29 @@
 <span class="sd">        A new ``SXVector`` containing the coerced entries.</span>
 <span class="sd">    &quot;&quot;&quot;</span>
     <span class="k">return</span> <span class="n">SXVector</span><span class="p">(</span><span class="nb">tuple</span><span class="p">(</span><span class="n">_coerce</span><span class="p">(</span><span class="n">value</span><span class="p">)</span> <span class="k">for</span> <span class="n">value</span> <span class="ow">in</span> <span class="n">values</span><span class="p">))</span></div>
+
+
+
+<div class="viewcode-block" id="cross">
+<a class="viewcode-back" href="../../api/gradgen.html#gradgen.sx.cross">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">cross</span><span class="p">(</span><span class="n">lhs</span><span class="p">:</span> <span class="nb">object</span><span class="p">,</span> <span class="n">rhs</span><span class="p">:</span> <span class="nb">object</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">SXVector</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Return the symbolic three-dimensional cross product.</span>
+
+<span class="sd">    This helper coerces both operands to ``SXVector`` values and returns</span>
+<span class="sd">    their standard three-dimensional cross product.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        lhs: First vector-like operand with length three.</span>
+<span class="sd">        rhs: Second vector-like operand with length three.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        An ``SXVector`` representing ``lhs x rhs``.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: Raised when either operand does not have length</span>
+<span class="sd">            three, or when their lengths do not match.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">return</span> <span class="n">_coerce_vector</span><span class="p">(</span><span class="n">lhs</span><span class="p">)</span><span class="o">.</span><span class="n">cross</span><span class="p">(</span><span class="n">rhs</span><span class="p">)</span></div>
 
 
 
