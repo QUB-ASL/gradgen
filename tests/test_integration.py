@@ -20,6 +20,7 @@ from gradgen import (
     SingleShootingProblem,
     SquaredDistanceToSet,
     if_else,
+    quadform,
     map_function,
     matvec,
     reduce_function,
@@ -652,6 +653,160 @@ mod integration_sympy_transpose_matvec {{
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    def test_quadform_matches_sympy_primal_and_gradient(self) -> None:
+        x0, x1, x2 = sp.symbols("x0:3", real=True)
+        x_sym = sp.Matrix([x0, x1, x2])
+        point = [0.6, -1.1, 2.3]
+
+        cases = [
+            {
+                "name": "unsymmetric",
+                "crate": "sympy_quadform_unsymmetric",
+                "function": "quadform_unsymmetric",
+                "matrix": [
+                    [1.5, -2.0, 0.5],
+                    [3.25, 4.0, -1.0],
+                    [2.0, 1.75, 0.25],
+                ],
+                "is_symmetric": False,
+            },
+            {
+                "name": "symmetric",
+                "crate": "sympy_quadform_symmetric",
+                "function": "quadform_symmetric",
+                "matrix": [
+                    [2.0, -1.0, 0.5],
+                    [-1.0, 3.0, 1.25],
+                    [0.5, 1.25, 4.0],
+                ],
+                "is_symmetric": True,
+            },
+        ]
+
+        for case in cases:
+            with self.subTest(case=case["name"]):
+                matrix = case["matrix"]
+                matrix_sym = sp.Matrix(matrix)
+                sympy_expr = (x_sym.T * matrix_sym * x_sym)[0]
+                sympy_gradient = sp.Matrix(
+                    [sp.diff(sympy_expr, symbol) for symbol in (x0, x1, x2)]
+                )
+                substitutions = {
+                    x0: point[0],
+                    x1: point[1],
+                    x2: point[2],
+                }
+                expected_primal = float(
+                    sympy_expr.subs(substitutions).evalf()
+                )
+                expected_gradient = self._flatten_sympy_matrix(
+                    sympy_gradient.subs(substitutions).evalf()
+                )
+
+                x = SXVector.sym("x", 3)
+                expr = quadform(
+                    matrix,
+                    x,
+                    is_symmetric=case["is_symmetric"],
+                )
+                base_function = Function(
+                    case["function"],
+                    [x],
+                    [expr],
+                    input_names=["x"],
+                    output_names=["y"],
+                )
+
+                self.assertAlmostEqual(base_function(point), expected_primal)
+                actual_gradient = base_function.gradient(0)(point)
+                for actual_value, expected_value in zip(
+                    actual_gradient,
+                    expected_gradient,
+                    strict=True,
+                ):
+                    self.assertAlmostEqual(actual_value, expected_value)
+
+                builder = (
+                    CodeGenerationBuilder(base_function)
+                    .with_backend_config(
+                        RustBackendConfig().with_crate_name(case["crate"])
+                    )
+                    .add_primal()
+                    .add_gradient(wrt=["x"])
+                    .with_simplification("medium")
+                )
+
+                with TemporaryDirectory() as tmpdir:
+                    project = builder.build(Path(tmpdir) / case["crate"])
+                    primal_codegen, grad_codegen = project.codegens
+
+                    self._append_rust_test(
+                        project.project_dir,
+                        f"""
+#[cfg(test)]
+mod integration_{case["name"]} {{
+    use super::*;
+
+    fn assert_close(actual: f64, expected: f64, tolerance: f64) {{
+        assert!(
+            (actual - expected).abs() <= tolerance,
+            "expected {{expected}}, got {{actual}}"
+        );
+    }}
+
+    fn assert_close_slice(
+        actual: &[f64],
+        expected: &[f64],
+        tolerance: f64,
+    ) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in
+            actual.iter().zip(expected.iter())
+        {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(point, "f64")};
+
+        let mut primal = [0.0_f64; 1];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        assert!(
+            {primal_codegen.function_name}(&x, &mut primal, &mut primal_work)
+                .is_ok()
+        );
+        assert_close(primal[0], {expected_primal!r}_f64, 1e-10_f64);
+
+        let mut gradient = [0.0_f64; 3];
+        let mut gradient_work = [0.0_f64; {grad_codegen.workspace_size}];
+        assert!(
+            {grad_codegen.function_name}(
+                &x,
+                &mut gradient,
+                &mut gradient_work,
+            )
+            .is_ok()
+        );
+        assert_close_slice(
+            &gradient,
+            &{self._rust_array_literal(expected_gradient, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+                    )
+
+                    completed = self._run_cargo(
+                        project.project_dir, "test", "--quiet"
+                    )
+                    self.assertEqual(completed.returncode, 0)
 
     def test_if_else_matches_sympy_off_switching_surface(self) -> None:
         x_sym, p_sym = sp.symbols("x p", real=True)

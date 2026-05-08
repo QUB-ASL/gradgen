@@ -3622,13 +3622,52 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn("for row in 0..10 {", result.source)
+        self.assertIn("for index in 0..10 {", result.source)
         self.assertIn("y[0] = 0.0_f64;", result.source)
         self.assertIn(
-            "y[0] += matvec_component(matrix_0, 10, 10, row, x) * x[row];",
+            "y[0] += matvec_component(matrix_0, 10, 10, index, x) * x[index];",
             result.source,
         )
         self.assertNotIn("y[0] += (matvec_component(", result.source)
+
+    def test_generated_code_uses_loop_for_large_transpose_matvec_accumulation(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 10)
+        matrix = [
+            [1.0, 0.0, 2.0, 0.0, -1.0, 0.5, 1.5, 0.0, 2.0, 0.0],
+            [0.0, -2.0, 1.0, 0.5, 3.0, 4.0, 0.0, 0.0, 1.0, 2.0],
+            [2.0, 1.0, 0.0, -1.0, 3.0, 0.5, -1.0, 2.0, 0.0, 1.0],
+            [1.5, 0.5, -2.0, 2.0, 0.0, 1.0, 3.0, -1.0, 0.5, 2.5],
+            [0.0, 1.0, 2.0, 1.5, -2.0, 3.0, -1.0, 0.5, 4.0, 1.0],
+            [2.0, -1.0, 0.5, 4.0, 1.0, 0.0, 1.0, -2.0, 3.0, 0.5],
+            [1.0, 2.0, 3.0, -1.0, 0.0, 0.5, 2.0, 1.0, -1.0, 4.0],
+            [0.5, 1.0, -1.0, 2.0, 3.0, 4.0, 0.0, 1.5, 2.0, -2.0],
+            [3.0, 0.0, 1.0, 0.5, 2.0, -1.0, 4.0, 0.0, 0.5, 1.0],
+            [2.0, 1.0, 0.0, 3.0, -1.0, 2.0, 1.0, 0.5, 0.0, 4.0],
+        ]
+        mx = transpose_matvec(matrix, x)
+        expr = mx[0] * x[0]
+        for index in range(1, 10):
+            expr += mx[index] * x[index]
+
+        f = Function(
+            "f",
+            [x],
+            [expr],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("for index in 0..10 {", result.source)
+        self.assertIn("y[0] = 0.0_f64;", result.source)
+        self.assertIn(
+            "y[0] += transpose_matvec_component(matrix_0, 10, 10, index, x) * x[index];",
+            result.source,
+        )
+        self.assertNotIn("y[0] += (transpose_matvec_component(", result.source)
 
     def test_multi_function_project_emits_norm2_helper_once(self) -> None:
         x = SXVector.sym("x", 3)

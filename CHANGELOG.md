@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   including Rust code generation and automatic differentiation support.
 - Added `transpose_matvec(A, x)` for symbolic products of the form
   `A^T x`.
+- Added SymPy-backed integration coverage for `quadform(...)` in both
+  symmetric and non-symmetric modes.
 
 ### Changed
 
@@ -26,6 +28,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Improved the generated matrix helper implementations so they use
   tighter slice-based loops and `#[inline(always)]` on scalar helper
   calls.
+- Made generated Rust use a compact `for` loop for repeated
+  `matvec_component(...)` and `transpose_matvec_component(...)`
+  accumulations instead of emitting one statement per term.
 
 
 ## 0.5.2 - 08-05-2025
