@@ -12,6 +12,7 @@ from .sx import (
     parse_bilinear_form_args,
     parse_matvec_component_args,
     parse_quadform_args,
+    parse_transpose_matvec_component_args,
 )
 from ._custom_elementary import (
     evaluate_custom_hessian,
@@ -321,6 +322,21 @@ def _special_matvec_component(args: tuple[SX, ...], name: str | None) -> SX:
     return _same_shape_node("matvec_component", args, name)
 
 
+def _special_transpose_matvec_component(
+    args: tuple[SX, ...], name: str | None
+) -> SX:
+    rows, cols, col, matrix_values, x_values = (
+        parse_transpose_matvec_component_args(args)
+    )
+    if all(_is_const(arg) for arg in x_values):
+        total = sum(
+            matrix_values[row * cols + col] * _const_value(x_values[row])
+            for row in range(rows)
+        )
+        return SX.const(total)
+    return _same_shape_node("transpose_matvec_component", args, name)
+
+
 def _special_quadform(args: tuple[SX, ...], name: str | None) -> SX:
     size, matrix_values, x_values = parse_quadform_args(args)
     if all(_is_const(arg) for arg in x_values):
@@ -550,6 +566,7 @@ _SPECIAL_RULES = {
     "custom_vector_hessian_entry": _special_custom_vector_hessian_entry,
     "custom_vector_hvp_component": _special_custom_vector_hvp_component,
     "matvec_component": _special_matvec_component,
+    "transpose_matvec_component": _special_transpose_matvec_component,
     "quadform": _special_quadform,
     "bilinear_form": _special_bilinear_form,
     "sum": _special_sum,

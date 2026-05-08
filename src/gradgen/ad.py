@@ -16,6 +16,7 @@ from .sx import (
     parse_bilinear_form_args,
     parse_matvec_component_args,
     parse_quadform_args,
+    parse_transpose_matvec_component_args,
     vector,
 )
 from ._custom_elementary import (
@@ -327,6 +328,30 @@ def _differentiate_matvec_component(
                 SX.const(rows).node,
                 SX.const(cols).node,
                 SX.const(row).node,
+                *(SX.const(value).node for value in matrix_values),
+                *(value.node for value in tangent_values),
+            ),
+        )
+    )
+
+
+def _differentiate_transpose_matvec_component(
+    expr: SX,
+    args: tuple[SX, ...],
+    tangents: tuple[SX, ...],
+) -> SX:
+    rows, cols, col, matrix_values, _x_values = (
+        parse_transpose_matvec_component_args(args)
+    )
+    tangent_values = tangents[3 + (rows * cols):]
+    del expr
+    return SX(
+        SXNode.make(
+            "transpose_matvec_component",
+            (
+                SX.const(rows).node,
+                SX.const(cols).node,
+                SX.const(col).node,
                 *(SX.const(value).node for value in matrix_values),
                 *(value.node for value in tangent_values),
             ),
@@ -726,6 +751,7 @@ _CUSTOM_DIFFERENTIATION_RULES: dict[str, DifferentiateRule] = {
         _differentiate_custom_vector_jacobian_component
     ),
     "matvec_component": _differentiate_matvec_component,
+    "transpose_matvec_component": _differentiate_transpose_matvec_component,
     "quadform": _differentiate_quadform,
     "bilinear_form": _differentiate_bilinear_form,
     "sum": _differentiate_sum,
@@ -955,6 +981,23 @@ def _propagate_reverse_matvec_component(
     for index in range(cols):
         contribution = adjoint * SX.const(matrix_values[start + index])
         _accumulate_adjoint(adjoints, node.args[offset + index], contribution)
+
+
+def _propagate_reverse_transpose_matvec_component(
+    node: SXNode,
+    expr: SX,
+    args: tuple[SX, ...],
+    adjoint: SX,
+    adjoints: dict[SXNode, SX],
+) -> None:
+    rows, cols, col, matrix_values, _x_values = (
+        parse_transpose_matvec_component_args(args)
+    )
+    offset = 3 + (rows * cols)
+    del expr
+    for row in range(rows):
+        contribution = adjoint * SX.const(matrix_values[row * cols + col])
+        _accumulate_adjoint(adjoints, node.args[offset + row], contribution)
 
 
 def _propagate_reverse_quadform(
@@ -1557,6 +1600,9 @@ _REVERSE_DISPATCH: dict[str, ReverseRule] = {
         _propagate_reverse_custom_vector_jacobian_component
     ),
     "matvec_component": _propagate_reverse_matvec_component,
+    "transpose_matvec_component": (
+        _propagate_reverse_transpose_matvec_component
+    ),
     "quadform": _propagate_reverse_quadform,
     "bilinear_form": _propagate_reverse_bilinear_form,
     "add": _propagate_reverse_add,

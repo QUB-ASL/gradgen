@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Added symbolic three-dimensional cross products for `SXVector`,
+  including Rust code generation and automatic differentiation support.
+- Added `transpose_matvec(A, x)` for symbolic products of the form
+  `A^T x`.
+- Added SymPy-backed integration coverage for `quadform(...)` in both
+  symmetric and non-symmetric modes.
+
+### Changed
+
+- Improved the generated documentation for matrix-building internals
+  so the symbolic math helpers are easier to understand in the source
+  code.
+- Made generated Rust for matrix math smaller and clearer. Small
+  constant matrices are now expanded directly, larger matrix-vector
+  products use loop-based helpers, and repeated matrix literals are
+  reused when possible.
+- Improved the generated matrix helper implementations so they use
+  tighter slice-based loops and `#[inline(always)]` on scalar helper
+  calls.
+- Made generated Rust use a compact `for` loop for repeated
+  `matvec_component(...)` and `transpose_matvec_component(...)`
+  accumulations instead of emitting one statement per term.
+
 
 ## 0.5.2 - 08-05-2025
 

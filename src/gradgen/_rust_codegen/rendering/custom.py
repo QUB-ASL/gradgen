@@ -9,9 +9,20 @@ from ..._custom_elementary import (
     parse_custom_vector_jacobian_component_args,
     render_custom_rust_snippet,
 )
-from ...sx import SX, SXNode, SXVector, parse_matvec_component_args
+from ...sx import (
+    SX,
+    SXNode,
+    SXVector,
+    parse_matvec_component_args,
+    parse_transpose_matvec_component_args,
+)
 from ..config import RustBackendMode, RustScalarType
-from .expression import _emit_matrix_literal, _emit_matrix_vector_argument
+from .expression import (
+    _emit_matrix_literal,
+    _emit_matrix_literal_reference,
+    _emit_matrix_vector_argument,
+)
+from .util import _format_float
 
 
 def _build_custom_vector_jacobian_wrapper_lines(
@@ -124,23 +135,98 @@ def _emit_matvec_output_helper_call(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str | None:
-    """Return a single helper call when ``output_arg`` is exactly a matvec."""
+    """Return a single helper call when ``output_arg`` is exactly a matrix helper."""
+    parsed_output = _parse_direct_matrix_output(output_arg)
+    if parsed_output is None:
+        return None
+
+    helper_fn, rows, cols, matrix_values, x_values = parsed_output
+    x_ref = _emit_matrix_vector_argument(
+        x_values,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    return _render_matrix_output_helper_call(
+        helper_fn=helper_fn,
+        rows=rows,
+        cols=cols,
+        matrix_values=matrix_values,
+        x_ref=x_ref,
+        output_name=output_name,
+        scalar_type=scalar_type,
+        matrix_literal_bindings=matrix_literal_bindings,
+    )
+
+
+def _parse_direct_matrix_output(
+    output_arg: SX | SXVector,
+) -> tuple[str, int, int, tuple[float, ...], tuple[SX, ...]] | None:
+    """Return matrix-output metadata when ``output_arg`` is a direct helper."""
     if not isinstance(output_arg, SXVector) or not output_arg.elements:
         return None
-    parsed_exprs: list[SX] = []
+    matched_components = _collect_direct_matrix_components(output_arg)
+    if matched_components is None:
+        return None
+    return _decode_direct_matrix_components(
+        matched_components, expected_output_len=len(output_arg)
+    )
+
+
+def _collect_direct_matrix_components(output_arg: SXVector) -> list[SX] | None:
+    """Return the normalized component nodes for a direct matrix output."""
+    matched_components: list[SX] = []
+    helper_name = ""
     for element in output_arg:
-        matched = _match_passthrough_matvec_component(element)
+        matched = _match_passthrough_matrix_component(element)
         if matched is None:
             return None
-        parsed_exprs.append(matched)
+        if not helper_name:
+            helper_name = matched.op
+        elif helper_name != matched.op:
+            return None
+        matched_components.append(matched)
+    return matched_components
 
-    parsed = [parse_matvec_component_args(element.args) for element in parsed_exprs]
+
+def _decode_direct_matrix_components(
+    matched_components: list[SX],
+    *,
+    expected_output_len: int,
+) -> tuple[str, int, int, tuple[float, ...], tuple[SX, ...]] | None:
+    """Decode one validated set of matrix-component nodes."""
+    helper_name = matched_components[0].op
+    if helper_name == "matvec_component":
+        return _decode_direct_matvec_components(
+            matched_components, expected_output_len=expected_output_len
+        )
+    if helper_name == "transpose_matvec_component":
+        return _decode_direct_transpose_matvec_components(
+            matched_components, expected_output_len=expected_output_len
+        )
+    return None
+
+
+def _decode_direct_matvec_components(
+    matched_components: list[SX],
+    *,
+    expected_output_len: int,
+) -> tuple[str, int, int, tuple[float, ...], tuple[SX, ...]] | None:
+    """Decode one full direct-output ``matvec`` result."""
+    parsed = [
+        parse_matvec_component_args(element.args) for element in matched_components
+    ]
     rows, cols, _row, matrix_values, x_values = parsed[0]
-    if rows != len(output_arg):
+    if rows != expected_output_len:
         return None
     for index, candidate in enumerate(parsed):
-        cand_rows, cand_cols, cand_row, cand_matrix_values, cand_x_values = candidate
+        cand_rows, cand_cols, cand_row, cand_matrix_values, cand_x_values = (
+            candidate
+        )
         if (
             cand_rows != rows
             or cand_cols != cols
@@ -149,12 +235,160 @@ def _emit_matvec_output_helper_call(
             or cand_x_values != x_values
         ):
             return None
+    return "matvec", rows, cols, matrix_values, x_values
 
-    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
-    x_ref = _emit_matrix_vector_argument(
-        x_values, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
+
+def _decode_direct_transpose_matvec_components(
+    matched_components: list[SX],
+    *,
+    expected_output_len: int,
+) -> tuple[str, int, int, tuple[float, ...], tuple[SX, ...]] | None:
+    """Decode one full direct-output ``transpose_matvec`` result."""
+    parsed = [
+        parse_transpose_matvec_component_args(element.args)
+        for element in matched_components
+    ]
+    rows, cols, _col, matrix_values, x_values = parsed[0]
+    if cols != expected_output_len:
+        return None
+    for index, candidate in enumerate(parsed):
+        cand_rows, cand_cols, cand_col, cand_matrix_values, cand_x_values = (
+            candidate
+        )
+        if (
+            cand_rows != rows
+            or cand_cols != cols
+            or cand_col != index
+            or cand_matrix_values != matrix_values
+            or cand_x_values != x_values
+        ):
+            return None
+    return "transpose_matvec", rows, cols, matrix_values, x_values
+
+
+def _render_matrix_output_helper_call(
+    *,
+    helper_fn: str,
+    rows: int,
+    cols: int,
+    matrix_values: tuple[float, ...],
+    x_ref: str,
+    output_name: str,
+    scalar_type: RustScalarType,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
+) -> str:
+    """Return the direct Rust emission for a matrix helper output."""
+    if rows * cols <= 16:
+        if helper_fn == "matvec":
+            lines = _emit_unrolled_matvec_output_lines(
+                rows,
+                cols,
+                matrix_values,
+                x_ref,
+                output_name,
+                scalar_type,
+            )
+        else:
+            lines = _emit_unrolled_transpose_matvec_output_lines(
+                rows,
+                cols,
+                matrix_values,
+                x_ref,
+                output_name,
+                scalar_type,
+            )
+        return "\n".join(lines)
+    matrix_ref = _emit_matrix_literal_reference(
+        matrix_values, scalar_type, matrix_literal_bindings
     )
-    return f"matvec({matrix_ref}, {rows}, {cols}, {x_ref}, {output_name});"
+    return (
+        f"{helper_fn}({matrix_ref}, {rows}, {cols}, {x_ref}, {output_name});"
+    )
+
+
+def _emit_unrolled_matvec_output_lines(
+    rows: int,
+    cols: int,
+    matrix_values: tuple[float, ...],
+    x_ref: str,
+    output_name: str,
+    scalar_type: RustScalarType,
+) -> list[str]:
+    """Return explicit assignment lines for a small dense matvec."""
+    lines: list[str] = []
+    for row in range(rows):
+        terms = [
+            _emit_scaled_vector_term(
+                matrix_values[row * cols + col],
+                f"{x_ref}[{col}]",
+                scalar_type,
+            )
+            for col in range(cols)
+        ]
+        lines.append(
+            f"{output_name}[{row}] = "
+            f"{_join_unrolled_terms(terms, scalar_type)};"
+        )
+    return lines
+
+
+def _emit_unrolled_transpose_matvec_output_lines(
+    rows: int,
+    cols: int,
+    matrix_values: tuple[float, ...],
+    x_ref: str,
+    output_name: str,
+    scalar_type: RustScalarType,
+) -> list[str]:
+    """Return explicit assignment lines for a small dense transpose matvec."""
+    lines: list[str] = []
+    for col in range(cols):
+        terms = [
+            _emit_scaled_vector_term(
+                matrix_values[row * cols + col],
+                f"{x_ref}[{row}]",
+                scalar_type,
+            )
+            for row in range(rows)
+        ]
+        lines.append(
+            f"{output_name}[{col}] = "
+            f"{_join_unrolled_terms(terms, scalar_type)};"
+        )
+    return lines
+
+
+def _emit_scaled_vector_term(
+    coefficient: float,
+    vector_ref: str,
+    scalar_type: RustScalarType,
+) -> str | None:
+    """Return one unrolled linear term, or ``None`` for a zero coefficient."""
+    if coefficient == 0.0:
+        return None
+    if coefficient == 1.0:
+        return vector_ref
+    if coefficient == -1.0:
+        return f"-({vector_ref})"
+    return f"({_format_float(coefficient, scalar_type)}) * ({vector_ref})"
+
+
+def _join_unrolled_terms(
+    terms: list[str | None],
+    scalar_type: RustScalarType,
+) -> str:
+    """Return a simplified Rust sum for a list of optional linear terms."""
+    filtered = [term for term in terms if term is not None]
+    if not filtered:
+        return _format_float(0.0, scalar_type)
+
+    expression = filtered[0]
+    for term in filtered[1:]:
+        if term.startswith("-"):
+            expression += " - " + term[1:]
+        else:
+            expression += " + " + term
+    return expression
 
 
 def _emit_custom_vector_hessian_output_helper_call(
@@ -466,25 +700,35 @@ def _match_passthrough_custom_vector_derivative_component(
     return None
 
 
-def _match_passthrough_matvec_component(expr: SX) -> SX | None:
-    """Return the underlying matvec component through trivial wrappers."""
-    if expr.op == "matvec_component":
+def _match_passthrough_matrix_component(expr: SX) -> SX | None:
+    """Return the underlying matrix helper component through trivial wrappers."""
+    if expr.op in {"matvec_component", "transpose_matvec_component"}:
         return expr
     if expr.op == "mul":
         left, right = expr.args
         if _is_passthrough_one(left):
-            return _match_passthrough_matvec_component(right)
+            return _match_passthrough_matrix_component(right)
         if _is_passthrough_one(right):
-            return _match_passthrough_matvec_component(left)
+            return _match_passthrough_matrix_component(left)
         return None
     if expr.op == "add":
         left, right = expr.args
         if _is_passthrough_zero(left):
-            return _match_passthrough_matvec_component(right)
+            return _match_passthrough_matrix_component(right)
         if _is_passthrough_zero(right):
-            return _match_passthrough_matvec_component(left)
+            return _match_passthrough_matrix_component(left)
         return None
     return None
+
+
+def _match_passthrough_matvec_component(expr: SX) -> SX | None:
+    """Return the underlying matrix helper component through trivial wrappers.
+
+    This compatibility wrapper preserves the older helper name used by
+    the rendering tests while delegating to the generalized matrix
+    matcher.
+    """
+    return _match_passthrough_matrix_component(expr)
 
 
 def _is_passthrough_zero(expr: SX) -> bool:
@@ -553,6 +797,7 @@ def _reemit_direct_output_helper_call(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str:
     """Rebuild a direct output helper call using the final workspace map."""
     custom_helper_call = _emit_custom_vector_output_helper_call(
@@ -574,6 +819,7 @@ def _reemit_direct_output_helper_call(
         backend_mode,
         scalar_type,
         math_library,
+        matrix_literal_bindings,
     )
     if matvec_helper_call is not None:
         return matvec_helper_call

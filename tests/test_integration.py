@@ -7,6 +7,7 @@ import importlib
 import sympy as sp
 
 from gradgen import (
+    cross,
     CodeGenerationBuilder,
     ComposedFunction,
     FunctionComposer,
@@ -19,8 +20,11 @@ from gradgen import (
     SingleShootingProblem,
     SquaredDistanceToSet,
     if_else,
+    quadform,
     map_function,
+    matvec,
     reduce_function,
+    transpose_matvec,
     zip_function,
 )
 
@@ -297,6 +301,512 @@ mod integration_sympy_gradient {{
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    def test_cross_product_matches_sympy_primal_and_jacobians(self) -> None:
+        x0, x1, x2 = sp.symbols("x0:3", real=True)
+        y0, y1, y2 = sp.symbols("y0:3", real=True)
+        x_sym = sp.Matrix([x0, x1, x2])
+        y_sym = sp.Matrix([y0, y1, y2])
+        sympy_cross = x_sym.cross(y_sym)
+        sympy_jac_x = sympy_cross.jacobian((x0, x1, x2))
+        sympy_jac_y = sympy_cross.jacobian((y0, y1, y2))
+
+        x = SXVector.sym("x", 3)
+        y = SXVector.sym("y", 3)
+        outputs = cross(x, y)
+        base_function = Function(
+            "cross_parity",
+            [x, y],
+            [outputs],
+            input_names=["x", "y"],
+            output_names=["z"],
+        )
+
+        point_x = [1.2, -0.5, 2.0]
+        point_y = [-0.7, 3.0, 0.25]
+        substitutions = {
+            x0: point_x[0],
+            x1: point_x[1],
+            x2: point_x[2],
+            y0: point_y[0],
+            y1: point_y[1],
+            y2: point_y[2],
+        }
+        expected_primal = self._flatten_sympy_matrix(
+            sympy_cross.subs(substitutions).evalf()
+        )
+        expected_jac_x = self._flatten_sympy_matrix(
+            sympy_jac_x.subs(substitutions).evalf()
+        )
+        expected_jac_y = self._flatten_sympy_matrix(
+            sympy_jac_y.subs(substitutions).evalf()
+        )
+
+        self.assertEqual(base_function(point_x, point_y), tuple(expected_primal))
+        self.assertEqual(
+            base_function.jacobian(0)(point_x, point_y),
+            tuple(expected_jac_x),
+        )
+        self.assertEqual(
+            base_function.jacobian(1)(point_x, point_y),
+            tuple(expected_jac_y),
+        )
+
+        builder = (
+            CodeGenerationBuilder(base_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_cross")
+            )
+            .add_primal()
+            .add_jacobian()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_cross")
+            primal_codegen, jac_x_codegen, jac_y_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_cross {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(point_x, "f64")};
+        let y = {self._rust_array_literal(point_y, "f64")};
+
+        let mut primal = [0.0_f64; 3];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        assert!(
+            {primal_codegen.function_name}(
+                &x,
+                &y,
+                &mut primal,
+                &mut primal_work,
+            ).is_ok()
+        );
+        assert_close_slice(
+            &primal,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
+
+        let mut jac_x = [0.0_f64; 9];
+        let mut jac_x_work = [0.0_f64; {jac_x_codegen.workspace_size}];
+        assert!(
+            {jac_x_codegen.function_name}(
+                &x,
+                &y,
+                &mut jac_x,
+                &mut jac_x_work,
+            ).is_ok()
+        );
+        assert_close_slice(
+            &jac_x,
+            &{self._rust_array_literal(expected_jac_x, "f64")},
+            1e-10_f64,
+        );
+
+        let mut jac_y = [0.0_f64; 9];
+        let mut jac_y_work = [0.0_f64; {jac_y_codegen.workspace_size}];
+        assert!(
+            {jac_y_codegen.function_name}(
+                &x,
+                &y,
+                &mut jac_y,
+                &mut jac_y_work,
+            ).is_ok()
+        );
+        assert_close_slice(
+            &jac_y,
+            &{self._rust_array_literal(expected_jac_y, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_matvec_matches_sympy_primal_and_jacobian(self) -> None:
+        matrix = [
+            [1.5, -2.0],
+            [0.25, 4.0],
+        ]
+        x0, x1 = sp.symbols("x0:2", real=True)
+        x_sym = sp.Matrix([x0, x1])
+        matrix_sym = sp.Matrix(matrix)
+        sympy_expr = matrix_sym * x_sym
+        sympy_jacobian = sympy_expr.jacobian((x0, x1))
+
+        x = SXVector.sym("x", 2)
+        outputs = matvec(matrix, x)
+        base_function = Function(
+            "matvec_parity",
+            [x],
+            [outputs],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        point = [0.75, -1.25]
+        substitutions = {x0: point[0], x1: point[1]}
+        expected_primal = self._flatten_sympy_matrix(
+            sympy_expr.subs(substitutions).evalf()
+        )
+        expected_jacobian = self._flatten_sympy_matrix(
+            sympy_jacobian.subs(substitutions).evalf()
+        )
+
+        self.assertEqual(base_function(point), tuple(expected_primal))
+        self.assertEqual(
+            base_function.jacobian(0)(point),
+            tuple(expected_jacobian),
+        )
+
+        builder = (
+            CodeGenerationBuilder(base_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_matvec")
+            )
+            .add_primal()
+            .add_jacobian()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_matvec")
+            primal_codegen, jacobian_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_matvec {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(point, "f64")};
+
+        let mut primal = [0.0_f64; 2];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        assert!(
+            {primal_codegen.function_name}(&x, &mut primal, &mut primal_work)
+                .is_ok()
+        );
+        assert_close_slice(
+            &primal,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
+
+        let mut jacobian = [0.0_f64; 4];
+        let mut jacobian_work = [0.0_f64; {jacobian_codegen.workspace_size}];
+        assert!(
+            {jacobian_codegen.function_name}(
+                &x,
+                &mut jacobian,
+                &mut jacobian_work,
+            )
+            .is_ok()
+        );
+        assert_close_slice(
+            &jacobian,
+            &{self._rust_array_literal(expected_jacobian, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_transpose_matvec_matches_sympy_primal_and_jacobian(self) -> None:
+        matrix = [
+            [1.5, -2.0, 0.5],
+            [0.25, 4.0, -1.0],
+        ]
+        x0, x1 = sp.symbols("x0:2", real=True)
+        x_sym = sp.Matrix([x0, x1])
+        matrix_sym = sp.Matrix(matrix)
+        sympy_expr = matrix_sym.T * x_sym
+        sympy_jacobian = sympy_expr.jacobian((x0, x1))
+
+        x = SXVector.sym("x", 2)
+        outputs = transpose_matvec(matrix, x)
+        base_function = Function(
+            "transpose_matvec_parity",
+            [x],
+            [outputs],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        point = [0.75, -1.25]
+        substitutions = {x0: point[0], x1: point[1]}
+        expected_primal = self._flatten_sympy_matrix(
+            sympy_expr.subs(substitutions).evalf()
+        )
+        expected_jacobian = self._flatten_sympy_matrix(
+            sympy_jacobian.subs(substitutions).evalf()
+        )
+
+        self.assertEqual(base_function(point), tuple(expected_primal))
+        self.assertEqual(
+            base_function.jacobian(0)(point),
+            tuple(expected_jacobian),
+        )
+
+        builder = (
+            CodeGenerationBuilder(base_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_transpose_matvec")
+            )
+            .add_primal()
+            .add_jacobian()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_transpose_matvec")
+            primal_codegen, jacobian_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_transpose_matvec {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(point, "f64")};
+
+        let mut primal = [0.0_f64; 3];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        assert!(
+            {primal_codegen.function_name}(&x, &mut primal, &mut primal_work)
+                .is_ok()
+        );
+        assert_close_slice(
+            &primal,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
+
+        let mut jacobian = [0.0_f64; 6];
+        let mut jacobian_work = [0.0_f64; {jacobian_codegen.workspace_size}];
+        assert!(
+            {jacobian_codegen.function_name}(
+                &x,
+                &mut jacobian,
+                &mut jacobian_work,
+            ).is_ok()
+        );
+        assert_close_slice(
+            &jacobian,
+            &{self._rust_array_literal(expected_jacobian, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_quadform_matches_sympy_primal_and_gradient(self) -> None:
+        x0, x1, x2 = sp.symbols("x0:3", real=True)
+        x_sym = sp.Matrix([x0, x1, x2])
+        point = [0.6, -1.1, 2.3]
+
+        cases = [
+            {
+                "name": "unsymmetric",
+                "crate": "sympy_quadform_unsymmetric",
+                "function": "quadform_unsymmetric",
+                "matrix": [
+                    [1.5, -2.0, 0.5],
+                    [3.25, 4.0, -1.0],
+                    [2.0, 1.75, 0.25],
+                ],
+                "is_symmetric": False,
+            },
+            {
+                "name": "symmetric",
+                "crate": "sympy_quadform_symmetric",
+                "function": "quadform_symmetric",
+                "matrix": [
+                    [2.0, -1.0, 0.5],
+                    [-1.0, 3.0, 1.25],
+                    [0.5, 1.25, 4.0],
+                ],
+                "is_symmetric": True,
+            },
+        ]
+
+        for case in cases:
+            with self.subTest(case=case["name"]):
+                matrix = case["matrix"]
+                matrix_sym = sp.Matrix(matrix)
+                sympy_expr = (x_sym.T * matrix_sym * x_sym)[0]
+                sympy_gradient = sp.Matrix(
+                    [sp.diff(sympy_expr, symbol) for symbol in (x0, x1, x2)]
+                )
+                substitutions = {
+                    x0: point[0],
+                    x1: point[1],
+                    x2: point[2],
+                }
+                expected_primal = float(
+                    sympy_expr.subs(substitutions).evalf()
+                )
+                expected_gradient = self._flatten_sympy_matrix(
+                    sympy_gradient.subs(substitutions).evalf()
+                )
+
+                x = SXVector.sym("x", 3)
+                expr = quadform(
+                    matrix,
+                    x,
+                    is_symmetric=case["is_symmetric"],
+                )
+                base_function = Function(
+                    case["function"],
+                    [x],
+                    [expr],
+                    input_names=["x"],
+                    output_names=["y"],
+                )
+
+                self.assertAlmostEqual(base_function(point), expected_primal)
+                actual_gradient = base_function.gradient(0)(point)
+                for actual_value, expected_value in zip(
+                    actual_gradient,
+                    expected_gradient,
+                    strict=True,
+                ):
+                    self.assertAlmostEqual(actual_value, expected_value)
+
+                builder = (
+                    CodeGenerationBuilder(base_function)
+                    .with_backend_config(
+                        RustBackendConfig().with_crate_name(case["crate"])
+                    )
+                    .add_primal()
+                    .add_gradient(wrt=["x"])
+                    .with_simplification("medium")
+                )
+
+                with TemporaryDirectory() as tmpdir:
+                    project = builder.build(Path(tmpdir) / case["crate"])
+                    primal_codegen, grad_codegen = project.codegens
+
+                    self._append_rust_test(
+                        project.project_dir,
+                        f"""
+#[cfg(test)]
+mod integration_{case["name"]} {{
+    use super::*;
+
+    fn assert_close(actual: f64, expected: f64, tolerance: f64) {{
+        assert!(
+            (actual - expected).abs() <= tolerance,
+            "expected {{expected}}, got {{actual}}"
+        );
+    }}
+
+    fn assert_close_slice(
+        actual: &[f64],
+        expected: &[f64],
+        tolerance: f64,
+    ) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in
+            actual.iter().zip(expected.iter())
+        {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(point, "f64")};
+
+        let mut primal = [0.0_f64; 1];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        assert!(
+            {primal_codegen.function_name}(&x, &mut primal, &mut primal_work)
+                .is_ok()
+        );
+        assert_close(primal[0], {expected_primal!r}_f64, 1e-10_f64);
+
+        let mut gradient = [0.0_f64; 3];
+        let mut gradient_work = [0.0_f64; {grad_codegen.workspace_size}];
+        assert!(
+            {grad_codegen.function_name}(
+                &x,
+                &mut gradient,
+                &mut gradient_work,
+            )
+            .is_ok()
+        );
+        assert_close_slice(
+            &gradient,
+            &{self._rust_array_literal(expected_gradient, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+                    )
+
+                    completed = self._run_cargo(
+                        project.project_dir, "test", "--quiet"
+                    )
+                    self.assertEqual(completed.returncode, 0)
 
     def test_if_else_matches_sympy_off_switching_surface(self) -> None:
         x_sym, p_sym = sp.symbols("x p", real=True)

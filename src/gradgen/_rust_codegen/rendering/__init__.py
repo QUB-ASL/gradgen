@@ -15,7 +15,7 @@ from .custom import (
     _match_custom_vector_derivative_output,
     _match_custom_vector_hessian_output,
     _match_passthrough_custom_vector_hessian_entry,
-    _match_passthrough_matvec_component,
+    _match_passthrough_matrix_component,
     _reemit_direct_output_helper_call,
 )
 from .expression import (
@@ -28,6 +28,7 @@ from .expression import (
     _emit_expr_ref,
     _emit_math_call,
     _emit_matrix_literal,
+    _emit_matrix_literal_reference,
     _emit_matrix_vector_argument,
     _emit_node_expr,
     _emit_norm_abs_expr,
@@ -82,6 +83,7 @@ __all__ = [
     "_emit_math_call",
     "_emit_matvec_output_helper_call",
     "_emit_matrix_literal",
+    "_emit_matrix_literal_reference",
     "_emit_matrix_vector_argument",
     "_emit_min_length_assert",
     "_emit_node_expr",
@@ -99,7 +101,7 @@ __all__ = [
     "_match_custom_vector_derivative_output",
     "_match_custom_vector_hessian_output",
     "_match_passthrough_custom_vector_hessian_entry",
-    "_match_passthrough_matvec_component",
+    "_match_passthrough_matrix_component",
     "_math_function_name",
     "_reemit_direct_output_helper_call",
     "_scaled_index_expr",
