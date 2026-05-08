@@ -1,11 +1,11 @@
-.PHONY: all codegen custom_function squared_distance_to_set squared_distance_to_set_rust_only multi_function vjp map_zip zip_3 reduce_map composed_function composed_chain single_shooting single_shooting_penalty python_interface soc help
+.PHONY: all codegen custom_function squared_distance_to_set squared_distance_to_set_rust_only multi_function vjp map_zip zip_3 reduce_map composed_function composed_chain single_shooting single_shooting_penalty python_interface soc benchmarks help
 
 PYTHON ?= python
 REPEATS ?= 5
 HORIZON ?= 5
 COUNT ?= 3
 
-all: codegen custom_function squared_distance_to_set squared_distance_to_set_rust_only multi_function vjp map_zip zip_3 reduce_map composed_function composed_chain single_shooting single_shooting_penalty python_interface soc
+all: codegen custom_function squared_distance_to_set squared_distance_to_set_rust_only multi_function vjp map_zip zip_3 reduce_map composed_function composed_chain single_shooting single_shooting_penalty python_interface soc benchmarks
 
 help:
 	@echo "Available targets:"
@@ -25,6 +25,7 @@ help:
 	@echo "  make single_shooting_penalty HORIZON=$(HORIZON)"
 	@echo "  make python_interface"
 	@echo "  make soc"
+	@echo "  make benchmarks"
 
 codegen:
 	$(PYTHON) codegen/main.py
@@ -70,3 +71,6 @@ python_interface:
 
 soc:
 	$(PYTHON) soc/main.py
+
+benchmarks:
+	$(PYTHON) benchmarks/single_shooting/main.py
