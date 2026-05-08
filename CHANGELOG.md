@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Improved the generated documentation for matrix-building internals
+  so the symbolic math helpers are easier to understand in the source
+  code.
 - Made generated Rust for matrix math smaller and clearer. Small
   constant matrices are now expanded directly, larger matrix-vector
   products use loop-based helpers, and repeated matrix literals are

@@ -2352,7 +2352,12 @@ def _build_linear_combination(
     coefficients: Sequence[float],
     operands: Sequence[SX],
 ) -> SX:
-    """Build a scalar linear combination without extra helper nodes."""
+    """Build a scalar linear combination.
+
+    This helper keeps small matrix expressions in a compact scalar
+    form. It skips zero coefficients and uses direct passthrough terms
+    for coefficients of ``1`` and ``-1``.
+    """
     terms: list[SX] = []
     for coefficient, operand in zip(coefficients, operands):
         if coefficient == 0.0:
@@ -2379,7 +2384,11 @@ def _build_matrix_row_expression(
     values: tuple[float, ...],
     x_elements: tuple[SX, ...],
 ) -> SX:
-    """Build one unrolled matrix row expression for ``A x``."""
+    """Build one unrolled matrix row expression.
+
+    The returned scalar corresponds to a single row of ``A x`` using
+    the provided constant matrix values and symbolic vector entries.
+    """
     start = row * cols
     return _build_linear_combination(
         values[start:start + cols],
@@ -2394,7 +2403,12 @@ def _build_matrix_column_expression(
     values: tuple[float, ...],
     x_elements: tuple[SX, ...],
 ) -> SX:
-    """Build one unrolled matrix column expression for ``A^T x``."""
+    """Build one unrolled matrix column expression.
+
+    The returned scalar corresponds to a single column of ``A^T x``
+    using the provided constant matrix values and symbolic vector
+    entries.
+    """
     coefficients = tuple(values[(row * cols) + col] for row in range(rows))
     return _build_linear_combination(coefficients, x_elements)
 
@@ -2406,7 +2420,12 @@ def _build_bilinear_form_expression(
     x_elements: tuple[SX, ...],
     y_elements: tuple[SX, ...],
 ) -> SX:
-    """Build an unrolled scalar bilinear form expression."""
+    """Build an unrolled scalar bilinear form expression.
+
+    This helper is used for small constant matrices so the symbolic
+    result can be simplified directly instead of introducing a
+    dedicated helper node.
+    """
     row_terms: list[SX] = []
     for row in range(rows):
         row_expr = _build_matrix_row_expression(
