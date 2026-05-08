@@ -133,9 +133,47 @@ def _emit_matvec_output_helper_call(
     math_library: str | None,
 ) -> str | None:
     """Return a single helper call when ``output_arg`` is exactly a matrix helper."""
+    parsed_output = _parse_direct_matrix_output(output_arg)
+    if parsed_output is None:
+        return None
+
+    helper_fn, rows, cols, matrix_values, x_values = parsed_output
+    x_ref = _emit_matrix_vector_argument(
+        x_values,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    return _render_matrix_output_helper_call(
+        helper_fn=helper_fn,
+        rows=rows,
+        cols=cols,
+        matrix_values=matrix_values,
+        x_ref=x_ref,
+        output_name=output_name,
+        scalar_type=scalar_type,
+    )
+
+
+def _parse_direct_matrix_output(
+    output_arg: SX | SXVector,
+) -> tuple[str, int, int, tuple[float, ...], tuple[SX, ...]] | None:
+    """Return matrix-output metadata when ``output_arg`` is a direct helper."""
     if not isinstance(output_arg, SXVector) or not output_arg.elements:
         return None
-    parsed_exprs: list[SX] = []
+    matched_components = _collect_direct_matrix_components(output_arg)
+    if matched_components is None:
+        return None
+    return _decode_direct_matrix_components(
+        matched_components, expected_output_len=len(output_arg)
+    )
+
+
+def _collect_direct_matrix_components(output_arg: SXVector) -> list[SX] | None:
+    """Return the normalized component nodes for a direct matrix output."""
+    matched_components: list[SX] = []
     helper_name = ""
     for element in output_arg:
         matched = _match_passthrough_matrix_component(element)
@@ -145,56 +183,94 @@ def _emit_matvec_output_helper_call(
             helper_name = matched.op
         elif helper_name != matched.op:
             return None
-        parsed_exprs.append(matched)
+        matched_components.append(matched)
+    return matched_components
 
+
+def _decode_direct_matrix_components(
+    matched_components: list[SX],
+    *,
+    expected_output_len: int,
+) -> tuple[str, int, int, tuple[float, ...], tuple[SX, ...]] | None:
+    """Decode one validated set of matrix-component nodes."""
+    helper_name = matched_components[0].op
     if helper_name == "matvec_component":
-        parsed = [
-            parse_matvec_component_args(element.args) for element in parsed_exprs
-        ]
-        rows, cols, _row, matrix_values, x_values = parsed[0]
-        if rows != len(output_arg):
-            return None
-        for index, candidate in enumerate(parsed):
-            cand_rows, cand_cols, cand_row, cand_matrix_values, cand_x_values = (
-                candidate
-            )
-            if (
-                cand_rows != rows
-                or cand_cols != cols
-                or cand_row != index
-                or cand_matrix_values != matrix_values
-                or cand_x_values != x_values
-            ):
-                return None
-        helper_fn = "matvec"
-    elif helper_name == "transpose_matvec_component":
-        parsed = [
-            parse_transpose_matvec_component_args(element.args)
-            for element in parsed_exprs
-        ]
-        rows, cols, _col, matrix_values, x_values = parsed[0]
-        if cols != len(output_arg):
-            return None
-        for index, candidate in enumerate(parsed):
-            cand_rows, cand_cols, cand_col, cand_matrix_values, cand_x_values = (
-                candidate
-            )
-            if (
-                cand_rows != rows
-                or cand_cols != cols
-                or cand_col != index
-                or cand_matrix_values != matrix_values
-                or cand_x_values != x_values
-            ):
-                return None
-        helper_fn = "transpose_matvec"
-    else:
-        return None
+        return _decode_direct_matvec_components(
+            matched_components, expected_output_len=expected_output_len
+        )
+    if helper_name == "transpose_matvec_component":
+        return _decode_direct_transpose_matvec_components(
+            matched_components, expected_output_len=expected_output_len
+        )
+    return None
 
-    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
-    x_ref = _emit_matrix_vector_argument(
-        x_values, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
-    )
+
+def _decode_direct_matvec_components(
+    matched_components: list[SX],
+    *,
+    expected_output_len: int,
+) -> tuple[str, int, int, tuple[float, ...], tuple[SX, ...]] | None:
+    """Decode one full direct-output ``matvec`` result."""
+    parsed = [
+        parse_matvec_component_args(element.args) for element in matched_components
+    ]
+    rows, cols, _row, matrix_values, x_values = parsed[0]
+    if rows != expected_output_len:
+        return None
+    for index, candidate in enumerate(parsed):
+        cand_rows, cand_cols, cand_row, cand_matrix_values, cand_x_values = (
+            candidate
+        )
+        if (
+            cand_rows != rows
+            or cand_cols != cols
+            or cand_row != index
+            or cand_matrix_values != matrix_values
+            or cand_x_values != x_values
+        ):
+            return None
+    return "matvec", rows, cols, matrix_values, x_values
+
+
+def _decode_direct_transpose_matvec_components(
+    matched_components: list[SX],
+    *,
+    expected_output_len: int,
+) -> tuple[str, int, int, tuple[float, ...], tuple[SX, ...]] | None:
+    """Decode one full direct-output ``transpose_matvec`` result."""
+    parsed = [
+        parse_transpose_matvec_component_args(element.args)
+        for element in matched_components
+    ]
+    rows, cols, _col, matrix_values, x_values = parsed[0]
+    if cols != expected_output_len:
+        return None
+    for index, candidate in enumerate(parsed):
+        cand_rows, cand_cols, cand_col, cand_matrix_values, cand_x_values = (
+            candidate
+        )
+        if (
+            cand_rows != rows
+            or cand_cols != cols
+            or cand_col != index
+            or cand_matrix_values != matrix_values
+            or cand_x_values != x_values
+        ):
+            return None
+    return "transpose_matvec", rows, cols, matrix_values, x_values
+
+
+def _render_matrix_output_helper_call(
+    *,
+    helper_fn: str,
+    rows: int,
+    cols: int,
+    matrix_values: tuple[float, ...],
+    x_ref: str,
+    output_name: str,
+    scalar_type: RustScalarType,
+) -> str:
+    """Return the direct Rust emission for a matrix helper output."""
     if rows * cols <= 16:
         if helper_fn == "matvec":
             lines = _emit_unrolled_matvec_output_lines(
@@ -215,6 +291,7 @@ def _emit_matvec_output_helper_call(
                 scalar_type,
             )
         return "\n".join(lines)
+    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
     return (
         f"{helper_fn}({matrix_ref}, {rows}, {cols}, {x_ref}, {output_name});"
     )
