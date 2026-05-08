@@ -10,7 +10,7 @@
 typedef double casadi_real;
 typedef long long int casadi_int;
 
-int {{ cost_function_name }}(
+int {{ function_name }}(
     const casadi_real** arg,
     casadi_real** res,
     casadi_int* iw,
@@ -18,22 +18,7 @@ int {{ cost_function_name }}(
     int mem
 );
 
-int {{ gradient_function_name }}(
-    const casadi_real** arg,
-    casadi_real** res,
-    casadi_int* iw,
-    casadi_real* w,
-    int mem
-);
-
-int {{ cost_function_name }}_work(
-    casadi_int* sz_arg,
-    casadi_int* sz_res,
-    casadi_int* sz_iw,
-    casadi_int* sz_w
-);
-
-int {{ gradient_function_name }}_work(
+int {{ function_name }}_work(
     casadi_int* sz_arg,
     casadi_int* sz_res,
     casadi_int* sz_iw,
@@ -103,40 +88,29 @@ int main(void) {
 
     casadi_int sz_arg = 0;
     casadi_int sz_res = 0;
-    casadi_int sz_iw_cost = 0;
-    casadi_int sz_w_cost = 0;
-    casadi_int sz_iw_grad = 0;
-    casadi_int sz_w_grad = 0;
-    {{ cost_function_name }}_work(
+    casadi_int sz_iw = 0;
+    casadi_int sz_w = 0;
+    {{ function_name }}_work(
         &sz_arg,
         &sz_res,
-        &sz_iw_cost,
-        &sz_w_cost
-    );
-    {{ gradient_function_name }}_work(
-        &sz_arg,
-        &sz_res,
-        &sz_iw_grad,
-        &sz_w_grad
+        &sz_iw,
+        &sz_w
     );
 
     const casadi_real* arg[3] = {x0, u_seq, p};
     casadi_real cost_out[COST_OUTPUT_LEN];
     casadi_real grad_out[GRAD_OUTPUT_LEN];
-    casadi_real* res_cost[1] = {cost_out};
-    casadi_real* res_grad[1] = {grad_out};
+    casadi_real* res[2] = {cost_out, grad_out};
 
-    casadi_int* iw_cost = calloc((size_t)sz_iw_cost, sizeof(casadi_int));
-    casadi_int* iw_grad = calloc((size_t)sz_iw_grad, sizeof(casadi_int));
-    casadi_real* w_cost = calloc((size_t)sz_w_cost, sizeof(casadi_real));
-    casadi_real* w_grad = calloc((size_t)sz_w_grad, sizeof(casadi_real));
+    size_t iw_len = (size_t)(sz_iw > 0 ? sz_iw : 1);
+    size_t w_len = (size_t)(sz_w > 0 ? sz_w : 1);
+    casadi_int* iw = calloc(iw_len, sizeof(casadi_int));
+    casadi_real* w = calloc(w_len, sizeof(casadi_real));
 
-    if (iw_cost == NULL || iw_grad == NULL || w_cost == NULL || w_grad == NULL) {
+    if (iw == NULL || w == NULL) {
         fprintf(stderr, "failed to allocate CasADi work arrays\n");
-        free(iw_cost);
-        free(iw_grad);
-        free(w_cost);
-        free(w_grad);
+        free(iw);
+        free(w);
         return 1;
     }
 
@@ -145,8 +119,7 @@ int main(void) {
 
     for (int run = 0; run < TIMING_RUNS; ++run) {
         double start = now_ms();
-        {{ cost_function_name }}(arg, res_cost, iw_cost, w_cost, 0);
-        {{ gradient_function_name }}(arg, res_grad, iw_grad, w_grad, 0);
+        {{ function_name }}(arg, res, iw, w, 0);
         double elapsed = now_ms() - start;
         checksum += cost_out[0] + grad_out[0];
         samples[run] = elapsed;
@@ -157,10 +130,8 @@ int main(void) {
     mean_std(samples, TIMING_RUNS, &mean_ms, &std_ms);
     printf("%.6f %.6f\n", mean_ms, std_ms);
 
-    free(iw_cost);
-    free(iw_grad);
-    free(w_cost);
-    free(w_grad);
+    free(iw);
+    free(w);
     (void)checksum;
     return 0;
 }

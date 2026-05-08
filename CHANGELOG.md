@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- The single-shooting benchmark now generates and times one joint
+  cost-plus-gradient kernel instead of two separate calls.
 - Improved the generated documentation for matrix-building internals
   so the symbolic math helpers are easier to understand in the source
   code.

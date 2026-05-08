@@ -2,8 +2,7 @@ use std::hint::black_box;
 use std::time::Instant;
 
 use {{ generated_crate_name }}::{
-    {{ cost_function_name }},
-    {{ gradient_function_name }},
+    {{ function_name }},
 };
 
 fn mean_std(samples: &[f64]) -> (f64, f64) {
@@ -26,8 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     const TIMING_RUNS: usize = {{ timing_runs }};
     const COST_OUTPUT_LEN: usize = {{ cost_output_size }};
     const GRAD_OUTPUT_LEN: usize = {{ gradient_output_size }};
-    const COST_WORKSPACE_LEN: usize = {{ cost_workspace_size }};
-    const GRAD_WORKSPACE_LEN: usize = {{ gradient_workspace_size }};
+    const WORKSPACE_LEN: usize = {{ workspace_size }};
 
     let x0 = [
         1.0_{{ scalar_type }},
@@ -48,27 +46,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     ];
     let mut cost = [0.0_{{ scalar_type }}; COST_OUTPUT_LEN];
     let mut grad = [0.0_{{ scalar_type }}; GRAD_OUTPUT_LEN];
-    let mut cost_work = [0.0_{{ scalar_type }}; COST_WORKSPACE_LEN];
-    let mut grad_work = [0.0_{{ scalar_type }}; GRAD_WORKSPACE_LEN];
+    let mut work = [0.0_{{ scalar_type }}; WORKSPACE_LEN];
     let mut samples = [0.0_f64; TIMING_RUNS];
     let mut checksum = 0.0_f64;
 
     for run in 0..TIMING_RUNS {
         let start = Instant::now();
-        {{ cost_function_name }}(
+        {{ function_name }}(
             black_box(&x0),
             black_box(&u_seq),
             black_box(&p),
             black_box(&mut cost),
-            black_box(&mut cost_work),
-        )
-        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
-        {{ gradient_function_name }}(
-            black_box(&x0),
-            black_box(&u_seq),
-            black_box(&p),
             black_box(&mut grad),
-            black_box(&mut grad_work),
+            black_box(&mut work),
         )
         .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         let elapsed = start.elapsed().as_secs_f64() * 1.0e3;

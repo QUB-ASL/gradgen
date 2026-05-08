@@ -28,6 +28,7 @@ TEMPLATE_ENV = Environment(
 
 from gradgen import (  # noqa: E402
     CodeGenerationBuilder,
+    FunctionBundle,
     Function,
     RustBackendConfig,
     SX,
@@ -168,10 +169,10 @@ def build_bicycle_problem(horizon: int) -> SingleShootingProblem:
     )
 
 
-def build_casadi_functions(
+def build_casadi_function(
     horizon: int,
-) -> tuple[ca.Function, ca.Function]:
-    """Build the CasADi cost and gradient functions for ``horizon``."""
+) -> ca.Function:
+    """Build the CasADi joint cost-and-gradient function for ``horizon``."""
     x0 = ca.SX.sym("x0", 4)
     u_seq = ca.SX.sym("u_seq", 2 * horizon)
     p = ca.SX.sym("p", 4)
@@ -195,17 +196,11 @@ def build_casadi_functions(
         )
 
     total_cost += _casadi_terminal_cost(x, p)
-    cost_function = ca.Function(
-        "bicycle_total_cost",
+    return ca.Function(
+        "bicycle_total_cost_joint",
         [x0, u_seq, p],
-        [total_cost],
+        [total_cost, ca.gradient(total_cost, u_seq)],
     )
-    gradient_function = ca.Function(
-        "bicycle_total_cost_grad_u",
-        [x0, u_seq, p],
-        [ca.gradient(total_cost, u_seq)],
-    )
-    return cost_function, gradient_function
 
 
 def _tracking_stage_cost(x: SXVector, u: SXVector, p: SXVector) -> SX:
@@ -239,8 +234,9 @@ def _build_gradgen_project(
 ):
     """Build the Gradgen project for ``horizon``."""
     problem = build_bicycle_problem(horizon)
+    problem_function = problem.to_function(name="bicycle_total_cost")
     builder = (
-        CodeGenerationBuilder(problem)
+        CodeGenerationBuilder(problem_function)
         .with_backend_config(
             RustBackendConfig()
             .with_crate_name(f"bicycle_benchmark_{horizon}")
@@ -248,8 +244,7 @@ def _build_gradgen_project(
             .with_scalar_type(scalar_type)
             .with_build_crate(False)
         )
-        .add_primal()
-        .add_gradient()
+        .add_joint(FunctionBundle().add_f().add_gradient(wrt="u_seq"))
     )
     return builder.build(project_dir)
 
@@ -259,11 +254,10 @@ def _build_casadi_source(
     directory: Path,
 ) -> Path:
     """Generate the CasADi C source file for ``horizon``."""
-    cost_function, gradient_function = build_casadi_functions(horizon)
+    joint_function = build_casadi_function(horizon)
     with _pushd(directory):
         generator = ca.CodeGenerator("bicycle_benchmark")
-        generator.add(cost_function)
-        generator.add(gradient_function)
+        generator.add(joint_function)
         generator.generate()
     return directory / "bicycle_benchmark.c"
 
@@ -280,10 +274,9 @@ def _render_gradgen_runner(
     """Render the native Rust benchmark runner into ``runner_dir``."""
     functions = metadata["functions"]
     assert isinstance(functions, list)
-    cost_metadata = functions[0]
-    gradient_metadata = functions[1]
-    assert isinstance(cost_metadata, dict)
-    assert isinstance(gradient_metadata, dict)
+    assert len(functions) == 1
+    joint_metadata = functions[0]
+    assert isinstance(joint_metadata, dict)
 
     src_dir = runner_dir / "src"
     src_dir.mkdir(parents=True, exist_ok=True)
@@ -306,18 +299,13 @@ def _render_gradgen_runner(
         render_template(
             "benchmark_runner/src/main.rs.j2",
             generated_crate_name=metadata["crate_name"],
-            cost_function_name=cost_metadata["function_name"],
-            gradient_function_name=gradient_metadata["function_name"],
+            function_name=joint_metadata["function_name"],
             horizon=horizon,
             timing_runs=timing_runs,
             scalar_type=scalar_type,
-            cost_output_size=cost_metadata["output_sizes"][0],
-            gradient_output_size=gradient_metadata["output_sizes"][0],
-            cost_workspace_size=max(cost_metadata["workspace_size"], 1),
-            gradient_workspace_size=max(
-                gradient_metadata["workspace_size"],
-                1,
-            ),
+            cost_output_size=joint_metadata["output_sizes"][0],
+            gradient_output_size=joint_metadata["output_sizes"][1],
+            workspace_size=max(joint_metadata["workspace_size"], 1),
         ),
         encoding="utf-8",
     )
@@ -333,8 +321,7 @@ def _render_c_runner(
     runner_path.write_text(
         render_template(
             "benchmark_runner.c.j2",
-            cost_function_name="bicycle_total_cost",
-            gradient_function_name="bicycle_total_cost_grad_u",
+            function_name="bicycle_total_cost_joint",
             horizon=horizon,
             timing_runs=timing_runs,
             control_length=2 * horizon,
@@ -466,7 +453,7 @@ def main() -> None:
     )
     print(f"Timing runs per horizon: {args.timing_runs}")
     print(f"Gradgen scalar type: {args.gradgen_scalar_type}")
-    print("Runtime measures one cost call plus one gradient call per run.")
+    print("Runtime measures one joint cost-plus-gradient call per run.")
     print(
         "N | Gradgen LOC | CasADi LOC | "
         f"Gradgen time (ms) [{args.gradgen_scalar_type}] | "

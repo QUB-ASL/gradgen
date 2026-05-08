@@ -15,13 +15,13 @@ The model is a bicycle-style kinematic system with:
 
 For each horizon, the script generates and runs native code for:
 
-- a Gradgen Rust crate that evaluates the total cost and its gradient with
-  respect to the packed control sequence
-- a small C runner that calls the generated CasADi functions directly
+- a Gradgen Rust crate that evaluates the total cost and its gradient in
+  one joint call with respect to the packed control sequence
+- a small C runner that calls the generated CasADi joint function directly
 
 The benchmark prints the number of non-empty lines in each generated source
 file, and it also reports the average runtime plus standard deviation for one
-cost call plus one gradient call.
+joint cost-plus-gradient call.
 
 The generated runners live in `runners/`.
 
