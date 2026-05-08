@@ -1,7 +1,10 @@
 # Single Shooting Benchmark
 
-This benchmark compares the code size of Gradgen and CasADi for the same
-single-shooting optimal-control problem across horizons `N = 10, 20, ..., 100`.
+This benchmark compares Gradgen and CasADi for the same single-shooting
+optimal-control problem across horizons `N = 10, 20, ..., 100`.
+
+You can choose the Gradgen scalar type with `--gradgen-scalar-type`
+(`f64` by default, or `f32` for a smaller floating-point build).
 
 The model is a bicycle-style kinematic system with:
 
@@ -10,14 +13,17 @@ The model is a bicycle-style kinematic system with:
 - quadratic tracking cost
 - quadratic control regularization
 
-For each horizon, the script generates:
+For each horizon, the script generates and runs native code for:
 
-- Gradgen Rust code for the total cost and its gradient with respect to the
-  packed control sequence
-- CasADi C code for the same two functions
+- a Gradgen Rust crate that evaluates the total cost and its gradient with
+  respect to the packed control sequence
+- a small C runner that calls the generated CasADi functions directly
 
 The benchmark prints the number of non-empty lines in each generated source
-file so you can compare code size directly.
+file, and it also reports the average runtime plus standard deviation for one
+cost call plus one gradient call.
+
+The generated runners live in `runners/`.
 
 ## Run
 

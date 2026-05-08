@@ -3,17 +3,28 @@
 from __future__ import annotations
 
 import argparse
+import json
 from contextlib import contextmanager
 import os
 from pathlib import Path
 import sys
+import subprocess
 from tempfile import TemporaryDirectory
 
 import casadi as ca
+from jinja2 import Environment, FileSystemLoader, StrictUndefined
 
 # Allow running this file directly from inside the demo directory.
 REPO_ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(REPO_ROOT / "src"))
+RUNNERS_DIR = Path(__file__).resolve().parent / "runners"
+TEMPLATE_ENV = Environment(
+    loader=FileSystemLoader(RUNNERS_DIR),
+    autoescape=False,
+    trim_blocks=True,
+    lstrip_blocks=True,
+    undefined=StrictUndefined,
+)
 
 from gradgen import (  # noqa: E402
     CodeGenerationBuilder,
@@ -40,27 +51,39 @@ def parse_args() -> argparse.Namespace:
     """Parse the benchmark horizon range."""
     parser = argparse.ArgumentParser(
         description=(
-            "Compare Gradgen and CasADi code size for a bicycle-model "
-            "single-shooting problem."
+            "Compare Gradgen and CasADi code size and runtime for a "
+            "bicycle-model single-shooting problem."
         ),
     )
     parser.add_argument(
         "--start-horizon",
         type=int,
-        default=25,
+        default=10,
         help="First horizon length to benchmark.",
     )
     parser.add_argument(
         "--max-horizon",
         type=int,
-        default=200,
+        default=100,
         help="Largest horizon length to benchmark.",
     )
     parser.add_argument(
         "--step",
         type=int,
-        default=25,
+        default=10,
         help="Spacing between benchmark horizons.",
+    )
+    parser.add_argument(
+        "--timing-runs",
+        type=int,
+        default=1000,
+        help="Number of timing repetitions per horizon.",
+    )
+    parser.add_argument(
+        "--gradgen-scalar-type",
+        choices=("f64", "f32"),
+        default="f64",
+        help="Scalar type to use for the generated Gradgen Rust code.",
     )
     args = parser.parse_args()
     if args.start_horizon <= 0:
@@ -69,12 +92,24 @@ def parse_args() -> argparse.Namespace:
         parser.error("--max-horizon must be at least --start-horizon")
     if args.step <= 0:
         parser.error("--step must be positive")
+    if args.timing_runs <= 0:
+        parser.error("--timing-runs must be positive")
     return args
 
 
 def count_nonempty_lines(source: str) -> int:
     """Return the number of non-empty lines in ``source``."""
     return sum(1 for line in source.splitlines() if line.strip())
+
+
+def format_ms(mean_ms: float, std_ms: float) -> str:
+    """Format a timing summary in milliseconds."""
+    return f"{mean_ms:.6f} +/- {std_ms:.6f}"
+
+
+def render_template(template_name: str, **context: object) -> str:
+    """Render a Jinja2 template from the benchmark runners directory."""
+    return TEMPLATE_ENV.get_template(template_name).render(**context)
 
 
 def build_bicycle_problem(horizon: int) -> SingleShootingProblem:
@@ -133,52 +168,10 @@ def build_bicycle_problem(horizon: int) -> SingleShootingProblem:
     )
 
 
-def _tracking_stage_cost(x: SXVector, u: SXVector, p: SXVector) -> SX:
-    """Return the stage tracking cost used in the benchmark."""
-    state_weights = (10.0, 10.0, 2.0, 1.0)
-    control_weights = (0.2, 0.1)
-    cost = SX.const(0.0)
-    for index, weight in enumerate(state_weights):
-        error = x[index] - p[index]
-        cost = cost + weight * error * error
-    for index, weight in enumerate(control_weights):
-        cost = cost + weight * u[index] * u[index]
-    return cost
-
-
-def _tracking_terminal_cost(x: SXVector, p: SXVector) -> SX:
-    """Return the terminal tracking cost used in the benchmark."""
-    terminal_weights = (20.0, 20.0, 4.0, 2.0)
-    cost = SX.const(0.0)
-    for index, weight in enumerate(terminal_weights):
-        error = x[index] - p[index]
-        cost = cost + weight * error * error
-    return cost
-
-
-def gradgen_loc(horizon: int) -> int:
-    """Return the non-empty line count for the generated Gradgen crate."""
-    problem = build_bicycle_problem(horizon)
-    builder = (
-        CodeGenerationBuilder(problem)
-        .with_backend_config(
-            RustBackendConfig()
-            .with_crate_name(f"bicycle_benchmark_{horizon}")
-            .with_backend_mode("no_std")
-            .with_scalar_type("f64")
-        )
-        .add_primal()
-        .add_gradient()
-    )
-
-    with TemporaryDirectory() as tmpdir:
-        project = builder.build(Path(tmpdir) / "gradgen_bicycle")
-        lib_rs = project.project_dir / "src" / "lib.rs"
-        return count_nonempty_lines(lib_rs.read_text(encoding="utf-8"))
-
-
-def casadi_loc(horizon: int) -> int:
-    """Return the non-empty line count for the generated CasADi C code."""
+def build_casadi_functions(
+    horizon: int,
+) -> tuple[ca.Function, ca.Function]:
+    """Build the CasADi cost and gradient functions for ``horizon``."""
     x0 = ca.SX.sym("x0", 4)
     u_seq = ca.SX.sym("u_seq", 2 * horizon)
     p = ca.SX.sym("p", 4)
@@ -212,16 +205,231 @@ def casadi_loc(horizon: int) -> int:
         [x0, u_seq, p],
         [ca.gradient(total_cost, u_seq)],
     )
+    return cost_function, gradient_function
 
+
+def _tracking_stage_cost(x: SXVector, u: SXVector, p: SXVector) -> SX:
+    """Return the stage tracking cost used in the benchmark."""
+    state_weights = (10.0, 10.0, 2.0, 1.0)
+    control_weights = (0.2, 0.1)
+    cost = SX.const(0.0)
+    for index, weight in enumerate(state_weights):
+        error = x[index] - p[index]
+        cost = cost + weight * error * error
+    for index, weight in enumerate(control_weights):
+        cost = cost + weight * u[index] * u[index]
+    return cost
+
+
+def _tracking_terminal_cost(x: SXVector, p: SXVector) -> SX:
+    """Return the terminal tracking cost used in the benchmark."""
+    terminal_weights = (20.0, 20.0, 4.0, 2.0)
+    cost = SX.const(0.0)
+    for index, weight in enumerate(terminal_weights):
+        error = x[index] - p[index]
+        cost = cost + weight * error * error
+    return cost
+
+
+def _build_gradgen_project(
+    horizon: int,
+    project_dir: Path,
+    *,
+    scalar_type: str = "f64",
+):
+    """Build the Gradgen project for ``horizon``."""
+    problem = build_bicycle_problem(horizon)
+    builder = (
+        CodeGenerationBuilder(problem)
+        .with_backend_config(
+            RustBackendConfig()
+            .with_crate_name(f"bicycle_benchmark_{horizon}")
+            .with_backend_mode("no_std")
+            .with_scalar_type(scalar_type)
+            .with_build_crate(False)
+        )
+        .add_primal()
+        .add_gradient()
+    )
+    return builder.build(project_dir)
+
+
+def _build_casadi_source(
+    horizon: int,
+    directory: Path,
+) -> Path:
+    """Generate the CasADi C source file for ``horizon``."""
+    cost_function, gradient_function = build_casadi_functions(horizon)
+    with _pushd(directory):
+        generator = ca.CodeGenerator("bicycle_benchmark")
+        generator.add(cost_function)
+        generator.add(gradient_function)
+        generator.generate()
+    return directory / "bicycle_benchmark.c"
+
+
+def _render_gradgen_runner(
+    *,
+    generated_crate_path: str,
+    runner_dir: Path,
+    horizon: int,
+    timing_runs: int,
+    scalar_type: str,
+    metadata: dict[str, object],
+) -> None:
+    """Render the native Rust benchmark runner into ``runner_dir``."""
+    functions = metadata["functions"]
+    assert isinstance(functions, list)
+    cost_metadata = functions[0]
+    gradient_metadata = functions[1]
+    assert isinstance(cost_metadata, dict)
+    assert isinstance(gradient_metadata, dict)
+
+    src_dir = runner_dir / "src"
+    src_dir.mkdir(parents=True, exist_ok=True)
+    cargo_dir = runner_dir / ".cargo"
+    cargo_dir.mkdir(parents=True, exist_ok=True)
+    (runner_dir / "Cargo.toml").write_text(
+        render_template(
+            "benchmark_runner/Cargo.toml.j2",
+            package_name="benchmark_runner",
+            generated_crate_name=metadata["crate_name"],
+            generated_crate_path=generated_crate_path,
+        ),
+        encoding="utf-8",
+    )
+    (cargo_dir / "config.toml").write_text(
+        render_template("benchmark_runner/.cargo/config.toml.j2"),
+        encoding="utf-8",
+    )
+    (src_dir / "main.rs").write_text(
+        render_template(
+            "benchmark_runner/src/main.rs.j2",
+            generated_crate_name=metadata["crate_name"],
+            cost_function_name=cost_metadata["function_name"],
+            gradient_function_name=gradient_metadata["function_name"],
+            horizon=horizon,
+            timing_runs=timing_runs,
+            scalar_type=scalar_type,
+            cost_output_size=cost_metadata["output_sizes"][0],
+            gradient_output_size=gradient_metadata["output_sizes"][0],
+            cost_workspace_size=max(cost_metadata["workspace_size"], 1),
+            gradient_workspace_size=max(
+                gradient_metadata["workspace_size"],
+                1,
+            ),
+        ),
+        encoding="utf-8",
+    )
+
+
+def _render_c_runner(
+    *,
+    runner_path: Path,
+    horizon: int,
+    timing_runs: int,
+) -> None:
+    """Render the native CasADi benchmark runner."""
+    runner_path.write_text(
+        render_template(
+            "benchmark_runner.c.j2",
+            cost_function_name="bicycle_total_cost",
+            gradient_function_name="bicycle_total_cost_grad_u",
+            horizon=horizon,
+            timing_runs=timing_runs,
+            control_length=2 * horizon,
+            cost_output_size=1,
+            gradient_output_size=2 * horizon,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _compile_c_runner(
+    runner_source: Path,
+    casadi_source: Path,
+    executable: Path,
+) -> None:
+    """Compile the native C benchmark runner."""
+    subprocess.run(
+        [
+            "cc",
+            "-O3",
+            str(runner_source),
+            str(casadi_source),
+            "-lm",
+            "-o",
+            str(executable),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _benchmark_gradgen(
+    horizon: int,
+    timing_runs: int,
+    scalar_type: str,
+) -> tuple[int, float, float]:
+    """Return Gradgen LOC and runtime for ``horizon``."""
     with TemporaryDirectory() as tmpdir:
         temp_dir = Path(tmpdir)
-        with _pushd(temp_dir):
-            generator = ca.CodeGenerator("bicycle_benchmark")
-            generator.add(cost_function)
-            generator.add(gradient_function)
-            generator.generate()
-        source_path = temp_dir / "bicycle_benchmark.c"
-        return count_nonempty_lines(source_path.read_text(encoding="utf-8"))
+        project = _build_gradgen_project(
+            horizon,
+            temp_dir / "gradgen_bicycle",
+            scalar_type=scalar_type,
+        )
+        lib_rs = project.project_dir / "src" / "lib.rs"
+        loc = count_nonempty_lines(lib_rs.read_text(encoding="utf-8"))
+        metadata = json.loads(project.metadata_json.read_text(encoding="utf-8"))
+        runner_dir = temp_dir / "benchmark_runner"
+        _render_gradgen_runner(
+            generated_crate_path=(
+                f"{project.project_dir.parent.name}/{project.project_dir.name}"
+            ),
+            runner_dir=runner_dir,
+            horizon=horizon,
+            timing_runs=timing_runs,
+            scalar_type=scalar_type,
+            metadata=metadata,
+        )
+        completed = subprocess.run(
+            ["cargo", "run", "--release", "--quiet"],
+            cwd=runner_dir,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        mean_ms, std_ms = map(float, completed.stdout.strip().split())
+        return loc, mean_ms, std_ms
+
+
+def _benchmark_casadi(
+    horizon: int,
+    timing_runs: int,
+) -> tuple[int, float, float]:
+    """Return CasADi LOC and runtime for ``horizon``."""
+    with TemporaryDirectory() as tmpdir:
+        temp_dir = Path(tmpdir)
+        source_path = _build_casadi_source(horizon, temp_dir)
+        loc = count_nonempty_lines(source_path.read_text(encoding="utf-8"))
+        runner_path = temp_dir / "benchmark_runner.c"
+        _render_c_runner(
+            runner_path=runner_path,
+            horizon=horizon,
+            timing_runs=timing_runs,
+        )
+        executable = temp_dir / "benchmark_runner"
+        _compile_c_runner(runner_path, source_path, executable)
+        completed = subprocess.run(
+            [str(executable)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        mean_ms, std_ms = map(float, completed.stdout.strip().split())
+        return loc, mean_ms, std_ms
 
 
 def _casadi_stage_cost(x: ca.SX, u: ca.SX, p: ca.SX) -> ca.SX:
@@ -254,17 +462,34 @@ def main() -> None:
 
     print(
         "Single-shooting bicycle benchmark "
-        "(non-empty lines in generated source)"
+        "(non-empty lines in generated source and runtime in ms)"
     )
-    print("N | Gradgen LOC | CasADi LOC | Ratio")
-    print("--|-------------|------------|-----------")
+    print(f"Timing runs per horizon: {args.timing_runs}")
+    print(f"Gradgen scalar type: {args.gradgen_scalar_type}")
+    print("Runtime measures one cost call plus one gradient call per run.")
+    print(
+        "N | Gradgen LOC | CasADi LOC | "
+        f"Gradgen time (ms) [{args.gradgen_scalar_type}] | "
+        "CasADi time (ms)"
+    )
+    print(
+        "--|-------------|------------|----------------------------|"
+        "----------------"
+    )
     for horizon in horizons:
-        gradgen_lines = gradgen_loc(horizon)
-        casadi_lines = casadi_loc(horizon)
-        x = casadi_lines/gradgen_lines
+        gradgen_lines, gradgen_mean_ms, gradgen_std_ms = _benchmark_gradgen(
+            horizon,
+            args.timing_runs,
+            args.gradgen_scalar_type,
+        )
+        casadi_lines, casadi_mean_ms, casadi_std_ms = _benchmark_casadi(
+            horizon,
+            args.timing_runs,
+        )
         print(
-            f"{horizon:2d} | {gradgen_lines:11d} | "
-            f"{casadi_lines:10d} | {x:+.1f}"
+            f"{horizon:2d} | {gradgen_lines:11d} | {casadi_lines:10d} | "
+            f"{format_ms(gradgen_mean_ms, gradgen_std_ms):>17} | "
+            f"{format_ms(casadi_mean_ms, casadi_std_ms):>16}"
         )
 
 

@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `A^T x`.
 - Added SymPy-backed integration coverage for `quadform(...)` in both
   symmetric and non-symmetric modes.
+- Added a benchmark demo that compares Gradgen and CasADi code size for
+  a bicycle-model single-shooting problem across horizons `N = 10` to
+  `N = 100`.
+- The single-shooting benchmark demo now also runs native Gradgen Rust
+  and CasADi C benchmark executables from the terminal and prints the
+  average runtime plus standard deviation for each one.
+- Tuned the native Gradgen benchmark runner for release performance by
+  enabling link-time optimization, forcing one codegen unit, and
+  compiling for the native CPU target.
 
 ### Changed
 
@@ -31,6 +40,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Made generated Rust use a compact `for` loop for repeated
   `matvec_component(...)` and `transpose_matvec_component(...)`
   accumulations instead of emitting one statement per term.
+- Fused shared `sin(...)` and `cos(...)` evaluations into a single
+  Rust `sin_cos()` call when both are used on the same angle, reducing
+  duplicate trig work in generated kernels.
+- The single-shooting benchmark can now build the Gradgen runner with
+  `f32` as well as `f64`, making it easier to compare the two scalar
+  types from the command line.
 
 
 ## 0.5.2 - 08-05-2025

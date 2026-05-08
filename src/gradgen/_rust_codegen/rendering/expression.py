@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 import re
+from contextvars import ContextVar
 
 from ..._custom_elementary import (
     parse_custom_scalar_args,
@@ -23,6 +25,23 @@ from ...sx import (
 )
 from ..config import RustBackendMode, RustScalarType
 from .util import _format_float
+
+
+_SINCOS_BINDINGS: ContextVar[
+    dict[SXNode, tuple[str, str]] | None
+] = ContextVar("_SINCOS_BINDINGS", default=None)
+
+
+@contextmanager
+def _use_sincos_bindings(
+    bindings: dict[SXNode, tuple[str, str]] | None,
+):
+    """Temporarily expose fused sine/cosine bindings to emitters."""
+    token = _SINCOS_BINDINGS.set(bindings)
+    try:
+        yield
+    finally:
+        _SINCOS_BINDINGS.reset(token)
 
 
 def _emit_expr_ref(
@@ -104,6 +123,20 @@ def _emit_math_call(
             f"{args[0]}, {args[1]})"
         )
     return f"{math_library}::{_math_function_name(op, scalar_type)}({args[0]})"
+
+
+def _emit_sincos_call(
+    arg: str,
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str:
+    """Emit a fused sine/cosine call returning both values."""
+    if backend_mode == "std":
+        return f"({arg}).sin_cos()"
+    if math_library is None:
+        raise ValueError("no_std math calls require a resolved math library")
+    return f"{math_library}::{_math_function_name('sincos', scalar_type)}({arg})"
 
 
 def _match_contiguous_slice(args: tuple[str, ...]) -> str | None:
@@ -497,6 +530,7 @@ _BINARY_COMPARISON_OPERATORS = {
 _UNARY_MATH_OPERATORS = {
     "sin": "sin",
     "cos": "cos",
+    "sincos": "sincos",
     "tan": "tan",
     "asin": "asin",
     "acos": "acos",
@@ -679,6 +713,12 @@ def _emit_unary_node(
         return f"-{args[0]}"
     if expr.op in {"erf", "erfc"}:
         return f"{expr.op}({args[0]})"
+    if expr.op in {"sin", "cos"}:
+        bindings = _SINCOS_BINDINGS.get()
+        if bindings is not None:
+            binding = bindings.get(expr.args[0].node)
+            if binding is not None:
+                return binding[0] if expr.op == "sin" else binding[1]
     return _emit_math_call(
         _UNARY_MATH_OPERATORS[expr.op],
         args,
@@ -1169,6 +1209,13 @@ def _emit_node_expr(
     if expr.op == "symbol":
         return scalar_bindings[expr.node]
 
+    if expr.op in {"sin", "cos"}:
+        bindings = _SINCOS_BINDINGS.get()
+        if bindings is not None:
+            binding = bindings.get(expr.args[0].node)
+            if binding is not None:
+                return binding[0] if expr.op == "sin" else binding[1]
+
     args = tuple(
         _emit_expr_ref(
             arg,
@@ -1215,6 +1262,7 @@ def _emit_node_expr(
 _LIBM_FUNCTIONS = {
     "sin": "sin",
     "cos": "cos",
+    "sincos": "sincos",
     "tan": "tan",
     "asin": "asin",
     "acos": "acos",

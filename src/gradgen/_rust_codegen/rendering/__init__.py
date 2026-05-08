@@ -31,11 +31,13 @@ from .expression import (
     _emit_matrix_literal_reference,
     _emit_matrix_vector_argument,
     _emit_node_expr,
+    _emit_sincos_call,
     _emit_norm_abs_expr,
     _emit_norm_slice_and_p_arguments,
     _emit_norm_slice_argument,
     _math_function_name,
     _match_contiguous_slice,
+    _use_sincos_bindings,
 )
 from .helpers import _build_shared_helper_lines
 from .util import (
@@ -87,6 +89,7 @@ __all__ = [
     "_emit_matrix_vector_argument",
     "_emit_min_length_assert",
     "_emit_node_expr",
+    "_emit_sincos_call",
     "_emit_norm_abs_expr",
     "_emit_norm_slice_and_p_arguments",
     "_emit_norm_slice_argument",
@@ -105,5 +108,6 @@ __all__ = [
     "_math_function_name",
     "_reemit_direct_output_helper_call",
     "_scaled_index_expr",
+    "_use_sincos_bindings",
     "_workspace_ref_for_node",
 ]

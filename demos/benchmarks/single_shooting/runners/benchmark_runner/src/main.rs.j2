@@ -1,0 +1,83 @@
+use std::hint::black_box;
+use std::time::Instant;
+
+use {{ generated_crate_name }}::{
+    {{ cost_function_name }},
+    {{ gradient_function_name }},
+};
+
+fn mean_std(samples: &[f64]) -> (f64, f64) {
+    if samples.len() < 2 {
+        return (samples[0], 0.0_f64);
+    }
+    let mut mean = 0.0_f64;
+    let mut m2 = 0.0_f64;
+    for (index, sample) in samples.iter().enumerate() {
+        let count = (index + 1) as f64;
+        let delta = *sample - mean;
+        mean += delta / count;
+        m2 += delta * (*sample - mean);
+    }
+    let variance = m2 / (samples.len() as f64 - 1.0);
+    (mean, variance.sqrt())
+}
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    const TIMING_RUNS: usize = {{ timing_runs }};
+    const COST_OUTPUT_LEN: usize = {{ cost_output_size }};
+    const GRAD_OUTPUT_LEN: usize = {{ gradient_output_size }};
+    const COST_WORKSPACE_LEN: usize = {{ cost_workspace_size }};
+    const GRAD_WORKSPACE_LEN: usize = {{ gradient_workspace_size }};
+
+    let x0 = [
+        1.0_{{ scalar_type }},
+        -0.5_{{ scalar_type }},
+        0.2_{{ scalar_type }},
+        2.0_{{ scalar_type }},
+    ];
+    let u_seq = vec![
+        0.05_{{ scalar_type }},
+        -0.02_{{ scalar_type }},
+    ]
+    .repeat({{ horizon }});
+    let p = [
+        0.2_{{ scalar_type }},
+        -0.1_{{ scalar_type }},
+        0.05_{{ scalar_type }},
+        1.8_{{ scalar_type }},
+    ];
+    let mut cost = [0.0_{{ scalar_type }}; COST_OUTPUT_LEN];
+    let mut grad = [0.0_{{ scalar_type }}; GRAD_OUTPUT_LEN];
+    let mut cost_work = [0.0_{{ scalar_type }}; COST_WORKSPACE_LEN];
+    let mut grad_work = [0.0_{{ scalar_type }}; GRAD_WORKSPACE_LEN];
+    let mut samples = [0.0_{{ scalar_type }}; TIMING_RUNS];
+    let mut checksum = 0.0_{{ scalar_type }};
+
+    for run in 0..TIMING_RUNS {
+        let start = Instant::now();
+        {{ cost_function_name }}(
+            black_box(&x0),
+            black_box(&u_seq),
+            black_box(&p),
+            black_box(&mut cost),
+            black_box(&mut cost_work),
+        )
+        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        {{ gradient_function_name }}(
+            black_box(&x0),
+            black_box(&u_seq),
+            black_box(&p),
+            black_box(&mut grad),
+            black_box(&mut grad_work),
+        )
+        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        let elapsed = start.elapsed().as_secs_f64() * 1.0e3;
+        checksum += cost[0] + grad[0];
+        samples[run] = elapsed;
+    }
+
+    black_box(checksum);
+    let (mean_ms, std_ms) = mean_std(&samples);
+    println!("{mean_ms:.6} {std_ms:.6}");
+    Ok(())
+}

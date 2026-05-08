@@ -38,6 +38,7 @@ from .rendering import (
     _emit_matrix_literal_reference,
     _emit_matrix_vector_argument,
     _emit_node_expr,
+    _emit_sincos_call,
     _emit_workspace_assignment,
     _flatten_arg,
     _format_float,
@@ -45,6 +46,7 @@ from .rendering import (
     _identify_direct_custom_output_marker,
     _reemit_direct_output_helper_call,
     _emit_matrix_literal,
+    _use_sincos_bindings,
 )
 from .templates import _get_template, _render_custom_rust_header
 from .validation import (
@@ -423,6 +425,55 @@ def _collect_required_matrix_helpers(
         if helper_name in {"matvec", "transpose_matvec"}:
             required_helpers.add(helper_name)
     return required_helpers
+
+
+def _collect_sincos_bindings(
+    nodes: tuple[SXNode, ...],
+) -> dict[SXNode, tuple[str, str]]:
+    """Return fused sine/cosine bindings for repeated shared arguments."""
+    ops_by_arg: dict[SXNode, set[str]] = {}
+    for node in nodes:
+        if node.op not in {"sin", "cos"}:
+            continue
+        arg = node.args[0]
+        ops = ops_by_arg.setdefault(arg, set())
+        ops.add(node.op)
+
+    bindings: dict[SXNode, tuple[str, str]] = {}
+    for arg, ops in ops_by_arg.items():
+        if {"sin", "cos"} <= ops:
+            index = len(bindings)
+            bindings[arg] = (
+                f"sincos_{index}_sin",
+                f"sincos_{index}_cos",
+            )
+    return bindings
+
+
+def _render_sincos_binding_lines(
+    bindings: dict[SXNode, tuple[str, str]],
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> list[str]:
+    """Render fused sine/cosine bindings for shared arguments."""
+    lines: list[str] = []
+    for arg, (sin_name, cos_name) in bindings.items():
+        arg_ref = _emit_expr_ref(
+            SX(arg),
+            scalar_bindings,
+            workspace_map,
+            backend_mode,
+            scalar_type,
+            math_library,
+        )
+        lines.append(
+            f"let ({sin_name}, {cos_name}) = "
+            f"{_emit_sincos_call(arg_ref, backend_mode, scalar_type, math_library)};"
+        )
+    return lines
 
 
 def _render_matrix_literal_binding_lines(
@@ -819,6 +870,17 @@ def generate_rust(
     required_matrix_helpers = _collect_required_matrix_helpers(
         tuple(direct_output_helpers)
     )
+    emitted_nodes_for_sincos = _collect_reachable_nodes(
+        tuple(materialized_output_refs)
+    )
+    emitted_nodes_for_sincos.update(emitted_helper_nodes)
+    sincos_bindings = _collect_sincos_bindings(
+        tuple(
+            node
+            for node in function.nodes
+            if node in emitted_nodes_for_sincos
+        )
+    )
     workspace_name = "work" if workspace_map else "_work"
 
     if matrix_literal_bindings:
@@ -829,110 +891,126 @@ def generate_rust(
             )
         )
 
-    for node, work_index in workspace_map.items():
-        rhs = _emit_node_expr(
-            SX(node),
-            scalar_bindings,
-            workspace_map,
-            resolved_config.backend_mode,
-            resolved_config.scalar_type,
-            resolved_math_library,
-            matrix_literal_bindings,
-        )
-        assignment = _emit_workspace_assignment(
-            node,
-            work_index,
-            rhs,
-            scalar_bindings,
-            workspace_map,
-            resolved_config.backend_mode,
-            resolved_config.scalar_type,
-            resolved_math_library,
-        )
-        if assignment:
-            computation_lines.append(assignment)
-
-    for output_spec, output_arg, direct_helper_call in zip(
-        output_specs, function.outputs, direct_output_helpers
-    ):
-        _assert, _in_return, _out_return = _emit_exact_length_assert(
-            output_spec.rust_name,
-            output_spec.raw_name,
-            output_spec.size,
-        )
-        output_assert_lines.append(_assert)
-        output_return_lines.append(_out_return)
-        if direct_helper_call is not None:
-            regenerated_call = _reemit_direct_output_helper_call(
-                direct_helper_call,
-                output_arg,
-                output_spec.rust_name,
-                scalar_bindings,
-                workspace_map,
-                resolved_config.backend_mode,
-                resolved_config.scalar_type,
-                resolved_math_library,
-                matrix_literal_bindings,
-            )
-            output_write_lines.extend(regenerated_call.splitlines())
-            continue
-        scalar_output_lines: list[list[str]] = []
-        scalar_output_workspace_indices: list[int | None] = []
-        can_copy_from_workspace = workspace_name == "work" and (
-            output_spec.size > 1
-        )
-        for scalar_index, scalar in enumerate(_flatten_arg(output_arg)):
-            output_ref = _emit_simple_output_ref(
-                scalar,
-                scalar_bindings,
-                workspace_map,
-                resolved_config.backend_mode,
-                resolved_config.scalar_type,
-                resolved_math_library,
-                matrix_literal_bindings,
-            )
-            if output_ref is not None:
-                workspace_index = _parse_workspace_ref(
-                    output_ref, workspace_name
-                )
-                if workspace_index is None:
-                    can_copy_from_workspace = False
-                scalar_output_workspace_indices.append(workspace_index)
-                scalar_output_lines.append(
-                    [f"{output_spec.rust_name}[{scalar_index}] = {output_ref};"]
-                )
-                continue
-            can_copy_from_workspace = False
-            scalar_output_workspace_indices.append(None)
-            scalar_output_lines.append(
-                _emit_output_accumulation_lines(
-                    scalar,
-                    f"{output_spec.rust_name}[{scalar_index}]",
+    with _use_sincos_bindings(sincos_bindings):
+        if sincos_bindings:
+            computation_lines.extend(
+                _render_sincos_binding_lines(
+                    sincos_bindings,
                     scalar_bindings,
+                    workspace_map,
+                    resolved_config.backend_mode,
+                    resolved_config.scalar_type,
+                    resolved_math_library,
+                )
+            )
+
+        for node, work_index in workspace_map.items():
+            rhs = _emit_node_expr(
+                SX(node),
+                scalar_bindings,
                 workspace_map,
                 resolved_config.backend_mode,
                 resolved_config.scalar_type,
                 resolved_math_library,
                 matrix_literal_bindings,
             )
-        )
-        if can_copy_from_workspace and all(
-            index is not None for index in scalar_output_workspace_indices
+            assignment = _emit_workspace_assignment(
+                node,
+                work_index,
+                rhs,
+                scalar_bindings,
+                workspace_map,
+                resolved_config.backend_mode,
+                resolved_config.scalar_type,
+                resolved_math_library,
+            )
+            if assignment:
+                computation_lines.append(assignment)
+
+        for output_spec, output_arg, direct_helper_call in zip(
+            output_specs, function.outputs, direct_output_helpers
         ):
-            start = scalar_output_workspace_indices[0]
-            if all(
-                index == start + offset
-                for offset, index in enumerate(
-                    scalar_output_workspace_indices
+            _assert, _in_return, _out_return = _emit_exact_length_assert(
+                output_spec.rust_name,
+                output_spec.raw_name,
+                output_spec.size,
+            )
+            output_assert_lines.append(_assert)
+            output_return_lines.append(_out_return)
+            if direct_helper_call is not None:
+                regenerated_call = _reemit_direct_output_helper_call(
+                    direct_helper_call,
+                    output_arg,
+                    output_spec.rust_name,
+                    scalar_bindings,
+                    workspace_map,
+                    resolved_config.backend_mode,
+                    resolved_config.scalar_type,
+                    resolved_math_library,
+                    matrix_literal_bindings,
                 )
-            ):
-                output_write_lines.append(
-                    f"{output_spec.rust_name}.copy_from_slice("
-                    f"&{workspace_name}[{start}..{start + output_spec.size}]);"
-                )
+                output_write_lines.extend(regenerated_call.splitlines())
                 continue
-        for lines in scalar_output_lines:
-            output_write_lines.extend(lines)
+            scalar_output_lines: list[list[str]] = []
+            scalar_output_workspace_indices: list[int | None] = []
+            can_copy_from_workspace = workspace_name == "work" and (
+                output_spec.size > 1
+            )
+            for scalar_index, scalar in enumerate(_flatten_arg(output_arg)):
+                output_ref = _emit_simple_output_ref(
+                    scalar,
+                    scalar_bindings,
+                    workspace_map,
+                    resolved_config.backend_mode,
+                    resolved_config.scalar_type,
+                    resolved_math_library,
+                    matrix_literal_bindings,
+                )
+                if output_ref is not None:
+                    workspace_index = _parse_workspace_ref(
+                        output_ref, workspace_name
+                    )
+                    if workspace_index is None:
+                        can_copy_from_workspace = False
+                    scalar_output_workspace_indices.append(workspace_index)
+                    scalar_output_lines.append(
+                        [
+                            f"{output_spec.rust_name}[{scalar_index}] = "
+                            f"{output_ref};"
+                        ]
+                    )
+                    continue
+                can_copy_from_workspace = False
+                scalar_output_workspace_indices.append(None)
+                scalar_output_lines.append(
+                    _emit_output_accumulation_lines(
+                        scalar,
+                        f"{output_spec.rust_name}[{scalar_index}]",
+                        scalar_bindings,
+                        workspace_map,
+                        resolved_config.backend_mode,
+                        resolved_config.scalar_type,
+                        resolved_math_library,
+                        matrix_literal_bindings,
+                    )
+                )
+            if can_copy_from_workspace and all(
+                index is not None for index in scalar_output_workspace_indices
+            ):
+                start = scalar_output_workspace_indices[0]
+                if all(
+                    index == start + offset
+                    for offset, index in enumerate(
+                        scalar_output_workspace_indices
+                    )
+                ):
+                    output_write_lines.append(
+                        f"{output_spec.rust_name}.copy_from_slice("
+                        f"&{workspace_name}[{start}..{start + output_spec.size}]);"
+                    )
+                    continue
+            for lines in scalar_output_lines:
+                output_write_lines.extend(lines)
 
     parameters = ", ".join(
         [

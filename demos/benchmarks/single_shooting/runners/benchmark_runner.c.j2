@@ -1,0 +1,166 @@
+/* Benchmark runner for generated CasADi code. */
+
+#define _POSIX_C_SOURCE 200809L
+
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef double casadi_real;
+typedef long long int casadi_int;
+
+int {{ cost_function_name }}(
+    const casadi_real** arg,
+    casadi_real** res,
+    casadi_int* iw,
+    casadi_real* w,
+    int mem
+);
+
+int {{ gradient_function_name }}(
+    const casadi_real** arg,
+    casadi_real** res,
+    casadi_int* iw,
+    casadi_real* w,
+    int mem
+);
+
+int {{ cost_function_name }}_work(
+    casadi_int* sz_arg,
+    casadi_int* sz_res,
+    casadi_int* sz_iw,
+    casadi_int* sz_w
+);
+
+int {{ gradient_function_name }}_work(
+    casadi_int* sz_arg,
+    casadi_int* sz_res,
+    casadi_int* sz_iw,
+    casadi_int* sz_w
+);
+
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+
+static double now_ms(void) {
+    static mach_timebase_info_data_t info;
+    if (info.denom == 0) {
+        mach_timebase_info(&info);
+    }
+    uint64_t now = mach_absolute_time();
+    double ns = (double)now * (double)info.numer / (double)info.denom;
+    return ns / 1.0e6;
+}
+#else
+#include <time.h>
+
+static double now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1.0e3 + (double)ts.tv_nsec / 1.0e6;
+}
+#endif
+
+static void mean_std(
+    const double* samples,
+    int count,
+    double* mean_out,
+    double* std_out
+) {
+    if (count < 2) {
+        *mean_out = samples[0];
+        *std_out = 0.0;
+        return;
+    }
+    double mean = 0.0;
+    double m2 = 0.0;
+    for (int i = 0; i < count; ++i) {
+        double value = samples[i];
+        double delta = value - mean;
+        mean += delta / (double)(i + 1);
+        m2 += delta * (value - mean);
+    }
+    *mean_out = mean;
+    *std_out = sqrt(m2 / (double)(count - 1));
+}
+
+int main(void) {
+    enum {
+        TIMING_RUNS = {{ timing_runs }},
+        CONTROL_LEN = {{ control_length }},
+        COST_OUTPUT_LEN = {{ cost_output_size }},
+        GRAD_OUTPUT_LEN = {{ gradient_output_size }},
+    };
+
+    casadi_real x0[4] = {1.0, -0.5, 0.2, 2.0};
+    casadi_real u_seq[CONTROL_LEN];
+    casadi_real p[4] = {0.2, -0.1, 0.05, 1.8};
+    for (int i = 0; i < {{ horizon }}; ++i) {
+        u_seq[2 * i] = 0.05;
+        u_seq[2 * i + 1] = -0.02;
+    }
+
+    casadi_int sz_arg = 0;
+    casadi_int sz_res = 0;
+    casadi_int sz_iw_cost = 0;
+    casadi_int sz_w_cost = 0;
+    casadi_int sz_iw_grad = 0;
+    casadi_int sz_w_grad = 0;
+    {{ cost_function_name }}_work(
+        &sz_arg,
+        &sz_res,
+        &sz_iw_cost,
+        &sz_w_cost
+    );
+    {{ gradient_function_name }}_work(
+        &sz_arg,
+        &sz_res,
+        &sz_iw_grad,
+        &sz_w_grad
+    );
+
+    const casadi_real* arg[3] = {x0, u_seq, p};
+    casadi_real cost_out[COST_OUTPUT_LEN];
+    casadi_real grad_out[GRAD_OUTPUT_LEN];
+    casadi_real* res_cost[1] = {cost_out};
+    casadi_real* res_grad[1] = {grad_out};
+
+    casadi_int* iw_cost = calloc((size_t)sz_iw_cost, sizeof(casadi_int));
+    casadi_int* iw_grad = calloc((size_t)sz_iw_grad, sizeof(casadi_int));
+    casadi_real* w_cost = calloc((size_t)sz_w_cost, sizeof(casadi_real));
+    casadi_real* w_grad = calloc((size_t)sz_w_grad, sizeof(casadi_real));
+
+    if (iw_cost == NULL || iw_grad == NULL || w_cost == NULL || w_grad == NULL) {
+        fprintf(stderr, "failed to allocate CasADi work arrays\n");
+        free(iw_cost);
+        free(iw_grad);
+        free(w_cost);
+        free(w_grad);
+        return 1;
+    }
+
+    double samples[TIMING_RUNS];
+    double checksum = 0.0;
+
+    for (int run = 0; run < TIMING_RUNS; ++run) {
+        double start = now_ms();
+        {{ cost_function_name }}(arg, res_cost, iw_cost, w_cost, 0);
+        {{ gradient_function_name }}(arg, res_grad, iw_grad, w_grad, 0);
+        double elapsed = now_ms() - start;
+        checksum += cost_out[0] + grad_out[0];
+        samples[run] = elapsed;
+    }
+
+    double mean_ms = 0.0;
+    double std_ms = 0.0;
+    mean_std(samples, TIMING_RUNS, &mean_ms, &std_ms);
+    printf("%.6f %.6f\n", mean_ms, std_ms);
+
+    free(iw_cost);
+    free(iw_grad);
+    free(w_cost);
+    free(w_grad);
+    (void)checksum;
+    return 0;
+}

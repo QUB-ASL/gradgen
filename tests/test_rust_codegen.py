@@ -3002,8 +3002,7 @@ mod tests {{
 
         self.assertEqual(result.scalar_type, "f32")
         self.assertIn("#![no_std]", result.source)
-        self.assertIn("libm::sinf(", result.source)
-        self.assertIn("libm::cosf(", result.source)
+        self.assertIn("libm::sincosf(", result.source)
         self.assertIn("libm::expf(", result.source)
         self.assertIn("libm::logf(", result.source)
         self.assertIn("libm::sqrtf(", result.source)
@@ -3773,8 +3772,7 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn(".sin()", result.source)
-        self.assertIn(".cos()", result.source)
+        self.assertIn(".sin_cos()", result.source)
         self.assertIn(".exp()", result.source)
         self.assertIn(".ln()", result.source)
         self.assertIn(".sqrt()", result.source)
@@ -3836,8 +3834,7 @@ mod tests {{
 
         self.assertEqual(result.backend_mode, "no_std")
         self.assertIn("#![no_std]", result.source)
-        self.assertIn("libm::sin(", result.source)
-        self.assertIn("libm::cos(", result.source)
+        self.assertIn("libm::sincos(", result.source)
         self.assertIn("libm::exp(", result.source)
         self.assertIn("libm::log(", result.source)
         self.assertIn("libm::sqrt(", result.source)
@@ -3870,8 +3867,7 @@ mod tests {{
         self.assertEqual(result.backend_mode, "no_std")
         self.assertEqual(result.math_library, "libm")
         self.assertIn("#![no_std]", result.source)
-        self.assertIn("libm::sin(x[0])", result.source)
-        self.assertIn("libm::cos(x[0])", result.source)
+        self.assertIn("libm::sincos(x[0])", result.source)
         self.assertNotIn('libm = "0.2"', result.source)
 
     def test_function_level_codegen_works_for_derived_functions(self) -> None:
@@ -4856,7 +4852,7 @@ fn weighted_sqnorm_no_dead_work_hvp(
 
             self.assertIn('libm = "0.2"', cargo_text)
             self.assertIn("Scalar type: `f32`", readme_text)
-            self.assertIn("libm::sinf(", lib_text)
+            self.assertIn("libm::sincosf(", lib_text)
             self.assertIn(
                 (
                     "pub fn trig_kernel(x: &[f32], y: &mut [f32], "
