@@ -1367,6 +1367,39 @@ class SXVector:
             total = total + (left * right)
         return total
 
+    def cross(self, other: object) -> SXVector:
+        """Return the symbolic three-dimensional cross product.
+
+        Both operands must be three-dimensional vectors. The resulting
+        symbolic vector is built from the standard determinant formula,
+        so automatic differentiation and code generation work through the
+        existing scalar operators.
+
+        Args:
+            other: Vector-like operand with length three.
+
+        Returns:
+            An ``SXVector`` representing ``self x other``.
+
+        Raises:
+            ValueError: Raised when either operand does not have length
+                three.
+        """
+        vector = _coerce_vector(other)
+        self._check_same_length(vector)
+        if len(self) != 3:
+            raise ValueError(
+                "cross product is only defined for three-dimensional "
+                "vectors"
+            )
+        return SXVector(
+            (
+                (self[1] * vector[2]) - (self[2] * vector[1]),
+                (self[2] * vector[0]) - (self[0] * vector[2]),
+                (self[0] * vector[1]) - (self[1] * vector[0]),
+            )
+        )
+
     def sum(self) -> SX:
         """Return the sum of all vector elements.
 
@@ -2291,6 +2324,26 @@ def vector(values: Iterable[object]) -> SXVector:
         A new ``SXVector`` containing the coerced entries.
     """
     return SXVector(tuple(_coerce(value) for value in values))
+
+
+def cross(lhs: object, rhs: object) -> SXVector:
+    """Return the symbolic three-dimensional cross product.
+
+    This helper coerces both operands to ``SXVector`` values and returns
+    their standard three-dimensional cross product.
+
+    Args:
+        lhs: First vector-like operand with length three.
+        rhs: Second vector-like operand with length three.
+
+    Returns:
+        An ``SXVector`` representing ``lhs x rhs``.
+
+    Raises:
+        ValueError: Raised when either operand does not have length
+            three, or when their lengths do not match.
+    """
+    return _coerce_vector(lhs).cross(rhs)
 
 
 def matvec(matrix: Sequence[Sequence[float | int]], x: object) -> SXVector:

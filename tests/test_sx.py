@@ -13,6 +13,7 @@ from gradgen.sx import (
     bilinear_form,
     cbrt,
     ceil,
+    cross,
     cos,
     cosh,
     erf,
@@ -183,6 +184,15 @@ class SXTests(unittest.TestCase):
         self.assertEqual(gradgen.minimum(x, 1).op, "min")
         self.assertEqual(gradgen.if_else(x, 1.0, x >= 0.0).op, "if_else")
 
+    def test_top_level_package_exports_cross(self) -> None:
+        x = SXVector.sym("x", 3)
+        y = SXVector.sym("y", 3)
+
+        result = gradgen.cross(x, y)
+
+        self.assertIsInstance(result, SXVector)
+        self.assertEqual(len(result), 3)
+
     def test_if_else_supports_vector_branches(self) -> None:
         x = SXVector.sym("x", 2)
         y = SXVector.sym("y", 2)
@@ -342,6 +352,40 @@ class SXVectorTests(unittest.TestCase):
 
         self.assertEqual(dot.op, "const")
         self.assertEqual(dot.value, 0.0)
+
+    def test_cross_product_returns_symbolic_vector(self) -> None:
+        x = SXVector.sym("x", 3)
+        y = SXVector.sym("y", 3)
+
+        result = cross(x, y)
+
+        self.assertIsInstance(result, SXVector)
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0].op, "sub")
+        self.assertEqual(result[1].op, "sub")
+        self.assertEqual(result[2].op, "sub")
+        self.assertEqual(
+            {arg.name for arg in result[0].args[0].args},
+            {"x_1", "y_2"},
+        )
+        self.assertEqual(
+            {arg.name for arg in result[0].args[1].args},
+            {"x_2", "y_1"},
+        )
+
+    def test_cross_product_requires_three_dimensional_vectors(self) -> None:
+        x = SXVector.sym("x", 2)
+        y = SXVector.sym("y", 2)
+
+        with self.assertRaises(ValueError):
+            cross(x, y)
+
+    def test_cross_product_requires_matching_lengths(self) -> None:
+        x = SXVector.sym("x", 3)
+        y = SXVector.sym("y", 4)
+
+        with self.assertRaises(ValueError):
+            cross(x, y)
 
     def test_vector_constructor_coerces_scalar_like_values(self) -> None:
         values = vector([SX.sym("x"), 2, 3.5])

@@ -7,6 +7,7 @@ import importlib
 import sympy as sp
 
 from gradgen import (
+    cross,
     CodeGenerationBuilder,
     ComposedFunction,
     FunctionComposer,
@@ -288,6 +289,147 @@ mod integration_sympy_gradient {{
         assert_close_slice(
             &output,
             &{self._rust_array_literal(expected, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_cross_product_matches_sympy_primal_and_jacobians(self) -> None:
+        x0, x1, x2 = sp.symbols("x0:3", real=True)
+        y0, y1, y2 = sp.symbols("y0:3", real=True)
+        x_sym = sp.Matrix([x0, x1, x2])
+        y_sym = sp.Matrix([y0, y1, y2])
+        sympy_cross = x_sym.cross(y_sym)
+        sympy_jac_x = sympy_cross.jacobian((x0, x1, x2))
+        sympy_jac_y = sympy_cross.jacobian((y0, y1, y2))
+
+        x = SXVector.sym("x", 3)
+        y = SXVector.sym("y", 3)
+        outputs = cross(x, y)
+        base_function = Function(
+            "cross_parity",
+            [x, y],
+            [outputs],
+            input_names=["x", "y"],
+            output_names=["z"],
+        )
+
+        point_x = [1.2, -0.5, 2.0]
+        point_y = [-0.7, 3.0, 0.25]
+        substitutions = {
+            x0: point_x[0],
+            x1: point_x[1],
+            x2: point_x[2],
+            y0: point_y[0],
+            y1: point_y[1],
+            y2: point_y[2],
+        }
+        expected_primal = self._flatten_sympy_matrix(
+            sympy_cross.subs(substitutions).evalf()
+        )
+        expected_jac_x = self._flatten_sympy_matrix(
+            sympy_jac_x.subs(substitutions).evalf()
+        )
+        expected_jac_y = self._flatten_sympy_matrix(
+            sympy_jac_y.subs(substitutions).evalf()
+        )
+
+        self.assertEqual(base_function(point_x, point_y), tuple(expected_primal))
+        self.assertEqual(
+            base_function.jacobian(0)(point_x, point_y),
+            tuple(expected_jac_x),
+        )
+        self.assertEqual(
+            base_function.jacobian(1)(point_x, point_y),
+            tuple(expected_jac_y),
+        )
+
+        builder = (
+            CodeGenerationBuilder(base_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_cross")
+            )
+            .add_primal()
+            .add_jacobian()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_cross")
+            primal_codegen, jac_x_codegen, jac_y_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_cross {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(point_x, "f64")};
+        let y = {self._rust_array_literal(point_y, "f64")};
+
+        let mut primal = [0.0_f64; 3];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        assert!(
+            {primal_codegen.function_name}(
+                &x,
+                &y,
+                &mut primal,
+                &mut primal_work,
+            ).is_ok()
+        );
+        assert_close_slice(
+            &primal,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
+
+        let mut jac_x = [0.0_f64; 9];
+        let mut jac_x_work = [0.0_f64; {jac_x_codegen.workspace_size}];
+        assert!(
+            {jac_x_codegen.function_name}(
+                &x,
+                &y,
+                &mut jac_x,
+                &mut jac_x_work,
+            ).is_ok()
+        );
+        assert_close_slice(
+            &jac_x,
+            &{self._rust_array_literal(expected_jac_x, "f64")},
+            1e-10_f64,
+        );
+
+        let mut jac_y = [0.0_f64; 9];
+        let mut jac_y_work = [0.0_f64; {jac_y_codegen.workspace_size}];
+        assert!(
+            {jac_y_codegen.function_name}(
+                &x,
+                &y,
+                &mut jac_y,
+                &mut jac_y_work,
+            ).is_ok()
+        );
+        assert_close_slice(
+            &jac_y,
+            &{self._rust_array_literal(expected_jac_y, "f64")},
             1e-10_f64,
         );
     }}
