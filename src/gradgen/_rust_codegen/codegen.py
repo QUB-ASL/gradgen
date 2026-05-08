@@ -117,7 +117,7 @@ def _emit_output_accumulation_lines(
     matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> list[str]:
     """Emit readable accumulation statements for a scalar output expression."""
-    loop_lines = _emit_matvec_component_accumulation_loop_lines(
+    loop_lines = _emit_matrix_component_accumulation_loop_lines(
         expr,
         target,
         scalar_bindings,
@@ -224,7 +224,56 @@ def _match_matvec_component_product(
     return rows, cols, row, matrix_values, x_values, x_ref
 
 
-def _emit_matvec_component_accumulation_loop_lines(
+def _match_transpose_matvec_component_product(
+    expr: SX,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None,
+) -> tuple[int, int, int, tuple[float, ...], tuple[SX, ...], str] | None:
+    """Return metadata for a ``transpose_matvec_component`` term."""
+    factors = _collect_mul_factors(expr)
+    if len(factors) != 2:
+        return None
+
+    transpose_factor: SX | None = None
+    vector_factor: SX | None = None
+    for factor in factors:
+        if factor.op == "transpose_matvec_component":
+            transpose_factor = factor
+        else:
+            vector_factor = factor
+    if transpose_factor is None or vector_factor is None:
+        return None
+
+    rows, cols, col, matrix_values, x_values = (
+        parse_transpose_matvec_component_args(transpose_factor.args)
+    )
+    x_ref = _emit_matrix_vector_argument(
+        x_values,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    vector_ref = _emit_expr_ref(
+        vector_factor,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+        matrix_literal_bindings,
+    )
+    if vector_ref != f"{x_ref}[{col}]":
+        return None
+    return rows, cols, col, matrix_values, x_values, x_ref
+
+
+def _emit_matrix_component_accumulation_loop_lines(
     expr: SX,
     target: str,
     scalar_bindings: dict[SXNode, str],
@@ -234,15 +283,15 @@ def _emit_matvec_component_accumulation_loop_lines(
     math_library: str | None,
     matrix_literal_bindings: dict[tuple[float, ...], str] | None,
 ) -> list[str] | None:
-    """Return loop-based accumulation for repeated matvec-component terms."""
+    """Return loop-based accumulation for repeated matrix-component terms."""
     terms = _flatten_output_terms(expr)
     if len(terms) <= 4:
         return None
 
     parsed_terms: list[
-        tuple[int, int, int, tuple[float, ...], tuple[SX, ...], str]
+        tuple[str, tuple[int, int, int, tuple[float, ...], tuple[SX, ...], str]]
     ] = []
-    for expected_row, (sign, term) in enumerate(terms):
+    for expected_index, (sign, term) in enumerate(terms):
         if sign < 0.0:
             return None
         parsed = _match_matvec_component_product(
@@ -254,38 +303,52 @@ def _emit_matvec_component_accumulation_loop_lines(
             math_library,
             matrix_literal_bindings,
         )
+        helper_name = "matvec_component"
+        if parsed is None:
+            parsed = _match_transpose_matvec_component_product(
+                term,
+                scalar_bindings,
+                workspace_map,
+                backend_mode,
+                scalar_type,
+                math_library,
+                matrix_literal_bindings,
+            )
+            helper_name = "transpose_matvec_component"
         if parsed is None:
             return None
-        rows, cols, row, matrix_values, x_values, x_ref = parsed
-        if row != expected_row:
+        rows, cols, index, matrix_values, x_values, x_ref = parsed
+        if index != expected_index:
             return None
-        parsed_terms.append(parsed)
+        parsed_terms.append((helper_name, parsed))
 
-    rows, cols, _row, matrix_values, _x_values, x_ref = parsed_terms[0]
-    for parsed in parsed_terms[1:]:
-        cand_rows, cand_cols, _cand_row, cand_matrix_values, cand_x_values, cand_x_ref = parsed
+    first_helper_name, first_parsed = parsed_terms[0]
+    rows, cols, _index, matrix_values, x_values, x_ref = first_parsed
+    if rows <= 4 and cols <= 4:
+        return None
+    for helper_name, parsed in parsed_terms[1:]:
+        cand_rows, cand_cols, _cand_index, cand_matrix_values, cand_x_values, cand_x_ref = parsed
         if (
-            cand_rows != rows
+            helper_name != first_helper_name
+            or cand_rows != rows
             or cand_cols != cols
             or cand_matrix_values != matrix_values
-            or cand_x_values != parsed_terms[0][4]
+            or cand_x_values != x_values
             or cand_x_ref != x_ref
         ):
             return None
-
-    if rows <= 4:
-        return None
 
     matrix_ref = _emit_matrix_literal_reference(
         matrix_values, scalar_type, matrix_literal_bindings
     )
     zero_ref = _format_float(0.0, scalar_type)
+    helper_name = first_helper_name.replace("_component", "")
     return [
         f"{target} = {zero_ref};",
-        f"for row in 0..{rows} {{",
+        f"for index in 0..{len(parsed_terms)} {{",
         (
-            f"    {target} += matvec_component({matrix_ref}, {rows}, {cols}, "
-            f"row, {x_ref}) * {x_ref}[row];"
+            f"    {target} += {helper_name}_component("
+            f"{matrix_ref}, {rows}, {cols}, index, {x_ref}) * {x_ref}[index];"
         ),
         "}",
     ]
