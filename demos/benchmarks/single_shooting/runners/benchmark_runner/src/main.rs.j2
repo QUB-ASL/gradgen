@@ -50,8 +50,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut grad = [0.0_{{ scalar_type }}; GRAD_OUTPUT_LEN];
     let mut cost_work = [0.0_{{ scalar_type }}; COST_WORKSPACE_LEN];
     let mut grad_work = [0.0_{{ scalar_type }}; GRAD_WORKSPACE_LEN];
-    let mut samples = [0.0_{{ scalar_type }}; TIMING_RUNS];
-    let mut checksum = 0.0_{{ scalar_type }};
+    let mut samples = [0.0_f64; TIMING_RUNS];
+    let mut checksum = 0.0_f64;
 
     for run in 0..TIMING_RUNS {
         let start = Instant::now();
@@ -72,7 +72,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
         let elapsed = start.elapsed().as_secs_f64() * 1.0e3;
-        checksum += cost[0] + grad[0];
+        checksum += f64::from(cost[0]) + f64::from(grad[0]);
         samples[run] = elapsed;
     }
 

@@ -244,7 +244,7 @@ def _build_gradgen_project(
         .with_backend_config(
             RustBackendConfig()
             .with_crate_name(f"bicycle_benchmark_{horizon}")
-            .with_backend_mode("no_std")
+            .with_backend_mode("std")
             .with_scalar_type(scalar_type)
             .with_build_crate(False)
         )
