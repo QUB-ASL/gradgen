@@ -15,7 +15,7 @@ from .custom import (
     _match_custom_vector_derivative_output,
     _match_custom_vector_hessian_output,
     _match_passthrough_custom_vector_hessian_entry,
-    _match_passthrough_matvec_component,
+    _match_passthrough_matrix_component,
     _reemit_direct_output_helper_call,
 )
 from .expression import (
@@ -99,7 +99,7 @@ __all__ = [
     "_match_custom_vector_derivative_output",
     "_match_custom_vector_hessian_output",
     "_match_passthrough_custom_vector_hessian_entry",
-    "_match_passthrough_matvec_component",
+    "_match_passthrough_matrix_component",
     "_math_function_name",
     "_reemit_direct_output_helper_call",
     "_scaled_index_expr",

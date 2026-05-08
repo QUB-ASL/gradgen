@@ -13,6 +13,7 @@ from .sx import (
     parse_bilinear_form_args,
     parse_matvec_component_args,
     parse_quadform_args,
+    parse_transpose_matvec_component_args,
     vector,
 )
 from ._custom_elementary import (
@@ -1245,6 +1246,17 @@ def _evaluate_matvec_component(expr: SX) -> float:
     )
 
 
+def _evaluate_transpose_matvec_component(expr: SX) -> float:
+    """Evaluate a transposed matrix-vector product component numerically."""
+    rows, cols, col, matrix_values, x_values = (
+        parse_transpose_matvec_component_args(expr.args)
+    )
+    return sum(
+        matrix_values[row * cols + col] * _evaluate_scalar(x_values[row])
+        for row in range(rows)
+    )
+
+
 def _evaluate_quadform(expr: SX) -> float:
     """Evaluate a quadratic form numerically."""
     size, matrix_values, x_values = parse_quadform_args(expr.args)
@@ -1408,6 +1420,7 @@ _SCALAR_SPECIAL_DISPATCH: dict[str, Callable[[SX], object]] = {
     "custom_vector_hessian_entry": _evaluate_custom_vector_hessian_entry,
     "custom_vector_hvp_component": _evaluate_custom_vector_hvp_component,
     "matvec_component": _evaluate_matvec_component,
+    "transpose_matvec_component": _evaluate_transpose_matvec_component,
     "quadform": _evaluate_quadform,
     "bilinear_form": _evaluate_bilinear_form,
 }

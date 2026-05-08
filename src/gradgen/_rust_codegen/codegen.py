@@ -544,18 +544,17 @@ def generate_rust(
         output_assert_lines.append(_assert)
         output_return_lines.append(_out_return)
         if direct_helper_call is not None:
-            output_write_lines.append(
-                _reemit_direct_output_helper_call(
-                    direct_helper_call,
-                    output_arg,
-                    output_spec.rust_name,
-                    scalar_bindings,
-                    workspace_map,
-                    resolved_config.backend_mode,
-                    resolved_config.scalar_type,
-                    resolved_math_library,
-                )
+            regenerated_call = _reemit_direct_output_helper_call(
+                direct_helper_call,
+                output_arg,
+                output_spec.rust_name,
+                scalar_bindings,
+                workspace_map,
+                resolved_config.backend_mode,
+                resolved_config.scalar_type,
+                resolved_math_library,
             )
+            output_write_lines.extend(regenerated_call.splitlines())
             continue
         scalar_output_lines: list[list[str]] = []
         scalar_output_workspace_indices: list[int | None] = []

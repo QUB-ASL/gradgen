@@ -96,6 +96,7 @@ from .sx import (
     sqrt,
     tan,
     tanh,
+    transpose_matvec,
     trunc,
     vector,
 )
@@ -181,6 +182,7 @@ __all__ = [
     "sqrt",
     "tan",
     "tanh",
+    "transpose_matvec",
     "trunc",
     "vector",
     "vjp",

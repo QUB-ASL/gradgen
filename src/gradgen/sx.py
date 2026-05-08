@@ -2387,6 +2387,53 @@ def matvec(matrix: Sequence[Sequence[float | int]], x: object) -> SXVector:
     )
 
 
+def transpose_matvec(
+    matrix: Sequence[Sequence[float | int]],
+    x: object,
+) -> SXVector:
+    """Return the symbolic product ``A^T x`` for a constant matrix ``A``.
+
+    The input matrix is validated as a dense rectangular numeric sequence.
+    The helper transposes the constant matrix metadata and then reuses the
+    existing ``matvec`` construction, so the resulting symbolic vector keeps
+    the same automatic-differentiation and Rust-code-generation behavior as
+    a regular matrix-vector product.
+
+    Args:
+        matrix: Constant numeric matrix ``A`` in row-major form.
+        x: Symbolic vector operand with length equal to the row count of
+            ``matrix``.
+
+    Returns:
+        An ``SXVector`` whose entries represent ``A^T x``.
+
+    Raises:
+        ValueError: Raised when the matrix row count does not match the
+            vector length.
+    """
+    x_vector = _coerce_vector(x)
+    rows, cols, values = _coerce_constant_matrix(matrix)
+    if rows != len(x_vector):
+        raise ValueError("matrix row count must match vector length")
+    return SXVector(
+        tuple(
+            SX(
+                SXNode.make(
+                    "transpose_matvec_component",
+                    _build_transpose_matvec_component_args(
+                        rows,
+                        cols,
+                        col,
+                        values,
+                        x_vector.elements,
+                    ),
+                )
+            )
+            for col in range(cols)
+        )
+    )
+
+
 def quadform(
     matrix: Sequence[Sequence[float | int]],
     x: object,
@@ -2647,6 +2694,37 @@ def _build_matvec_component_args(
     )
 
 
+def _build_transpose_matvec_component_args(
+    rows: int,
+    cols: int,
+    col: int,
+    values: tuple[float, ...],
+    x_elements: tuple[SX, ...],
+) -> tuple[SXNode, ...]:
+    """Build the payload tuple for a ``transpose_matvec_component`` node.
+
+    The payload stores the original matrix dimensions, output column index,
+    flattened matrix values, and vector operands in node order.
+
+    Args:
+        rows: Number of matrix rows.
+        cols: Number of matrix columns.
+        col: Output column index of the component to build.
+        values: Flattened matrix entries.
+        x_elements: Vector operands to embed in the node payload.
+
+    Returns:
+        A tuple of ``SXNode`` payload entries.
+    """
+    return (
+        SX.const(rows).node,
+        SX.const(cols).node,
+        SX.const(col).node,
+        *(SX.const(value).node for value in values),
+        *(element.node for element in x_elements),
+    )
+
+
 def _build_quadform_args(
     size: int,
     values: tuple[float, ...],
@@ -2734,6 +2812,34 @@ def parse_matvec_component_args(
     if len(x_values) != cols:
         raise ValueError("matvec_component payload is malformed")
     return rows, cols, row, matrix_values, x_values
+
+
+def parse_transpose_matvec_component_args(
+    args: tuple[SX, ...],
+) -> tuple[int, int, int, tuple[float, ...], tuple[SX, ...]]:
+    """Decode a ``transpose_matvec_component`` node payload.
+
+    Args:
+        args: Stored ``SX`` payload entries.
+
+    Returns:
+        A tuple ``(rows, cols, col, matrix_values, x_values)``.
+
+    Raises:
+        ValueError: Raised when the payload shape is malformed.
+    """
+    rows = _require_integral_const(args[0], "rows")
+    cols = _require_integral_const(args[1], "cols")
+    col = _require_integral_const(args[2], "col")
+    matrix_count = rows * cols
+    matrix_values = tuple(
+        _require_const(arg, "matrix entry")
+        for arg in args[3: 3 + matrix_count]
+    )
+    x_values = args[3 + matrix_count:]
+    if len(x_values) != rows:
+        raise ValueError("transpose_matvec_component payload is malformed")
+    return rows, cols, col, matrix_values, x_values
 
 
 def parse_quadform_args(

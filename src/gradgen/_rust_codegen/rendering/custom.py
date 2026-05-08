@@ -9,9 +9,16 @@ from ..._custom_elementary import (
     parse_custom_vector_jacobian_component_args,
     render_custom_rust_snippet,
 )
-from ...sx import SX, SXNode, SXVector, parse_matvec_component_args
+from ...sx import (
+    SX,
+    SXNode,
+    SXVector,
+    parse_matvec_component_args,
+    parse_transpose_matvec_component_args,
+)
 from ..config import RustBackendMode, RustScalarType
 from .expression import _emit_matrix_literal, _emit_matrix_vector_argument
+from .util import _format_float
 
 
 def _build_custom_vector_jacobian_wrapper_lines(
@@ -125,36 +132,132 @@ def _emit_matvec_output_helper_call(
     scalar_type: RustScalarType,
     math_library: str | None,
 ) -> str | None:
-    """Return a single helper call when ``output_arg`` is exactly a matvec."""
+    """Return a single helper call when ``output_arg`` is exactly a matrix helper."""
     if not isinstance(output_arg, SXVector) or not output_arg.elements:
         return None
     parsed_exprs: list[SX] = []
+    helper_name = ""
     for element in output_arg:
-        matched = _match_passthrough_matvec_component(element)
+        matched = _match_passthrough_matrix_component(element)
         if matched is None:
+            return None
+        if not helper_name:
+            helper_name = matched.op
+        elif helper_name != matched.op:
             return None
         parsed_exprs.append(matched)
 
-    parsed = [parse_matvec_component_args(element.args) for element in parsed_exprs]
-    rows, cols, _row, matrix_values, x_values = parsed[0]
-    if rows != len(output_arg):
-        return None
-    for index, candidate in enumerate(parsed):
-        cand_rows, cand_cols, cand_row, cand_matrix_values, cand_x_values = candidate
-        if (
-            cand_rows != rows
-            or cand_cols != cols
-            or cand_row != index
-            or cand_matrix_values != matrix_values
-            or cand_x_values != x_values
-        ):
+    if helper_name == "matvec_component":
+        parsed = [
+            parse_matvec_component_args(element.args) for element in parsed_exprs
+        ]
+        rows, cols, _row, matrix_values, x_values = parsed[0]
+        if rows != len(output_arg):
             return None
+        for index, candidate in enumerate(parsed):
+            cand_rows, cand_cols, cand_row, cand_matrix_values, cand_x_values = (
+                candidate
+            )
+            if (
+                cand_rows != rows
+                or cand_cols != cols
+                or cand_row != index
+                or cand_matrix_values != matrix_values
+                or cand_x_values != x_values
+            ):
+                return None
+        helper_fn = "matvec"
+    elif helper_name == "transpose_matvec_component":
+        parsed = [
+            parse_transpose_matvec_component_args(element.args)
+            for element in parsed_exprs
+        ]
+        rows, cols, _col, matrix_values, x_values = parsed[0]
+        if cols != len(output_arg):
+            return None
+        for index, candidate in enumerate(parsed):
+            cand_rows, cand_cols, cand_col, cand_matrix_values, cand_x_values = (
+                candidate
+            )
+            if (
+                cand_rows != rows
+                or cand_cols != cols
+                or cand_col != index
+                or cand_matrix_values != matrix_values
+                or cand_x_values != x_values
+            ):
+                return None
+        helper_fn = "transpose_matvec"
+    else:
+        return None
 
     matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
     x_ref = _emit_matrix_vector_argument(
         x_values, scalar_bindings, workspace_map, backend_mode, scalar_type, math_library
     )
-    return f"matvec({matrix_ref}, {rows}, {cols}, {x_ref}, {output_name});"
+    if rows * cols <= 16:
+        if helper_fn == "matvec":
+            lines = _emit_unrolled_matvec_output_lines(
+                rows,
+                cols,
+                matrix_values,
+                x_ref,
+                output_name,
+                scalar_type,
+            )
+        else:
+            lines = _emit_unrolled_transpose_matvec_output_lines(
+                rows,
+                cols,
+                matrix_values,
+                x_ref,
+                output_name,
+                scalar_type,
+            )
+        return "\n".join(lines)
+    return (
+        f"{helper_fn}({matrix_ref}, {rows}, {cols}, {x_ref}, {output_name});"
+    )
+
+
+def _emit_unrolled_matvec_output_lines(
+    rows: int,
+    cols: int,
+    matrix_values: tuple[float, ...],
+    x_ref: str,
+    output_name: str,
+    scalar_type: RustScalarType,
+) -> list[str]:
+    """Return explicit assignment lines for a small dense matvec."""
+    lines: list[str] = []
+    for row in range(rows):
+        terms = [
+            f"({_format_float(matrix_values[row * cols + col], scalar_type)}) "
+            f"* ({x_ref}[{col}])"
+            for col in range(cols)
+        ]
+        lines.append(f"{output_name}[{row}] = " + " + ".join(terms) + ";")
+    return lines
+
+
+def _emit_unrolled_transpose_matvec_output_lines(
+    rows: int,
+    cols: int,
+    matrix_values: tuple[float, ...],
+    x_ref: str,
+    output_name: str,
+    scalar_type: RustScalarType,
+) -> list[str]:
+    """Return explicit assignment lines for a small dense transpose matvec."""
+    lines: list[str] = []
+    for col in range(cols):
+        terms = [
+            f"({_format_float(matrix_values[row * cols + col], scalar_type)}) "
+            f"* ({x_ref}[{row}])"
+            for row in range(rows)
+        ]
+        lines.append(f"{output_name}[{col}] = " + " + ".join(terms) + ";")
+    return lines
 
 
 def _emit_custom_vector_hessian_output_helper_call(
@@ -466,23 +569,23 @@ def _match_passthrough_custom_vector_derivative_component(
     return None
 
 
-def _match_passthrough_matvec_component(expr: SX) -> SX | None:
-    """Return the underlying matvec component through trivial wrappers."""
-    if expr.op == "matvec_component":
+def _match_passthrough_matrix_component(expr: SX) -> SX | None:
+    """Return the underlying matrix helper component through trivial wrappers."""
+    if expr.op in {"matvec_component", "transpose_matvec_component"}:
         return expr
     if expr.op == "mul":
         left, right = expr.args
         if _is_passthrough_one(left):
-            return _match_passthrough_matvec_component(right)
+            return _match_passthrough_matrix_component(right)
         if _is_passthrough_one(right):
-            return _match_passthrough_matvec_component(left)
+            return _match_passthrough_matrix_component(left)
         return None
     if expr.op == "add":
         left, right = expr.args
         if _is_passthrough_zero(left):
-            return _match_passthrough_matvec_component(right)
+            return _match_passthrough_matrix_component(right)
         if _is_passthrough_zero(right):
-            return _match_passthrough_matvec_component(left)
+            return _match_passthrough_matrix_component(left)
         return None
     return None
 

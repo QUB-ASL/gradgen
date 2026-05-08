@@ -39,6 +39,7 @@ from gradgen import (
     quadform,
     register_elementary_function,
     reduce_function,
+    transpose_matvec,
     zip_function,
 )
 
@@ -3244,15 +3245,12 @@ mod tests {{
         result = f.generate_rust()
 
         self.assertIn(
-            (
-                "fn matvec_component(matrix: &[f64], rows: usize, "
-                "cols: usize, row: usize, x: &[f64]) -> f64 {"
-            ),
+            "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
             result.source,
         )
         self.assertIn(
             (
-                "fn matvec(matrix: &[f64], rows: usize, cols: usize, "
+                "fn transpose_matvec(matrix: &[f64], rows: usize, cols: usize, "
                 "x: &[f64], y: &mut [f64]) {"
             ),
             result.source,
@@ -3269,7 +3267,11 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "matvec(&[2.0_f64, 1.0_f64, 1.0_f64, 3.0_f64], 2, 2, x, mx);",
+            "mx[0] = (2.0_f64) * (x[0]) + (1.0_f64) * (x[1]);",
+            result.source,
+        )
+        self.assertIn(
+            "mx[1] = (1.0_f64) * (x[0]) + (3.0_f64) * (x[1]);",
             result.source,
         )
         self.assertIn(
@@ -3303,15 +3305,12 @@ mod tests {{
         result = f.generate_rust(scalar_type="f32")
 
         self.assertIn(
-            (
-                "fn matvec_component(matrix: &[f32], rows: usize, "
-                "cols: usize, row: usize, x: &[f32]) -> f32 {"
-            ),
+            "fn matvec(matrix: &[f32], rows: usize, cols: usize, x: &[f32], y: &mut [f32]) {",
             result.source,
         )
         self.assertIn(
             (
-                "fn matvec(matrix: &[f32], rows: usize, cols: usize, "
+                "fn transpose_matvec(matrix: &[f32], rows: usize, cols: usize, "
                 "x: &[f32], y: &mut [f32]) {"
             ),
             result.source,
@@ -3328,7 +3327,68 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "matvec(&[2.0_f32, 1.0_f32, 1.0_f32, 3.0_f32], 2, 2, x, mx);",
+            "mx[0] = (2.0_f32) * (x[0]) + (1.0_f32) * (x[1]);",
+            result.source,
+        )
+        self.assertIn(
+            "mx[1] = (1.0_f32) * (x[0]) + (3.0_f32) * (x[1]);",
+            result.source,
+        )
+
+    def test_generated_code_supports_transpose_matvec_helper(self) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[2.0, 1.0, -1.0], [1.0, 3.0, 0.5]]
+        f = Function(
+            "f",
+            [x],
+            [transpose_matvec(matrix, x)],
+            input_names=["x"],
+            output_names=["mx_t"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn(
+            (
+                "fn transpose_matvec(matrix: &[f64], rows: usize, cols: usize, "
+                "x: &[f64], y: &mut [f64]) {"
+            ),
+            result.source,
+        )
+        self.assertIn("mx_t[0] = (2.0_f64) * (x[0]) + (1.0_f64) * (x[1]);",
+                      result.source)
+        self.assertIn("mx_t[1] = (1.0_f64) * (x[0]) + (3.0_f64) * (x[1]);",
+                      result.source)
+        self.assertIn(
+            "mx_t[2] = (-1.0_f64) * (x[0]) + (0.5_f64) * (x[1]);",
+            result.source,
+        )
+
+    def test_generated_code_keeps_large_matvec_helper_calls(self) -> None:
+        x = SXVector.sym("x", 5)
+        matrix = [
+            [1.0, 0.0, 2.0, 0.0, -1.0],
+            [0.5, 1.5, 0.0, 2.0, 0.0],
+            [0.0, -2.0, 1.0, 0.5, 3.0],
+            [4.0, 0.0, 0.0, 1.0, 2.0],
+        ]
+        f = Function(
+            "f",
+            [x],
+            [matvec(matrix, x)],
+            input_names=["x"],
+            output_names=["mx"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn(
+            (
+                "matvec(&[1.0_f64, 0.0_f64, 2.0_f64, 0.0_f64, -1.0_f64, "
+                "0.5_f64, 1.5_f64, 0.0_f64, 2.0_f64, 0.0_f64, 0.0_f64, "
+                "-2.0_f64, 1.0_f64, 0.5_f64, 3.0_f64, 4.0_f64, 0.0_f64, "
+                "0.0_f64, 1.0_f64, 2.0_f64], 4, 5, x, mx);"
+            ),
             result.source,
         )
 
@@ -3349,11 +3409,19 @@ mod tests {{
         hvp_result = f.hvp(0).generate_rust()
 
         self.assertIn(
-            "matvec(&[4.0_f64, 2.0_f64, 2.0_f64, 6.0_f64], 2, 2, x, y);",
+            "y[0] = (4.0_f64) * (x[0]) + (2.0_f64) * (x[1]);",
             gradient_result.source,
         )
         self.assertIn(
-            "matvec(&[4.0_f64, 2.0_f64, 2.0_f64, 6.0_f64], 2, 2, v_x, y);",
+            "y[1] = (2.0_f64) * (x[0]) + (6.0_f64) * (x[1]);",
+            gradient_result.source,
+        )
+        self.assertIn(
+            "y[0] = (4.0_f64) * (v_x[0]) + (2.0_f64) * (v_x[1]);",
+            hvp_result.source,
+        )
+        self.assertIn(
+            "y[1] = (2.0_f64) * (v_x[0]) + (6.0_f64) * (v_x[1]);",
             hvp_result.source,
         )
 
@@ -3403,17 +3471,14 @@ mod tests {{
 
             self.assertEqual(
                 lib_text.count(
-                    (
-                        "fn matvec_component(matrix: &[f64], rows: usize, "
-                        "cols: usize, row: usize, x: &[f64]) -> f64 {"
-                    )
+                    "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {"
                 ),
                 1,
             )
             self.assertEqual(
                 lib_text.count(
                     (
-                        "fn matvec(matrix: &[f64], rows: usize, "
+                        "fn transpose_matvec(matrix: &[f64], rows: usize, "
                         "cols: usize, x: &[f64], y: &mut [f64]) {"
                     )
                 ),
@@ -5201,15 +5266,15 @@ mod joint_hessian_tests {
 
             self.assertIn(
                 (
-                    "fn matvec_component(matrix: &[f64], rows: usize, "
-                    "cols: usize, row: usize, x: &[f64]) -> f64 {"
+                    "fn matvec(matrix: &[f64], rows: usize, cols: usize, "
+                    "x: &[f64], y: &mut [f64]) {"
                 ),
                 lib_text,
             )
             self.assertIn(
                 (
-                    "fn matvec(matrix: &[f64], rows: usize, cols: usize, "
-                    "x: &[f64], y: &mut [f64]) {"
+                    "fn transpose_matvec(matrix: &[f64], rows: usize, "
+                    "cols: usize, x: &[f64], y: &mut [f64]) {"
                 ),
                 lib_text,
             )

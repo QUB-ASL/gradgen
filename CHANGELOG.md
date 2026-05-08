@@ -12,6 +12,15 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added symbolic three-dimensional cross products for `SXVector`, along
   with SymPy-backed integration coverage for primal and Jacobian code
   generation.
+- Added `transpose_matvec(A, x)` for symbolic products of the form
+  `A^T x`, with Rust code generation and Jacobian coverage verified
+  against SymPy.
+
+### Changed
+
+- Improved Rust matrix helper generation so dense `matvec(...)` and
+  `transpose_matvec(...)` outputs lower to dedicated whole-output helper
+  kernels instead of row-by-row helper calls.
 
 
 ## 0.5.2 - 08-05-2025

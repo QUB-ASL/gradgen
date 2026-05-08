@@ -19,6 +19,7 @@ from ...sx import (
     parse_bilinear_form_args,
     parse_matvec_component_args,
     parse_quadform_args,
+    parse_transpose_matvec_component_args,
 )
 from ..config import RustBackendMode, RustScalarType
 from .util import _format_float
@@ -934,6 +935,35 @@ def _emit_matvec_component_node(
     return f"matvec_component({matrix_ref}, {rows}, {cols}, {row}, {x_ref})"
 
 
+def _emit_transpose_matvec_component_node(
+    expr: SX,
+    args: tuple[str, ...],
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+) -> str:
+    """Emit a transposed matrix-vector product component call."""
+    rows, cols, col, matrix_values, x_values = (
+        parse_transpose_matvec_component_args(expr.args)
+    )
+    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+    x_ref = _emit_matrix_vector_argument(
+        x_values,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    del args
+    return (
+        f"transpose_matvec_component({matrix_ref}, {rows}, {cols}, {col}, "
+        f"{x_ref})"
+    )
+
+
 def _emit_quadform_node(
     expr: SX,
     args: tuple[str, ...],
@@ -1079,6 +1109,7 @@ _NODE_EXPR_DISPATCH = {
     "custom_vector_hvp_component": _emit_custom_vector_hvp_component_node,
     "custom_vector_hessian_entry": _emit_custom_vector_hessian_entry_node,
     "matvec_component": _emit_matvec_component_node,
+    "transpose_matvec_component": _emit_transpose_matvec_component_node,
     "quadform": _emit_quadform_node,
     "bilinear_form": _emit_bilinear_form_node,
     "sum": _emit_vector_reduction_node,

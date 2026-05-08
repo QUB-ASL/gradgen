@@ -37,6 +37,7 @@ from gradgen.sx import (
     sqrt,
     tan,
     tanh,
+    transpose_matvec,
     trunc,
     vector,
 )
@@ -192,6 +193,14 @@ class SXTests(unittest.TestCase):
 
         self.assertIsInstance(result, SXVector)
         self.assertEqual(len(result), 3)
+
+    def test_top_level_package_exports_transpose_matvec(self) -> None:
+        x = SXVector.sym("x", 2)
+
+        result = gradgen.transpose_matvec([[1.0, 2.0], [3.0, 4.0]], x)
+
+        self.assertIsInstance(result, SXVector)
+        self.assertEqual(len(result), 2)
 
     def test_if_else_supports_vector_branches(self) -> None:
         x = SXVector.sym("x", 2)
@@ -590,13 +599,22 @@ class SXVectorTests(unittest.TestCase):
         matrix = [[2.0, 1.0], [1.0, 3.0]]
 
         matvec_expr = matvec(matrix, x)
+        transpose_matvec_expr = transpose_matvec(matrix, x)
         quadform_expr = quadform(matrix, x)
         bilinear_expr = bilinear_form(x, matrix, y)
 
         self.assertIsInstance(matvec_expr, SXVector)
+        self.assertIsInstance(transpose_matvec_expr, SXVector)
         self.assertEqual(len(matvec_expr), 2)
+        self.assertEqual(len(transpose_matvec_expr), 2)
         self.assertTrue(
             all(element.op == "matvec_component" for element in matvec_expr))
+        self.assertTrue(
+            all(
+                element.op == "transpose_matvec_component"
+                for element in transpose_matvec_expr
+            )
+        )
         self.assertEqual(quadform_expr.op, "quadform")
         self.assertEqual(bilinear_expr.op, "bilinear_form")
 
@@ -606,6 +624,9 @@ class SXVectorTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _ = matvec([[1.0, 2.0, 3.0]], x)
+
+        with self.assertRaises(ValueError):
+            _ = transpose_matvec([[1.0, 2.0], [3.0, 4.0]], y)
 
         with self.assertRaises(ValueError):
             _ = quadform([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], x)
@@ -624,6 +645,9 @@ class SXVectorTests(unittest.TestCase):
 
         with self.assertRaises(TypeError):
             _ = matvec([["bad", 1.0], [2.0, 3.0]], x)
+
+        with self.assertRaises(TypeError):
+            _ = transpose_matvec([["bad", 1.0], [2.0, 3.0]], x)
 
     def test_quadform_validates_symmetry_by_default(self) -> None:
         x = SXVector.sym("x", 2)
@@ -748,10 +772,12 @@ class SXVectorTests(unittest.TestCase):
         y = SXVector.sym("y", 0)
 
         matvec_expr = matvec([], x)
+        transpose_matvec_expr = transpose_matvec([], x)
         quadform_expr = quadform([], x)
         bilinear_expr = bilinear_form(x, [], y)
 
         self.assertEqual(len(matvec_expr), 0)
+        self.assertEqual(len(transpose_matvec_expr), 0)
         self.assertEqual(quadform_expr.op, "quadform")
         self.assertEqual(bilinear_expr.op, "bilinear_form")
 
