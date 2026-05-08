@@ -9,50 +9,20 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
-- Added symbolic three-dimensional cross products for `SXVector`, along
-  with SymPy-backed integration coverage for primal and Jacobian code
-  generation.
+- Added symbolic three-dimensional cross products for `SXVector`,
+  including Rust code generation and automatic differentiation support.
 - Added `transpose_matvec(A, x)` for symbolic products of the form
-  `A^T x`, with Rust code generation and Jacobian coverage verified
-  against SymPy.
-- Added Rust API doc comments for generated matrix helper functions,
-  including `matvec_component(...)` and `transpose_matvec_component(...)`.
-- Hoisted repeated constant matrix literals into named Rust locals when
-  generated kernels reuse the same matrix helper multiple times.
+  `A^T x`.
 
 ### Changed
 
-- Improved Rust matrix helper generation so dense `matvec(...)` and
-  `transpose_matvec(...)` outputs lower to dedicated whole-output helper
-  kernels instead of row-by-row helper calls.
-- Simplified fully unrolled small-matrix Rust output so zero-coefficient
-  terms are dropped and unit coefficients emit direct passthroughs such
-  as `x[i]` or `-x[i]` instead of redundant multiplications.
-- Threaded hoisted matrix bindings through scalar `quadform(...)` and
-  `bilinear_form(...)` output rendering so generated Rust reuses shared
-  matrix literals instead of leaving unused bindings behind.
-- Threaded hoisted matrix bindings through scalar accumulation outputs
-  so `matvec_component(...)` terms reuse the shared matrix binding
-  instead of leaving a dead local behind.
-- Emitted a simple `for` loop for large scalar accumulations built from
-  repeated `matvec_component(...) * x[row]` terms instead of expanding
-  them into many repeated statements.
-- Stopped emitting `matvec_component(...)` for direct whole-kernel
-  `matvec(...)` outputs, so generated Rust no longer carries unused
-  component helpers for those calls.
-- Stopped emitting unused Rust matrix helpers such as `matvec(...)`,
-  `transpose_matvec(...)`, `bilinear_form(...)`, and `quadform(...)`
-  when a small matrix output is fully unrolled and no longer needs them.
-- Split the Rust matrix-helper preamble so `bilinear_form(...)` and
-  `quadform(...)` are only emitted when a graph actually uses them.
-- Stopped emitting whole-kernel `matvec(...)` and `transpose_matvec(...)`
-  helpers unless a generated direct-output call needs them.
-- Expanded very small constant matrix products directly in the symbolic
-  layer, so `matvec(...)`, `transpose_matvec(...)`, `quadform(...)`,
-  and `bilinear_form(...)` now bypass helper nodes for tiny matrices.
-- Made generated `matvec_component(...)` and
-  `transpose_matvec_component(...)` helpers use scalar accumulators and
-  `#[inline(always)]` for better Rust codegen.
+- Made generated Rust for matrix math smaller and clearer. Small
+  constant matrices are now expanded directly, larger matrix-vector
+  products use loop-based helpers, and repeated matrix literals are
+  reused when possible.
+- Improved the generated matrix helper implementations so they use
+  tighter slice-based loops and `#[inline(always)]` on scalar helper
+  calls.
 
 
 ## 0.5.2 - 08-05-2025
