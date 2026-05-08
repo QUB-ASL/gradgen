@@ -33,6 +33,7 @@ from gradgen import (
     create_multi_function_rust_project,
     create_rust_derivative_bundle,
     create_rust_project,
+    cross,
     derivative,
     map_function,
     matvec,
@@ -3245,17 +3246,6 @@ mod tests {{
         result = f.generate_rust()
 
         self.assertIn(
-            "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
-            result.source,
-        )
-        self.assertIn(
-            (
-                "fn transpose_matvec(matrix: &[f64], rows: usize, cols: usize, "
-                "x: &[f64], y: &mut [f64]) {"
-            ),
-            result.source,
-        )
-        self.assertIn(
             "fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {",
             result.source,
         )
@@ -3263,6 +3253,17 @@ mod tests {{
             (
                 "fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, "
                 "cols: usize, y: &[f64]) -> f64 {"
+            ),
+            result.source,
+        )
+        self.assertNotIn(
+            "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
+            result.source,
+        )
+        self.assertNotIn(
+            (
+                "fn transpose_matvec(matrix: &[f64], rows: usize, cols: usize, "
+                "x: &[f64], y: &mut [f64]) {"
             ),
             result.source,
         )
@@ -3305,17 +3306,6 @@ mod tests {{
         result = f.generate_rust(scalar_type="f32")
 
         self.assertIn(
-            "fn matvec(matrix: &[f32], rows: usize, cols: usize, x: &[f32], y: &mut [f32]) {",
-            result.source,
-        )
-        self.assertIn(
-            (
-                "fn transpose_matvec(matrix: &[f32], rows: usize, cols: usize, "
-                "x: &[f32], y: &mut [f32]) {"
-            ),
-            result.source,
-        )
-        self.assertIn(
             "fn quadform(matrix: &[f32], size: usize, x: &[f32]) -> f32 {",
             result.source,
         )
@@ -3323,6 +3313,17 @@ mod tests {{
             (
                 "fn bilinear_form(x: &[f32], matrix: &[f32], rows: usize, "
                 "cols: usize, y: &[f32]) -> f32 {"
+            ),
+            result.source,
+        )
+        self.assertNotIn(
+            "fn matvec(matrix: &[f32], rows: usize, cols: usize, x: &[f32], y: &mut [f32]) {",
+            result.source,
+        )
+        self.assertNotIn(
+            (
+                "fn transpose_matvec(matrix: &[f32], rows: usize, cols: usize, "
+                "x: &[f32], y: &mut [f32]) {"
             ),
             result.source,
         )
@@ -3377,6 +3378,23 @@ mod tests {{
         result = f.generate_rust()
 
         self.assertIn(
+            "/// Return one component of a dense matrix-vector product.",
+            result.source,
+        )
+        self.assertIn(
+            (
+                "let matrix_0 = &[1.0_f64, 0.0_f64, 2.0_f64, 0.0_f64, "
+                "-1.0_f64, 0.5_f64, 1.5_f64, 0.0_f64, 2.0_f64, 0.0_f64, "
+                "0.0_f64, -2.0_f64, 1.0_f64, 0.5_f64, 3.0_f64, 4.0_f64, "
+                "0.0_f64, 0.0_f64, 1.0_f64, 2.0_f64];"
+            ),
+            result.source,
+        )
+        self.assertIn(
+            "matvec(matrix_0, 4, 5, x, mx);",
+            result.source,
+        )
+        self.assertNotIn(
             (
                 "matvec(&[1.0_f64, 0.0_f64, 2.0_f64, 0.0_f64, -1.0_f64, "
                 "0.5_f64, 1.5_f64, 0.0_f64, 2.0_f64, 0.0_f64, 0.0_f64, "
@@ -3459,6 +3477,55 @@ mod tests {{
         self.assertNotIn("fn bilinear_form(", result.source)
         self.assertNotIn("fn quadform(", result.source)
 
+    def test_generated_code_hoists_reused_matrix_literals_once(self) -> None:
+        x = SXVector.sym("x", 3)
+        matrix = [
+            [-1.0, 2.0, 1.0],
+            [2.0, 5.0, 1.0],
+            [0.0, 1.0, 2.0],
+        ]
+        f = Function(
+            "f",
+            [x],
+            [cross(x, matvec(matrix, x))],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("let matrix_0 = &[", result.source)
+        self.assertEqual(
+            result.source.count(
+                "-1.0_f64, 2.0_f64, 1.0_f64, 2.0_f64, 5.0_f64, 1.0_f64, 0.0_f64, 1.0_f64, 2.0_f64"
+            ),
+            1,
+        )
+        self.assertIn("matvec_component(matrix_0, 3, 3, 2, x)", result.source)
+
+    def test_generated_code_omits_unused_quadform_helpers(self) -> None:
+        x = SXVector.sym("x", 3)
+        matrix = [
+            [-1.0, 2.0, 1.0],
+            [2.0, 5.0, 1.0],
+            [0.0, 1.0, 2.0],
+        ]
+        f = Function(
+            "f",
+            [x],
+            [cross(x, matvec(matrix, x))],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("matvec_component(matrix_0, 3, 3, 2, x)", result.source)
+        self.assertNotIn("fn matvec(", result.source)
+        self.assertNotIn("fn transpose_matvec(", result.source)
+        self.assertNotIn("fn bilinear_form(", result.source)
+        self.assertNotIn("fn quadform(", result.source)
+
     def test_multi_function_project_emits_norm2_helper_once(self) -> None:
         x = SXVector.sym("x", 3)
         f1 = Function(
@@ -3479,9 +3546,15 @@ mod tests {{
             )
 
     def test_multi_function_project_emits_matrix_helpers_once(self) -> None:
-        x = SXVector.sym("x", 2)
-        y = SXVector.sym("y", 2)
-        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        x = SXVector.sym("x", 5)
+        y = SXVector.sym("y", 5)
+        matrix = [
+            [2.0, 1.0, 0.0, -1.0, 3.0],
+            [1.0, 3.0, 2.0, 0.5, -1.0],
+            [0.0, 2.0, 4.0, -2.0, 1.0],
+            [-1.0, 0.5, -2.0, 2.0, 0.5],
+            [3.0, -1.0, 1.0, 0.5, 2.5],
+        ]
         f1 = Function(
             "f1",
             [x],
@@ -3505,16 +3578,7 @@ mod tests {{
 
             self.assertEqual(
                 lib_text.count(
-                    "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {"
-                ),
-                1,
-            )
-            self.assertEqual(
-                lib_text.count(
-                    (
-                        "fn transpose_matvec(matrix: &[f64], rows: usize, "
-                        "cols: usize, x: &[f64], y: &mut [f64]) {"
-                    )
+                    "fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {"
                 ),
                 1,
             )
@@ -3533,6 +3597,14 @@ mod tests {{
                     )
                 ),
                 1,
+            )
+            self.assertNotIn(
+                "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
+                lib_text,
+            )
+            self.assertNotIn(
+                "fn transpose_matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
+                lib_text,
             )
 
     def test_generated_code_reuses_shared_dag_nodes(self) -> None:
@@ -5300,15 +5372,8 @@ mod joint_hessian_tests {
 
             self.assertIn(
                 (
-                    "fn matvec(matrix: &[f64], rows: usize, cols: usize, "
-                    "x: &[f64], y: &mut [f64]) {"
-                ),
-                lib_text,
-            )
-            self.assertIn(
-                (
-                    "fn transpose_matvec(matrix: &[f64], rows: usize, "
-                    "cols: usize, x: &[f64], y: &mut [f64]) {"
+                    "fn matvec_component(matrix: &[f64], rows: usize, cols: usize, "
+                    "row: usize, x: &[f64]) -> f64 {"
                 ),
                 lib_text,
             )
@@ -5321,6 +5386,14 @@ mod joint_hessian_tests {
             self.assertIn("pub fn matrix_builder_f_grad_y(", lib_text)
             self.assertIn("pub fn matrix_builder_f_hvp_x(", lib_text)
             self.assertIn("pub fn matrix_builder_f_hvp_y(", lib_text)
+            self.assertNotIn(
+                "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
+                lib_text,
+            )
+            self.assertNotIn(
+                "fn transpose_matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
+                lib_text,
+            )
 
     def test_map_function_matches_reference(self) -> None:
         x = SXVector.sym("x", 2)

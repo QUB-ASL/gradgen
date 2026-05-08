@@ -32,6 +32,7 @@ def _emit_expr_ref(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str:
     """Emit a Rust expression reference for an already-available value."""
     if expr.op == "const":
@@ -47,6 +48,7 @@ def _emit_expr_ref(
         backend_mode,
         scalar_type,
         math_library,
+        matrix_literal_bindings,
     )
 
 
@@ -189,6 +191,20 @@ def _emit_matrix_literal(
         + ", ".join(_format_float(value, scalar_type) for value in values)
         + "]"
     )
+
+
+def _emit_matrix_literal_reference(
+    values: tuple[float, ...],
+    scalar_type: RustScalarType,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None,
+) -> str:
+    """Return a hoisted matrix binding when one exists."""
+    if matrix_literal_bindings is None:
+        return _emit_matrix_literal(values, scalar_type)
+    binding = matrix_literal_bindings.get(values)
+    if binding is None:
+        return _emit_matrix_literal(values, scalar_type)
+    return binding
 
 
 def _emit_matrix_vector_argument(
@@ -917,12 +933,15 @@ def _emit_matvec_component_node(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str:
     """Emit a matrix-vector product component call."""
     rows, cols, row, matrix_values, x_values = parse_matvec_component_args(
         expr.args
     )
-    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+    matrix_ref = _emit_matrix_literal_reference(
+        matrix_values, scalar_type, matrix_literal_bindings
+    )
     x_ref = _emit_matrix_vector_argument(
         x_values,
         scalar_bindings,
@@ -943,12 +962,15 @@ def _emit_transpose_matvec_component_node(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str:
     """Emit a transposed matrix-vector product component call."""
     rows, cols, col, matrix_values, x_values = (
         parse_transpose_matvec_component_args(expr.args)
     )
-    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+    matrix_ref = _emit_matrix_literal_reference(
+        matrix_values, scalar_type, matrix_literal_bindings
+    )
     x_ref = _emit_matrix_vector_argument(
         x_values,
         scalar_bindings,
@@ -972,10 +994,13 @@ def _emit_quadform_node(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str:
     """Emit a quadratic form call."""
     size, matrix_values, x_values = parse_quadform_args(expr.args)
-    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+    matrix_ref = _emit_matrix_literal_reference(
+        matrix_values, scalar_type, matrix_literal_bindings
+    )
     x_ref = _emit_matrix_vector_argument(
         x_values,
         scalar_bindings,
@@ -996,12 +1021,15 @@ def _emit_bilinear_form_node(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str:
     """Emit a bilinear form call."""
     rows, cols, matrix_values, x_values, y_values = parse_bilinear_form_args(
         expr.args
     )
-    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+    matrix_ref = _emit_matrix_literal_reference(
+        matrix_values, scalar_type, matrix_literal_bindings
+    )
     x_ref = _emit_matrix_vector_argument(
         x_values,
         scalar_bindings,
@@ -1133,6 +1161,7 @@ def _emit_node_expr(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str:
     """Emit the Rust expression used to compute a workspace node."""
     if expr.op == "const":
@@ -1148,6 +1177,7 @@ def _emit_node_expr(
             backend_mode,
             scalar_type,
             math_library,
+            matrix_literal_bindings,
         )
         for arg in expr.args
     )
@@ -1155,6 +1185,22 @@ def _emit_node_expr(
     handler = _NODE_EXPR_DISPATCH.get(expr.op)
     if handler is None:
         raise ValueError(f"unsupported Rust codegen operation {expr.op!r}")
+    if expr.op in {
+        "matvec_component",
+        "transpose_matvec_component",
+        "quadform",
+        "bilinear_form",
+    }:
+        return handler(
+            expr,
+            args,
+            scalar_bindings,
+            workspace_map,
+            backend_mode,
+            scalar_type,
+            math_library,
+            matrix_literal_bindings,
+        )
     return handler(
         expr,
         args,

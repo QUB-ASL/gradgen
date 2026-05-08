@@ -17,7 +17,11 @@ from ...sx import (
     parse_transpose_matvec_component_args,
 )
 from ..config import RustBackendMode, RustScalarType
-from .expression import _emit_matrix_literal, _emit_matrix_vector_argument
+from .expression import (
+    _emit_matrix_literal,
+    _emit_matrix_literal_reference,
+    _emit_matrix_vector_argument,
+)
 from .util import _format_float
 
 
@@ -131,6 +135,7 @@ def _emit_matvec_output_helper_call(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str | None:
     """Return a single helper call when ``output_arg`` is exactly a matrix helper."""
     parsed_output = _parse_direct_matrix_output(output_arg)
@@ -154,6 +159,7 @@ def _emit_matvec_output_helper_call(
         x_ref=x_ref,
         output_name=output_name,
         scalar_type=scalar_type,
+        matrix_literal_bindings=matrix_literal_bindings,
     )
 
 
@@ -269,6 +275,7 @@ def _render_matrix_output_helper_call(
     x_ref: str,
     output_name: str,
     scalar_type: RustScalarType,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str:
     """Return the direct Rust emission for a matrix helper output."""
     if rows * cols <= 16:
@@ -291,7 +298,9 @@ def _render_matrix_output_helper_call(
                 scalar_type,
             )
         return "\n".join(lines)
-    matrix_ref = _emit_matrix_literal(matrix_values, scalar_type)
+    matrix_ref = _emit_matrix_literal_reference(
+        matrix_values, scalar_type, matrix_literal_bindings
+    )
     return (
         f"{helper_fn}({matrix_ref}, {rows}, {cols}, {x_ref}, {output_name});"
     )
@@ -788,6 +797,7 @@ def _reemit_direct_output_helper_call(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str:
     """Rebuild a direct output helper call using the final workspace map."""
     custom_helper_call = _emit_custom_vector_output_helper_call(
@@ -809,6 +819,7 @@ def _reemit_direct_output_helper_call(
         backend_mode,
         scalar_type,
         math_library,
+        matrix_literal_bindings,
     )
     if matvec_helper_call is not None:
         return matvec_helper_call

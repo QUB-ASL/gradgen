@@ -42,6 +42,7 @@ from .rendering import (
     _format_rust_string_literal,
     _identify_direct_custom_output_marker,
     _reemit_direct_output_helper_call,
+    _emit_matrix_literal,
 )
 from .templates import _get_template, _render_custom_rust_header
 from .validation import (
@@ -63,7 +64,14 @@ from ..single_shooting import (
     SingleShootingPrimalFunction,
     SingleShootingProblem,
 )
-from ..sx import SX, SXNode
+from ..sx import (
+    SX,
+    SXNode,
+    parse_bilinear_form_args,
+    parse_matvec_component_args,
+    parse_quadform_args,
+    parse_transpose_matvec_component_args,
+)
 
 SET_TUPLE_STR = set[tuple[str, str]]
 
@@ -169,6 +177,54 @@ def _collect_emitted_helper_nodes(
         reachable_nodes.update(_collect_reachable_nodes(_flatten_arg(output_arg)))
 
     return tuple(node for node in function.nodes if node in reachable_nodes)
+
+
+def _collect_matrix_literal_bindings(
+    nodes: tuple[SXNode, ...],
+) -> dict[tuple[float, ...], str]:
+    """Return hoisted Rust bindings for repeated constant matrix literals."""
+    bindings: dict[tuple[float, ...], str] = {}
+    for node in nodes:
+        if node.op == "matvec_component":
+            _, _, _, matrix_values, _ = parse_matvec_component_args(node.args)
+        elif node.op == "transpose_matvec_component":
+            _, _, _, matrix_values, _ = parse_transpose_matvec_component_args(
+                node.args
+            )
+        elif node.op == "quadform":
+            _, matrix_values, _ = parse_quadform_args(node.args)
+        elif node.op == "bilinear_form":
+            _, _, matrix_values, _, _ = parse_bilinear_form_args(node.args)
+        else:
+            continue
+        if matrix_values not in bindings:
+            bindings[matrix_values] = f"matrix_{len(bindings)}"
+    return bindings
+
+
+def _collect_required_matrix_helpers(
+    direct_output_helpers: tuple[str | None, ...],
+) -> set[str]:
+    """Return whole-kernel matrix helpers required by direct output calls."""
+    required_helpers: set[str] = set()
+    for helper_call in direct_output_helpers:
+        if helper_call is None or "\n" in helper_call:
+            continue
+        helper_name = helper_call.split("(", 1)[0]
+        if helper_name in {"matvec", "transpose_matvec"}:
+            required_helpers.add(helper_name)
+    return required_helpers
+
+
+def _render_matrix_literal_binding_lines(
+    matrix_literal_bindings: dict[tuple[float, ...], str],
+    scalar_type: RustScalarType,
+) -> list[str]:
+    """Render hoisted Rust bindings for reused matrix literals."""
+    return [
+        f"let {name} = {_emit_matrix_literal(values, scalar_type)};"
+        for values, name in matrix_literal_bindings.items()
+    ]
 
 
 def _emit_simple_output_ref(
@@ -528,6 +584,7 @@ def generate_rust(
             resolved_config.backend_mode,
             resolved_config.scalar_type,
             resolved_math_library,
+            None,
         )
         if matvec_helper_call is not None:
             direct_output_helpers.append(matvec_helper_call)
@@ -545,7 +602,21 @@ def generate_rust(
         materialized_output_refs=tuple(materialized_output_refs),
         direct_output_helpers=tuple(direct_output_helpers),
     )
+    matrix_literal_bindings = _collect_matrix_literal_bindings(
+        emitted_helper_nodes
+    )
+    required_matrix_helpers = _collect_required_matrix_helpers(
+        tuple(direct_output_helpers)
+    )
     workspace_name = "work" if workspace_map else "_work"
+
+    if matrix_literal_bindings:
+        computation_lines.extend(
+            _render_matrix_literal_binding_lines(
+                matrix_literal_bindings,
+                resolved_config.scalar_type,
+            )
+        )
 
     for node, work_index in workspace_map.items():
         rhs = _emit_node_expr(
@@ -555,6 +626,7 @@ def generate_rust(
             resolved_config.backend_mode,
             resolved_config.scalar_type,
             resolved_math_library,
+            matrix_literal_bindings,
         )
         assignment = _emit_workspace_assignment(
             node,
@@ -589,6 +661,7 @@ def generate_rust(
                 resolved_config.backend_mode,
                 resolved_config.scalar_type,
                 resolved_math_library,
+                matrix_literal_bindings,
             )
             output_write_lines.extend(regenerated_call.splitlines())
             continue
@@ -703,6 +776,7 @@ def generate_rust(
             resolved_config.backend_mode,
             resolved_config.scalar_type,
             resolved_math_library,
+            required_matrix_helpers=required_matrix_helpers,
             suppressed_custom_wrappers=(
                 suppressed_custom_wrappers
                 if shared_helper_nodes is None

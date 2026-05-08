@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added `transpose_matvec(A, x)` for symbolic products of the form
   `A^T x`, with Rust code generation and Jacobian coverage verified
   against SymPy.
+- Added Rust API doc comments for generated matrix helper functions,
+  including `matvec_component(...)` and `transpose_matvec_component(...)`.
+- Hoisted repeated constant matrix literals into named Rust locals when
+  generated kernels reuse the same matrix helper multiple times.
 
 ### Changed
 
@@ -27,6 +31,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Stopped emitting unused Rust matrix helpers such as `matvec(...)`,
   `transpose_matvec(...)`, `bilinear_form(...)`, and `quadform(...)`
   when a small matrix output is fully unrolled and no longer needs them.
+- Split the Rust matrix-helper preamble so `bilinear_form(...)` and
+  `quadform(...)` are only emitted when a graph actually uses them.
+- Stopped emitting whole-kernel `matvec(...)` and `transpose_matvec(...)`
+  helpers unless a generated direct-output call needs them.
 
 
 ## 0.5.2 - 08-05-2025
