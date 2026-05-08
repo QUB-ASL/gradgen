@@ -140,6 +140,37 @@ def _emit_output_accumulation_lines(
     return lines
 
 
+def _direct_output_helper_requires_shared_helper_source(
+    direct_output_helper: str | None,
+) -> bool:
+    """Return whether a direct output helper still needs module helper code."""
+    if direct_output_helper is None:
+        return False
+    return "\n" not in direct_output_helper
+
+
+def _collect_emitted_helper_nodes(
+    function: Function,
+    *,
+    materialized_output_refs: tuple[SX, ...],
+    direct_output_helpers: tuple[str | None, ...],
+) -> tuple[SXNode, ...]:
+    """Return helper nodes still needed after direct-output lowering."""
+    reachable_nodes = _collect_reachable_nodes(materialized_output_refs)
+
+    for output_arg, direct_output_helper in zip(
+        function.outputs,
+        direct_output_helpers,
+    ):
+        if not _direct_output_helper_requires_shared_helper_source(
+            direct_output_helper
+        ):
+            continue
+        reachable_nodes.update(_collect_reachable_nodes(_flatten_arg(output_arg)))
+
+    return tuple(node for node in function.nodes if node in reachable_nodes)
+
+
 def _emit_simple_output_ref(
     expr: SX,
     scalar_bindings: dict[SXNode, str],
@@ -509,6 +540,11 @@ def generate_rust(
         function,
         output_refs=tuple(materialized_output_refs),
     )
+    emitted_helper_nodes = _collect_emitted_helper_nodes(
+        function,
+        materialized_output_refs=tuple(materialized_output_refs),
+        direct_output_helpers=tuple(direct_output_helpers),
+    )
     workspace_name = "work" if workspace_map else "_work"
 
     for node, work_index in workspace_map.items():
@@ -662,7 +698,7 @@ def generate_rust(
         computation_lines=computation_lines,
         output_write_lines=output_write_lines,
         shared_helper_lines=_build_shared_helper_lines(
-            function.nodes
+            emitted_helper_nodes
             if shared_helper_nodes is None else shared_helper_nodes,
             resolved_config.backend_mode,
             resolved_config.scalar_type,

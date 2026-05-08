@@ -24,6 +24,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Simplified fully unrolled small-matrix Rust output so zero-coefficient
   terms are dropped and unit coefficients emit direct passthroughs such
   as `x[i]` or `-x[i]` instead of redundant multiplications.
+- Stopped emitting unused Rust matrix helpers such as `matvec(...)`,
+  `transpose_matvec(...)`, `bilinear_form(...)`, and `quadform(...)`
+  when a small matrix output is fully unrolled and no longer needs them.
 
 
 ## 0.5.2 - 08-05-2025

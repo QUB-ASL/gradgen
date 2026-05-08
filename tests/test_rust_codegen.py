@@ -3348,13 +3348,6 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn(
-            (
-                "fn transpose_matvec(matrix: &[f64], rows: usize, cols: usize, "
-                "x: &[f64], y: &mut [f64]) {"
-            ),
-            result.source,
-        )
         self.assertIn("mx_t[0] = (2.0_f64) * (x[0]) + x[1];",
                       result.source)
         self.assertIn("mx_t[1] = x[0] + (3.0_f64) * (x[1]);",
@@ -3363,6 +3356,7 @@ mod tests {{
             "mx_t[2] = -(x[0]) + (0.5_f64) * (x[1]);",
             result.source,
         )
+        self.assertNotIn("fn transpose_matvec(", result.source)
 
     def test_generated_code_keeps_large_matvec_helper_calls(self) -> None:
         x = SXVector.sym("x", 5)
@@ -3442,6 +3436,28 @@ mod tests {{
         self.assertIn("o0[1] = (5.0_f64) * (x[1]);", result.source)
         self.assertNotIn("(0.0_f64) * (x[0])", result.source)
         self.assertNotIn("(0.0_f64) * (x[1])", result.source)
+
+    def test_generated_code_omits_unused_matrix_helpers_for_unrolled_matvec(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[1.0, 0.0], [0.0, 5.0]]
+        f = Function(
+            "f",
+            [x],
+            [matvec(matrix, x)],
+            input_names=["x"],
+            output_names=["o0"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertNotIn("fn matvec(", result.source)
+        self.assertNotIn("fn transpose_matvec(", result.source)
+        self.assertNotIn("fn matvec_component(", result.source)
+        self.assertNotIn("fn transpose_matvec_component(", result.source)
+        self.assertNotIn("fn bilinear_form(", result.source)
+        self.assertNotIn("fn quadform(", result.source)
 
     def test_multi_function_project_emits_norm2_helper_once(self) -> None:
         x = SXVector.sym("x", 3)
