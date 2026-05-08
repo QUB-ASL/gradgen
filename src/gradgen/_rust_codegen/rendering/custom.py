@@ -232,11 +232,17 @@ def _emit_unrolled_matvec_output_lines(
     lines: list[str] = []
     for row in range(rows):
         terms = [
-            f"({_format_float(matrix_values[row * cols + col], scalar_type)}) "
-            f"* ({x_ref}[{col}])"
+            _emit_scaled_vector_term(
+                matrix_values[row * cols + col],
+                f"{x_ref}[{col}]",
+                scalar_type,
+            )
             for col in range(cols)
         ]
-        lines.append(f"{output_name}[{row}] = " + " + ".join(terms) + ";")
+        lines.append(
+            f"{output_name}[{row}] = "
+            f"{_join_unrolled_terms(terms, scalar_type)};"
+        )
     return lines
 
 
@@ -252,12 +258,51 @@ def _emit_unrolled_transpose_matvec_output_lines(
     lines: list[str] = []
     for col in range(cols):
         terms = [
-            f"({_format_float(matrix_values[row * cols + col], scalar_type)}) "
-            f"* ({x_ref}[{row}])"
+            _emit_scaled_vector_term(
+                matrix_values[row * cols + col],
+                f"{x_ref}[{row}]",
+                scalar_type,
+            )
             for row in range(rows)
         ]
-        lines.append(f"{output_name}[{col}] = " + " + ".join(terms) + ";")
+        lines.append(
+            f"{output_name}[{col}] = "
+            f"{_join_unrolled_terms(terms, scalar_type)};"
+        )
     return lines
+
+
+def _emit_scaled_vector_term(
+    coefficient: float,
+    vector_ref: str,
+    scalar_type: RustScalarType,
+) -> str | None:
+    """Return one unrolled linear term, or ``None`` for a zero coefficient."""
+    if coefficient == 0.0:
+        return None
+    if coefficient == 1.0:
+        return vector_ref
+    if coefficient == -1.0:
+        return f"-({vector_ref})"
+    return f"({_format_float(coefficient, scalar_type)}) * ({vector_ref})"
+
+
+def _join_unrolled_terms(
+    terms: list[str | None],
+    scalar_type: RustScalarType,
+) -> str:
+    """Return a simplified Rust sum for a list of optional linear terms."""
+    filtered = [term for term in terms if term is not None]
+    if not filtered:
+        return _format_float(0.0, scalar_type)
+
+    expression = filtered[0]
+    for term in filtered[1:]:
+        if term.startswith("-"):
+            expression += " - " + term[1:]
+        else:
+            expression += " + " + term
+    return expression
 
 
 def _emit_custom_vector_hessian_output_helper_call(
@@ -588,6 +633,16 @@ def _match_passthrough_matrix_component(expr: SX) -> SX | None:
             return _match_passthrough_matrix_component(left)
         return None
     return None
+
+
+def _match_passthrough_matvec_component(expr: SX) -> SX | None:
+    """Return the underlying matrix helper component through trivial wrappers.
+
+    This compatibility wrapper preserves the older helper name used by
+    the rendering tests while delegating to the generalized matrix
+    matcher.
+    """
+    return _match_passthrough_matrix_component(expr)
 
 
 def _is_passthrough_zero(expr: SX) -> bool:

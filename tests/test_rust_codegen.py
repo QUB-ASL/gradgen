@@ -3267,11 +3267,11 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "mx[0] = (2.0_f64) * (x[0]) + (1.0_f64) * (x[1]);",
+            "mx[0] = (2.0_f64) * (x[0]) + x[1];",
             result.source,
         )
         self.assertIn(
-            "mx[1] = (1.0_f64) * (x[0]) + (3.0_f64) * (x[1]);",
+            "mx[1] = x[0] + (3.0_f64) * (x[1]);",
             result.source,
         )
         self.assertIn(
@@ -3327,11 +3327,11 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "mx[0] = (2.0_f32) * (x[0]) + (1.0_f32) * (x[1]);",
+            "mx[0] = (2.0_f32) * (x[0]) + x[1];",
             result.source,
         )
         self.assertIn(
-            "mx[1] = (1.0_f32) * (x[0]) + (3.0_f32) * (x[1]);",
+            "mx[1] = x[0] + (3.0_f32) * (x[1]);",
             result.source,
         )
 
@@ -3355,12 +3355,12 @@ mod tests {{
             ),
             result.source,
         )
-        self.assertIn("mx_t[0] = (2.0_f64) * (x[0]) + (1.0_f64) * (x[1]);",
+        self.assertIn("mx_t[0] = (2.0_f64) * (x[0]) + x[1];",
                       result.source)
-        self.assertIn("mx_t[1] = (1.0_f64) * (x[0]) + (3.0_f64) * (x[1]);",
+        self.assertIn("mx_t[1] = x[0] + (3.0_f64) * (x[1]);",
                       result.source)
         self.assertIn(
-            "mx_t[2] = (-1.0_f64) * (x[0]) + (0.5_f64) * (x[1]);",
+            "mx_t[2] = -(x[0]) + (0.5_f64) * (x[1]);",
             result.source,
         )
 
@@ -3424,6 +3424,24 @@ mod tests {{
             "y[1] = (2.0_f64) * (v_x[0]) + (6.0_f64) * (v_x[1]);",
             hvp_result.source,
         )
+
+    def test_generated_code_omits_zero_terms_in_unrolled_matvec(self) -> None:
+        x = SXVector.sym("x", 2)
+        matrix = [[1.0, 0.0], [0.0, 5.0]]
+        f = Function(
+            "f",
+            [x],
+            [matvec(matrix, x)],
+            input_names=["x"],
+            output_names=["o0"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("o0[0] = x[0];", result.source)
+        self.assertIn("o0[1] = (5.0_f64) * (x[1]);", result.source)
+        self.assertNotIn("(0.0_f64) * (x[0])", result.source)
+        self.assertNotIn("(0.0_f64) * (x[1])", result.source)
 
     def test_multi_function_project_emits_norm2_helper_once(self) -> None:
         x = SXVector.sym("x", 3)

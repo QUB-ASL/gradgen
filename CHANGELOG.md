@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Improved Rust matrix helper generation so dense `matvec(...)` and
   `transpose_matvec(...)` outputs lower to dedicated whole-output helper
   kernels instead of row-by-row helper calls.
+- Simplified fully unrolled small-matrix Rust output so zero-coefficient
+  terms are dropped and unit coefficients emit direct passthroughs such
+  as `x[i]` or `-x[i]` instead of redundant multiplications.
 
 
 ## 0.5.2 - 08-05-2025
