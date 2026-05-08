@@ -28,6 +28,18 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Simplified fully unrolled small-matrix Rust output so zero-coefficient
   terms are dropped and unit coefficients emit direct passthroughs such
   as `x[i]` or `-x[i]` instead of redundant multiplications.
+- Threaded hoisted matrix bindings through scalar `quadform(...)` and
+  `bilinear_form(...)` output rendering so generated Rust reuses shared
+  matrix literals instead of leaving unused bindings behind.
+- Threaded hoisted matrix bindings through scalar accumulation outputs
+  so `matvec_component(...)` terms reuse the shared matrix binding
+  instead of leaving a dead local behind.
+- Emitted a simple `for` loop for large scalar accumulations built from
+  repeated `matvec_component(...) * x[row]` terms instead of expanding
+  them into many repeated statements.
+- Stopped emitting `matvec_component(...)` for direct whole-kernel
+  `matvec(...)` outputs, so generated Rust no longer carries unused
+  component helpers for those calls.
 - Stopped emitting unused Rust matrix helpers such as `matvec(...)`,
   `transpose_matvec(...)`, `bilinear_form(...)`, and `quadform(...)`
   when a small matrix output is fully unrolled and no longer needs them.
@@ -35,6 +47,12 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `quadform(...)` are only emitted when a graph actually uses them.
 - Stopped emitting whole-kernel `matvec(...)` and `transpose_matvec(...)`
   helpers unless a generated direct-output call needs them.
+- Expanded very small constant matrix products directly in the symbolic
+  layer, so `matvec(...)`, `transpose_matvec(...)`, `quadform(...)`,
+  and `bilinear_form(...)` now bypass helper nodes for tiny matrices.
+- Made generated `matvec_component(...)` and
+  `transpose_matvec_component(...)` helpers use scalar accumulators and
+  `#[inline(always)]` for better Rust codegen.
 
 
 ## 0.5.2 - 08-05-2025

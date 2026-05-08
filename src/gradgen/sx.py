@@ -28,6 +28,8 @@ from typing import ClassVar, Iterable, Iterator, Sequence, overload
 # the same underlying node.
 _COMMUTATIVE_OPS = frozenset({"add", "mul"})
 
+_SMALL_MATRIX_INLINE_THRESHOLD = 16
+
 
 @dataclass(frozen=True, slots=True, weakref_slot=True)
 class SXNode:
@@ -2346,11 +2348,90 @@ def cross(lhs: object, rhs: object) -> SXVector:
     return _coerce_vector(lhs).cross(rhs)
 
 
+def _build_linear_combination(
+    coefficients: Sequence[float],
+    operands: Sequence[SX],
+) -> SX:
+    """Build a scalar linear combination without extra helper nodes."""
+    terms: list[SX] = []
+    for coefficient, operand in zip(coefficients, operands):
+        if coefficient == 0.0:
+            continue
+        if coefficient == 1.0:
+            terms.append(operand)
+        elif coefficient == -1.0:
+            terms.append(-operand)
+        else:
+            terms.append(SX.const(coefficient) * operand)
+
+    if not terms:
+        return SX.const(0.0)
+
+    result = terms[0]
+    for term in terms[1:]:
+        result = result + term
+    return result
+
+
+def _build_matrix_row_expression(
+    cols: int,
+    row: int,
+    values: tuple[float, ...],
+    x_elements: tuple[SX, ...],
+) -> SX:
+    """Build one unrolled matrix row expression for ``A x``."""
+    start = row * cols
+    return _build_linear_combination(
+        values[start:start + cols],
+        x_elements,
+    )
+
+
+def _build_matrix_column_expression(
+    rows: int,
+    cols: int,
+    col: int,
+    values: tuple[float, ...],
+    x_elements: tuple[SX, ...],
+) -> SX:
+    """Build one unrolled matrix column expression for ``A^T x``."""
+    coefficients = tuple(values[(row * cols) + col] for row in range(rows))
+    return _build_linear_combination(coefficients, x_elements)
+
+
+def _build_bilinear_form_expression(
+    rows: int,
+    cols: int,
+    values: tuple[float, ...],
+    x_elements: tuple[SX, ...],
+    y_elements: tuple[SX, ...],
+) -> SX:
+    """Build an unrolled scalar bilinear form expression."""
+    row_terms: list[SX] = []
+    for row in range(rows):
+        row_expr = _build_matrix_row_expression(
+            cols,
+            row,
+            values,
+            y_elements,
+        )
+        if row_expr.node.op == "const" and row_expr.value == 0.0:
+            continue
+        row_terms.append(x_elements[row] * row_expr)
+    return _build_linear_combination(
+        tuple(1.0 for _ in row_terms),
+        tuple(row_terms),
+    )
+
+
 def matvec(matrix: Sequence[Sequence[float | int]], x: object) -> SXVector:
     """Return the symbolic matrix-vector product for a constant matrix.
 
     The matrix is validated as a dense rectangular numeric sequence and
-    encoded into one ``matvec_component`` node per output row.
+    encoded into one ``matvec_component`` node per output row for larger
+    matrices. Small matrices are expanded directly into scalar
+    expressions so they can be simplified and code-generated without an
+    extra helper call.
 
     Args:
         matrix: Constant numeric matrix in row-major form.
@@ -2368,6 +2449,18 @@ def matvec(matrix: Sequence[Sequence[float | int]], x: object) -> SXVector:
     rows, cols, values = _coerce_constant_matrix(matrix)
     if cols != len(x_vector):
         raise ValueError("matrix column count must match vector length")
+    if rows * cols <= _SMALL_MATRIX_INLINE_THRESHOLD:
+        return SXVector(
+            tuple(
+                _build_matrix_row_expression(
+                    cols,
+                    row,
+                    values,
+                    x_vector.elements,
+                )
+                for row in range(rows)
+            )
+        )
     return SXVector(
         tuple(
             SX(
@@ -2394,10 +2487,9 @@ def transpose_matvec(
     """Return the symbolic product ``A^T x`` for a constant matrix ``A``.
 
     The input matrix is validated as a dense rectangular numeric sequence.
-    The helper transposes the constant matrix metadata and then reuses the
-    existing ``matvec`` construction, so the resulting symbolic vector keeps
-    the same automatic-differentiation and Rust-code-generation behavior as
-    a regular matrix-vector product.
+    Small matrices are expanded directly into scalar expressions, while
+    larger matrices are encoded into one ``transpose_matvec_component``
+    node per output column.
 
     Args:
         matrix: Constant numeric matrix ``A`` in row-major form.
@@ -2415,6 +2507,19 @@ def transpose_matvec(
     rows, cols, values = _coerce_constant_matrix(matrix)
     if rows != len(x_vector):
         raise ValueError("matrix row count must match vector length")
+    if rows * cols <= _SMALL_MATRIX_INLINE_THRESHOLD:
+        return SXVector(
+            tuple(
+                _build_matrix_column_expression(
+                    rows,
+                    cols,
+                    col,
+                    values,
+                    x_vector.elements,
+                )
+                for col in range(cols)
+            )
+        )
     return SXVector(
         tuple(
             SX(
@@ -2453,7 +2558,9 @@ def quadform(
             used.
 
     Returns:
-        A scalar ``SX`` expression representing ``x^\top P x``.
+        A scalar ``SX`` expression representing ``x^\top P x``. Small
+        matrices are expanded directly into scalar expressions so they
+        can be simplified and code-generated without helper calls.
 
     Raises:
         ValueError: If ``matrix`` is not square, dimensions do not match ``x``,
@@ -2490,6 +2597,15 @@ def quadform(
                     compact_values.append(2.0 * value)
         matrix_values = tuple(compact_values)
 
+    if rows * cols <= _SMALL_MATRIX_INLINE_THRESHOLD:
+        return _build_bilinear_form_expression(
+            rows,
+            cols,
+            matrix_values,
+            x_vector.elements,
+            x_vector.elements,
+        )
+
     return SX(
         SXNode.make(
             "quadform",
@@ -2514,7 +2630,9 @@ def bilinear_form(
         y: Right symbolic vector operand.
 
     Returns:
-        A scalar ``SX`` expression representing the bilinear form.
+        A scalar ``SX`` expression representing the bilinear form. Small
+        matrices are expanded directly into scalar expressions so they
+        can be simplified and code-generated without helper calls.
 
     Raises:
         ValueError: Raised when the matrix dimensions do not match the vectors.
@@ -2526,6 +2644,14 @@ def bilinear_form(
         raise ValueError("matrix row count must match left vector length")
     if cols != len(y_vector):
         raise ValueError("matrix column count must match right vector length")
+    if rows * cols <= _SMALL_MATRIX_INLINE_THRESHOLD:
+        return _build_bilinear_form_expression(
+            rows,
+            cols,
+            values,
+            x_vector.elements,
+            y_vector.elements,
+        )
     return SX(
         SXNode.make(
             "bilinear_form",

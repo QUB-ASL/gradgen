@@ -21,6 +21,7 @@ from gradgen import (
     SquaredDistanceToSet,
     if_else,
     map_function,
+    matvec,
     reduce_function,
     transpose_matvec,
     zip_function,
@@ -431,6 +432,112 @@ mod integration_sympy_cross {{
         assert_close_slice(
             &jac_y,
             &{self._rust_array_literal(expected_jac_y, "f64")},
+            1e-10_f64,
+        );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_matvec_matches_sympy_primal_and_jacobian(self) -> None:
+        matrix = [
+            [1.5, -2.0],
+            [0.25, 4.0],
+        ]
+        x0, x1 = sp.symbols("x0:2", real=True)
+        x_sym = sp.Matrix([x0, x1])
+        matrix_sym = sp.Matrix(matrix)
+        sympy_expr = matrix_sym * x_sym
+        sympy_jacobian = sympy_expr.jacobian((x0, x1))
+
+        x = SXVector.sym("x", 2)
+        outputs = matvec(matrix, x)
+        base_function = Function(
+            "matvec_parity",
+            [x],
+            [outputs],
+            input_names=["x"],
+            output_names=["y"],
+        )
+
+        point = [0.75, -1.25]
+        substitutions = {x0: point[0], x1: point[1]}
+        expected_primal = self._flatten_sympy_matrix(
+            sympy_expr.subs(substitutions).evalf()
+        )
+        expected_jacobian = self._flatten_sympy_matrix(
+            sympy_jacobian.subs(substitutions).evalf()
+        )
+
+        self.assertEqual(base_function(point), tuple(expected_primal))
+        self.assertEqual(
+            base_function.jacobian(0)(point),
+            tuple(expected_jacobian),
+        )
+
+        builder = (
+            CodeGenerationBuilder(base_function)
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("sympy_matvec")
+            )
+            .add_primal()
+            .add_jacobian()
+            .with_simplification("medium")
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "sympy_matvec")
+            primal_codegen, jacobian_codegen = project.codegens
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod integration_sympy_matvec {{
+    use super::*;
+
+    fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in actual.iter().zip(expected.iter()) {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_sympy_reference_values() {{
+        let x = {self._rust_array_literal(point, "f64")};
+
+        let mut primal = [0.0_f64; 2];
+        let mut primal_work = [0.0_f64; {primal_codegen.workspace_size}];
+        assert!(
+            {primal_codegen.function_name}(&x, &mut primal, &mut primal_work)
+                .is_ok()
+        );
+        assert_close_slice(
+            &primal,
+            &{self._rust_array_literal(expected_primal, "f64")},
+            1e-10_f64,
+        );
+
+        let mut jacobian = [0.0_f64; 4];
+        let mut jacobian_work = [0.0_f64; {jacobian_codegen.workspace_size}];
+        assert!(
+            {jacobian_codegen.function_name}(
+                &x,
+                &mut jacobian,
+                &mut jacobian_work,
+            )
+            .is_ok()
+        );
+        assert_close_slice(
+            &jacobian,
+            &{self._rust_array_literal(expected_jacobian, "f64")},
             1e-10_f64,
         );
     }}

@@ -82,18 +82,19 @@ def _build_shared_helper_lines(
     if "matvec_component" in used_ops:
         lines.extend(
             [
+                "#[inline(always)]",
                 "/// Return one component of a dense matrix-vector product.",
                 "///",
                 "/// This helper evaluates the requested row of a row-major matrix",
                 "/// against the input vector and returns the scalar result.",
-                f"fn matvec_component(matrix: &[{scalar_type}], rows: usize, cols: usize, row: usize, x: &[{scalar_type}]) -> {scalar_type} {{",
-                f"    let mut out = [0.0_{scalar_type}; 1];",
+                f"fn matvec_component(matrix: &[{scalar_type}], _rows: usize, cols: usize, row: usize, x: &[{scalar_type}]) -> {scalar_type} {{",
                 "    let start = row * cols;",
-                "    for col in 0..cols {",
-                "        out[0] += matrix[start + col] * x[col];",
+                f"    let row_slice = &matrix[start..start + cols];",
+                f"    let mut total = 0.0_{scalar_type};",
+                "    for (entry, value) in row_slice.iter().zip(x.iter()) {",
+                "        total += *entry * *value;",
                 "    }",
-                "    let _ = rows;",
-                "    out[0]",
+                "    total",
                 "}",
             ]
         )
@@ -142,6 +143,7 @@ def _build_shared_helper_lines(
     if "transpose_matvec_component" in used_ops:
         lines.extend(
             [
+                "#[inline(always)]",
                 "/// Return one component of a dense transpose matrix-vector product.",
                 "///",
                 "/// This helper evaluates the requested column of a row-major matrix",

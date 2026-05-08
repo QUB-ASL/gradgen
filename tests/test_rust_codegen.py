@@ -3228,9 +3228,15 @@ mod tests {{
         self.assertIn("vec_mean(x)", result.source)
 
     def test_generated_code_supports_constant_matrix_helpers(self) -> None:
-        x = SXVector.sym("x", 2)
-        y = SXVector.sym("y", 2)
-        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        x = SXVector.sym("x", 5)
+        y = SXVector.sym("y", 5)
+        matrix = [
+            [2.0, 1.0, 0.0, -1.0, 3.0],
+            [1.0, 3.0, 2.0, 0.5, -1.0],
+            [0.0, 2.0, 4.0, -2.0, 1.0],
+            [-1.0, 0.5, -2.0, 2.0, 0.5],
+            [3.0, -1.0, 1.0, 0.5, 2.5],
+        ]
         f = Function(
             "f",
             [x, y],
@@ -3246,18 +3252,18 @@ mod tests {{
         result = f.generate_rust()
 
         self.assertIn(
+            "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
+            result.source,
+        )
+        self.assertIn(
             "fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {",
             result.source,
         )
         self.assertIn(
             (
-                "fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, "
-                "cols: usize, y: &[f64]) -> f64 {"
+            "fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, "
+            "cols: usize, y: &[f64]) -> f64 {"
             ),
-            result.source,
-        )
-        self.assertNotIn(
-            "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
             result.source,
         )
         self.assertNotIn(
@@ -3268,29 +3274,36 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "mx[0] = (2.0_f64) * (x[0]) + x[1];",
+            "let matrix_0 = &[2.0_f64, 2.0_f64, 0.0_f64, -2.0_f64, 6.0_f64,",
             result.source,
         )
         self.assertIn(
-            "mx[1] = x[0] + (3.0_f64) * (x[1]);",
+            "let matrix_1 = &[2.0_f64, 1.0_f64, 0.0_f64, -1.0_f64, 3.0_f64,",
             result.source,
         )
         self.assertIn(
-            "qx[0] = quadform(&[2.0_f64, 2.0_f64, 0.0_f64, 3.0_f64], 2, x);",
+            "matvec(matrix_1, 5, 5, x, mx);",
             result.source,
         )
         self.assertIn(
-            (
-                "bxy[0] = bilinear_form(x, &[2.0_f64, 1.0_f64, "
-                "1.0_f64, 3.0_f64], 2, 2, y);"
-            ),
+            "qx[0] = quadform(matrix_0, 5, x);",
+            result.source,
+        )
+        self.assertIn(
+            "bxy[0] = bilinear_form(x, matrix_1, 5, 5, y);",
             result.source,
         )
 
     def test_generated_code_supports_f32_constant_matrix_helpers(self) -> None:
-        x = SXVector.sym("x", 2)
-        y = SXVector.sym("y", 2)
-        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        x = SXVector.sym("x", 5)
+        y = SXVector.sym("y", 5)
+        matrix = [
+            [2.0, 1.0, 0.0, -1.0, 3.0],
+            [1.0, 3.0, 2.0, 0.5, -1.0],
+            [0.0, 2.0, 4.0, -2.0, 1.0],
+            [-1.0, 0.5, -2.0, 2.0, 0.5],
+            [3.0, -1.0, 1.0, 0.5, 2.5],
+        ]
         f = Function(
             "f",
             [x, y],
@@ -3306,18 +3319,18 @@ mod tests {{
         result = f.generate_rust(scalar_type="f32")
 
         self.assertIn(
+            "fn matvec(matrix: &[f32], rows: usize, cols: usize, x: &[f32], y: &mut [f32]) {",
+            result.source,
+        )
+        self.assertIn(
             "fn quadform(matrix: &[f32], size: usize, x: &[f32]) -> f32 {",
             result.source,
         )
         self.assertIn(
             (
-                "fn bilinear_form(x: &[f32], matrix: &[f32], rows: usize, "
-                "cols: usize, y: &[f32]) -> f32 {"
+            "fn bilinear_form(x: &[f32], matrix: &[f32], rows: usize, "
+            "cols: usize, y: &[f32]) -> f32 {"
             ),
-            result.source,
-        )
-        self.assertNotIn(
-            "fn matvec(matrix: &[f32], rows: usize, cols: usize, x: &[f32], y: &mut [f32]) {",
             result.source,
         )
         self.assertNotIn(
@@ -3328,11 +3341,23 @@ mod tests {{
             result.source,
         )
         self.assertIn(
-            "mx[0] = (2.0_f32) * (x[0]) + x[1];",
+            "let matrix_0 = &[2.0_f32, 2.0_f32, 0.0_f32, -2.0_f32, 6.0_f32,",
             result.source,
         )
         self.assertIn(
-            "mx[1] = x[0] + (3.0_f32) * (x[1]);",
+            "let matrix_1 = &[2.0_f32, 1.0_f32, 0.0_f32, -1.0_f32, 3.0_f32,",
+            result.source,
+        )
+        self.assertIn(
+            "matvec(matrix_1, 5, 5, x, mx);",
+            result.source,
+        )
+        self.assertIn(
+            "qx[0] = quadform(matrix_0, 5, x);",
+            result.source,
+        )
+        self.assertIn(
+            "bxy[0] = bilinear_form(x, matrix_1, 5, 5, y);",
             result.source,
         )
 
@@ -3349,14 +3374,12 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn("mx_t[0] = (2.0_f64) * (x[0]) + x[1];",
-                      result.source)
-        self.assertIn("mx_t[1] = x[0] + (3.0_f64) * (x[1]);",
-                      result.source)
-        self.assertIn(
-            "mx_t[2] = -(x[0]) + (0.5_f64) * (x[1]);",
-            result.source,
-        )
+        self.assertIn("mx_t[0] = 2.0_f64 * x[0];", result.source)
+        self.assertIn("mx_t[0] += x[1];", result.source)
+        self.assertIn("mx_t[1] = 3.0_f64 * x[1];", result.source)
+        self.assertIn("mx_t[1] += x[0];", result.source)
+        self.assertIn("mx_t[2] = 0.5_f64 * x[1];", result.source)
+        self.assertIn("mx_t[2] -= x[0];", result.source)
         self.assertNotIn("fn transpose_matvec(", result.source)
 
     def test_generated_code_keeps_large_matvec_helper_calls(self) -> None:
@@ -3378,23 +3401,11 @@ mod tests {{
         result = f.generate_rust()
 
         self.assertIn(
-            "/// Return one component of a dense matrix-vector product.",
+            "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
             result.source,
         )
+        self.assertNotIn("fn matvec_component(", result.source)
         self.assertIn(
-            (
-                "let matrix_0 = &[1.0_f64, 0.0_f64, 2.0_f64, 0.0_f64, "
-                "-1.0_f64, 0.5_f64, 1.5_f64, 0.0_f64, 2.0_f64, 0.0_f64, "
-                "0.0_f64, -2.0_f64, 1.0_f64, 0.5_f64, 3.0_f64, 4.0_f64, "
-                "0.0_f64, 0.0_f64, 1.0_f64, 2.0_f64];"
-            ),
-            result.source,
-        )
-        self.assertIn(
-            "matvec(matrix_0, 4, 5, x, mx);",
-            result.source,
-        )
-        self.assertNotIn(
             (
                 "matvec(&[1.0_f64, 0.0_f64, 2.0_f64, 0.0_f64, -1.0_f64, "
                 "0.5_f64, 1.5_f64, 0.0_f64, 2.0_f64, 0.0_f64, 0.0_f64, "
@@ -3404,11 +3415,49 @@ mod tests {{
             result.source,
         )
 
+    def test_generated_code_emits_inline_matvec_component_helpers(self) -> None:
+        x = SXVector.sym("x", 5)
+        matrix = [
+            [1.0, 0.0, 2.0, 0.0, -1.0],
+            [0.5, 1.5, 0.0, 2.0, 0.0],
+            [0.0, -2.0, 1.0, 0.5, 3.0],
+            [4.0, 0.0, 0.0, 1.0, 2.0],
+            [1.0, -1.0, 0.5, 0.0, 2.0],
+        ]
+        f = Function(
+            "f",
+            [x],
+            [matvec(matrix, x)[0]],
+            input_names=["x"],
+            output_names=["mx0"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("#[inline(always)]", result.source)
+        self.assertIn(
+            "fn matvec_component(matrix: &[f64], _rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {",
+            result.source,
+        )
+        self.assertIn("let row_slice = &matrix[start..start + cols];", result.source)
+        self.assertIn("let mut total = 0.0_f64;", result.source)
+        self.assertIn(
+            "for (entry, value) in row_slice.iter().zip(x.iter()) {",
+            result.source,
+        )
+        self.assertNotIn("let mut out = [0.0_f64; 1];", result.source)
+
     def test_generated_code_uses_matvec_helpers_for_quadratic_form_derivatives(
         self,
     ) -> None:
-        x = SXVector.sym("x", 2)
-        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        x = SXVector.sym("x", 5)
+        matrix = [
+            [2.0, 1.0, 0.0, -1.0, 3.0],
+            [1.0, 3.0, 2.0, 0.5, -1.0],
+            [0.0, 2.0, 4.0, -2.0, 1.0],
+            [-1.0, 0.5, -2.0, 2.0, 0.5],
+            [3.0, -1.0, 1.0, 0.5, 2.5],
+        ]
         f = Function(
             "f",
             [x],
@@ -3421,19 +3470,23 @@ mod tests {{
         hvp_result = f.hvp(0).generate_rust()
 
         self.assertIn(
-            "y[0] = (4.0_f64) * (x[0]) + (2.0_f64) * (x[1]);",
+            (
+                "matvec(&[4.0_f64, 2.0_f64, 0.0_f64, -2.0_f64, 6.0_f64, "
+                "2.0_f64, 6.0_f64, 4.0_f64, 1.0_f64, -2.0_f64, 0.0_f64, "
+                "4.0_f64, 8.0_f64, -4.0_f64, 2.0_f64, -2.0_f64, 1.0_f64, "
+                "-4.0_f64, 4.0_f64, 1.0_f64, 6.0_f64, -2.0_f64, 2.0_f64, "
+                "1.0_f64, 5.0_f64], 5, 5, x, y);"
+            ),
             gradient_result.source,
         )
         self.assertIn(
-            "y[1] = (2.0_f64) * (x[0]) + (6.0_f64) * (x[1]);",
-            gradient_result.source,
-        )
-        self.assertIn(
-            "y[0] = (4.0_f64) * (v_x[0]) + (2.0_f64) * (v_x[1]);",
-            hvp_result.source,
-        )
-        self.assertIn(
-            "y[1] = (2.0_f64) * (v_x[0]) + (6.0_f64) * (v_x[1]);",
+            (
+                "matvec(&[4.0_f64, 2.0_f64, 0.0_f64, -2.0_f64, 6.0_f64, "
+                "2.0_f64, 6.0_f64, 4.0_f64, 1.0_f64, -2.0_f64, 0.0_f64, "
+                "4.0_f64, 8.0_f64, -4.0_f64, 2.0_f64, -2.0_f64, 1.0_f64, "
+                "-4.0_f64, 4.0_f64, 1.0_f64, 6.0_f64, -2.0_f64, 2.0_f64, "
+                "1.0_f64, 5.0_f64], 5, 5, v_x, y);"
+            ),
             hvp_result.source,
         )
 
@@ -3451,7 +3504,7 @@ mod tests {{
         result = f.generate_rust()
 
         self.assertIn("o0[0] = x[0];", result.source)
-        self.assertIn("o0[1] = (5.0_f64) * (x[1]);", result.source)
+        self.assertIn("o0[1] = 5.0_f64 * x[1];", result.source)
         self.assertNotIn("(0.0_f64) * (x[0])", result.source)
         self.assertNotIn("(0.0_f64) * (x[1])", result.source)
 
@@ -3478,18 +3531,20 @@ mod tests {{
         self.assertNotIn("fn quadform(", result.source)
 
     def test_generated_code_hoists_reused_matrix_literals_once(self) -> None:
-        x = SXVector.sym("x", 3)
+        x = SXVector.sym("x", 5)
+        y = SXVector.sym("y", 4)
         matrix = [
-            [-1.0, 2.0, 1.0],
-            [2.0, 5.0, 1.0],
-            [0.0, 1.0, 2.0],
+            [-1.0, 2.0, 1.0, 0.5, 2.0],
+            [2.0, 5.0, 1.0, -1.0, 0.0],
+            [0.0, 1.0, 2.0, 1.5, -2.0],
+            [3.0, -1.0, 0.5, 4.0, 1.0],
         ]
         f = Function(
             "f",
-            [x],
-            [cross(x, matvec(matrix, x))],
-            input_names=["x"],
-            output_names=["y"],
+            [y, x],
+            [matvec(matrix, x), bilinear_form(y, matrix, x)],
+            input_names=["y", "x"],
+            output_names=["mx", "bxy"],
         )
 
         result = f.generate_rust()
@@ -3497,34 +3552,83 @@ mod tests {{
         self.assertIn("let matrix_0 = &[", result.source)
         self.assertEqual(
             result.source.count(
-                "-1.0_f64, 2.0_f64, 1.0_f64, 2.0_f64, 5.0_f64, 1.0_f64, 0.0_f64, 1.0_f64, 2.0_f64"
+                "-1.0_f64, 2.0_f64, 1.0_f64, 0.5_f64, 2.0_f64, 2.0_f64, 5.0_f64, 1.0_f64, -1.0_f64, 0.0_f64, 0.0_f64, 1.0_f64, 2.0_f64, 1.5_f64, -2.0_f64, 3.0_f64, -1.0_f64, 0.5_f64, 4.0_f64, 1.0_f64"
             ),
             1,
         )
-        self.assertIn("matvec_component(matrix_0, 3, 3, 2, x)", result.source)
+        self.assertIn("matvec(matrix_0, 4, 5, x, mx);", result.source)
+        self.assertIn("bilinear_form(y, matrix_0, 4, 5, x)", result.source)
 
     def test_generated_code_omits_unused_quadform_helpers(self) -> None:
-        x = SXVector.sym("x", 3)
+        x = SXVector.sym("x", 5)
         matrix = [
-            [-1.0, 2.0, 1.0],
-            [2.0, 5.0, 1.0],
-            [0.0, 1.0, 2.0],
+            [1.0, 0.0, 2.0, 0.0, -1.0],
+            [0.5, 1.5, 0.0, 2.0, 0.0],
+            [0.0, -2.0, 1.0, 0.5, 3.0],
+            [4.0, 0.0, 0.0, 1.0, 2.0],
         ]
         f = Function(
             "f",
             [x],
-            [cross(x, matvec(matrix, x))],
+            [matvec(matrix, x)],
+            input_names=["x"],
+            output_names=["mx"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn(
+            (
+                "matvec(&[1.0_f64, 0.0_f64, 2.0_f64, 0.0_f64, -1.0_f64, "
+                "0.5_f64, 1.5_f64, 0.0_f64, 2.0_f64, 0.0_f64, 0.0_f64, "
+                "-2.0_f64, 1.0_f64, 0.5_f64, 3.0_f64, 4.0_f64, 0.0_f64, "
+                "0.0_f64, 1.0_f64, 2.0_f64], 4, 5, x, mx);"
+            ),
+            result.source,
+        )
+        self.assertNotIn("fn matvec_component(", result.source)
+        self.assertNotIn("fn transpose_matvec(", result.source)
+        self.assertNotIn("fn bilinear_form(", result.source)
+        self.assertNotIn("fn quadform(", result.source)
+
+    def test_generated_code_uses_loop_for_large_matvec_accumulation(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 10)
+        matrix = [
+            [1.0, 0.0, 2.0, 0.0, -1.0, 0.5, 1.5, 0.0, 2.0, 0.0],
+            [0.0, -2.0, 1.0, 0.5, 3.0, 4.0, 0.0, 0.0, 1.0, 2.0],
+            [2.0, 1.0, 0.0, -1.0, 3.0, 0.5, -1.0, 2.0, 0.0, 1.0],
+            [1.5, 0.5, -2.0, 2.0, 0.0, 1.0, 3.0, -1.0, 0.5, 2.5],
+            [0.0, 1.0, 2.0, 1.5, -2.0, 3.0, -1.0, 0.5, 4.0, 1.0],
+            [2.0, -1.0, 0.5, 4.0, 1.0, 0.0, 1.0, -2.0, 3.0, 0.5],
+            [1.0, 2.0, 3.0, -1.0, 0.0, 0.5, 2.0, 1.0, -1.0, 4.0],
+            [0.5, 1.0, -1.0, 2.0, 3.0, 4.0, 0.0, 1.5, 2.0, -2.0],
+            [3.0, 0.0, 1.0, 0.5, 2.0, -1.0, 4.0, 0.0, 0.5, 1.0],
+            [2.0, 1.0, 0.0, 3.0, -1.0, 2.0, 1.0, 0.5, 0.0, 4.0],
+        ]
+        mx = matvec(matrix, x)
+        expr = mx[0] * x[0]
+        for index in range(1, 10):
+            expr += mx[index] * x[index]
+
+        f = Function(
+            "f",
+            [x],
+            [expr],
             input_names=["x"],
             output_names=["y"],
         )
 
         result = f.generate_rust()
 
-        self.assertIn("matvec_component(matrix_0, 3, 3, 2, x)", result.source)
-        self.assertNotIn("fn matvec(", result.source)
-        self.assertNotIn("fn transpose_matvec(", result.source)
-        self.assertNotIn("fn bilinear_form(", result.source)
-        self.assertNotIn("fn quadform(", result.source)
+        self.assertIn("for row in 0..10 {", result.source)
+        self.assertIn("y[0] = 0.0_f64;", result.source)
+        self.assertIn(
+            "y[0] += matvec_component(matrix_0, 10, 10, row, x) * x[row];",
+            result.source,
+        )
+        self.assertNotIn("y[0] += (matvec_component(", result.source)
 
     def test_multi_function_project_emits_norm2_helper_once(self) -> None:
         x = SXVector.sym("x", 3)
@@ -3578,7 +3682,7 @@ mod tests {{
 
             self.assertEqual(
                 lib_text.count(
-                    "fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {"
+                    "fn matvec_component(matrix: &[f64], _rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {"
                 ),
                 1,
             )
@@ -5346,9 +5450,15 @@ mod joint_hessian_tests {
             self.assertEqual(completed.returncode, 0)
 
     def test_builder_supports_matrix_helpers(self) -> None:
-        x = SXVector.sym("x", 2)
-        y = SXVector.sym("y", 2)
-        matrix = [[2.0, 1.0], [1.0, 3.0]]
+        x = SXVector.sym("x", 5)
+        y = SXVector.sym("y", 5)
+        matrix = [
+            [2.0, 1.0, 0.0, -1.0, 3.0],
+            [1.0, 3.0, 2.0, 0.5, -1.0],
+            [0.0, 2.0, 4.0, -2.0, 1.0],
+            [-1.0, 0.5, -2.0, 2.0, 0.5],
+            [3.0, -1.0, 1.0, 0.5, 2.5],
+        ]
         f = Function(
             "f",
             [x, y],
@@ -5371,14 +5481,11 @@ mod joint_hessian_tests {
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn(
-                (
-                    "fn matvec_component(matrix: &[f64], rows: usize, cols: usize, "
-                    "row: usize, x: &[f64]) -> f64 {"
-                ),
+                "fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {",
                 lib_text,
             )
             self.assertIn(
-                "fn quadform(matrix: &[f64], size: usize, x: &[f64]) -> f64 {",
+                "fn bilinear_form(x: &[f64], matrix: &[f64], rows: usize, cols: usize, y: &[f64]) -> f64 {",
                 lib_text,
             )
             self.assertIn("pub fn matrix_builder_f_f(", lib_text)
@@ -5388,6 +5495,10 @@ mod joint_hessian_tests {
             self.assertIn("pub fn matrix_builder_f_hvp_y(", lib_text)
             self.assertNotIn(
                 "fn matvec(matrix: &[f64], rows: usize, cols: usize, x: &[f64], y: &mut [f64]) {",
+                lib_text,
+            )
+            self.assertNotIn(
+                "fn matvec_component(matrix: &[f64], rows: usize, cols: usize, row: usize, x: &[f64]) -> f64 {",
                 lib_text,
             )
             self.assertNotIn(

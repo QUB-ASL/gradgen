@@ -35,6 +35,8 @@ from .rendering import (
     _emit_expr_ref,
     _emit_matvec_output_helper_call,
     _emit_min_length_assert,
+    _emit_matrix_literal_reference,
+    _emit_matrix_vector_argument,
     _emit_node_expr,
     _emit_workspace_assignment,
     _flatten_arg,
@@ -112,8 +114,22 @@ def _emit_output_accumulation_lines(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> list[str]:
     """Emit readable accumulation statements for a scalar output expression."""
+    loop_lines = _emit_matvec_component_accumulation_loop_lines(
+        expr,
+        target,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+        matrix_literal_bindings,
+    )
+    if loop_lines is not None:
+        return loop_lines
+
     terms = _flatten_output_terms(expr)
     zero_ref = _format_float(0.0, scalar_type)
     if not terms:
@@ -127,6 +143,7 @@ def _emit_output_accumulation_lines(
             backend_mode,
             scalar_type,
             math_library,
+            matrix_literal_bindings,
         )
 
     first_sign, first_term = terms[0]
@@ -146,6 +163,132 @@ def _emit_output_accumulation_lines(
         operator = "+=" if sign >= 0.0 else "-="
         lines.append(f"{target} {operator} {ref};")
     return lines
+
+
+def _collect_mul_factors(expr: SX) -> list[SX]:
+    """Return the flattened multiplicative factors for ``expr``."""
+    if expr.op != "mul":
+        return [expr]
+    return [
+        *_collect_mul_factors(expr.args[0]),
+        *_collect_mul_factors(expr.args[1]),
+    ]
+
+
+def _match_matvec_component_product(
+    expr: SX,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None,
+) -> tuple[int, int, int, tuple[float, ...], tuple[SX, ...], str] | None:
+    """Return metadata for a ``matvec_component``-times-vector term."""
+    factors = _collect_mul_factors(expr)
+    if len(factors) != 2:
+        return None
+
+    matvec_factor: SX | None = None
+    vector_factor: SX | None = None
+    for factor in factors:
+        if factor.op == "matvec_component":
+            matvec_factor = factor
+        else:
+            vector_factor = factor
+    if matvec_factor is None or vector_factor is None:
+        return None
+
+    rows, cols, row, matrix_values, x_values = parse_matvec_component_args(
+        matvec_factor.args
+    )
+    x_ref = _emit_matrix_vector_argument(
+        x_values,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+    )
+    vector_ref = _emit_expr_ref(
+        vector_factor,
+        scalar_bindings,
+        workspace_map,
+        backend_mode,
+        scalar_type,
+        math_library,
+        matrix_literal_bindings,
+    )
+    if vector_ref != f"{x_ref}[{row}]":
+        return None
+    return rows, cols, row, matrix_values, x_values, x_ref
+
+
+def _emit_matvec_component_accumulation_loop_lines(
+    expr: SX,
+    target: str,
+    scalar_bindings: dict[SXNode, str],
+    workspace_map: dict[SXNode, int],
+    backend_mode: RustBackendMode,
+    scalar_type: RustScalarType,
+    math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None,
+) -> list[str] | None:
+    """Return loop-based accumulation for repeated matvec-component terms."""
+    terms = _flatten_output_terms(expr)
+    if len(terms) <= 4:
+        return None
+
+    parsed_terms: list[
+        tuple[int, int, int, tuple[float, ...], tuple[SX, ...], str]
+    ] = []
+    for expected_row, (sign, term) in enumerate(terms):
+        if sign < 0.0:
+            return None
+        parsed = _match_matvec_component_product(
+            term,
+            scalar_bindings,
+            workspace_map,
+            backend_mode,
+            scalar_type,
+            math_library,
+            matrix_literal_bindings,
+        )
+        if parsed is None:
+            return None
+        rows, cols, row, matrix_values, x_values, x_ref = parsed
+        if row != expected_row:
+            return None
+        parsed_terms.append(parsed)
+
+    rows, cols, _row, matrix_values, _x_values, x_ref = parsed_terms[0]
+    for parsed in parsed_terms[1:]:
+        cand_rows, cand_cols, _cand_row, cand_matrix_values, cand_x_values, cand_x_ref = parsed
+        if (
+            cand_rows != rows
+            or cand_cols != cols
+            or cand_matrix_values != matrix_values
+            or cand_x_values != parsed_terms[0][4]
+            or cand_x_ref != x_ref
+        ):
+            return None
+
+    if rows <= 4:
+        return None
+
+    matrix_ref = _emit_matrix_literal_reference(
+        matrix_values, scalar_type, matrix_literal_bindings
+    )
+    zero_ref = _format_float(0.0, scalar_type)
+    return [
+        f"{target} = {zero_ref};",
+        f"for row in 0..{rows} {{",
+        (
+            f"    {target} += matvec_component({matrix_ref}, {rows}, {cols}, "
+            f"row, {x_ref}) * {x_ref}[row];"
+        ),
+        "}",
+    ]
 
 
 def _direct_output_helper_requires_shared_helper_source(
@@ -173,6 +316,9 @@ def _collect_emitted_helper_nodes(
         if not _direct_output_helper_requires_shared_helper_source(
             direct_output_helper
         ):
+            continue
+        helper_name = direct_output_helper.split("(", 1)[0]
+        if helper_name in {"matvec", "transpose_matvec"}:
             continue
         reachable_nodes.update(_collect_reachable_nodes(_flatten_arg(output_arg)))
 
@@ -234,6 +380,7 @@ def _emit_simple_output_ref(
     backend_mode: RustBackendMode,
     scalar_type: RustScalarType,
     math_library: str | None,
+    matrix_literal_bindings: dict[tuple[float, ...], str] | None = None,
 ) -> str | None:
     """Return a direct reference when an output is a single positive term."""
     terms = _flatten_output_terms(expr)
@@ -249,6 +396,7 @@ def _emit_simple_output_ref(
         backend_mode,
         scalar_type,
         math_library,
+        matrix_literal_bindings,
     )
 
 
@@ -678,6 +826,7 @@ def generate_rust(
                 resolved_config.backend_mode,
                 resolved_config.scalar_type,
                 resolved_math_library,
+                matrix_literal_bindings,
             )
             if output_ref is not None:
                 workspace_index = _parse_workspace_ref(
@@ -697,12 +846,13 @@ def generate_rust(
                     scalar,
                     f"{output_spec.rust_name}[{scalar_index}]",
                     scalar_bindings,
-                    workspace_map,
-                    resolved_config.backend_mode,
-                    resolved_config.scalar_type,
-                    resolved_math_library,
-                )
+                workspace_map,
+                resolved_config.backend_mode,
+                resolved_config.scalar_type,
+                resolved_math_library,
+                matrix_literal_bindings,
             )
+        )
         if can_copy_from_workspace and all(
             index is not None for index in scalar_output_workspace_indices
         ):

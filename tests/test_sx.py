@@ -593,7 +593,9 @@ class SXVectorTests(unittest.TestCase):
         self.assertEqual(minimum.op, "reduce_min")
         self.assertEqual(mean.op, "mean")
 
-    def test_constant_matrix_helpers_build_expected_expressions(self) -> None:
+    def test_small_constant_matrix_helpers_build_direct_expressions(
+        self,
+    ) -> None:
         x = SXVector.sym("x", 2)
         y = SXVector.sym("y", 2)
         matrix = [[2.0, 1.0], [1.0, 3.0]]
@@ -607,8 +609,36 @@ class SXVectorTests(unittest.TestCase):
         self.assertIsInstance(transpose_matvec_expr, SXVector)
         self.assertEqual(len(matvec_expr), 2)
         self.assertEqual(len(transpose_matvec_expr), 2)
+        self.assertNotEqual(matvec_expr[0].op, "matvec_component")
+        self.assertNotEqual(matvec_expr[1].op, "matvec_component")
+        self.assertNotEqual(
+            transpose_matvec_expr[0].op, "transpose_matvec_component"
+        )
+        self.assertNotEqual(
+            transpose_matvec_expr[1].op, "transpose_matvec_component"
+        )
+        self.assertNotEqual(quadform_expr.op, "quadform")
+        self.assertNotEqual(bilinear_expr.op, "bilinear_form")
+
+    def test_large_constant_matrix_helpers_use_component_nodes(self) -> None:
+        x = SXVector.sym("x", 5)
+        y = SXVector.sym("y", 5)
+        matrix = [
+            [2.0, 1.0, 0.0, -1.0, 3.0],
+            [1.0, 3.0, 2.0, 0.5, -1.0],
+            [0.0, 2.0, 4.0, -2.0, 1.0],
+            [-1.0, 0.5, -2.0, 2.0, 0.5],
+            [3.0, -1.0, 1.0, 0.5, 2.5],
+        ]
+
+        matvec_expr = matvec(matrix, x)
+        transpose_matvec_expr = transpose_matvec(matrix, x)
+        quadform_expr = quadform(matrix, x)
+        bilinear_expr = bilinear_form(x, matrix, y)
+
         self.assertTrue(
-            all(element.op == "matvec_component" for element in matvec_expr))
+            all(element.op == "matvec_component" for element in matvec_expr)
+        )
         self.assertTrue(
             all(
                 element.op == "transpose_matvec_component"
@@ -778,8 +808,8 @@ class SXVectorTests(unittest.TestCase):
 
         self.assertEqual(len(matvec_expr), 0)
         self.assertEqual(len(transpose_matvec_expr), 0)
-        self.assertEqual(quadform_expr.op, "quadform")
-        self.assertEqual(bilinear_expr.op, "bilinear_form")
+        self.assertEqual(quadform_expr.value, 0.0)
+        self.assertEqual(bilinear_expr.value, 0.0)
 
     def test_toplevel_scalar_helpers_reject_nonsingleton_vectors(self) -> None:
         x = SXVector.sym("x", 2)
