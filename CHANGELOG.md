@@ -80,6 +80,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - The single-shooting benchmark can now build the Gradgen runner with
   `f32` as well as `f64`, making it easier to compare the two scalar
   types from the command line.
+- The single-shooting benchmark now writes its Cargo build settings
+  directly, which avoids a missing template lookup in GitHub Actions
+  and keeps the benchmark demo runnable in CI.
 
 
 ## 0.5.2 - 08-05-2025

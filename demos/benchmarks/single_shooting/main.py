@@ -325,7 +325,8 @@ def _render_gradgen_runner(
         encoding="utf-8",
     )
     (cargo_dir / "config.toml").write_text(
-        render_template("benchmark_runner/.cargo/config.toml.j2"),
+        "[build]\n"
+        'rustflags = ["-C", "target-cpu=native"]\n',
         encoding="utf-8",
     )
     (src_dir / "main.rs").write_text(
