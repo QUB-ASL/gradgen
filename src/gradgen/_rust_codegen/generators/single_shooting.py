@@ -291,6 +291,9 @@ def _build_single_shooting_driver_result(
     )
     hvp_output_name = output_names.get(f"hvp_{problem.control_sequence_name}")
     states_output_name = output_names.get("x_traj")
+    use_joint_stage_cost = (
+        include_cost and include_gradient and not include_hvp
+    )
     use_rollout_states_as_history = (
         need_history and include_states and states_output_name is not None
     )
@@ -299,6 +302,9 @@ def _build_single_shooting_driver_result(
         0
         if use_rollout_states_as_history
         else ((horizon * state_size) if need_history else 0)
+    )
+    stage_gradient_history_size = (
+        horizon * state_size if use_joint_stage_cost else 0
     )
     tangent_history_size = (horizon * state_size) if include_hvp else 0
     state_buffer_size = 2 * state_size
@@ -310,6 +316,7 @@ def _build_single_shooting_driver_result(
     scalar_buffer_size = 1 if include_cost else 0
     driver_workspace_size = (
         state_history_size
+        + stage_gradient_history_size
         + tangent_history_size
         + state_buffer_size
         + tangent_buffer_size
@@ -331,6 +338,10 @@ def _build_single_shooting_driver_result(
             )
     else:
         computation_lines.append("let rest = work;")
+    if use_joint_stage_cost:
+        computation_lines.append(
+            f"let (stage_gradient_history, rest) = rest.split_at_mut({stage_gradient_history_size});"
+        )
     if include_hvp:
         computation_lines.append(
             f"let (tangent_history, rest) = rest.split_at_mut({tangent_history_size});"
@@ -402,14 +413,24 @@ def _build_single_shooting_driver_result(
     if include_hvp and v_U_name is not None:
         for_lines.append(
             f"    let v_u_t = {_emit_single_shooting_control_slice(v_U_name, 'stage_index', control_size)};"
-        )
+    )
     if include_cost:
-        for_lines.extend(
-            [
-                f"    {helpers.stage_cost_name}(current_state, u_t, {p_name}{runtime_weight_arg}, scalar_buffer, stage_work);",
-                "    total_cost += scalar_buffer[0];",
-            ]
-        )
+        if use_joint_stage_cost:
+            for_lines.extend(
+                [
+                    f"    let stage_grad_x_t = &mut stage_gradient_history[(stage_index * {state_size})..((stage_index + 1) * {state_size})];",
+                    f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
+                    f"    {helpers.stage_cost_joint_name}(current_state, u_t, {p_name}{runtime_weight_arg}, scalar_buffer, stage_grad_x_t, grad_u_t, stage_work);",
+                    "    total_cost += scalar_buffer[0];",
+                ]
+            )
+        else:
+            for_lines.extend(
+                [
+                    f"    {helpers.stage_cost_name}(current_state, u_t, {p_name}{runtime_weight_arg}, scalar_buffer, stage_work);",
+                    "    total_cost += scalar_buffer[0];",
+                ]
+            )
     for_lines.extend(
         [
             f"    {helpers.dynamics_name}(current_state, u_t, {p_name}, next_state, stage_work);",
@@ -475,18 +496,62 @@ def _build_single_shooting_driver_result(
                 ]
             )
         if include_gradient and gradient_output_name is not None:
-            computation_lines.extend(
-                [
-                    f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
-                    f"    {helpers.stage_cost_grad_u_name}(x_t, u_t, {p_name}{runtime_weight_arg}, grad_u_t, stage_work);",
-                    f"    {helpers.dynamics_vjp_u_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
-                ]
-            )
-            computation_lines.extend(
-                _emit_small_accumulate(
-                    "grad_u_t", "temp_control", control_size, indent="    "
+            if use_joint_stage_cost:
+                computation_lines.extend(
+                    [
+                        f"    let grad_x_t = &stage_gradient_history[(stage_index * {state_size})..((stage_index + 1) * {state_size})];",
+                        f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
+                    ]
                 )
-            )
+                computation_lines.append(
+                    "    lambda_next.copy_from_slice(grad_x_t);"
+                )
+                computation_lines.extend(
+                    [
+                        f"    {helpers.dynamics_vjp_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_state, temp_control, stage_work);",
+                    ]
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "lambda_next", "temp_state", state_size, indent="    "
+                    )
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "grad_u_t", "temp_control", control_size, indent="    "
+                    )
+                )
+            elif include_hvp:
+                computation_lines.extend(
+                    [
+                        f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
+                        f"    {helpers.stage_cost_grad_u_name}(x_t, u_t, {p_name}{runtime_weight_arg}, grad_u_t, stage_work);",
+                        f"    {helpers.dynamics_vjp_u_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
+                    ]
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "grad_u_t", "temp_control", control_size, indent="    "
+                    )
+                )
+            else:
+                computation_lines.extend(
+                    [
+                        f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
+                        f"    {helpers.stage_cost_grad_name}(x_t, u_t, {p_name}{runtime_weight_arg}, lambda_next, grad_u_t, stage_work);",
+                        f"    {helpers.dynamics_vjp_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_state, temp_control, stage_work);",
+                    ]
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "lambda_next", "temp_state", state_size, indent="    "
+                    )
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "grad_u_t", "temp_control", control_size, indent="    "
+                    )
+                )
         if include_hvp and hvp_output_name is not None:
             computation_lines.extend(
                 [
@@ -500,17 +565,18 @@ def _build_single_shooting_driver_result(
                     "hvp_u_t", "temp_control", control_size, indent="    "
                 )
             )
-        computation_lines.extend(
-            [
-                f"    {helpers.stage_cost_grad_x_name}(x_t, u_t, {p_name}{runtime_weight_arg}, lambda_next, stage_work);",
-                f"    {helpers.dynamics_vjp_x_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_state, stage_work);",
-            ]
-        )
-        computation_lines.extend(
-            _emit_small_accumulate(
-                "lambda_next", "temp_state", state_size, indent="    "
+        if include_hvp:
+            computation_lines.extend(
+                [
+                    f"    {helpers.stage_cost_grad_x_name}(x_t, u_t, {p_name}{runtime_weight_arg}, lambda_next, stage_work);",
+                    f"    {helpers.dynamics_vjp_x_name}(x_t, u_t, {p_name}, &lambda_current[..], temp_state, stage_work);",
+                ]
             )
-        )
+            computation_lines.extend(
+                _emit_small_accumulate(
+                    "lambda_next", "temp_state", state_size, indent="    "
+                )
+            )
         if include_hvp:
             computation_lines.extend(
                 [
@@ -535,18 +601,62 @@ def _build_single_shooting_driver_result(
             f"let u_t = {_emit_single_shooting_control_slice(U_name, '0', control_size)};"
         )
         if include_gradient and gradient_output_name is not None:
-            computation_lines.extend(
-                [
-                    f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
-                    f"{helpers.stage_cost_grad_u_name}({x0_name}, u_t, {p_name}{runtime_weight_arg}, grad_u_t, stage_work);",
-                    f"{helpers.dynamics_vjp_u_name}({x0_name}, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
-                ]
-            )
-            computation_lines.extend(
-                _emit_small_accumulate(
-                    "grad_u_t", "temp_control", control_size
+            if use_joint_stage_cost:
+                computation_lines.extend(
+                    [
+                        f"let grad_x_t = &stage_gradient_history[0..{state_size}];",
+                        f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
+                    ]
                 )
-            )
+                computation_lines.append(
+                    "lambda_next.copy_from_slice(grad_x_t);"
+                )
+                computation_lines.extend(
+                    [
+                        f"{helpers.dynamics_vjp_name}({x0_name}, u_t, {p_name}, &lambda_current[..], temp_state, temp_control, stage_work);",
+                    ]
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "lambda_next", "temp_state", state_size
+                    )
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "grad_u_t", "temp_control", control_size
+                    )
+                )
+            elif include_hvp:
+                computation_lines.extend(
+                    [
+                        f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
+                        f"{helpers.stage_cost_grad_u_name}({x0_name}, u_t, {p_name}{runtime_weight_arg}, grad_u_t, stage_work);",
+                        f"{helpers.dynamics_vjp_u_name}({x0_name}, u_t, {p_name}, &lambda_current[..], temp_control, stage_work);",
+                    ]
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "grad_u_t", "temp_control", control_size
+                    )
+                )
+            else:
+                computation_lines.extend(
+                    [
+                        f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
+                        f"{helpers.stage_cost_grad_name}({x0_name}, u_t, {p_name}{runtime_weight_arg}, temp_state, grad_u_t, stage_work);",
+                        f"{helpers.dynamics_vjp_name}({x0_name}, u_t, {p_name}, &lambda_current[..], temp_state, temp_control, stage_work);",
+                    ]
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "lambda_next", "temp_state", state_size, indent=""
+                    )
+                )
+                computation_lines.extend(
+                    _emit_small_accumulate(
+                        "grad_u_t", "temp_control", control_size
+                    )
+                )
         if (
             include_hvp
             and hvp_output_name is not None

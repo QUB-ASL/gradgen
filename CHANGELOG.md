@@ -29,6 +29,29 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 - The single-shooting benchmark now generates and times one joint
   cost-plus-gradient kernel instead of two separate calls.
+- The single-shooting benchmark table now labels the runtime columns in
+  microseconds to match the reported values.
+- The staged single-shooting cost-plus-gradient kernel now computes
+  each stage cost together with its stage gradient, then reuses the
+  cached stage-gradient terms in the reverse sweep.
+- The staged single-shooting Rust generator now fuses shared stage-cost
+  gradient and dynamics-adjoint work so repeated expressions are only
+  computed once when both outputs are needed.
+- Fixed the staged single-shooting joint cost-plus-gradient kernel so
+  the cached stage adjoint is initialized before the reverse sweep adds
+  the dynamics contribution.
+- Fixed the staged single-shooting joint reverse sweep to read the
+  cached stage gradient for the current stage instead of the previous
+  one.
+- Changed the single-shooting benchmark to time one repeated loop per
+  horizon and report the average runtime per call using `--num-runs`
+  instead of per-call mean plus standard deviation.
+- Added a `--flatten` benchmark option to compare the staged
+  single-shooting Gradgen path against a flattened `to_function()`
+  lowering.
+- Reused a shared Cargo target directory across benchmark horizons so
+  the Gradgen runner builds faster when comparing staged or flattened
+  single-shooting code.
 - Improved the generated documentation for matrix-building internals
   so the symbolic math helpers are easier to understand in the source
   code.

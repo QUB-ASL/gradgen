@@ -126,10 +126,13 @@ class _SingleShootingHelperBundle:
     terminal_cost_name: str
     dynamics_vjp_x_name: str | None
     dynamics_vjp_u_name: str | None
+    dynamics_vjp_name: str | None
     dynamics_vjp_x_jvp_name: str | None
     dynamics_vjp_u_jvp_name: str | None
     stage_cost_grad_x_name: str | None
     stage_cost_grad_u_name: str | None
+    stage_cost_grad_name: str | None
+    stage_cost_joint_name: str | None
     stage_cost_grad_x_jvp_name: str | None
     stage_cost_grad_u_jvp_name: str | None
     terminal_cost_grad_x_name: str | None

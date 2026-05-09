@@ -134,7 +134,7 @@ fn module_all_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
 #[pyfunction(name = "__getattr__")]
 fn module_getattr(name: &str) -> PyResult<String> {
     match name {
-        "__version__" => Ok("0.25.0".to_string()),
+        "__version__" => Ok("0.26.0".to_string()),
         _ => Err(PyAttributeError::new_err(format!(
             "module has no attribute {name:?}"
         ))),
@@ -177,8 +177,8 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
             )
         }
         "mpc_cost_f_grad_states_u_seq" | "single_shooting_kernel_mpc_cost_f_grad_states_u_seq" => {
-            let mut values = Vec::with_capacity(12);
-            values.resize(12, 0.0_f64);
+            let mut values = Vec::with_capacity(22);
+            values.resize(22, 0.0_f64);
             Py::new(
                 py,
                 Workspace {

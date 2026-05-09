@@ -47,29 +47,6 @@ static double now_ms(void) {
 }
 #endif
 
-static void mean_std(
-    const double* samples,
-    int count,
-    double* mean_out,
-    double* std_out
-) {
-    if (count < 2) {
-        *mean_out = samples[0];
-        *std_out = 0.0;
-        return;
-    }
-    double mean = 0.0;
-    double m2 = 0.0;
-    for (int i = 0; i < count; ++i) {
-        double value = samples[i];
-        double delta = value - mean;
-        mean += delta / (double)(i + 1);
-        m2 += delta * (value - mean);
-    }
-    *mean_out = mean;
-    *std_out = sqrt(m2 / (double)(count - 1));
-}
-
 int main(void) {
     enum {
         TIMING_RUNS = {{ timing_runs }},
@@ -114,21 +91,16 @@ int main(void) {
         return 1;
     }
 
-    double samples[TIMING_RUNS];
     double checksum = 0.0;
 
+    double start = now_ms();
     for (int run = 0; run < TIMING_RUNS; ++run) {
-        double start = now_ms();
         {{ function_name }}(arg, res, iw, w, 0);
-        double elapsed = now_ms() - start;
         checksum += cost_out[0] + grad_out[0];
-        samples[run] = elapsed;
     }
 
-    double mean_ms = 0.0;
-    double std_ms = 0.0;
-    mean_std(samples, TIMING_RUNS, &mean_ms, &std_ms);
-    printf("%.6f %.6f\n", mean_ms, std_ms);
+    double total_ms = now_ms() - start;
+    printf("%.6f\n", total_ms / (double)TIMING_RUNS);
 
     free(iw);
     free(w);

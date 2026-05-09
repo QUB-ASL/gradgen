@@ -565,22 +565,24 @@ mod {module_name} {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
         self.assertIn(
-            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(",
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp(",
             lib_text,
         )
         helper_start = lib_text.index(
-            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_x("
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp("
         )
         helper_end = lib_text.index(
-            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(",
+            "fn single_shooting_kernel_mpc_cost_stage_cost_grad(",
             helper_start,
         )
         helper_text = lib_text[helper_start:helper_end]
         self.assertIn("vjp_x[0] =", helper_text)
         self.assertIn("vjp_x[1] =", helper_text)
+        self.assertIn("vjp_u[0] =", helper_text)
         self.assertNotIn("copy_from_slice", helper_text)
         self.assertNotIn("vjp_x[0] = work[0];", helper_text)
         self.assertNotIn("vjp_x[1] = work[1];", helper_text)
+        self.assertNotIn("vjp_u[0] = work[0];", helper_text)
         self.assertNotIn("work[0] =", helper_text)
         self.assertNotIn("work[1] =", helper_text)
 
@@ -1121,6 +1123,8 @@ mod single_shooting_horizon_one_tests {{
                 ),
                 lib_text,
             )
+            self.assertIn("stage_cost_grad(", lib_text)
+            self.assertNotIn("stage_cost_joint", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -1194,6 +1198,113 @@ mod single_shooting_multi_u_tests {{
             &{expected_states_literal},
             1e-10_f64,
         );
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_single_shooting_joint_cost_gradient_uses_joint_stage_helper(
+        self,
+    ) -> None:
+        problem = self._build_multi_control_single_shooting_problem(horizon=2)
+        x0 = [0.5, -1.0]
+        U = [0.2, -0.1, 0.3, 0.4]
+        p = [0.6, -0.4]
+        expected_cost, expected_states = (
+            self._manual_multi_control_single_shooting_rollout(
+                x0, U, p, problem.horizon
+            )
+        )
+        expected_gradient = (
+            self._manual_multi_control_single_shooting_gradient(
+                x0, U, p, problem.horizon
+            )
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("single_shooting_joint_u")
+            )
+            .for_function(problem)
+            .add_joint(
+                SingleShootingBundle().add_cost().add_gradient().add_rollout_states()
+            )
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "single_shooting_joint_u")
+            joint_codegen = project.codegens[0]
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("stage_cost_joint", lib_text)
+            self.assertNotIn("stage_cost_grad(", lib_text)
+
+            expected_cost_literal = self._rust_array_literal(
+                [expected_cost], "f64"
+            )
+            expected_states_literal = self._rust_array_literal(
+                expected_states, "f64"
+            )
+            expected_gradient_literal = self._rust_array_literal(
+                expected_gradient, "f64"
+            )
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod single_shooting_joint_u_tests {{
+    use super::*;
+
+    fn assert_close_slice(
+        actual: &[f64],
+        expected: &[f64],
+        tolerance: f64,
+    ) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in
+            actual.iter().zip(expected.iter())
+        {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_joint_reference() {{
+        let x0 = {self._rust_array_literal(x0, "f64")};
+        let u_seq = {self._rust_array_literal(U, "f64")};
+        let p = {self._rust_array_literal(p, "f64")};
+
+        let mut cost = [0.0_f64; 1];
+        let mut gradient_u_seq = [0.0_f64; 4];
+        let mut x_traj = [0.0_f64; 6];
+        let mut work = [0.0_f64; {joint_codegen.workspace_size}];
+        let result = {joint_codegen.function_name}(
+            &x0,
+            &u_seq,
+            &p,
+            &mut cost,
+            &mut gradient_u_seq,
+            &mut x_traj,
+            &mut work,
+        );
+        assert!(result.is_ok());
+        assert_close_slice(&cost, &{expected_cost_literal}, 1e-10_f64);
+        assert_close_slice(
+            &gradient_u_seq,
+            &{expected_gradient_literal},
+            1e-5_f64,
+        );
+        assert_close_slice(&x_traj, &{expected_states_literal}, 1e-10_f64);
     }}
 }}
 """.lstrip(),
