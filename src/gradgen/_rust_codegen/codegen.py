@@ -536,6 +536,7 @@ def generate_rust(
     function_index: int = 0,
     shared_helper_nodes: tuple[SXNode, ...] | None = None,
     shared_helper_suppressed_custom_wrappers: SET_TUPLE_STR | None = None,
+    prioritize_expensive_workspace_nodes: bool = False,
     emit_crate_header: bool = True,
     function_keyword: str = "pub fn",
 ) -> RustCodegenResult:
@@ -858,6 +859,7 @@ def generate_rust(
     workspace_map, workspace_size = _allocate_workspace_slots(
         function,
         output_refs=tuple(materialized_output_refs),
+        prioritize_expensive_nodes=prioritize_expensive_workspace_nodes,
     )
     emitted_helper_nodes = _collect_emitted_helper_nodes(
         function,

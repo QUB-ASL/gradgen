@@ -310,6 +310,9 @@ def _build_single_shooting_helpers(
                 helper_sources=helper_sources,
                 helper_nodes=helper_nodes,
                 max_workspace=max_workspace,
+                prioritize_expensive_workspace_nodes=(
+                    helper_name == stage_cost_joint_name
+                ),
             )
 
     if include_hvp:
@@ -464,6 +467,7 @@ def _append_generated_helper(
     helper_sources: list[str],
     helper_nodes: list[SXNode],
     max_workspace: int,
+    prioritize_expensive_workspace_nodes: bool = False,
 ) -> int:
     """Generate helper Rust and append it to the shared accumulators."""
     helper_codegen = _shared.generate_rust(
@@ -472,6 +476,7 @@ def _append_generated_helper(
         function_name=helper_name,
         function_index=0,
         shared_helper_nodes=(),
+        prioritize_expensive_workspace_nodes=prioritize_expensive_workspace_nodes,
         emit_crate_header=False,
         function_keyword="fn",
     )

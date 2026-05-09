@@ -124,8 +124,13 @@ def _allocate_workspace_slots(
     function,
     *,
     output_refs: tuple[SX, ...] | None = None,
+    prioritize_expensive_nodes: bool = False,
 ) -> tuple[dict[SXNode, int], int]:
-    """Assign reusable workspace slots based on each node's last use."""
+    """Assign reusable workspace slots based on each node's last use.
+
+    The allocator uses a small cost model so repeated expensive
+    expressions are more likely to be cached than repeated cheap ones.
+    """
     if output_refs is None:
         output_refs = tuple(
             scalar
@@ -140,7 +145,11 @@ def _allocate_workspace_slots(
         if (
             node.op not in {"symbol", "const"}
             and node in required_nodes
-            and use_counts.get(node, 0) > 1
+            and (
+                _should_materialize_node(node, use_counts.get(node, 0))
+                if prioritize_expensive_nodes
+                else use_counts.get(node, 0) > 1
+            )
         )
     ]
     if not workspace_nodes:
@@ -170,3 +179,74 @@ def _allocate_workspace_slots(
         workspace_map[node] = slot
 
     return workspace_map, next_slot
+
+
+def _should_materialize_node(node: SXNode, use_count: int) -> bool:
+    """Return whether a repeated node is worth caching in workspace."""
+    if use_count < 2:
+        return False
+    expr_cost = _estimate_node_cost(node)
+    materialization_cost = 2
+    return (use_count - 1) * expr_cost > materialization_cost
+
+
+def _estimate_node_cost(node: SXNode) -> int:
+    """Estimate the relative cost of recomputing ``node``."""
+    if node.op in {"symbol", "const"}:
+        return 0
+    if node.op in {"neg", "abs"}:
+        return 1
+    if node.op in {
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "min",
+        "max",
+        "sign",
+        "signum",
+        "floor",
+        "ceil",
+        "trunc",
+        "round",
+        "remainder",
+    }:
+        return 1
+    if node.op in {
+        "pow",
+        "sqrt",
+        "exp",
+        "log",
+        "log1p",
+        "expm1",
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
+        "sinh",
+        "cosh",
+        "tanh",
+        "asinh",
+        "acosh",
+        "atanh",
+        "atan2",
+        "hypot",
+        "norm2",
+        "norm2sq",
+        "sum",
+        "mean",
+        "prod",
+        "reduce_max",
+        "reduce_min",
+        "matvec",
+        "transpose_matvec",
+        "matvec_component",
+        "transpose_matvec_component",
+        "bilinear_form",
+        "quadform",
+        "cross",
+    }:
+        return 4
+    return 2

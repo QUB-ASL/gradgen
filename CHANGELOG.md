@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- The Rust workspace allocator now keeps repeated expensive
+  expressions, like trig and power terms, more readily than repeated
+  cheap ones so staged single-shooting helpers reuse more useful
+  temporaries.
 - Flattened single-shooting functions created with `to_function()` are
   now recognized again by the Rust builder and lowered through the
   staged single-shooting path instead of the generic function path

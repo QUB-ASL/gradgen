@@ -16,6 +16,7 @@ import gradgen
 import gradgen._rust_codegen.codegen as rust_codegen_module
 import gradgen.single_shooting as single_shooting_module
 from gradgen._rust_codegen.project_support import _gradgen_version
+from gradgen._rust_codegen.rendering import _allocate_workspace_slots
 from gradgen import (
     CodeGenerationBuilder,
     ComposedFunction,
@@ -1312,6 +1313,45 @@ mod single_shooting_joint_u_tests {{
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    def test_workspace_allocator_prefers_expensive_repeated_nodes(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 2)
+
+        cheap_shared = x[0] + x[1]
+        cheap_function = Function(
+            "cheap_shared",
+            [x],
+            [cheap_shared, cheap_shared],
+            input_names=["x"],
+            output_names=["y0", "y1"],
+        )
+        cheap_workspace_map, cheap_workspace_size = _allocate_workspace_slots(
+            cheap_function,
+            output_refs=tuple(cheap_function.flat_outputs),
+            prioritize_expensive_nodes=True,
+        )
+        self.assertEqual(cheap_workspace_size, 0)
+        self.assertEqual(cheap_workspace_map, {})
+
+        expensive_shared = (x[0] + x[1]).sin()
+        expensive_function = Function(
+            "expensive_shared",
+            [x],
+            [expensive_shared, expensive_shared],
+            input_names=["x"],
+            output_names=["y0", "y1"],
+        )
+        expensive_workspace_map, expensive_workspace_size = (
+            _allocate_workspace_slots(
+                expensive_function,
+                output_refs=tuple(expensive_function.flat_outputs),
+                prioritize_expensive_nodes=True,
+            )
+        )
+        self.assertEqual(expensive_workspace_size, 1)
+        self.assertEqual(len(expensive_workspace_map), 1)
 
     def test_flattened_single_shooting_joint_recovers_staged_lowering(
         self,
