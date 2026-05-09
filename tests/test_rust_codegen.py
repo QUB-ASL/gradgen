@@ -1313,6 +1313,43 @@ mod single_shooting_joint_u_tests {{
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
 
+    def test_flattened_single_shooting_joint_recovers_staged_lowering(
+        self,
+    ) -> None:
+        problem = self._build_single_shooting_problem(horizon=3)
+        flattened = problem.to_function()
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig().with_crate_name(
+                    "single_shooting_flattened_recovered"
+                )
+            )
+            .for_function(flattened)
+            .add_joint(
+                FunctionBundle().add_f().add_gradient(
+                    wrt=problem.control_sequence_name
+                )
+            )
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(
+                Path(tmpdir) / "single_shooting_flattened_recovered"
+            )
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("for stage_index in 0..3 {", lib_text)
+            self.assertIn("for stage_index in (1..3).rev() {", lib_text)
+            self.assertIn(
+                "packed control-sequence slice laid out stage-major",
+                lib_text,
+            )
+            self.assertIn("stage_cost_joint", lib_text)
+
     def test_include_states_rejected_for_non_ss_sources(self) -> None:
         x = SXVector.sym("x", 2)
         f = Function(

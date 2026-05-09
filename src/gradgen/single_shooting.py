@@ -792,6 +792,8 @@ class SingleShootingProblem:
             outputs,
             input_names=self.input_names,
             output_names=tuple(output_names),
+            single_shooting_problem=self,
+            single_shooting_include_states=include_states,
         )
         return _simplify_function(function, self.simplification)
 
@@ -821,6 +823,8 @@ class SingleShootingProblem:
             outputs,
             input_names=gradient_function.input_names,
             output_names=tuple(output_names),
+            single_shooting_problem=self,
+            single_shooting_include_states=include_states,
         )
 
     def _expanded_hvp_function(
@@ -849,6 +853,8 @@ class SingleShootingProblem:
             outputs,
             input_names=hvp_function.input_names,
             output_names=tuple(output_names),
+            single_shooting_problem=self,
+            single_shooting_include_states=include_states,
         )
 
     def _expanded_joint_function(
@@ -903,6 +909,8 @@ class SingleShootingProblem:
             outputs,
             input_names=input_names,
             output_names=tuple(output_names),
+            single_shooting_problem=self,
+            single_shooting_include_states=bundle.include_states,
         )
 
     def _compiled_inputs(self) -> tuple[FunctionArg, ...]:
@@ -949,6 +957,7 @@ class SingleShootingProblem:
             (self._stage_total_cost(x, u, p, penalty_weight),),
             input_names=input_names,
             output_names=stage_cost.output_names,
+            single_shooting_problem=self,
         )
 
     def terminal_total_cost_function(self) -> Function:
@@ -980,6 +989,7 @@ class SingleShootingProblem:
             (self._terminal_total_cost(x, p, penalty_weight),),
             input_names=input_names,
             output_names=terminal_cost.output_names,
+            single_shooting_problem=self,
         )
 
     def _stage_total_cost(

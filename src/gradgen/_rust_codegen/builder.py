@@ -579,6 +579,7 @@ def _resolve_builder_functions(
             _resolve_builder_base_function_request(
                 base_function,
                 request,
+                config=config,
                 crate_prefix=crate_prefix,
                 simplification=simplification,
                 include_base_name=include_base_name,
@@ -592,11 +593,27 @@ def _resolve_builder_base_function_request(
     base_function: Function,
     request: _BuilderRequest,
     *,
+    config: RustBuilderConfigLike,
     crate_prefix: str,
     simplification: int | str | None,
     include_base_name: bool,
 ) -> tuple[BuilderSource, ...]:
     """Expand one builder request for a plain symbolic function."""
+    recovered_request = _recover_single_shooting_builder_request(
+        base_function,
+        request,
+    )
+    if recovered_request is not None:
+        problem = getattr(base_function, "single_shooting_problem", None)
+        assert isinstance(problem, SingleShootingProblem)
+        return _resolve_builder_single_shooting_sources(
+            problem,
+            config,
+            (recovered_request,),
+            simplification,
+            include_base_name=include_base_name,
+            function_name=base_function.name,
+        )
     if request.kind == "primal":
         if request.components:
             raise ValueError(
@@ -738,6 +755,113 @@ def _resolve_builder_base_function_request(
             for index, block in enumerate(base_function.hvp_blocks())
         )
     raise ValueError(f"unsupported builder request kind {request.kind!r}")
+
+
+def _recover_single_shooting_builder_request(
+    base_function: Function,
+    request: _BuilderRequest,
+) -> _BuilderRequest | None:
+    """Recover staged single-shooting lowering from a flattened function."""
+    problem = getattr(base_function, "single_shooting_problem", None)
+    if not isinstance(problem, SingleShootingProblem):
+        return None
+
+    include_states = bool(
+        getattr(base_function, "single_shooting_include_states", False)
+    )
+    if include_states:
+        return None
+
+    if request.kind == "primal":
+        if request.components:
+            return None
+        return _BuilderRequest(kind="primal")
+
+    if request.kind == "gradient":
+        if request.components:
+            return None
+        if request.wrt_targets is not None:
+            indices = _resolve_wrt_targets_to_indices(
+                request.wrt_targets,
+                base_function.input_names,
+            )
+            control_index = base_function.input_names.index(
+                problem.control_sequence_name
+            )
+            if indices != (control_index,):
+                return None
+        return _BuilderRequest(kind="gradient")
+
+    if request.kind == "hvp":
+        if request.components:
+            return None
+        if request.wrt_targets is not None:
+            indices = _resolve_wrt_targets_to_indices(
+                request.wrt_targets,
+                base_function.input_names,
+            )
+            control_index = base_function.input_names.index(
+                problem.control_sequence_name
+            )
+            if indices != (control_index,):
+                return None
+        return _BuilderRequest(kind="hvp")
+
+    if request.kind == "joint":
+        if request.bundle is None or not isinstance(
+            request.bundle, FunctionBundle
+        ):
+            return None
+        translated_bundle = _translate_function_bundle_to_single_shooting(
+            base_function,
+            request.bundle,
+            problem.control_sequence_name,
+        )
+        if translated_bundle is None:
+            return None
+        return _BuilderRequest(kind="joint", bundle=translated_bundle)
+
+    return None
+
+
+def _translate_function_bundle_to_single_shooting(
+    base_function: Function,
+    bundle: FunctionBundle,
+    control_sequence_name: str,
+) -> SingleShootingBundle | None:
+    """Translate a generic joint bundle to a staged single-shooting bundle."""
+    has_primal = any(item.kind == "f" for item in bundle.items)
+    has_derivative = any(item.kind != "f" for item in bundle.items)
+    if has_primal and not has_derivative:
+        return SingleShootingBundle().add_cost()
+
+    resolved_bundle = _resolve_function_bundle(
+        bundle,
+        len(base_function.inputs),
+        base_function.input_names,
+    )
+    control_index = base_function.input_names.index(control_sequence_name)
+    single_shooting_bundle = SingleShootingBundle()
+    saw_component = False
+
+    for index, components in resolved_bundle:
+        if index != control_index:
+            return None
+        if any(component not in {"f", "grad", "hvp"} for component in components):
+            return None
+        if "f" in components:
+            single_shooting_bundle = single_shooting_bundle.add_cost()
+            saw_component = True
+        if "grad" in components:
+            single_shooting_bundle = single_shooting_bundle.add_gradient()
+            saw_component = True
+        if "hvp" in components:
+            single_shooting_bundle = single_shooting_bundle.add_hvp()
+            saw_component = True
+
+    if not saw_component:
+        return None
+    return single_shooting_bundle
 
 
 def _resolve_builder_composed_sources(
@@ -1163,25 +1287,13 @@ def _resolve_builder_single_shooting_sources(
 def _apply_builder_base_name(function: Function, function_name: str | None) -> Function:
     if function_name is None or function_name == function.name:
         return function
-    return Function(
-        function_name,
-        function.inputs,
-        function.outputs,
-        input_names=function.input_names,
-        output_names=function.output_names,
-    )
+    return replace(function, name=function_name)
 
 
 def _rename_generated_function(function: Function, name: str) -> Function:
     if function.name == name:
         return function
-    return Function(
-        name,
-        function.inputs,
-        function.outputs,
-        input_names=function.input_names,
-        output_names=function.output_names,
-    )
+    return replace(function, name=name)
 
 
 def _rename_builder_source(

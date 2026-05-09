@@ -27,6 +27,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Flattened single-shooting functions created with `to_function()` are
+  now recognized again by the Rust builder and lowered through the
+  staged single-shooting path instead of the generic function path
+  when the requested outputs match the control-sequence cost and
+  gradient.
 - The single-shooting benchmark now generates and times one joint
   cost-plus-gradient kernel instead of two separate calls.
 - The single-shooting benchmark table now labels the runtime columns in
