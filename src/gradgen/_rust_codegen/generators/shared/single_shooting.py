@@ -6,7 +6,7 @@ from ...models import _ArgSpec, _SingleShootingHelperBundle
 from ...naming import sanitize_ident
 from .common import _build_directional_derivative_function
 from ....function import Function
-from ....sx import SXNode
+from ....sx import SXNode, vector
 from .. import shared as _shared
 
 
@@ -211,27 +211,36 @@ def _build_single_shooting_helpers(
                 simplification,
             )
             if include_cost:
-                stage_cost_grad_x_name = sanitize_ident(
-                    f"{helper_base_name}_stage_cost_grad_x"
-                )
-                stage_cost_grad_u_name = sanitize_ident(
-                    f"{helper_base_name}_stage_cost_grad_u"
-                )
                 stage_cost_joint_name = sanitize_ident(
                     f"{helper_base_name}_stage_cost_joint"
                 )
-                stage_cost_grad_x_function = (
-                    _shared._maybe_simplify_derivative_function(
-                        stage_total_cost.gradient(
-                            0, name=stage_cost_grad_x_name
-                        ),
-                        simplification,
-                    )
+                stage_cost_joint_source_name = sanitize_ident(
+                    f"{stage_cost_joint_name}_combined"
                 )
-                stage_cost_grad_u_function = (
+                combined_stage_inputs = (
+                    vector(
+                        (
+                            *stage_total_cost.inputs[0],
+                            *stage_total_cost.inputs[1],
+                        )
+                    ),
+                    *stage_total_cost.inputs[2:],
+                )
+                combined_stage_input_names = (
+                    f"{helper_base_name}_xu",
+                    *stage_total_cost.input_names[2:],
+                )
+                stage_cost_joint_source = Function(
+                    stage_cost_joint_source_name,
+                    combined_stage_inputs,
+                    (stage_total_cost.outputs[0],),
+                    input_names=combined_stage_input_names,
+                    output_names=("ell",),
+                )
+                stage_cost_joint_gradient = (
                     _shared._maybe_simplify_derivative_function(
-                        stage_total_cost.gradient(
-                            1, name=stage_cost_grad_u_name
+                        stage_cost_joint_source.gradient(
+                            0, name=f"{stage_cost_joint_name}_gradient"
                         ),
                         simplification,
                     )
@@ -240,14 +249,14 @@ def _build_single_shooting_helpers(
                     _shared._maybe_simplify_derivative_function(
                         Function(
                             stage_cost_joint_name,
-                            stage_cost_grad_x_function.inputs,
+                            stage_total_cost.inputs,
                             (
                                 stage_total_cost.outputs[0],
-                                stage_cost_grad_x_function.outputs[0],
-                                stage_cost_grad_u_function.outputs[0],
+                                stage_cost_joint_gradient.outputs[0],
+                                dynamics.outputs[0],
                             ),
-                            input_names=stage_cost_grad_x_function.input_names,
-                            output_names=("ell", "grad_x", "grad_u"),
+                            input_names=stage_total_cost.input_names,
+                            output_names=("ell", "grad_xu", "x_next"),
                         ),
                         simplification,
                     )

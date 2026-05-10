@@ -1252,7 +1252,9 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("stage_cost_joint", lib_text)
+            self.assertIn("grad_xu", lib_text)
             self.assertNotIn("stage_cost_grad(", lib_text)
+            self.assertNotIn("stage_cost_grad_u(", lib_text)
 
             expected_cost_literal = self._rust_array_literal(
                 [expected_cost], "f64"

@@ -38,6 +38,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   gradient.
 - The single-shooting benchmark now generates and times one joint
   cost-plus-gradient kernel instead of two separate calls.
+- The staged single-shooting cost-and-gradient helper now computes the
+  state and control gradients together in one pass, then splits them in
+  the driver to reduce repeated reverse-mode work.
 - The single-shooting benchmark table now labels the runtime columns in
   microseconds to match the reported values.
 - The staged single-shooting cost-plus-gradient kernel now computes
@@ -86,6 +89,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - The single-shooting HVP generator now skips emitting unused helper
   functions when the kernel only needs the directional-derivative
   variants, which keeps Clippy happy for the generated demo crates.
+- The single-shooting cost-plus-gradient stage helper now also emits
+  the next state, so the benchmarked staged rollout can do more work in
+  one call per stage.
 
 
 ## 0.5.2 - 08-05-2025

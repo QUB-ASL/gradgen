@@ -304,7 +304,9 @@ def _build_single_shooting_driver_result(
         else ((horizon * state_size) if need_history else 0)
     )
     stage_gradient_history_size = (
-        horizon * state_size if use_joint_stage_cost else 0
+        horizon * (state_size + control_size)
+        if use_joint_stage_cost
+        else 0
     )
     tangent_history_size = (horizon * state_size) if include_hvp else 0
     state_buffer_size = 2 * state_size
@@ -418,9 +420,8 @@ def _build_single_shooting_driver_result(
         if use_joint_stage_cost:
             for_lines.extend(
                 [
-                    f"    let stage_grad_x_t = &mut stage_gradient_history[(stage_index * {state_size})..((stage_index + 1) * {state_size})];",
-                    f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
-                    f"    {helpers.stage_cost_joint_name}(current_state, u_t, {p_name}{runtime_weight_arg}, scalar_buffer, stage_grad_x_t, grad_u_t, stage_work);",
+                    f"    let stage_grad_xu_t = &mut stage_gradient_history[(stage_index * {state_size + control_size})..((stage_index + 1) * {state_size + control_size})];",
+                    f"    {helpers.stage_cost_joint_name}(current_state, u_t, {p_name}{runtime_weight_arg}, scalar_buffer, stage_grad_xu_t, next_state, stage_work);",
                     "    total_cost += scalar_buffer[0];",
                 ]
             )
@@ -431,11 +432,10 @@ def _build_single_shooting_driver_result(
                     "    total_cost += scalar_buffer[0];",
                 ]
             )
-    for_lines.extend(
-        [
-            f"    {helpers.dynamics_name}(current_state, u_t, {p_name}, next_state, stage_work);",
-        ]
-    )
+    if not use_joint_stage_cost:
+        for_lines.append(
+            f"    {helpers.dynamics_name}(current_state, u_t, {p_name}, next_state, stage_work);"
+        )
     if include_hvp:
         for_lines.append(
             f"    {helpers.dynamics_jvp_name}(current_state, u_t, {p_name}, current_tangent, v_u_t, next_tangent, stage_work);"
@@ -499,12 +499,17 @@ def _build_single_shooting_driver_result(
             if use_joint_stage_cost:
                 computation_lines.extend(
                     [
-                        f"    let grad_x_t = &stage_gradient_history[(stage_index * {state_size})..((stage_index + 1) * {state_size})];",
+                        f"    let stage_grad_xu_t = &stage_gradient_history[(stage_index * {state_size + control_size})..((stage_index + 1) * {state_size + control_size})];",
+                        f"    let grad_x_t = &stage_grad_xu_t[0..{state_size}];",
                         f"    let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('stage_index', control_size)}];",
                     ]
                 )
                 computation_lines.append(
                     "    lambda_next.copy_from_slice(grad_x_t);"
+                )
+                computation_lines.append(
+                    "    grad_u_t.copy_from_slice(&stage_grad_xu_t["
+                    f"{state_size}..{state_size + control_size}]);"
                 )
                 computation_lines.extend(
                     [
@@ -604,12 +609,17 @@ def _build_single_shooting_driver_result(
             if use_joint_stage_cost:
                 computation_lines.extend(
                     [
-                        f"let grad_x_t = &stage_gradient_history[0..{state_size}];",
+                        f"let stage_grad_xu_t = &stage_gradient_history[0..{state_size + control_size}];",
+                        f"let grad_x_t = &stage_grad_xu_t[0..{state_size}];",
                         f"let grad_u_t = &mut {gradient_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
                     ]
                 )
                 computation_lines.append(
                     "lambda_next.copy_from_slice(grad_x_t);"
+                )
+                computation_lines.append(
+                    "grad_u_t.copy_from_slice(&stage_grad_xu_t["
+                    f"{state_size}..{state_size + control_size}]);"
                 )
                 computation_lines.extend(
                     [
