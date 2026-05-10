@@ -744,43 +744,6 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(
     vjp_x[1] += cotangent_x_next[1];
 }
 
-/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_dynamics_vjp_u`.
-///
-/// All numeric slices use the `f64` scalar type.
-///
-/// Arguments:
-/// - `_x`:
-///   input slice for the declared argument `x`
-///   Expected length: 2.
-/// - `_u`:
-///   input slice for the declared argument `u`
-///   Expected length: 1.
-/// - `p`:
-///   input slice for the declared argument `p`
-///   Expected length: 2.
-/// - `cotangent_x_next`:
-///   cotangent seed associated with declared result `x_next`; use this
-///   slice when forming Jacobian-transpose-vector or reverse-mode
-///   sensitivity terms
-///   Expected length: 2.
-/// - `vjp_u`:
-///   output slice receiving the vector-Jacobian product for declared
-///   input `u`
-///   Expected length: 1.
-/// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 0.
-fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(
-    _x: &[f64],
-    _u: &[f64],
-    p: &[f64],
-    cotangent_x_next: &[f64],
-    vjp_u: &mut [f64],
-    _work: &mut [f64],
-) {
-    vjp_u[0] = cotangent_x_next[1] * p[1];
-    vjp_u[0] += cotangent_x_next[0];
-}
-
 /// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost_grad_x`.
 ///
 /// All numeric slices use the `f64` scalar type.
@@ -809,36 +772,6 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(
 ) {
     ell[0] = 2.0_f64 * x[0];
     ell[1] = 4.0_f64 * x[1];
-}
-
-/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost_grad_u`.
-///
-/// All numeric slices use the `f64` scalar type.
-///
-/// Arguments:
-/// - `_x`:
-///   input slice for the declared argument `x`
-///   Expected length: 2.
-/// - `u`:
-///   input slice for the declared argument `u`
-///   Expected length: 1.
-/// - `p`:
-///   input slice for the declared argument `p`
-///   Expected length: 2.
-/// - `ell`:
-///   primal output slice for the declared result `ell`
-///   Expected length: 1.
-/// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 0.
-fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(
-    _x: &[f64],
-    u: &[f64],
-    p: &[f64],
-    ell: &mut [f64],
-    _work: &mut [f64],
-) {
-    ell[0] = 0.6_f64 * u[0];
-    ell[0] += p[0];
 }
 
 /// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp`.

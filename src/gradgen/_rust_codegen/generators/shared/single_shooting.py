@@ -124,38 +124,60 @@ def _build_single_shooting_helpers(
             stage_cost_grad_u_name = sanitize_ident(
                 f"{helper_base_name}_stage_cost_grad_u"
             )
-
-            helper_functions = (
-                _shared._maybe_simplify_derivative_function(
-                    dynamics.vjp(wrt_index=0, name=dynamics_vjp_x_name),
-                    simplification,
-                ),
-                _shared._maybe_simplify_derivative_function(
-                    dynamics.vjp(wrt_index=1, name=dynamics_vjp_u_name),
-                    simplification,
-                ),
+            dynamics_vjp_x_function = _shared._maybe_simplify_derivative_function(
+                dynamics.vjp(wrt_index=0, name=dynamics_vjp_x_name),
+                simplification,
+            )
+            dynamics_vjp_u_function = _shared._maybe_simplify_derivative_function(
+                dynamics.vjp(wrt_index=1, name=dynamics_vjp_u_name),
+                simplification,
+            )
+            stage_cost_grad_x_function = (
                 _shared._maybe_simplify_derivative_function(
                     stage_total_cost.gradient(0, name=stage_cost_grad_x_name),
                     simplification,
-                ),
+                )
+            )
+            stage_cost_grad_u_function = (
                 _shared._maybe_simplify_derivative_function(
                     stage_total_cost.gradient(1, name=stage_cost_grad_u_name),
                     simplification,
-                ),
+                )
+            )
+            terminal_cost_grad_x_function = (
                 _shared._maybe_simplify_derivative_function(
                     terminal_total_cost.gradient(
                         0, name=terminal_cost_grad_x_name
                     ),
                     simplification,
-                ),
+                )
             )
-            helper_names = (
-                dynamics_vjp_x_name,
-                dynamics_vjp_u_name,
-                stage_cost_grad_x_name,
-                stage_cost_grad_u_name,
-                terminal_cost_grad_x_name,
-            )
+            if include_gradient:
+                helper_functions = (
+                    dynamics_vjp_x_function,
+                    dynamics_vjp_u_function,
+                    stage_cost_grad_x_function,
+                    stage_cost_grad_u_function,
+                    terminal_cost_grad_x_function,
+                )
+                helper_names = (
+                    dynamics_vjp_x_name,
+                    dynamics_vjp_u_name,
+                    stage_cost_grad_x_name,
+                    stage_cost_grad_u_name,
+                    terminal_cost_grad_x_name,
+                )
+            else:
+                helper_functions = (
+                    dynamics_vjp_x_function,
+                    stage_cost_grad_x_function,
+                    terminal_cost_grad_x_function,
+                )
+                helper_names = (
+                    dynamics_vjp_x_name,
+                    stage_cost_grad_x_name,
+                    terminal_cost_grad_x_name,
+                )
         else:
             dynamics_vjp_name = sanitize_ident(
                 f"{helper_base_name}_dynamics_vjp"
@@ -330,35 +352,6 @@ def _build_single_shooting_helpers(
         )
         terminal_cost_grad_x_jvp_name = sanitize_ident(
             f"{helper_base_name}_terminal_cost_grad_x_jvp"
-        )
-
-        dynamics_vjp_x_function = _shared._maybe_simplify_derivative_function(
-            dynamics.vjp(wrt_index=0, name=dynamics_vjp_x_name),
-            simplification,
-        )
-        dynamics_vjp_u_function = _shared._maybe_simplify_derivative_function(
-            dynamics.vjp(wrt_index=1, name=dynamics_vjp_u_name),
-            simplification,
-        )
-        stage_cost_grad_x_function = (
-            _shared._maybe_simplify_derivative_function(
-                stage_total_cost.gradient(0, name=stage_cost_grad_x_name),
-                simplification,
-            )
-        )
-        stage_cost_grad_u_function = (
-            _shared._maybe_simplify_derivative_function(
-                stage_total_cost.gradient(1, name=stage_cost_grad_u_name),
-                simplification,
-            )
-        )
-        terminal_cost_grad_x_function = (
-            _shared._maybe_simplify_derivative_function(
-                terminal_total_cost.gradient(
-                    0, name=terminal_cost_grad_x_name
-                ),
-                simplification,
-            )
         )
 
         hvp_helper_functions = (

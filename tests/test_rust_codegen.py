@@ -680,6 +680,14 @@ mod {module_name} {{
             )
             self.assertNotIn("0..(0 + 1)", lib_text)
             self.assertNotIn("(0 * 1)..((0 + 1) * 1)", lib_text)
+            self.assertNotIn(
+                "fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(",
+                hvp_codegen.source,
+            )
+            self.assertNotIn(
+                "fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(",
+                hvp_codegen.source,
+            )
 
             expected_cost_literal = self._rust_array_literal(
                 [expected_cost], "f64"

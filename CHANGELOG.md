@@ -83,6 +83,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - The single-shooting benchmark now writes its Cargo build settings
   directly, which avoids a missing template lookup in GitHub Actions
   and keeps the benchmark demo runnable in CI.
+- The single-shooting HVP generator now skips emitting unused helper
+  functions when the kernel only needs the directional-derivative
+  variants, which keeps Clippy happy for the generated demo crates.
 
 
 ## 0.5.2 - 08-05-2025
