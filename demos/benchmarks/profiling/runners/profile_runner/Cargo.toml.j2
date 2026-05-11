@@ -1,0 +1,11 @@
+[package]
+name = "{{ package_name }}"
+version = "0.1.0"
+edition = "2021"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[dependencies]
+{{ generated_crate_name }} = { path = "../{{ generated_crate_path }}" }

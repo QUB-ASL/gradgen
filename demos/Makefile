@@ -1,11 +1,13 @@
-.PHONY: all codegen custom_function squared_distance_to_set squared_distance_to_set_rust_only multi_function vjp map_zip zip_3 reduce_map composed_function composed_chain single_shooting single_shooting_penalty python_interface soc help
+.PHONY: all codegen custom_function squared_distance_to_set squared_distance_to_set_rust_only multi_function vjp map_zip zip_3 reduce_map composed_function composed_chain single_shooting single_shooting_penalty python_interface soc benchmarks profiling nonlinear_system help
 
 PYTHON ?= python
 REPEATS ?= 5
 HORIZON ?= 5
 COUNT ?= 3
+PROFILE_HORIZON ?= 10
+PROFILE_NUM_RUNS ?= 1
 
-all: codegen custom_function squared_distance_to_set squared_distance_to_set_rust_only multi_function vjp map_zip zip_3 reduce_map composed_function composed_chain single_shooting single_shooting_penalty python_interface soc
+all: codegen custom_function squared_distance_to_set squared_distance_to_set_rust_only multi_function vjp map_zip zip_3 reduce_map composed_function composed_chain single_shooting single_shooting_penalty python_interface soc benchmarks
 
 help:
 	@echo "Available targets:"
@@ -25,6 +27,9 @@ help:
 	@echo "  make single_shooting_penalty HORIZON=$(HORIZON)"
 	@echo "  make python_interface"
 	@echo "  make soc"
+	@echo "  make benchmarks"
+	@echo "  make profiling PROFILE_HORIZON=$(PROFILE_HORIZON) PROFILE_NUM_RUNS=$(PROFILE_NUM_RUNS)"
+	@echo "  make nonlinear_system"
 
 codegen:
 	$(PYTHON) codegen/main.py
@@ -70,3 +75,14 @@ python_interface:
 
 soc:
 	$(PYTHON) soc/main.py
+
+benchmarks:
+	$(PYTHON) benchmarks/single_shooting/main.py
+	$(PYTHON) benchmarks/profiling/main.py --horizon $(PROFILE_HORIZON) --num-runs $(PROFILE_NUM_RUNS)
+	$(PYTHON) benchmarks/nonlinear_system/main.py
+
+profiling:
+	$(PYTHON) benchmarks/profiling/main.py --horizon $(PROFILE_HORIZON) --num-runs $(PROFILE_NUM_RUNS)
+
+nonlinear_system:
+	$(PYTHON) benchmarks/nonlinear_system/main.py

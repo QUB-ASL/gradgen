@@ -1,10 +1,18 @@
 #![no_std]
 #![forbid(unsafe_code)]
+#![forbid(missing_docs)]
+//!
+//! Generated Rust kernels emitted by gradgen.
 
+/// Errors returned by generated Rust kernels when their input slices,
+/// output slices, or workspace slice are too small.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GradgenError {
+    /// The mutable workspace slice was smaller than required.
     WorkspaceTooSmall(&'static str),
+    /// An input slice was smaller than required.
     InputTooSmall(&'static str),
+    /// An output slice was smaller than required.
     OutputTooSmall(&'static str),
 }
 
@@ -32,7 +40,7 @@ pub struct FunctionMetadata {
 pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_penalty_kernel_penalized_mpc_cost_f_states",
-        workspace_size: 8,
+        workspace_size: 5,
         input_names: &["x0", "u_seq", "p", "c"],
         input_sizes: &[2, 5, 2, 1],
         output_names: &["cost", "x_traj"],
@@ -64,7 +72,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states_meta() -> Func
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 8.
+///   while evaluating this kernel. Expected length: at least 5.
 pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states(
     x0: &[f64],
     u_seq: &[f64],
@@ -74,8 +82,8 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 8 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 8"));
+    if work.len() < 5 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 5"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -137,70 +145,109 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_states(
     Ok(())
 }
 
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_dynamics`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `x_next`:
+///   primal output slice for the declared result `x_next`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
 fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics(
     x: &[f64],
     u: &[f64],
     p: &[f64],
     x_next: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) {
-    work[0] = p[0] * x[1];
-    work[0] += x[0];
-    work[0] += u[0];
-    work[1] = p[1] * u[0];
-    work[1] += x[1];
-    work[2] = 0.5_f64 * x[0];
-    work[2] = -work[2];
-    work[1] += work[2];
-    x_next[0] = work[0];
-    x_next[1] = work[1];
+    x_next[0] = p[0] * x[1];
+    x_next[0] += x[0];
+    x_next[0] += u[0];
+    x_next[1] = p[1] * u[0];
+    x_next[1] += x[1];
+    x_next[1] -= 0.5_f64 * x[0];
 }
 
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `vf`:
+///   primal output slice for the declared result `vf`
+///   Expected length: 1.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost(
+    x: &[f64],
+    p: &[f64],
+    c: &[f64],
+    vf: &mut [f64],
+    _work: &mut [f64],
+) {
+    vf[0] = (0.5_f64
+        * ((libm::fmax(0.0_f64, -1.0_f64 + ((-p[0]) + (norm2sq(x)))))
+            * (libm::fmax(0.0_f64, -1.0_f64 + ((-p[0]) + (norm2sq(x)))))))
+        * c[0];
+}
+
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `ell`:
+///   primal output slice for the declared result `ell`
+///   Expected length: 1.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
 fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost(
     x: &[f64],
     u: &[f64],
     p: &[f64],
     c: &[f64],
     ell: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) {
-    work[0] = x[1] * x[1];
-    work[0] *= 0.5_f64;
-    work[1] = x[0] * x[0];
-    work[0] += work[1];
-    work[1] = u[0] * u[0];
-    work[1] *= 0.1_f64;
-    work[0] += work[1];
-    work[1] = u[0] + x[0];
-    work[2] = -p[0];
-    work[1] += work[2];
-    work[1] = work[1] * work[1];
-    work[2] = -p[1];
-    work[2] += x[1];
-    work[2] = work[2] * work[2];
-    work[1] += work[2];
-    work[1] *= c[0];
-    work[1] *= 0.5_f64;
-    work[0] += work[1];
-    ell[0] = work[0];
-}
-
-fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost(
-    x: &[f64],
-    p: &[f64],
-    c: &[f64],
-    vf: &mut [f64],
-    work: &mut [f64],
-) {
-    work[0] = -p[0];
-    work[1] = norm2sq(x);
-    work[0] += work[1];
-    work[0] += -1.0_f64;
-    work[0] = libm::fmax(0.0_f64, work[0]);
-    work[0] = work[0] * work[0];
-    work[0] *= 0.5_f64;
-    work[0] *= c[0];
-    vf[0] = work[0];
+    ell[0] = 0.5_f64 * (x[1] * x[1]);
+    ell[0] += x[0] * x[0];
+    ell[0] += 0.1_f64 * (u[0] * u[0]);
+    ell[0] += 0.5_f64
+        * (((((u[0] + x[0]) + (-p[0])) * ((u[0] + x[0]) + (-p[0])))
+            + (((-p[1]) + x[1]) * ((-p[1]) + x[1])))
+            * c[0]);
 }
 
 /// Return metadata describing [`single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq`].
@@ -208,7 +255,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq_meta(
 {
     FunctionMetadata {
         function_name: "single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq",
-        workspace_size: 14,
+        workspace_size: 12,
         input_names: &["x0", "u_seq", "p", "c"],
         input_sizes: &[2, 5, 2, 1],
         output_names: &["gradient_u_seq", "x_traj"],
@@ -240,7 +287,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq_meta(
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 14.
+///   while evaluating this kernel. Expected length: at least 12.
 pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
@@ -250,8 +297,8 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 14 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 14"));
+    if work.len() < 12 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 12"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -309,123 +356,159 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq(
         let x_t = &state_history[((stage_index - 1) * 2)..(stage_index * 2)];
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         let grad_u_t = &mut gradient_u_seq[stage_index..(stage_index + 1)];
-        single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
-            x_t, u_t, p, c, grad_u_t, stage_work,
-        );
-        single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u(
-            x_t,
-            u_t,
-            p,
-            &lambda_current[..],
-            temp_control,
-            stage_work,
-        );
-        grad_u_t[0] += temp_control[0];
-        single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x(
+        single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad(
             x_t,
             u_t,
             p,
             c,
             lambda_next,
+            grad_u_t,
             stage_work,
         );
-        single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_x(
+        single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp(
             x_t,
             u_t,
             p,
             &lambda_current[..],
             temp_state,
+            temp_control,
             stage_work,
         );
         lambda_next[0] += temp_state[0];
         lambda_next[1] += temp_state[1];
+        grad_u_t[0] += temp_control[0];
         lambda_current.copy_from_slice(lambda_next);
     }
     let u_t = &u_seq[0..1];
     let grad_u_t = &mut gradient_u_seq[0..1];
-    single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
-        x0, u_t, p, c, grad_u_t, stage_work,
+    single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad(
+        x0, u_t, p, c, temp_state, grad_u_t, stage_work,
     );
-    single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u(
+    single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp(
         x0,
         u_t,
         p,
         &lambda_current[..],
+        temp_state,
         temp_control,
         stage_work,
     );
+    lambda_next[0] += temp_state[0];
+    lambda_next[1] += temp_state[1];
     grad_u_t[0] += temp_control[0];
     Ok(())
 }
 
-fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_x(
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `_x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `_u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `cotangent_x_next`:
+///   cotangent seed associated with declared result `x_next`; use this
+///   slice when forming Jacobian-transpose-vector or reverse-mode
+///   sensitivity terms
+///   Expected length: 2.
+/// - `vjp_x`:
+///   output slice receiving the vector-Jacobian product for declared
+///   input `x`
+///   Expected length: 2.
+/// - `vjp_u`:
+///   output slice receiving the vector-Jacobian product for declared
+///   input `u`
+///   Expected length: 1.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
+fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp(
     _x: &[f64],
     _u: &[f64],
     p: &[f64],
     cotangent_x_next: &[f64],
     vjp_x: &mut [f64],
-    work: &mut [f64],
-) {
-    work[0] = -0.5_f64 * cotangent_x_next[1];
-    work[0] += cotangent_x_next[0];
-    work[1] = cotangent_x_next[0] * p[0];
-    work[1] += cotangent_x_next[1];
-    vjp_x[0] = work[0];
-    vjp_x[1] = work[1];
-}
-
-fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u(
-    _x: &[f64],
-    _u: &[f64],
-    p: &[f64],
-    cotangent_x_next: &[f64],
     vjp_u: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) {
-    work[0] = cotangent_x_next[1] * p[1];
-    work[0] += cotangent_x_next[0];
-    vjp_u[0] = work[0];
+    vjp_x[0] = -0.5_f64 * cotangent_x_next[1];
+    vjp_x[0] += cotangent_x_next[0];
+    vjp_x[1] = cotangent_x_next[0] * p[0];
+    vjp_x[1] += cotangent_x_next[1];
+    vjp_u[0] = cotangent_x_next[1] * p[1];
+    vjp_u[0] += cotangent_x_next[0];
 }
 
-fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x(
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `grad_x`:
+///   primal output slice for the declared result `grad_x`
+///   Expected length: 2.
+/// - `grad_u`:
+///   primal output slice for the declared result `grad_u`
+///   Expected length: 1.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
+fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad(
     x: &[f64],
     u: &[f64],
     p: &[f64],
     c: &[f64],
-    ell: &mut [f64],
-    work: &mut [f64],
+    grad_x: &mut [f64],
+    grad_u: &mut [f64],
+    _work: &mut [f64],
 ) {
-    work[0] = 2.0_f64 * x[0];
-    work[1] = u[0] + x[0];
-    work[2] = -p[0];
-    work[1] += work[2];
-    work[1] *= c[0];
-    work[0] += work[1];
-    work[1] = -p[1];
-    work[1] += x[1];
-    work[1] *= c[0];
-    work[1] += x[1];
-    ell[0] = work[0];
-    ell[1] = work[1];
+    grad_x[0] = 2.0_f64 * x[0];
+    grad_x[0] += ((u[0] + x[0]) + (-p[0])) * c[0];
+    grad_x[1] = ((-p[1]) + x[1]) * c[0];
+    grad_x[1] += x[1];
+    grad_u[0] = 0.2_f64 * u[0];
+    grad_u[0] += ((u[0] + x[0]) + (-p[0])) * c[0];
 }
 
-fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
-    x: &[f64],
-    u: &[f64],
-    p: &[f64],
-    c: &[f64],
-    ell: &mut [f64],
-    work: &mut [f64],
-) {
-    work[0] = 0.2_f64 * u[0];
-    work[1] = u[0] + x[0];
-    work[2] = -p[0];
-    work[1] += work[2];
-    work[1] *= c[0];
-    work[0] += work[1];
-    ell[0] = work[0];
-}
-
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `vf`:
+///   primal output slice for the declared result `vf`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 1.
+#[inline(always)]
 fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x(
     x: &[f64],
     p: &[f64],
@@ -433,27 +516,29 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x(
     vf: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = -p[0];
-    work[1] = norm2sq(x);
-    work[0] += work[1];
-    work[0] += -1.0_f64;
-    work[1] = -work[0];
-    work[1] = if work[1] > 0.0_f64 {
-        1.0_f64
-    } else if work[1] < 0.0_f64 {
-        -1.0_f64
-    } else {
-        0.0_f64
-    };
-    work[1] = -work[1];
-    work[1] += 1.0_f64;
-    work[0] = libm::fmax(0.0_f64, work[0]);
-    work[0] *= work[1];
-    work[0] *= c[0];
-    work[1] = work[0] * x[0];
-    work[0] *= x[1];
-    vf[0] = work[1];
-    vf[1] = work[0];
+    work[0] = norm2sq(x);
+    vf[0] = (((1.0_f64
+        + (-(if -(-1.0_f64 + ((-p[0]) + (work[0]))) > 0.0_f64 {
+            1.0_f64
+        } else if -(-1.0_f64 + ((-p[0]) + (work[0]))) < 0.0_f64 {
+            -1.0_f64
+        } else {
+            0.0_f64
+        })))
+        * (libm::fmax(0.0_f64, -1.0_f64 + ((-p[0]) + (work[0])))))
+        * c[0])
+        * x[0];
+    vf[1] = (((1.0_f64
+        + (-(if -(-1.0_f64 + ((-p[0]) + (work[0]))) > 0.0_f64 {
+            1.0_f64
+        } else if -(-1.0_f64 + ((-p[0]) + (work[0]))) < 0.0_f64 {
+            -1.0_f64
+        } else {
+            0.0_f64
+        })))
+        * (libm::fmax(0.0_f64, -1.0_f64 + ((-p[0]) + (work[0])))))
+        * c[0])
+        * x[1];
 }
 
 /// Return metadata describing [`single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq`].
@@ -461,7 +546,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq_meta()
 {
     FunctionMetadata {
         function_name: "single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq",
-        workspace_size: 33,
+        workspace_size: 34,
         input_names: &["x0", "u_seq", "p", "c", "v_u_seq"],
         input_sizes: &[2, 5, 2, 1, 5],
         output_names: &["hvp_u_seq", "x_traj"],
@@ -496,7 +581,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq_meta()
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 33.
+///   while evaluating this kernel. Expected length: at least 34.
 #[allow(clippy::too_many_arguments)]
 pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
     x0: &[f64],
@@ -508,8 +593,8 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 33 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 33"));
+    if work.len() < 34 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 34"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -691,6 +776,31 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq(
     Ok(())
 }
 
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_jvp`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `_x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `_u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `tangent_x`:
+///   input slice for the declared argument `tangent_x`
+///   Expected length: 2.
+/// - `tangent_u`:
+///   input slice for the declared argument `tangent_u`
+///   Expected length: 1.
+/// - `x_next`:
+///   primal output slice for the declared result `x_next`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
 fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_jvp(
     _x: &[f64],
     _u: &[f64],
@@ -698,21 +808,129 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_jvp(
     tangent_x: &[f64],
     tangent_u: &[f64],
     x_next: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) {
-    work[0] = p[0] * tangent_x[1];
-    work[0] += tangent_x[0];
-    work[0] += tangent_u[0];
-    work[1] = 0.5_f64 * tangent_x[0];
-    work[1] = -work[1];
-    work[1] += tangent_x[1];
-    work[2] = p[1] * tangent_u[0];
-    work[1] += work[2];
-    x_next[0] = work[0];
-    x_next[1] = work[1];
+    x_next[0] = p[0] * tangent_x[1];
+    x_next[0] += tangent_x[0];
+    x_next[0] += tangent_u[0];
+    x_next[1] = -0.5_f64 * tangent_x[0];
+    x_next[1] += tangent_x[1];
+    x_next[1] += p[1] * tangent_u[0];
 }
 
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_x`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `_x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `_u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `cotangent_x_next`:
+///   cotangent seed associated with declared result `x_next`; use this
+///   slice when forming Jacobian-transpose-vector or reverse-mode
+///   sensitivity terms
+///   Expected length: 2.
+/// - `vjp_x`:
+///   output slice receiving the vector-Jacobian product for declared
+///   input `x`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
+fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_x(
+    _x: &[f64],
+    _u: &[f64],
+    p: &[f64],
+    cotangent_x_next: &[f64],
+    vjp_x: &mut [f64],
+    _work: &mut [f64],
+) {
+    vjp_x[0] = -0.5_f64 * cotangent_x_next[1];
+    vjp_x[0] += cotangent_x_next[0];
+    vjp_x[1] = cotangent_x_next[0] * p[0];
+    vjp_x[1] += cotangent_x_next[1];
+}
+
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `ell`:
+///   primal output slice for the declared result `ell`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
+fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    c: &[f64],
+    ell: &mut [f64],
+    _work: &mut [f64],
+) {
+    ell[0] = 2.0_f64 * x[0];
+    ell[0] += ((u[0] + x[0]) + (-p[0])) * c[0];
+    ell[1] = ((-p[1]) + x[1]) * c[0];
+    ell[1] += x[1];
+}
+
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_x_jvp`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `_x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `_u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `_cotangent_x_next`:
+///   cotangent seed associated with declared result `x_next`; use this
+///   slice when forming Jacobian-transpose-vector or reverse-mode
+///   sensitivity terms
+///   Expected length: 2.
+/// - `_tangent_x`:
+///   input slice for the declared argument `tangent_x`
+///   Expected length: 2.
+/// - `_tangent_u`:
+///   input slice for the declared argument `tangent_u`
+///   Expected length: 1.
+/// - `tangent_cotangent_x_next`:
+///   input slice for the declared argument `tangent_cotangent_x_next`
+///   Expected length: 2.
+/// - `vjp_x`:
+///   output slice receiving the vector-Jacobian product for declared
+///   input `x`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
 #[allow(clippy::too_many_arguments)]
+#[inline(always)]
 fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_x_jvp(
     _x: &[f64],
     _u: &[f64],
@@ -722,17 +940,50 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_x_jvp(
     _tangent_u: &[f64],
     tangent_cotangent_x_next: &[f64],
     vjp_x: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) {
-    work[0] = -0.5_f64 * tangent_cotangent_x_next[1];
-    work[0] += tangent_cotangent_x_next[0];
-    work[1] = p[0] * tangent_cotangent_x_next[0];
-    work[1] += tangent_cotangent_x_next[1];
-    vjp_x[0] = work[0];
-    vjp_x[1] = work[1];
+    vjp_x[0] = -0.5_f64 * tangent_cotangent_x_next[1];
+    vjp_x[0] += tangent_cotangent_x_next[0];
+    vjp_x[1] = p[0] * tangent_cotangent_x_next[0];
+    vjp_x[1] += tangent_cotangent_x_next[1];
 }
 
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u_jvp`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `_x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `_u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `_cotangent_x_next`:
+///   cotangent seed associated with declared result `x_next`; use this
+///   slice when forming Jacobian-transpose-vector or reverse-mode
+///   sensitivity terms
+///   Expected length: 2.
+/// - `_tangent_x`:
+///   input slice for the declared argument `tangent_x`
+///   Expected length: 2.
+/// - `_tangent_u`:
+///   input slice for the declared argument `tangent_u`
+///   Expected length: 1.
+/// - `tangent_cotangent_x_next`:
+///   input slice for the declared argument `tangent_cotangent_x_next`
+///   Expected length: 2.
+/// - `vjp_u`:
+///   output slice receiving the vector-Jacobian product for declared
+///   input `u`
+///   Expected length: 1.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
 #[allow(clippy::too_many_arguments)]
+#[inline(always)]
 fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u_jvp(
     _x: &[f64],
     _u: &[f64],
@@ -742,14 +993,42 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u_jvp(
     _tangent_u: &[f64],
     tangent_cotangent_x_next: &[f64],
     vjp_u: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) {
-    work[0] = p[1] * tangent_cotangent_x_next[1];
-    work[0] += tangent_cotangent_x_next[0];
-    vjp_u[0] = work[0];
+    vjp_u[0] = p[1] * tangent_cotangent_x_next[1];
+    vjp_u[0] += tangent_cotangent_x_next[0];
 }
 
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x_jvp`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `_x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `_u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `_p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `tangent_x`:
+///   input slice for the declared argument `tangent_x`
+///   Expected length: 2.
+/// - `tangent_u`:
+///   input slice for the declared argument `tangent_u`
+///   Expected length: 1.
+/// - `ell`:
+///   primal output slice for the declared result `ell`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
 #[allow(clippy::too_many_arguments)]
+#[inline(always)]
 fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x_jvp(
     _x: &[f64],
     _u: &[f64],
@@ -758,20 +1037,45 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x_jvp(
     tangent_x: &[f64],
     tangent_u: &[f64],
     ell: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) {
-    work[0] = 2.0_f64 * tangent_x[0];
-    work[1] = c[0] * tangent_x[0];
-    work[0] += work[1];
-    work[1] = c[0] * tangent_u[0];
-    work[0] += work[1];
-    work[1] = c[0] * tangent_x[1];
-    work[1] += tangent_x[1];
-    ell[0] = work[0];
-    ell[1] = work[1];
+    ell[0] = 2.0_f64 * tangent_x[0];
+    ell[0] += c[0] * tangent_x[0];
+    ell[0] += c[0] * tangent_u[0];
+    ell[1] = c[0] * tangent_x[1];
+    ell[1] += tangent_x[1];
 }
 
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u_jvp`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `_x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `_u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `_p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `tangent_x`:
+///   input slice for the declared argument `tangent_x`
+///   Expected length: 2.
+/// - `tangent_u`:
+///   input slice for the declared argument `tangent_u`
+///   Expected length: 1.
+/// - `ell`:
+///   primal output slice for the declared result `ell`
+///   Expected length: 1.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
 #[allow(clippy::too_many_arguments)]
+#[inline(always)]
 fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u_jvp(
     _x: &[f64],
     _u: &[f64],
@@ -780,16 +1084,36 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u_jvp(
     tangent_x: &[f64],
     tangent_u: &[f64],
     ell: &mut [f64],
-    work: &mut [f64],
+    _work: &mut [f64],
 ) {
-    work[0] = 0.2_f64 * tangent_u[0];
-    work[1] = c[0] * tangent_x[0];
-    work[0] += work[1];
-    work[1] = c[0] * tangent_u[0];
-    work[0] += work[1];
-    ell[0] = work[0];
+    ell[0] = 0.2_f64 * tangent_u[0];
+    ell[0] += c[0] * tangent_x[0];
+    ell[0] += c[0] * tangent_u[0];
 }
 
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x_jvp`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `tangent_x`:
+///   input slice for the declared argument `tangent_x`
+///   Expected length: 2.
+/// - `vf`:
+///   primal output slice for the declared result `vf`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 5.
+#[inline(always)]
 fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x_jvp(
     x: &[f64],
     p: &[f64],
@@ -798,41 +1122,56 @@ fn single_shooting_penalty_kernel_penalized_mpc_cost_terminal_cost_grad_x_jvp(
     vf: &mut [f64],
     work: &mut [f64],
 ) {
-    work[0] = tangent_x[0] * x[0];
-    work[0] *= 2.0_f64;
-    work[1] = tangent_x[1] * x[1];
-    work[1] *= 2.0_f64;
-    work[0] += work[1];
-    work[1] = -p[0];
-    work[2] = norm2sq(x);
-    work[1] += work[2];
-    work[1] += -1.0_f64;
-    work[2] = -work[1];
-    work[2] = if work[2] > 0.0_f64 {
-        1.0_f64
-    } else if work[2] < 0.0_f64 {
-        -1.0_f64
-    } else {
-        0.0_f64
-    };
-    work[2] = -work[2];
-    work[2] += 1.0_f64;
-    work[3] = work[2] * work[2];
-    work[0] *= work[3];
-    work[0] *= c[0];
-    work[3] = work[0] * x[0];
-    work[3] *= 0.5_f64;
-    work[1] = libm::fmax(0.0_f64, work[1]);
-    work[1] *= work[2];
-    work[1] *= c[0];
-    work[2] = work[1] * tangent_x[0];
-    work[2] += work[3];
-    work[0] *= x[1];
-    work[0] *= 0.5_f64;
-    work[1] *= tangent_x[1];
-    work[0] += work[1];
-    vf[0] = work[2];
-    vf[1] = work[0];
+    work[0] = -p[0];
+    work[1] = norm2sq(x);
+    work[2] = (work[0]) + (work[1]);
+    work[3] = -1.0_f64 + (work[2]);
+    work[4] = (1.0_f64
+        + (-(if -work[3] > 0.0_f64 {
+            1.0_f64
+        } else if -work[3] < 0.0_f64 {
+            -1.0_f64
+        } else {
+            0.0_f64
+        })))
+        * (1.0_f64
+            + (-(if -work[3] > 0.0_f64 {
+                1.0_f64
+            } else if -work[3] < 0.0_f64 {
+                -1.0_f64
+            } else {
+                0.0_f64
+            })));
+    vf[0] = 0.5_f64
+        * (((((2.0_f64 * (tangent_x[0] * x[0])) + (2.0_f64 * (tangent_x[1] * x[1]))) * (work[4]))
+            * c[0])
+            * x[0]);
+    vf[0] += (((1.0_f64
+        + (-(if -work[3] > 0.0_f64 {
+            1.0_f64
+        } else if -work[3] < 0.0_f64 {
+            -1.0_f64
+        } else {
+            0.0_f64
+        })))
+        * (libm::fmax(0.0_f64, work[3])))
+        * c[0])
+        * tangent_x[0];
+    vf[1] = 0.5_f64
+        * (((((2.0_f64 * (tangent_x[0] * x[0])) + (2.0_f64 * (tangent_x[1] * x[1]))) * (work[4]))
+            * c[0])
+            * x[1]);
+    vf[1] += (((1.0_f64
+        + (-(if -work[3] > 0.0_f64 {
+            1.0_f64
+        } else if -work[3] < 0.0_f64 {
+            -1.0_f64
+        } else {
+            0.0_f64
+        })))
+        * (libm::fmax(0.0_f64, work[3])))
+        * c[0])
+        * tangent_x[1];
 }
 
 /// Return metadata describing [`single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq`].
@@ -840,7 +1179,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq_met
 ) -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq",
-        workspace_size: 15,
+        workspace_size: 10,
         input_names: &["x0", "u_seq", "p", "c"],
         input_sizes: &[2, 5, 2, 1],
         output_names: &["cost", "gradient_u_seq", "x_traj"],
@@ -875,7 +1214,7 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq_met
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 15.
+///   while evaluating this kernel. Expected length: at least 10.
 #[allow(clippy::too_many_arguments)]
 pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
     x0: &[f64],
@@ -887,8 +1226,8 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 15 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 15"));
+    if work.len() < 10 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 10"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -920,8 +1259,6 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
     let mut next_state = next_state_buf;
     let (lambda_buffers, rest) = rest.split_at_mut(4);
     let (lambda_current, lambda_next) = lambda_buffers.split_at_mut(2);
-    let (temp_state, rest) = rest.split_at_mut(2);
-    let (temp_control, rest) = rest.split_at_mut(1);
     let (scalar_buffer, stage_work) = rest.split_at_mut(1);
     current_state.copy_from_slice(x0);
     x_traj[0..2].copy_from_slice(x0);
@@ -929,22 +1266,16 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
     let mut total_cost = 0.0_f64;
     for stage_index in 0..5 {
         let u_t = &u_seq[stage_index..(stage_index + 1)];
-        single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost(
+        single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_joint(
             current_state,
             u_t,
             p,
             c,
             scalar_buffer,
-            stage_work,
-        );
-        total_cost += scalar_buffer[0];
-        single_shooting_penalty_kernel_penalized_mpc_cost_dynamics(
-            current_state,
-            u_t,
-            p,
             next_state,
             stage_work,
         );
+        total_cost += scalar_buffer[0];
         state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
         core::mem::swap(&mut current_state, &mut next_state);
     }
@@ -968,51 +1299,134 @@ pub fn single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq(
         let x_t = &state_history[((stage_index - 1) * 2)..(stage_index * 2)];
         let u_t = &u_seq[stage_index..(stage_index + 1)];
         let grad_u_t = &mut gradient_u_seq[stage_index..(stage_index + 1)];
-        single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
-            x_t, u_t, p, c, grad_u_t, stage_work,
-        );
-        single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u(
-            x_t,
-            u_t,
-            p,
-            &lambda_current[..],
-            temp_control,
-            stage_work,
-        );
-        grad_u_t[0] += temp_control[0];
-        single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_x(
+        single_shooting_penalty_kernel_penalized_mpc_cost_stage_transition_grad(
             x_t,
             u_t,
             p,
             c,
-            lambda_next,
-            stage_work,
-        );
-        single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_x(
-            x_t,
-            u_t,
-            p,
             &lambda_current[..],
-            temp_state,
+            lambda_next,
+            grad_u_t,
             stage_work,
         );
-        lambda_next[0] += temp_state[0];
-        lambda_next[1] += temp_state[1];
         lambda_current.copy_from_slice(lambda_next);
     }
     let u_t = &u_seq[0..1];
     let grad_u_t = &mut gradient_u_seq[0..1];
-    single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_grad_u(
-        x0, u_t, p, c, grad_u_t, stage_work,
-    );
-    single_shooting_penalty_kernel_penalized_mpc_cost_dynamics_vjp_u(
+    single_shooting_penalty_kernel_penalized_mpc_cost_stage_transition_grad(
         x0,
         u_t,
         p,
+        c,
         &lambda_current[..],
-        temp_control,
+        lambda_next,
+        grad_u_t,
         stage_work,
     );
-    grad_u_t[0] += temp_control[0];
     Ok(())
+}
+
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_joint`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `ell`:
+///   primal output slice for the declared result `ell`
+///   Expected length: 1.
+/// - `x_next`:
+///   primal output slice for the declared result `x_next`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
+fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_cost_joint(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    c: &[f64],
+    ell: &mut [f64],
+    x_next: &mut [f64],
+    _work: &mut [f64],
+) {
+    ell[0] = 0.5_f64 * (x[1] * x[1]);
+    ell[0] += x[0] * x[0];
+    ell[0] += 0.1_f64 * (u[0] * u[0]);
+    ell[0] += 0.5_f64
+        * (((((u[0] + x[0]) + (-p[0])) * ((u[0] + x[0]) + (-p[0])))
+            + (((-p[1]) + x[1]) * ((-p[1]) + x[1])))
+            * c[0]);
+    x_next[0] = p[0] * x[1];
+    x_next[0] += x[0];
+    x_next[0] += u[0];
+    x_next[1] = p[1] * u[0];
+    x_next[1] += x[1];
+    x_next[1] -= 0.5_f64 * x[0];
+}
+
+/// Evaluate the generated symbolic function `single_shooting_penalty_kernel_penalized_mpc_cost_stage_transition_grad`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `c`:
+///   input slice for the declared argument `c`
+///   Expected length: 1.
+/// - `single_shooting_penalty_kernel_penalized_mpc_cost_lambda_current`:
+///   input slice for the declared argument
+///   `single_shooting_penalty_kernel_penalized_mpc_cost_lambda_current`
+///   Expected length: 2.
+/// - `grad_x`:
+///   primal output slice for the declared result `grad_x`
+///   Expected length: 2.
+/// - `grad_u`:
+///   primal output slice for the declared result `grad_u`
+///   Expected length: 1.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[allow(clippy::too_many_arguments)]
+#[inline(always)]
+fn single_shooting_penalty_kernel_penalized_mpc_cost_stage_transition_grad(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    c: &[f64],
+    single_shooting_penalty_kernel_penalized_mpc_cost_lambda_current: &[f64],
+    grad_x: &mut [f64],
+    grad_u: &mut [f64],
+    _work: &mut [f64],
+) {
+    grad_x[0] = -0.5_f64 * single_shooting_penalty_kernel_penalized_mpc_cost_lambda_current[1];
+    grad_x[0] += ((u[0] + x[0]) + (-p[0])) * c[0];
+    grad_x[0] += single_shooting_penalty_kernel_penalized_mpc_cost_lambda_current[0];
+    grad_x[0] += 2.0_f64 * x[0];
+    grad_x[1] = p[0] * single_shooting_penalty_kernel_penalized_mpc_cost_lambda_current[0];
+    grad_x[1] += single_shooting_penalty_kernel_penalized_mpc_cost_lambda_current[1];
+    grad_x[1] += ((-p[1]) + x[1]) * c[0];
+    grad_x[1] += x[1];
+    grad_u[0] = ((u[0] + x[0]) + (-p[0])) * c[0];
+    grad_u[0] += p[1] * single_shooting_penalty_kernel_penalized_mpc_cost_lambda_current[1];
+    grad_u[0] += single_shooting_penalty_kernel_penalized_mpc_cost_lambda_current[0];
+    grad_u[0] += 0.2_f64 * u[0];
 }

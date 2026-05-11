@@ -42,6 +42,8 @@ _EFFORT_PRESETS = {
     "max": 10,
 }
 
+_CANONICALIZE_COMMUTATIVE_ORDER = True
+
 
 def simplify(
     value: SimplifyValue, max_effort: Effort = "basic"
@@ -616,7 +618,7 @@ def _simplify_add(left: SX, right: SX) -> SX:
         coefficients[base.node] += coefficient
 
     combined_terms: list[SX] = []
-    for base in ordered_bases:
+    for base in _sorted_expressions(ordered_bases):
         coefficient = coefficients[base.node]
         if coefficient == 0.0:
             continue
@@ -627,7 +629,7 @@ def _simplify_add(left: SX, right: SX) -> SX:
         else:
             combined_terms.append(SX.const(coefficient) * base)
 
-    combined_terms.extend(residual_terms)
+    combined_terms.extend(_sorted_expressions(residual_terms))
     if constant_sum != 0.0:
         combined_terms.append(SX.const(constant_sum))
 
@@ -671,7 +673,7 @@ def _simplify_mul(left: SX, right: SX) -> SX:
     if not leading_negation and (constant_product != 1.0 or not ordered_bases):
         rebuilt_factors.append(SX.const(constant_product))
 
-    for base in ordered_bases:
+    for base in _sorted_expressions(ordered_bases):
         exponent = exponent_sums[base.node]
         if exponent == 0.0:
             continue
@@ -869,7 +871,7 @@ def _split_scalar_factor(term: SX) -> tuple[float, SX | None]:
                 symbolic_factors.append(factor)
         if not symbolic_factors:
             return coefficient, SX.const(1.0)
-        return coefficient, _rebuild_mul(symbolic_factors)
+        return coefficient, _rebuild_mul(_sorted_expressions(symbolic_factors))
     return 1.0, term
 
 
@@ -924,6 +926,26 @@ def _apply_trig_identity_terms(terms: list[SX]) -> list[SX]:
         )
         return replacement_terms
     return terms
+
+
+def _sorted_expressions(expressions: list[SX]) -> list[SX]:
+    """Return expressions in a canonical order when enabled."""
+    if not _CANONICALIZE_COMMUTATIVE_ORDER or len(expressions) < 2:
+        return expressions
+    return sorted(expressions, key=_expression_sort_key)
+
+
+def _expression_sort_key(expr: SX) -> tuple[object, ...]:
+    """Return a stable structural key used for commutative ordering."""
+    if expr.op == "const":
+        return ("const", expr.value)
+    if expr.op == "symbol":
+        return ("symbol", expr.name)
+    return (
+        expr.op,
+        expr.name,
+        tuple(_expression_sort_key(arg) for arg in expr.args),
+    )
 
 
 def _find_matching_square(

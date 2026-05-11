@@ -37,7 +37,7 @@ pub struct FunctionMetadata {
 pub fn single_shooting_kernel_mpc_cost_f_states_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_f_states",
-        workspace_size: 5,
+        workspace_size: 0,
         input_names: &["x0", "u_seq", "p"],
         input_sizes: &[2, 5, 2],
         output_names: &["cost", "x_traj"],
@@ -66,7 +66,7 @@ pub fn single_shooting_kernel_mpc_cost_f_states_meta() -> FunctionMetadata {
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 5.
+///   while evaluating this kernel. Expected length: at least 0.
 pub fn single_shooting_kernel_mpc_cost_f_states(
     x0: &[f64],
     u_seq: &[f64],
@@ -75,9 +75,6 @@ pub fn single_shooting_kernel_mpc_cost_f_states(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 5 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 5"));
-    };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
     };
@@ -94,29 +91,40 @@ pub fn single_shooting_kernel_mpc_cost_f_states(
         return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
     };
     let rest = work;
-    let (state_buffers, rest) = rest.split_at_mut(4);
-    let (current_state_buf, next_state_buf) = state_buffers.split_at_mut(2);
-    let mut current_state = current_state_buf;
-    let mut next_state = next_state_buf;
-    let (scalar_buffer, stage_work) = rest.split_at_mut(1);
+    let mut current_state = [0.0_f64; 2];
+    let mut next_state = [0.0_f64; 2];
+    let mut scalar_buffer = [0.0_f64; 1];
+    let stage_work = rest;
     current_state.copy_from_slice(x0);
+    let p_cached = [p[0], p[1]];
     x_traj[0..2].copy_from_slice(x0);
     let mut total_cost = 0.0_f64;
     for stage_index in 0..5 {
-        let u_t = &u_seq[stage_index..(stage_index + 1)];
+        let u_t = [u_seq[stage_index]];
         single_shooting_kernel_mpc_cost_stage_cost(
-            current_state,
-            u_t,
-            p,
-            scalar_buffer,
+            &current_state,
+            &u_t,
+            &p_cached,
+            &mut scalar_buffer,
             stage_work,
         );
         total_cost += scalar_buffer[0];
-        single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
-        x_traj[((stage_index + 1) * 2)..((stage_index + 2) * 2)].copy_from_slice(next_state);
+        single_shooting_kernel_mpc_cost_dynamics(
+            &current_state,
+            &u_t,
+            &p_cached,
+            &mut next_state,
+            stage_work,
+        );
+        x_traj[((stage_index + 1) * 2)..((stage_index + 2) * 2)].copy_from_slice(&next_state);
         core::mem::swap(&mut current_state, &mut next_state);
     }
-    single_shooting_kernel_mpc_cost_terminal_cost(current_state, p, scalar_buffer, stage_work);
+    single_shooting_kernel_mpc_cost_terminal_cost(
+        &current_state,
+        &p_cached,
+        &mut scalar_buffer,
+        stage_work,
+    );
     total_cost += scalar_buffer[0];
     cost[0] = total_cost;
     Ok(())
@@ -148,12 +156,47 @@ fn single_shooting_kernel_mpc_cost_dynamics(
     x_next: &mut [f64],
     _work: &mut [f64],
 ) {
-    x_next[0] = p[0] * x[1];
-    x_next[0] += x[0];
-    x_next[0] += u[0];
-    x_next[1] = p[1] * u[0];
-    x_next[1] += x[1];
-    x_next[1] -= 0.5_f64 * x[0];
+    let x_0 = x[0];
+    let x_1 = x[1];
+    let u_0 = u[0];
+    let p_0 = p[0];
+    let p_1 = p[1];
+    x_next[0] = p_0 * x_1;
+    x_next[0] += u_0;
+    x_next[0] += x_0;
+    x_next[1] = p_1 * u_0;
+    x_next[1] -= 0.5_f64 * x_0;
+    x_next[1] += x_1;
+}
+
+/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_terminal_cost`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `vf`:
+///   primal output slice for the declared result `vf`
+///   Expected length: 1.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+fn single_shooting_kernel_mpc_cost_terminal_cost(
+    x: &[f64],
+    p: &[f64],
+    vf: &mut [f64],
+    _work: &mut [f64],
+) {
+    let x_0 = x[0];
+    let x_1 = x[1];
+    let p_1 = p[1];
+    vf[0] = 3.0_f64 * (x_0 * x_0);
+    vf[0] += p_1 * x_0;
+    vf[0] += 0.5_f64 * (x_1 * x_1);
 }
 
 /// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost`.
@@ -182,44 +225,21 @@ fn single_shooting_kernel_mpc_cost_stage_cost(
     ell: &mut [f64],
     _work: &mut [f64],
 ) {
-    ell[0] = 2.0_f64 * x[1] * x[1];
-    ell[0] += x[0] * x[0];
-    ell[0] += 0.3_f64 * u[0] * u[0];
-    ell[0] += p[0] * u[0];
-}
-
-/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_terminal_cost`.
-///
-/// All numeric slices use the `f64` scalar type.
-///
-/// Arguments:
-/// - `x`:
-///   input slice for the declared argument `x`
-///   Expected length: 2.
-/// - `p`:
-///   input slice for the declared argument `p`
-///   Expected length: 2.
-/// - `vf`:
-///   primal output slice for the declared result `vf`
-///   Expected length: 1.
-/// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 0.
-fn single_shooting_kernel_mpc_cost_terminal_cost(
-    x: &[f64],
-    p: &[f64],
-    vf: &mut [f64],
-    _work: &mut [f64],
-) {
-    vf[0] = 0.5_f64 * x[1] * x[1];
-    vf[0] += 3.0_f64 * x[0] * x[0];
-    vf[0] += p[1] * x[0];
+    let x_0 = x[0];
+    let x_1 = x[1];
+    let u_0 = u[0];
+    let p_0 = p[0];
+    ell[0] = 0.3_f64 * (u_0 * u_0);
+    ell[0] += p_0 * u_0;
+    ell[0] += x_0 * x_0;
+    ell[0] += 2.0_f64 * (x_1 * x_1);
 }
 
 /// Return metadata describing [`single_shooting_kernel_mpc_cost_grad_states_u_seq`].
 pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_grad_states_u_seq",
-        workspace_size: 11,
+        workspace_size: 0,
         input_names: &["x0", "u_seq", "p"],
         input_sizes: &[2, 5, 2],
         output_names: &["gradient_u_seq", "x_traj"],
@@ -248,7 +268,7 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq_meta() -> FunctionMetad
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 11.
+///   while evaluating this kernel. Expected length: at least 0.
 pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
@@ -257,9 +277,6 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 11 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 11"));
-    };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
     };
@@ -278,73 +295,88 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
         return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
     };
     let rest = work;
-    let (state_buffers, rest) = rest.split_at_mut(4);
-    let (current_state_buf, next_state_buf) = state_buffers.split_at_mut(2);
-    let mut current_state = current_state_buf;
-    let mut next_state = next_state_buf;
-    let (lambda_buffers, rest) = rest.split_at_mut(4);
-    let (lambda_current, lambda_next) = lambda_buffers.split_at_mut(2);
-    let (temp_state, rest) = rest.split_at_mut(2);
-    let (temp_control, rest) = rest.split_at_mut(1);
+    let mut current_state = [0.0_f64; 2];
+    let mut next_state = [0.0_f64; 2];
+    let mut lambda_current = [0.0_f64; 2];
+    let mut lambda_next = [0.0_f64; 2];
+    let mut temp_state = [0.0_f64; 2];
+    let mut temp_control = [0.0_f64; 1];
     let stage_work = rest;
     current_state.copy_from_slice(x0);
+    let p_cached = [p[0], p[1]];
     x_traj[0..2].copy_from_slice(x0);
     let state_history = &mut x_traj[2..];
     for stage_index in 0..5 {
-        let u_t = &u_seq[stage_index..(stage_index + 1)];
-        single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
-        state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
+        let u_t = [u_seq[stage_index]];
+        single_shooting_kernel_mpc_cost_dynamics(
+            &current_state,
+            &u_t,
+            &p_cached,
+            &mut next_state,
+            stage_work,
+        );
+        state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(&next_state);
         core::mem::swap(&mut current_state, &mut next_state);
     }
     single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
-        current_state,
-        p,
-        lambda_current,
+        &current_state,
+        &p_cached,
+        &mut lambda_current,
         stage_work,
     );
     for stage_index in (1..5).rev() {
-        let x_t = &state_history[((stage_index - 1) * 2)..(stage_index * 2)];
-        let u_t = &u_seq[stage_index..(stage_index + 1)];
+        let x_t = [
+            state_history[(stage_index - 1) * 2],
+            state_history[(stage_index - 1) * 2 + 1],
+        ];
+        let u_t = [u_seq[stage_index]];
         let grad_u_t = &mut gradient_u_seq[stage_index..(stage_index + 1)];
-        single_shooting_kernel_mpc_cost_stage_cost_grad_u(x_t, u_t, p, grad_u_t, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_u(
-            x_t,
-            u_t,
-            p,
-            &lambda_current[..],
-            temp_control,
+        single_shooting_kernel_mpc_cost_stage_cost_grad(
+            &x_t,
+            &u_t,
+            &p_cached,
+            &mut lambda_next,
+            grad_u_t,
             stage_work,
         );
-        grad_u_t[0] += temp_control[0];
-        single_shooting_kernel_mpc_cost_stage_cost_grad_x(x_t, u_t, p, lambda_next, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_x(
-            x_t,
-            u_t,
-            p,
-            &lambda_current[..],
-            temp_state,
+        single_shooting_kernel_mpc_cost_dynamics_vjp(
+            &x_t,
+            &u_t,
+            &p_cached,
+            &lambda_current,
+            &mut temp_state,
+            &mut temp_control,
             stage_work,
         );
         lambda_next[0] += temp_state[0];
         lambda_next[1] += temp_state[1];
-        lambda_current.copy_from_slice(lambda_next);
+        grad_u_t[0] += temp_control[0];
+        lambda_current.copy_from_slice(&lambda_next);
     }
-    let u_t = &u_seq[0..1];
+    let u_t = [u_seq[0]];
     let grad_u_t = &mut gradient_u_seq[0..1];
-    single_shooting_kernel_mpc_cost_stage_cost_grad_u(x0, u_t, p, grad_u_t, stage_work);
-    single_shooting_kernel_mpc_cost_dynamics_vjp_u(
+    single_shooting_kernel_mpc_cost_stage_cost_grad(
         x0,
-        u_t,
-        p,
-        &lambda_current[..],
-        temp_control,
+        &u_t,
+        &p_cached,
+        &mut lambda_next,
+        grad_u_t,
+        stage_work,
+    );
+    single_shooting_kernel_mpc_cost_dynamics_vjp(
+        x0,
+        &u_t,
+        &p_cached,
+        &lambda_current,
+        &mut temp_state,
+        &mut temp_control,
         stage_work,
     );
     grad_u_t[0] += temp_control[0];
     Ok(())
 }
 
-/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_dynamics_vjp_x`.
+/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_dynamics_vjp`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
@@ -367,95 +399,40 @@ pub fn single_shooting_kernel_mpc_cost_grad_states_u_seq(
 ///   output slice receiving the vector-Jacobian product for declared
 ///   input `x`
 ///   Expected length: 2.
-/// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 0.
-fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(
-    _x: &[f64],
-    _u: &[f64],
-    p: &[f64],
-    cotangent_x_next: &[f64],
-    vjp_x: &mut [f64],
-    _work: &mut [f64],
-) {
-    vjp_x[0] = -0.5_f64 * cotangent_x_next[1];
-    vjp_x[0] += cotangent_x_next[0];
-    vjp_x[1] = cotangent_x_next[0] * p[0];
-    vjp_x[1] += cotangent_x_next[1];
-}
-
-/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_dynamics_vjp_u`.
-///
-/// All numeric slices use the `f64` scalar type.
-///
-/// Arguments:
-/// - `_x`:
-///   input slice for the declared argument `x`
-///   Expected length: 2.
-/// - `_u`:
-///   input slice for the declared argument `u`
-///   Expected length: 1.
-/// - `p`:
-///   input slice for the declared argument `p`
-///   Expected length: 2.
-/// - `cotangent_x_next`:
-///   cotangent seed associated with declared result `x_next`; use this
-///   slice when forming Jacobian-transpose-vector or reverse-mode
-///   sensitivity terms
-///   Expected length: 2.
 /// - `vjp_u`:
 ///   output slice receiving the vector-Jacobian product for declared
 ///   input `u`
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
-fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(
+#[inline(always)]
+fn single_shooting_kernel_mpc_cost_dynamics_vjp(
     _x: &[f64],
     _u: &[f64],
     p: &[f64],
     cotangent_x_next: &[f64],
+    vjp_x: &mut [f64],
     vjp_u: &mut [f64],
     _work: &mut [f64],
 ) {
-    vjp_u[0] = cotangent_x_next[1] * p[1];
-    vjp_u[0] += cotangent_x_next[0];
+    let p_0 = p[0];
+    let p_1 = p[1];
+    let cotangent_x_next_0 = cotangent_x_next[0];
+    let cotangent_x_next_1 = cotangent_x_next[1];
+    vjp_x[0] = -0.5_f64 * cotangent_x_next_1;
+    vjp_x[0] += cotangent_x_next_0;
+    vjp_x[1] = cotangent_x_next_0 * p_0;
+    vjp_x[1] += cotangent_x_next_1;
+    vjp_u[0] = cotangent_x_next_1 * p_1;
+    vjp_u[0] += cotangent_x_next_0;
 }
 
-/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost_grad_x`.
+/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost_grad`.
 ///
 /// All numeric slices use the `f64` scalar type.
 ///
 /// Arguments:
 /// - `x`:
-///   input slice for the declared argument `x`
-///   Expected length: 2.
-/// - `_u`:
-///   input slice for the declared argument `u`
-///   Expected length: 1.
-/// - `_p`:
-///   input slice for the declared argument `p`
-///   Expected length: 2.
-/// - `ell`:
-///   primal output slice for the declared result `ell`
-///   Expected length: 2.
-/// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 0.
-fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(
-    x: &[f64],
-    _u: &[f64],
-    _p: &[f64],
-    ell: &mut [f64],
-    _work: &mut [f64],
-) {
-    ell[0] = 2.0_f64 * x[0];
-    ell[1] = 4.0_f64 * x[1];
-}
-
-/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost_grad_u`.
-///
-/// All numeric slices use the `f64` scalar type.
-///
-/// Arguments:
-/// - `_x`:
 ///   input slice for the declared argument `x`
 ///   Expected length: 2.
 /// - `u`:
@@ -464,20 +441,31 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(
 /// - `p`:
 ///   input slice for the declared argument `p`
 ///   Expected length: 2.
-/// - `ell`:
-///   primal output slice for the declared result `ell`
+/// - `grad_x`:
+///   primal output slice for the declared result `grad_x`
+///   Expected length: 2.
+/// - `grad_u`:
+///   primal output slice for the declared result `grad_u`
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
-fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(
-    _x: &[f64],
+#[inline(always)]
+fn single_shooting_kernel_mpc_cost_stage_cost_grad(
+    x: &[f64],
     u: &[f64],
     p: &[f64],
-    ell: &mut [f64],
+    grad_x: &mut [f64],
+    grad_u: &mut [f64],
     _work: &mut [f64],
 ) {
-    ell[0] = 0.6_f64 * u[0];
-    ell[0] += p[0];
+    let x_0 = x[0];
+    let x_1 = x[1];
+    let u_0 = u[0];
+    let p_0 = p[0];
+    grad_x[0] = 2.0_f64 * x_0;
+    grad_x[1] = 4.0_f64 * x_1;
+    grad_u[0] = 0.6_f64 * u_0;
+    grad_u[0] += p_0;
 }
 
 /// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_terminal_cost_grad_x`.
@@ -496,22 +484,26 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
 fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
     x: &[f64],
     p: &[f64],
     vf: &mut [f64],
     _work: &mut [f64],
 ) {
-    vf[0] = 6.0_f64 * x[0];
-    vf[0] += p[1];
-    vf[1] = x[1];
+    let x_0 = x[0];
+    let x_1 = x[1];
+    let p_1 = p[1];
+    vf[0] = 6.0_f64 * x_0;
+    vf[0] += p_1;
+    vf[1] = x_1;
 }
 
 /// Return metadata describing [`single_shooting_kernel_mpc_cost_hvp_states_u_seq`].
 pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_hvp_states_u_seq",
-        workspace_size: 29,
+        workspace_size: 10,
         input_names: &["x0", "u_seq", "p", "v_u_seq"],
         input_sizes: &[2, 5, 2, 5],
         output_names: &["hvp_u_seq", "x_traj"],
@@ -543,7 +535,7 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq_meta() -> FunctionMetada
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 29.
+///   while evaluating this kernel. Expected length: at least 10.
 pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
@@ -553,8 +545,8 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 29 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 29"));
+    if work.len() < 10 {
+        return Err(GradgenError::WorkspaceTooSmall("work expected at least 10"));
     };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
@@ -576,139 +568,156 @@ pub fn single_shooting_kernel_mpc_cost_hvp_states_u_seq(
     };
     let rest = work;
     let (tangent_history, rest) = rest.split_at_mut(10);
-    let (state_buffers, rest) = rest.split_at_mut(4);
-    let (current_state_buf, next_state_buf) = state_buffers.split_at_mut(2);
-    let mut current_state = current_state_buf;
-    let mut next_state = next_state_buf;
-    let (tangent_buffers, rest) = rest.split_at_mut(4);
-    let (current_tangent, next_tangent) = tangent_buffers.split_at_mut(2);
-    let (lambda_buffers, rest) = rest.split_at_mut(4);
-    let (lambda_current, lambda_next) = lambda_buffers.split_at_mut(2);
-    let (mu_buffers, rest) = rest.split_at_mut(4);
-    let (mu_current, mu_next) = mu_buffers.split_at_mut(2);
-    let (temp_state, rest) = rest.split_at_mut(2);
-    let (temp_control, rest) = rest.split_at_mut(1);
+    let mut current_state = [0.0_f64; 2];
+    let mut next_state = [0.0_f64; 2];
+    let mut current_tangent = [0.0_f64; 2];
+    let mut next_tangent = [0.0_f64; 2];
+    let mut lambda_current = [0.0_f64; 2];
+    let mut lambda_next = [0.0_f64; 2];
+    let mut mu_current = [0.0_f64; 2];
+    let mut mu_next = [0.0_f64; 2];
+    let mut temp_state = [0.0_f64; 2];
+    let mut temp_control = [0.0_f64; 1];
     let stage_work = rest;
     current_state.copy_from_slice(x0);
+    let p_cached = [p[0], p[1]];
     current_tangent.fill(0.0_f64);
     x_traj[0..2].copy_from_slice(x0);
     let state_history = &mut x_traj[2..];
     for stage_index in 0..5 {
-        let u_t = &u_seq[stage_index..(stage_index + 1)];
-        let v_u_t = &v_u_seq[stage_index..(stage_index + 1)];
-        single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_jvp(
-            current_state,
-            u_t,
-            p,
-            current_tangent,
-            v_u_t,
-            next_tangent,
+        let u_t = [u_seq[stage_index]];
+        let v_u_t = [v_u_seq[stage_index]];
+        single_shooting_kernel_mpc_cost_dynamics(
+            &current_state,
+            &u_t,
+            &p_cached,
+            &mut next_state,
             stage_work,
         );
-        state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
-        tangent_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_tangent);
+        single_shooting_kernel_mpc_cost_dynamics_jvp(
+            &current_state,
+            &u_t,
+            &p_cached,
+            &current_tangent,
+            &v_u_t,
+            &mut next_tangent,
+            stage_work,
+        );
+        state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(&next_state);
+        tangent_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(&next_tangent);
         core::mem::swap(&mut current_state, &mut next_state);
-        current_tangent.copy_from_slice(next_tangent);
+        current_tangent.copy_from_slice(&next_tangent);
     }
     single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
-        current_state,
-        p,
-        lambda_current,
+        &current_state,
+        &p_cached,
+        &mut lambda_current,
         stage_work,
     );
     single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(
-        current_state,
-        p,
-        current_tangent,
-        mu_current,
+        &current_state,
+        &p_cached,
+        &current_tangent,
+        &mut mu_current,
         stage_work,
     );
     for stage_index in (1..5).rev() {
-        let x_t = &state_history[((stage_index - 1) * 2)..(stage_index * 2)];
-        let u_t = &u_seq[stage_index..(stage_index + 1)];
-        let tangent_x_t = &tangent_history[((stage_index - 1) * 2)..(stage_index * 2)];
-        let v_u_t = &v_u_seq[stage_index..(stage_index + 1)];
+        let x_t = [
+            state_history[(stage_index - 1) * 2],
+            state_history[(stage_index - 1) * 2 + 1],
+        ];
+        let u_t = [u_seq[stage_index]];
+        let tangent_x_t = [
+            tangent_history[(stage_index - 1) * 2],
+            tangent_history[(stage_index - 1) * 2 + 1],
+        ];
+        let v_u_t = [v_u_seq[stage_index]];
         let hvp_u_t = &mut hvp_u_seq[stage_index..(stage_index + 1)];
         single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
-            x_t,
-            u_t,
-            p,
-            tangent_x_t,
-            v_u_t,
+            &x_t,
+            &u_t,
+            &p_cached,
+            &tangent_x_t,
+            &v_u_t,
             hvp_u_t,
             stage_work,
         );
         single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
-            x_t,
-            u_t,
-            p,
-            &lambda_current[..],
-            tangent_x_t,
-            v_u_t,
-            &mu_current[..],
-            temp_control,
+            &x_t,
+            &u_t,
+            &p_cached,
+            &lambda_current,
+            &tangent_x_t,
+            &v_u_t,
+            &mu_current,
+            &mut temp_control,
             stage_work,
         );
         hvp_u_t[0] += temp_control[0];
-        single_shooting_kernel_mpc_cost_stage_cost_grad_x(x_t, u_t, p, lambda_next, stage_work);
+        single_shooting_kernel_mpc_cost_stage_cost_grad_x(
+            &x_t,
+            &u_t,
+            &p_cached,
+            &mut lambda_next,
+            stage_work,
+        );
         single_shooting_kernel_mpc_cost_dynamics_vjp_x(
-            x_t,
-            u_t,
-            p,
-            &lambda_current[..],
-            temp_state,
+            &x_t,
+            &u_t,
+            &p_cached,
+            &lambda_current,
+            &mut temp_state,
             stage_work,
         );
         lambda_next[0] += temp_state[0];
         lambda_next[1] += temp_state[1];
         single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(
-            x_t,
-            u_t,
-            p,
-            tangent_x_t,
-            v_u_t,
-            mu_next,
+            &x_t,
+            &u_t,
+            &p_cached,
+            &tangent_x_t,
+            &v_u_t,
+            &mut mu_next,
             stage_work,
         );
         single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(
-            x_t,
-            u_t,
-            p,
-            &lambda_current[..],
-            tangent_x_t,
-            v_u_t,
-            &mu_current[..],
-            temp_state,
+            &x_t,
+            &u_t,
+            &p_cached,
+            &lambda_current,
+            &tangent_x_t,
+            &v_u_t,
+            &mu_current,
+            &mut temp_state,
             stage_work,
         );
         mu_next[0] += temp_state[0];
         mu_next[1] += temp_state[1];
-        lambda_current.copy_from_slice(lambda_next);
-        mu_current.copy_from_slice(mu_next);
+        lambda_current.copy_from_slice(&lambda_next);
+        mu_current.copy_from_slice(&mu_next);
     }
-    let u_t = &u_seq[0..1];
+    let u_t = [u_seq[0]];
     next_tangent.fill(0.0_f64);
-    let v_u_t = &v_u_seq[0..1];
+    let v_u_t = [v_u_seq[0]];
     let hvp_u_t = &mut hvp_u_seq[0..1];
     single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
         x0,
-        u_t,
-        p,
-        next_tangent,
-        v_u_t,
+        &u_t,
+        &p_cached,
+        &next_tangent,
+        &v_u_t,
         hvp_u_t,
         stage_work,
     );
     single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
         x0,
-        u_t,
-        p,
-        &lambda_current[..],
-        next_tangent,
-        v_u_t,
-        &mu_current[..],
-        temp_control,
+        &u_t,
+        &p_cached,
+        &lambda_current,
+        &next_tangent,
+        &v_u_t,
+        &mu_current,
+        &mut temp_control,
         stage_work,
     );
     hvp_u_t[0] += temp_control[0];
@@ -749,12 +758,93 @@ fn single_shooting_kernel_mpc_cost_dynamics_jvp(
     x_next: &mut [f64],
     _work: &mut [f64],
 ) {
-    x_next[0] = p[0] * tangent_x[1];
-    x_next[0] += tangent_x[0];
-    x_next[0] += tangent_u[0];
-    x_next[1] = -0.5_f64 * tangent_x[0];
-    x_next[1] += tangent_x[1];
-    x_next[1] += p[1] * tangent_u[0];
+    let p_0 = p[0];
+    let p_1 = p[1];
+    let tangent_x_0 = tangent_x[0];
+    let tangent_x_1 = tangent_x[1];
+    let tangent_u_0 = tangent_u[0];
+    x_next[0] = p_0 * tangent_x_1;
+    x_next[0] += tangent_u_0;
+    x_next[0] += tangent_x_0;
+    x_next[1] = p_1 * tangent_u_0;
+    x_next[1] -= 0.5_f64 * tangent_x_0;
+    x_next[1] += tangent_x_1;
+}
+
+/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_dynamics_vjp_x`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `_x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `_u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `cotangent_x_next`:
+///   cotangent seed associated with declared result `x_next`; use this
+///   slice when forming Jacobian-transpose-vector or reverse-mode
+///   sensitivity terms
+///   Expected length: 2.
+/// - `vjp_x`:
+///   output slice receiving the vector-Jacobian product for declared
+///   input `x`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
+fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(
+    _x: &[f64],
+    _u: &[f64],
+    p: &[f64],
+    cotangent_x_next: &[f64],
+    vjp_x: &mut [f64],
+    _work: &mut [f64],
+) {
+    let p_0 = p[0];
+    let cotangent_x_next_0 = cotangent_x_next[0];
+    let cotangent_x_next_1 = cotangent_x_next[1];
+    vjp_x[0] = -0.5_f64 * cotangent_x_next_1;
+    vjp_x[0] += cotangent_x_next_0;
+    vjp_x[1] = cotangent_x_next_0 * p_0;
+    vjp_x[1] += cotangent_x_next_1;
+}
+
+/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost_grad_x`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `_u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `_p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `ell`:
+///   primal output slice for the declared result `ell`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
+fn single_shooting_kernel_mpc_cost_stage_cost_grad_x(
+    x: &[f64],
+    _u: &[f64],
+    _p: &[f64],
+    ell: &mut [f64],
+    _work: &mut [f64],
+) {
+    let x_0 = x[0];
+    let x_1 = x[1];
+    ell[0] = 2.0_f64 * x_0;
+    ell[1] = 4.0_f64 * x_1;
 }
 
 /// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp`.
@@ -792,6 +882,7 @@ fn single_shooting_kernel_mpc_cost_dynamics_jvp(
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
 #[allow(clippy::too_many_arguments)]
+#[inline(always)]
 fn single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(
     _x: &[f64],
     _u: &[f64],
@@ -803,10 +894,13 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(
     vjp_x: &mut [f64],
     _work: &mut [f64],
 ) {
-    vjp_x[0] = -0.5_f64 * tangent_cotangent_x_next[1];
-    vjp_x[0] += tangent_cotangent_x_next[0];
-    vjp_x[1] = p[0] * tangent_cotangent_x_next[0];
-    vjp_x[1] += tangent_cotangent_x_next[1];
+    let p_0 = p[0];
+    let tangent_cotangent_x_next_0 = tangent_cotangent_x_next[0];
+    let tangent_cotangent_x_next_1 = tangent_cotangent_x_next[1];
+    vjp_x[0] = -0.5_f64 * tangent_cotangent_x_next_1;
+    vjp_x[0] += tangent_cotangent_x_next_0;
+    vjp_x[1] = p_0 * tangent_cotangent_x_next_0;
+    vjp_x[1] += tangent_cotangent_x_next_1;
 }
 
 /// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp`.
@@ -844,6 +938,7 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_x_jvp(
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
 #[allow(clippy::too_many_arguments)]
+#[inline(always)]
 fn single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
     _x: &[f64],
     _u: &[f64],
@@ -855,8 +950,11 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
     vjp_u: &mut [f64],
     _work: &mut [f64],
 ) {
-    vjp_u[0] = p[1] * tangent_cotangent_x_next[1];
-    vjp_u[0] += tangent_cotangent_x_next[0];
+    let p_1 = p[1];
+    let tangent_cotangent_x_next_0 = tangent_cotangent_x_next[0];
+    let tangent_cotangent_x_next_1 = tangent_cotangent_x_next[1];
+    vjp_u[0] = p_1 * tangent_cotangent_x_next_1;
+    vjp_u[0] += tangent_cotangent_x_next_0;
 }
 
 /// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp`.
@@ -884,6 +982,7 @@ fn single_shooting_kernel_mpc_cost_dynamics_vjp_u_jvp(
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
 fn single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(
     _x: &[f64],
     _u: &[f64],
@@ -893,8 +992,10 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(
     ell: &mut [f64],
     _work: &mut [f64],
 ) {
-    ell[0] = 2.0_f64 * tangent_x[0];
-    ell[1] = 4.0_f64 * tangent_x[1];
+    let tangent_x_0 = tangent_x[0];
+    let tangent_x_1 = tangent_x[1];
+    ell[0] = 2.0_f64 * tangent_x_0;
+    ell[1] = 4.0_f64 * tangent_x_1;
 }
 
 /// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp`.
@@ -922,6 +1023,7 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_x_jvp(
 ///   Expected length: 1.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
 fn single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
     _x: &[f64],
     _u: &[f64],
@@ -931,7 +1033,8 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
     ell: &mut [f64],
     _work: &mut [f64],
 ) {
-    ell[0] = 0.6_f64 * tangent_u[0];
+    let tangent_u_0 = tangent_u[0];
+    ell[0] = 0.6_f64 * tangent_u_0;
 }
 
 /// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp`.
@@ -953,6 +1056,7 @@ fn single_shooting_kernel_mpc_cost_stage_cost_grad_u_jvp(
 ///   Expected length: 2.
 /// - `work`: mutable workspace slice used to store intermediate values
 ///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
 fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(
     _x: &[f64],
     _p: &[f64],
@@ -960,15 +1064,17 @@ fn single_shooting_kernel_mpc_cost_terminal_cost_grad_x_jvp(
     vf: &mut [f64],
     _work: &mut [f64],
 ) {
-    vf[0] = 6.0_f64 * tangent_x[0];
-    vf[1] = tangent_x[1];
+    let tangent_x_0 = tangent_x[0];
+    let tangent_x_1 = tangent_x[1];
+    vf[0] = 6.0_f64 * tangent_x_0;
+    vf[1] = tangent_x_1;
 }
 
 /// Return metadata describing [`single_shooting_kernel_mpc_cost_f_grad_states_u_seq`].
 pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq_meta() -> FunctionMetadata {
     FunctionMetadata {
         function_name: "single_shooting_kernel_mpc_cost_f_grad_states_u_seq",
-        workspace_size: 12,
+        workspace_size: 0,
         input_names: &["x0", "u_seq", "p"],
         input_sizes: &[2, 5, 2],
         output_names: &["cost", "gradient_u_seq", "x_traj"],
@@ -1000,7 +1106,7 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq_meta() -> FunctionMet
 ///   packed rollout state trajectory
 ///   Expected length: 12.
 /// - `work`: mutable workspace slice used to store intermediate values
-///   while evaluating this kernel. Expected length: at least 12.
+///   while evaluating this kernel. Expected length: at least 0.
 pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
     x0: &[f64],
     u_seq: &[f64],
@@ -1010,9 +1116,6 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
     x_traj: &mut [f64],
     work: &mut [f64],
 ) -> Result<(), GradgenError> {
-    if work.len() < 12 {
-        return Err(GradgenError::WorkspaceTooSmall("work expected at least 12"));
-    };
     if x0.len() != 2 {
         return Err(GradgenError::InputTooSmall("x0 expected length 2"));
     };
@@ -1034,80 +1137,178 @@ pub fn single_shooting_kernel_mpc_cost_f_grad_states_u_seq(
         return Err(GradgenError::OutputTooSmall("x_traj expected length 12"));
     };
     let rest = work;
-    let (state_buffers, rest) = rest.split_at_mut(4);
-    let (current_state_buf, next_state_buf) = state_buffers.split_at_mut(2);
-    let mut current_state = current_state_buf;
-    let mut next_state = next_state_buf;
-    let (lambda_buffers, rest) = rest.split_at_mut(4);
-    let (lambda_current, lambda_next) = lambda_buffers.split_at_mut(2);
-    let (temp_state, rest) = rest.split_at_mut(2);
-    let (temp_control, rest) = rest.split_at_mut(1);
-    let (scalar_buffer, stage_work) = rest.split_at_mut(1);
+    let mut current_state = [0.0_f64; 2];
+    let mut next_state = [0.0_f64; 2];
+    let mut lambda_current = [0.0_f64; 2];
+    let mut lambda_next = [0.0_f64; 2];
+    let mut scalar_buffer = [0.0_f64; 1];
+    let stage_work = rest;
     current_state.copy_from_slice(x0);
+    let p_cached = [p[0], p[1]];
     x_traj[0..2].copy_from_slice(x0);
     let state_history = &mut x_traj[2..];
     let mut total_cost = 0.0_f64;
     for stage_index in 0..5 {
-        let u_t = &u_seq[stage_index..(stage_index + 1)];
-        single_shooting_kernel_mpc_cost_stage_cost(
-            current_state,
-            u_t,
-            p,
-            scalar_buffer,
+        let u_t = [u_seq[stage_index]];
+        single_shooting_kernel_mpc_cost_stage_cost_joint(
+            &current_state,
+            &u_t,
+            &p_cached,
+            &mut scalar_buffer,
+            &mut next_state,
             stage_work,
         );
         total_cost += scalar_buffer[0];
-        single_shooting_kernel_mpc_cost_dynamics(current_state, u_t, p, next_state, stage_work);
-        state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(next_state);
+        state_history[(stage_index * 2)..((stage_index + 1) * 2)].copy_from_slice(&next_state);
         core::mem::swap(&mut current_state, &mut next_state);
     }
-    single_shooting_kernel_mpc_cost_terminal_cost(current_state, p, scalar_buffer, stage_work);
+    single_shooting_kernel_mpc_cost_terminal_cost(
+        &current_state,
+        &p_cached,
+        &mut scalar_buffer,
+        stage_work,
+    );
     total_cost += scalar_buffer[0];
     cost[0] = total_cost;
     single_shooting_kernel_mpc_cost_terminal_cost_grad_x(
-        current_state,
-        p,
-        lambda_current,
+        &current_state,
+        &p_cached,
+        &mut lambda_current,
         stage_work,
     );
     for stage_index in (1..5).rev() {
-        let x_t = &state_history[((stage_index - 1) * 2)..(stage_index * 2)];
-        let u_t = &u_seq[stage_index..(stage_index + 1)];
+        let x_t = [
+            state_history[(stage_index - 1) * 2],
+            state_history[(stage_index - 1) * 2 + 1],
+        ];
+        let u_t = [u_seq[stage_index]];
         let grad_u_t = &mut gradient_u_seq[stage_index..(stage_index + 1)];
-        single_shooting_kernel_mpc_cost_stage_cost_grad_u(x_t, u_t, p, grad_u_t, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_u(
-            x_t,
-            u_t,
-            p,
-            &lambda_current[..],
-            temp_control,
+        single_shooting_kernel_mpc_cost_stage_transition_grad(
+            &x_t,
+            &u_t,
+            &p_cached,
+            &lambda_current,
+            &mut lambda_next,
+            grad_u_t,
             stage_work,
         );
-        grad_u_t[0] += temp_control[0];
-        single_shooting_kernel_mpc_cost_stage_cost_grad_x(x_t, u_t, p, lambda_next, stage_work);
-        single_shooting_kernel_mpc_cost_dynamics_vjp_x(
-            x_t,
-            u_t,
-            p,
-            &lambda_current[..],
-            temp_state,
-            stage_work,
-        );
-        lambda_next[0] += temp_state[0];
-        lambda_next[1] += temp_state[1];
-        lambda_current.copy_from_slice(lambda_next);
+        lambda_current.copy_from_slice(&lambda_next);
     }
-    let u_t = &u_seq[0..1];
+    let u_t = [u_seq[0]];
     let grad_u_t = &mut gradient_u_seq[0..1];
-    single_shooting_kernel_mpc_cost_stage_cost_grad_u(x0, u_t, p, grad_u_t, stage_work);
-    single_shooting_kernel_mpc_cost_dynamics_vjp_u(
+    single_shooting_kernel_mpc_cost_stage_transition_grad(
         x0,
-        u_t,
-        p,
-        &lambda_current[..],
-        temp_control,
+        &u_t,
+        &p_cached,
+        &lambda_current,
+        &mut lambda_next,
+        grad_u_t,
         stage_work,
     );
-    grad_u_t[0] += temp_control[0];
     Ok(())
+}
+
+/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_cost_joint`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `ell`:
+///   primal output slice for the declared result `ell`
+///   Expected length: 1.
+/// - `x_next`:
+///   primal output slice for the declared result `x_next`
+///   Expected length: 2.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
+fn single_shooting_kernel_mpc_cost_stage_cost_joint(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    ell: &mut [f64],
+    x_next: &mut [f64],
+    _work: &mut [f64],
+) {
+    let x_0 = x[0];
+    let x_1 = x[1];
+    let u_0 = u[0];
+    let p_0 = p[0];
+    let p_1 = p[1];
+    ell[0] = 0.3_f64 * (u_0 * u_0);
+    ell[0] += p_0 * u_0;
+    ell[0] += x_0 * x_0;
+    ell[0] += 2.0_f64 * (x_1 * x_1);
+    x_next[0] = p_0 * x_1;
+    x_next[0] += u_0;
+    x_next[0] += x_0;
+    x_next[1] = p_1 * u_0;
+    x_next[1] -= 0.5_f64 * x_0;
+    x_next[1] += x_1;
+}
+
+/// Evaluate the generated symbolic function `single_shooting_kernel_mpc_cost_stage_transition_grad`.
+///
+/// All numeric slices use the `f64` scalar type.
+///
+/// Arguments:
+/// - `x`:
+///   input slice for the declared argument `x`
+///   Expected length: 2.
+/// - `u`:
+///   input slice for the declared argument `u`
+///   Expected length: 1.
+/// - `p`:
+///   input slice for the declared argument `p`
+///   Expected length: 2.
+/// - `single_shooting_kernel_mpc_cost_lambda_current`:
+///   input slice for the declared argument
+///   `single_shooting_kernel_mpc_cost_lambda_current`
+///   Expected length: 2.
+/// - `grad_x`:
+///   primal output slice for the declared result `grad_x`
+///   Expected length: 2.
+/// - `grad_u`:
+///   primal output slice for the declared result `grad_u`
+///   Expected length: 1.
+/// - `work`: mutable workspace slice used to store intermediate values
+///   while evaluating this kernel. Expected length: at least 0.
+#[inline(always)]
+fn single_shooting_kernel_mpc_cost_stage_transition_grad(
+    x: &[f64],
+    u: &[f64],
+    p: &[f64],
+    single_shooting_kernel_mpc_cost_lambda_current: &[f64],
+    grad_x: &mut [f64],
+    grad_u: &mut [f64],
+    _work: &mut [f64],
+) {
+    let x_0 = x[0];
+    let x_1 = x[1];
+    let u_0 = u[0];
+    let p_0 = p[0];
+    let p_1 = p[1];
+    let single_shooting_kernel_mpc_cost_lambda_current_0 =
+        single_shooting_kernel_mpc_cost_lambda_current[0];
+    let single_shooting_kernel_mpc_cost_lambda_current_1 =
+        single_shooting_kernel_mpc_cost_lambda_current[1];
+    grad_x[0] = -0.5_f64 * single_shooting_kernel_mpc_cost_lambda_current_1;
+    grad_x[0] += single_shooting_kernel_mpc_cost_lambda_current_0;
+    grad_x[0] += 2.0_f64 * x_0;
+    grad_x[1] = p_0 * single_shooting_kernel_mpc_cost_lambda_current_0;
+    grad_x[1] += single_shooting_kernel_mpc_cost_lambda_current_1;
+    grad_x[1] += 4.0_f64 * x_1;
+    grad_u[0] = p_1 * single_shooting_kernel_mpc_cost_lambda_current_1;
+    grad_u[0] += p_0;
+    grad_u[0] += single_shooting_kernel_mpc_cost_lambda_current_0;
+    grad_u[0] += 0.6_f64 * u_0;
 }

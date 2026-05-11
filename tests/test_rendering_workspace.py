@@ -5,6 +5,7 @@ from gradgen._rust_codegen.rendering.workspace import (
     _allocate_workspace_slots,
     _collect_reachable_nodes,
     _collect_required_workspace_nodes,
+    _count_emitted_workspace_refs,
     _emit_exact_length_assert,
     _emit_min_length_assert,
     _emit_workspace_assignment,
@@ -65,6 +66,33 @@ class RenderingWorkspaceTests(unittest.TestCase):
         workspace_map, workspace_size = _allocate_workspace_slots(function)
         self.assertEqual(workspace_size, 1)
         self.assertEqual(len(workspace_map), 1)
+
+    def test_dead_temp_elimination_prunes_child_of_cached_parent(self) -> None:
+        x = SXVector.sym("x", 2)
+        shared = (x[0] + x[1]).sin()
+        cached_parent = (shared + 1.0).sin()
+        function = Function(
+            "demo",
+            [x],
+            [cached_parent, cached_parent],
+            input_names=["x"],
+            output_names=["y0", "y1"],
+        )
+
+        workspace_map, workspace_size = _allocate_workspace_slots(
+            function,
+            output_refs=tuple(function.flat_outputs),
+            prioritize_expensive_nodes=True,
+        )
+
+        self.assertEqual(workspace_size, 1)
+        self.assertEqual(workspace_map, {cached_parent.node: 0})
+
+        emitted_ref_counts = _count_emitted_workspace_refs(
+            tuple(workspace_map),
+            output_refs=tuple(function.flat_outputs),
+        )
+        self.assertEqual(emitted_ref_counts[cached_parent.node], 2)
 
     def test_workspace_assignment_uses_plain_assignments(self) -> None:
         x = SX.sym("x")

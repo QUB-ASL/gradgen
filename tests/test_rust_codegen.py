@@ -16,6 +16,7 @@ import gradgen
 import gradgen._rust_codegen.codegen as rust_codegen_module
 import gradgen.single_shooting as single_shooting_module
 from gradgen._rust_codegen.project_support import _gradgen_version
+from gradgen._rust_codegen.rendering import _allocate_workspace_slots
 from gradgen import (
     CodeGenerationBuilder,
     ComposedFunction,
@@ -565,24 +566,33 @@ mod {module_name} {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
         self.assertIn(
-            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_x(",
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp(",
             lib_text,
         )
         helper_start = lib_text.index(
-            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_x("
+            "fn single_shooting_kernel_mpc_cost_dynamics_vjp("
         )
         helper_end = lib_text.index(
-            "fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(",
+            "fn single_shooting_kernel_mpc_cost_stage_cost_grad(",
             helper_start,
         )
         helper_text = lib_text[helper_start:helper_end]
         self.assertIn("vjp_x[0] =", helper_text)
         self.assertIn("vjp_x[1] =", helper_text)
+        self.assertIn("vjp_u[0] =", helper_text)
         self.assertNotIn("copy_from_slice", helper_text)
         self.assertNotIn("vjp_x[0] = work[0];", helper_text)
         self.assertNotIn("vjp_x[1] = work[1];", helper_text)
+        self.assertNotIn("vjp_u[0] = work[0];", helper_text)
         self.assertNotIn("work[0] =", helper_text)
         self.assertNotIn("work[1] =", helper_text)
+        self.assertIn("let p_0 = p[0];", helper_text)
+        self.assertIn(
+            "let cotangent_x_next_0 = cotangent_x_next[0];",
+            helper_text,
+        )
+        self.assertIn("    _x: &[f64],", helper_text)
+        self.assertIn("    _u: &[f64],", helper_text)
 
     def test_generates_vector_function_with_deterministic_workspace_layout(
         self,
@@ -677,6 +687,14 @@ mod {module_name} {{
             )
             self.assertNotIn("0..(0 + 1)", lib_text)
             self.assertNotIn("(0 * 1)..((0 + 1) * 1)", lib_text)
+            self.assertNotIn(
+                "fn single_shooting_kernel_mpc_cost_dynamics_vjp_u(",
+                hvp_codegen.source,
+            )
+            self.assertNotIn(
+                "fn single_shooting_kernel_mpc_cost_stage_cost_grad_u(",
+                hvp_codegen.source,
+            )
 
             expected_cost_literal = self._rust_array_literal(
                 [expected_cost], "f64"
@@ -1110,8 +1128,17 @@ mod single_shooting_horizon_one_tests {{
                 expected_gradient, "f64"
             )
 
+            self.assertIn("let u_t = [", lib_text)
             self.assertIn(
-                ("&u_seq[(stage_index * 2).." "((stage_index + 1) * 2)]"),
+                "u_seq[stage_index * 2]",
+                lib_text,
+            )
+            self.assertIn(
+                "u_seq[stage_index * 2 + 1]",
+                lib_text,
+            )
+            self.assertNotIn(
+                "&u_seq[(stage_index * 2)..((stage_index + 1) * 2)]",
                 lib_text,
             )
             self.assertIn(
@@ -1121,6 +1148,8 @@ mod single_shooting_horizon_one_tests {{
                 ),
                 lib_text,
             )
+            self.assertIn("stage_cost_grad(", lib_text)
+            self.assertNotIn("stage_cost_joint", lib_text)
 
             self._append_rust_test(
                 project.project_dir,
@@ -1201,6 +1230,193 @@ mod single_shooting_multi_u_tests {{
 
             completed = self._run_cargo(project.project_dir, "test", "--quiet")
             self.assertEqual(completed.returncode, 0)
+
+    def test_single_shooting_joint_cost_gradient_uses_joint_stage_helper(
+        self,
+    ) -> None:
+        problem = self._build_multi_control_single_shooting_problem(horizon=2)
+        x0 = [0.5, -1.0]
+        U = [0.2, -0.1, 0.3, 0.4]
+        p = [0.6, -0.4]
+        expected_cost, expected_states = (
+            self._manual_multi_control_single_shooting_rollout(
+                x0, U, p, problem.horizon
+            )
+        )
+        expected_gradient = (
+            self._manual_multi_control_single_shooting_gradient(
+                x0, U, p, problem.horizon
+            )
+        )
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig().with_crate_name("single_shooting_joint_u")
+            )
+            .for_function(problem)
+            .add_joint(
+                SingleShootingBundle().add_cost().add_gradient().add_rollout_states()
+            )
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(Path(tmpdir) / "single_shooting_joint_u")
+            joint_codegen = project.codegens[0]
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("#[inline(always)]", lib_text)
+            self.assertIn("let p_cached = [p[0], p[1]];", lib_text)
+            self.assertIn("stage_cost_joint", lib_text)
+            self.assertIn("stage_transition_grad", lib_text)
+            self.assertNotIn("stage_cost_grad(", lib_text)
+            self.assertNotIn("stage_cost_grad_u(", lib_text)
+
+            expected_cost_literal = self._rust_array_literal(
+                [expected_cost], "f64"
+            )
+            expected_states_literal = self._rust_array_literal(
+                expected_states, "f64"
+            )
+            expected_gradient_literal = self._rust_array_literal(
+                expected_gradient, "f64"
+            )
+
+            self._append_rust_test(
+                project.project_dir,
+                f"""
+#[cfg(test)]
+mod single_shooting_joint_u_tests {{
+    use super::*;
+
+    fn assert_close_slice(
+        actual: &[f64],
+        expected: &[f64],
+        tolerance: f64,
+    ) {{
+        assert_eq!(actual.len(), expected.len());
+        for (actual_value, expected_value) in
+            actual.iter().zip(expected.iter())
+        {{
+            assert!(
+                (actual_value - expected_value).abs() <= tolerance,
+                "expected {{expected_value}}, got {{actual_value}}"
+            );
+        }}
+    }}
+
+    #[test]
+    fn matches_joint_reference() {{
+        let x0 = {self._rust_array_literal(x0, "f64")};
+        let u_seq = {self._rust_array_literal(U, "f64")};
+        let p = {self._rust_array_literal(p, "f64")};
+
+        let mut cost = [0.0_f64; 1];
+        let mut gradient_u_seq = [0.0_f64; 4];
+        let mut x_traj = [0.0_f64; 6];
+        let mut work = [0.0_f64; {joint_codegen.workspace_size}];
+        let result = {joint_codegen.function_name}(
+            &x0,
+            &u_seq,
+            &p,
+            &mut cost,
+            &mut gradient_u_seq,
+            &mut x_traj,
+            &mut work,
+        );
+        assert!(result.is_ok());
+        assert_close_slice(&cost, &{expected_cost_literal}, 1e-10_f64);
+        assert_close_slice(
+            &gradient_u_seq,
+            &{expected_gradient_literal},
+            1e-5_f64,
+        );
+        assert_close_slice(&x_traj, &{expected_states_literal}, 1e-10_f64);
+    }}
+}}
+""".lstrip(),
+            )
+
+            completed = self._run_cargo(project.project_dir, "test", "--quiet")
+            self.assertEqual(completed.returncode, 0)
+
+    def test_workspace_allocator_prefers_expensive_repeated_nodes(
+        self,
+    ) -> None:
+        x = SXVector.sym("x", 2)
+
+        cheap_shared = x[0] + x[1]
+        cheap_function = Function(
+            "cheap_shared",
+            [x],
+            [cheap_shared, cheap_shared],
+            input_names=["x"],
+            output_names=["y0", "y1"],
+        )
+        cheap_workspace_map, cheap_workspace_size = _allocate_workspace_slots(
+            cheap_function,
+            output_refs=tuple(cheap_function.flat_outputs),
+            prioritize_expensive_nodes=True,
+        )
+        self.assertEqual(cheap_workspace_size, 0)
+        self.assertEqual(cheap_workspace_map, {})
+
+        expensive_shared = (x[0] + x[1]).sin()
+        expensive_function = Function(
+            "expensive_shared",
+            [x],
+            [expensive_shared, expensive_shared],
+            input_names=["x"],
+            output_names=["y0", "y1"],
+        )
+        expensive_workspace_map, expensive_workspace_size = (
+            _allocate_workspace_slots(
+                expensive_function,
+                output_refs=tuple(expensive_function.flat_outputs),
+                prioritize_expensive_nodes=True,
+            )
+        )
+        self.assertEqual(expensive_workspace_size, 1)
+        self.assertEqual(len(expensive_workspace_map), 1)
+
+    def test_flattened_single_shooting_joint_recovers_staged_lowering(
+        self,
+    ) -> None:
+        problem = self._build_single_shooting_problem(horizon=3)
+        flattened = problem.to_function()
+
+        builder = (
+            CodeGenerationBuilder()
+            .with_backend_config(
+                RustBackendConfig().with_crate_name(
+                    "single_shooting_flattened_recovered"
+                )
+            )
+            .for_function(flattened)
+            .add_joint(
+                FunctionBundle().add_f().add_gradient(
+                    wrt=problem.control_sequence_name
+                )
+            )
+            .with_simplification("medium")
+            .done()
+        )
+
+        with TemporaryDirectory() as tmpdir:
+            project = builder.build(
+                Path(tmpdir) / "single_shooting_flattened_recovered"
+            )
+            lib_text = project.lib_rs.read_text(encoding="utf-8")
+
+            self.assertIn("for stage_index in 0..3 {", lib_text)
+            self.assertIn("for stage_index in (1..3).rev() {", lib_text)
+            self.assertIn(
+                "packed control-sequence slice laid out stage-major",
+                lib_text,
+            )
+            self.assertIn("stage_cost_joint", lib_text)
 
     def test_include_states_rejected_for_non_ss_sources(self) -> None:
         x = SXVector.sym("x", 2)
@@ -3002,8 +3218,7 @@ mod tests {{
 
         self.assertEqual(result.scalar_type, "f32")
         self.assertIn("#![no_std]", result.source)
-        self.assertIn("libm::sinf(", result.source)
-        self.assertIn("libm::cosf(", result.source)
+        self.assertIn("libm::sincosf(", result.source)
         self.assertIn("libm::expf(", result.source)
         self.assertIn("libm::logf(", result.source)
         self.assertIn("libm::sqrtf(", result.source)
@@ -3097,9 +3312,26 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn("if p[0] >= ", result.source)
+        self.assertIn("(if p[0] >= ", result.source)
         self.assertIn(".sin()", result.source)
-        self.assertIn("y[0] = if", result.source)
+        self.assertIn("y[0] = (if", result.source)
+
+    def test_generated_code_parenthesizes_negated_if_else(self) -> None:
+        x = SX.sym("x")
+        p = SX.sym("p")
+        expr = -gradgen.if_else(-1.0, x, p >= 0.0)
+        f = Function(
+            "negated_piecewise",
+            [x, p],
+            [expr],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("-(if p[0] >= 0.0_f64", result.source)
+        self.assertNotIn("--1.0_f64", result.source)
 
     def test_generated_code_supports_if_else_with_truthy_condition(self) -> None:
         x = SX.sym("x")
@@ -3115,8 +3347,8 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn("if (p[0]) != 0.0_f64", result.source)
-        self.assertIn("y[0] = if", result.source)
+        self.assertIn("(if (p[0]) != 0.0_f64", result.source)
+        self.assertIn("y[0] = (if", result.source)
 
     def test_generated_code_supports_vector_if_else(self) -> None:
         x = SXVector.sym("x", 2)
@@ -3136,8 +3368,8 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn("y[0] = if p[0] >= 0.0_f64", result.source)
-        self.assertIn("y[1] = if p[0] >= 0.0_f64", result.source)
+        self.assertIn("y[0] = (if p[0] >= 0.0_f64", result.source)
+        self.assertIn("y[1] = (if p[0] >= 0.0_f64", result.source)
 
     def test_no_std_codegen_supports_extended_libm_functions(self) -> None:
         x = SX.sym("x")
@@ -3773,8 +4005,7 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn(".sin()", result.source)
-        self.assertIn(".cos()", result.source)
+        self.assertIn(".sin_cos()", result.source)
         self.assertIn(".exp()", result.source)
         self.assertIn(".ln()", result.source)
         self.assertIn(".sqrt()", result.source)
@@ -3836,8 +4067,7 @@ mod tests {{
 
         self.assertEqual(result.backend_mode, "no_std")
         self.assertIn("#![no_std]", result.source)
-        self.assertIn("libm::sin(", result.source)
-        self.assertIn("libm::cos(", result.source)
+        self.assertIn("libm::sincos(", result.source)
         self.assertIn("libm::exp(", result.source)
         self.assertIn("libm::log(", result.source)
         self.assertIn("libm::sqrt(", result.source)
@@ -3870,8 +4100,7 @@ mod tests {{
         self.assertEqual(result.backend_mode, "no_std")
         self.assertEqual(result.math_library, "libm")
         self.assertIn("#![no_std]", result.source)
-        self.assertIn("libm::sin(x[0])", result.source)
-        self.assertIn("libm::cos(x[0])", result.source)
+        self.assertIn("libm::sincos(x[0])", result.source)
         self.assertNotIn('libm = "0.2"', result.source)
 
     def test_function_level_codegen_works_for_derived_functions(self) -> None:
@@ -4856,7 +5085,7 @@ fn weighted_sqnorm_no_dead_work_hvp(
 
             self.assertIn('libm = "0.2"', cargo_text)
             self.assertIn("Scalar type: `f32`", readme_text)
-            self.assertIn("libm::sinf(", lib_text)
+            self.assertIn("libm::sincosf(", lib_text)
             self.assertIn(
                 (
                     "pub fn trig_kernel(x: &[f32], y: &mut [f32], "

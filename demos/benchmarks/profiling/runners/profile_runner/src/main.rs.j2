@@ -1,0 +1,143 @@
+use std::hint::black_box;
+use std::time::Instant;
+
+use {{ generated_crate_name }}::{
+    {{ primal_function_name }},
+    {{ gradient_function_name }},
+    {{ joint_function_name }},
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    const TIMING_RUNS: usize = {{ timing_runs }};
+    const CONTROL_LEN: usize = {{ horizon * 2 }};
+    const PRIMAL_COST_OUTPUT_LEN: usize = {{ primal_cost_output_size }};
+    const PRIMAL_STATE_OUTPUT_LEN: usize = {{ primal_state_output_size }};
+    const GRADIENT_OUTPUT_LEN: usize = {{ gradient_output_size }};
+    const GRADIENT_STATE_OUTPUT_LEN: usize = {{ gradient_state_output_size }};
+    const JOINT_COST_OUTPUT_LEN: usize = {{ joint_cost_output_size }};
+    const JOINT_GRADIENT_OUTPUT_LEN: usize = {{ joint_gradient_output_size }};
+    const JOINT_STATE_OUTPUT_LEN: usize = {{ joint_state_output_size }};
+    const PRIMAL_WORKSPACE_LEN: usize = {{ primal_workspace_size }};
+    const GRADIENT_WORKSPACE_LEN: usize = {{ gradient_workspace_size }};
+    const JOINT_WORKSPACE_LEN: usize = {{ joint_workspace_size }};
+
+    let x0 = [
+        1.0_{{ scalar_type }},
+        -0.5_{{ scalar_type }},
+        0.2_{{ scalar_type }},
+        2.0_{{ scalar_type }},
+    ];
+    let mut u_seq = [0.0_{{ scalar_type }}; CONTROL_LEN];
+    for index in 0..{{ horizon }} {
+        u_seq[2 * index] = 0.05_{{ scalar_type }};
+        u_seq[2 * index + 1] = -0.02_{{ scalar_type }};
+    }
+    let p = [
+        0.2_{{ scalar_type }},
+        -0.1_{{ scalar_type }},
+        0.05_{{ scalar_type }},
+        1.8_{{ scalar_type }},
+    ];
+
+    let mut primal_cost = [0.0_{{ scalar_type }}; PRIMAL_COST_OUTPUT_LEN];
+    let mut primal_state = [0.0_{{ scalar_type }}; PRIMAL_STATE_OUTPUT_LEN];
+    let mut primal_work = [0.0_{{ scalar_type }}; PRIMAL_WORKSPACE_LEN];
+
+    let mut gradient = [0.0_{{ scalar_type }}; GRADIENT_OUTPUT_LEN];
+    let mut gradient_state = [0.0_{{ scalar_type }}; GRADIENT_STATE_OUTPUT_LEN];
+    let mut gradient_work = [0.0_{{ scalar_type }}; GRADIENT_WORKSPACE_LEN];
+
+    let mut joint_cost = [0.0_{{ scalar_type }}; JOINT_COST_OUTPUT_LEN];
+    let mut joint_gradient = [0.0_{{ scalar_type }}; JOINT_GRADIENT_OUTPUT_LEN];
+    let mut joint_state = [0.0_{{ scalar_type }}; JOINT_STATE_OUTPUT_LEN];
+    let mut joint_work = [0.0_{{ scalar_type }}; JOINT_WORKSPACE_LEN];
+
+    let mut copy_state_source = [1.0_{{ scalar_type }}; JOINT_STATE_OUTPUT_LEN];
+    let mut copy_state_sink = [0.0_{{ scalar_type }}; JOINT_STATE_OUTPUT_LEN];
+    let mut copy_gradient_source = [
+        1.0_{{ scalar_type }};
+        JOINT_GRADIENT_OUTPUT_LEN
+    ];
+    let mut copy_gradient_sink = [
+        0.0_{{ scalar_type }};
+        JOINT_GRADIENT_OUTPUT_LEN
+    ];
+    let mut checksum = 0.0_f64;
+
+    let start = Instant::now();
+    for _run in 0..TIMING_RUNS {
+        {{ primal_function_name }}(
+            black_box(&x0),
+            black_box(&u_seq),
+            black_box(&p),
+            black_box(&mut primal_cost),
+            black_box(&mut primal_state),
+            black_box(&mut primal_work),
+        )
+        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        checksum += f64::from(primal_cost[0]);
+        checksum += f64::from(primal_state[0]);
+    }
+    let primal_total_us = start.elapsed().as_secs_f64() * 1.0e6
+        / TIMING_RUNS as f64;
+
+    let start = Instant::now();
+    for _run in 0..TIMING_RUNS {
+        {{ gradient_function_name }}(
+            black_box(&x0),
+            black_box(&u_seq),
+            black_box(&p),
+            black_box(&mut gradient),
+            black_box(&mut gradient_state),
+            black_box(&mut gradient_work),
+        )
+        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        checksum += f64::from(gradient[0]);
+        checksum += f64::from(gradient_state[0]);
+    }
+    let gradient_total_us = start.elapsed().as_secs_f64() * 1.0e6
+        / TIMING_RUNS as f64;
+
+    let start = Instant::now();
+    for _run in 0..TIMING_RUNS {
+        {{ joint_function_name }}(
+            black_box(&x0),
+            black_box(&u_seq),
+            black_box(&p),
+            black_box(&mut joint_cost),
+            black_box(&mut joint_gradient),
+            black_box(&mut joint_state),
+            black_box(&mut joint_work),
+        )
+        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        checksum += f64::from(joint_cost[0]);
+        checksum += f64::from(joint_gradient[0]);
+        checksum += f64::from(joint_state[0]);
+    }
+    let joint_total_us = start.elapsed().as_secs_f64() * 1.0e6
+        / TIMING_RUNS as f64;
+
+    let start = Instant::now();
+    for _run in 0..TIMING_RUNS {
+        copy_state_sink.copy_from_slice(black_box(&copy_state_source));
+        checksum += f64::from(copy_state_sink[0]);
+    }
+    let joint_state_copy_us = start.elapsed().as_secs_f64() * 1.0e6
+        / TIMING_RUNS as f64;
+
+    let start = Instant::now();
+    for _run in 0..TIMING_RUNS {
+        copy_gradient_sink.copy_from_slice(black_box(&copy_gradient_source));
+        checksum += f64::from(copy_gradient_sink[0]);
+    }
+    let joint_gradient_copy_us = start.elapsed().as_secs_f64() * 1.0e6
+        / TIMING_RUNS as f64;
+
+    black_box(checksum);
+    println!("primal_total_us {:.6}", primal_total_us);
+    println!("gradient_total_us {:.6}", gradient_total_us);
+    println!("joint_total_us {:.6}", joint_total_us);
+    println!("joint_state_copy_us {:.6}", joint_state_copy_us);
+    println!("joint_gradient_copy_us {:.6}", joint_gradient_copy_us);
+    Ok(())
+}

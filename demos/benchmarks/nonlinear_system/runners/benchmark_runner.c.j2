@@ -1,0 +1,118 @@
+/* Benchmark runner for generated CasADi code. */
+
+#define _POSIX_C_SOURCE 200809L
+
+#include <math.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef double casadi_real;
+typedef long long int casadi_int;
+
+int {{ function_name }}(
+    const casadi_real** arg,
+    casadi_real** res,
+    casadi_int* iw,
+    casadi_real* w,
+    int mem
+);
+
+int {{ function_name }}_work(
+    casadi_int* sz_arg,
+    casadi_int* sz_res,
+    casadi_int* sz_iw,
+    casadi_int* sz_w
+);
+
+#ifdef __APPLE__
+#include <mach/mach_time.h>
+
+static double now_ms(void) {
+    static mach_timebase_info_data_t info;
+    if (info.denom == 0) {
+        mach_timebase_info(&info);
+    }
+    uint64_t now = mach_absolute_time();
+    double ns = (double)now * (double)info.numer / (double)info.denom;
+    return ns / 1.0e6;
+}
+#else
+#include <time.h>
+
+static double now_ms(void) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1.0e3 + (double)ts.tv_nsec / 1.0e6;
+}
+#endif
+
+int main(void) {
+    enum {
+        TIMING_RUNS = {{ timing_runs }},
+        CONTROL_LEN = {{ control_length }},
+        COST_OUTPUT_LEN = {{ cost_output_size }},
+        GRAD_OUTPUT_LEN = {{ gradient_output_size }},
+    };
+
+    casadi_real x0[{{ state_size }}] = {
+{% for value in x0_values %}
+        {{ value }},
+{% endfor %}
+    };
+    casadi_real u_seq[CONTROL_LEN];
+    casadi_real p[{{ parameter_size }}] = {
+{% for value in p_values %}
+        {{ value }},
+{% endfor %}
+    };
+    for (int stage = 0; stage < {{ horizon }}; ++stage) {
+{% for value in control_stage_values %}
+        u_seq[{{ control_size }} * stage + {{ loop.index0 }}] = {{ value }};
+{% endfor %}
+    }
+
+    casadi_int sz_arg = 0;
+    casadi_int sz_res = 0;
+    casadi_int sz_iw = 0;
+    casadi_int sz_w = 0;
+    {{ function_name }}_work(
+        &sz_arg,
+        &sz_res,
+        &sz_iw,
+        &sz_w
+    );
+
+    const casadi_real* arg[3] = {x0, u_seq, p};
+    casadi_real cost_out[COST_OUTPUT_LEN];
+    casadi_real grad_out[GRAD_OUTPUT_LEN];
+    casadi_real* res[2] = {cost_out, grad_out};
+
+    size_t iw_len = (size_t)(sz_iw > 0 ? sz_iw : 1);
+    size_t w_len = (size_t)(sz_w > 0 ? sz_w : 1);
+    casadi_int* iw = calloc(iw_len, sizeof(casadi_int));
+    casadi_real* w = calloc(w_len, sizeof(casadi_real));
+
+    if (iw == NULL || w == NULL) {
+        fprintf(stderr, "failed to allocate CasADi work arrays\n");
+        free(iw);
+        free(w);
+        return 1;
+    }
+
+    double checksum = 0.0;
+
+    double start = now_ms();
+    for (int run = 0; run < TIMING_RUNS; ++run) {
+        {{ function_name }}(arg, res, iw, w, 0);
+        checksum += cost_out[0] + grad_out[0];
+    }
+
+    double total_ms = now_ms() - start;
+    printf("%.6f\n", total_ms / (double)TIMING_RUNS);
+
+    free(iw);
+    free(w);
+    (void)checksum;
+    return 0;
+}

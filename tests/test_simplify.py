@@ -61,6 +61,15 @@ class SimplifyTests(unittest.TestCase):
         self.assertEqual(simplified.op, "mul")
         self.assertEqual({arg.value for arg in simplified.args}, {None, 5.0})
 
+    def test_simplify_canonicalizes_commutative_addition_order(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+
+        left = simplify(x + y, max_effort="medium")
+        right = simplify(y + x, max_effort="medium")
+
+        self.assertIs(left.node, right.node)
+
     def test_simplify_combines_sum_of_negatives(self) -> None:
         x = SX.sym("x")
         y = SX.sym("y")
@@ -113,6 +122,15 @@ class SimplifyTests(unittest.TestCase):
         self.assertEqual(simplified.op, "pow")
         self.assertIs(simplified.args[0].node, x.node)
         self.assertEqual(simplified.args[1].value, 2.0)
+
+    def test_simplify_canonicalizes_commutative_product_order(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+
+        left = simplify(x * y, max_effort="medium")
+        right = simplify(y * x, max_effort="medium")
+
+        self.assertIs(left.node, right.node)
 
     def test_simplify_reduces_zero_times_x_plus_one_times_y_to_y(self) -> None:
         x = SX.sym("x")

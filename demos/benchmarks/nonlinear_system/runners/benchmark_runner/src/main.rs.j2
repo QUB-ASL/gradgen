@@ -1,0 +1,55 @@
+use std::hint::black_box;
+use std::time::Instant;
+
+use {{ generated_crate_name }}::{
+    {{ function_name }},
+};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    const TIMING_RUNS: usize = {{ timing_runs }};
+    const CONTROL_LEN: usize = {{ control_size * horizon }};
+    const COST_OUTPUT_LEN: usize = {{ cost_output_size }};
+    const GRAD_OUTPUT_LEN: usize = {{ gradient_output_size }};
+    const WORKSPACE_LEN: usize = {{ workspace_size }};
+
+    let x0 = [
+{% for value in x0_values %}
+        {{ value }}_{{ scalar_type }},
+{% endfor %}
+    ];
+    let mut u_seq = [0.0_{{ scalar_type }}; CONTROL_LEN];
+    for stage in 0..{{ horizon }} {
+{% for value in control_stage_values %}
+        u_seq[stage * {{ control_size }} + {{ loop.index0 }}] =
+            {{ value }}_{{ scalar_type }};
+{% endfor %}
+    }
+    let p = [
+{% for value in p_values %}
+        {{ value }}_{{ scalar_type }},
+{% endfor %}
+    ];
+    let mut cost = [0.0_{{ scalar_type }}; COST_OUTPUT_LEN];
+    let mut grad = [0.0_{{ scalar_type }}; GRAD_OUTPUT_LEN];
+    let mut work = [0.0_{{ scalar_type }}; WORKSPACE_LEN];
+    let mut checksum = 0.0_f64;
+
+    let start = Instant::now();
+    for _run in 0..TIMING_RUNS {
+        {{ function_name }}(
+            black_box(&x0),
+            black_box(&u_seq),
+            black_box(&p),
+            black_box(&mut cost),
+            black_box(&mut grad),
+            black_box(&mut work),
+        )
+        .map_err(|error| std::io::Error::other(format!("{error:?}")))?;
+        checksum += f64::from(cost[0]) + f64::from(grad[0]);
+    }
+
+    black_box(checksum);
+    let total_ms = start.elapsed().as_secs_f64() * 1.0e3;
+    println!("{:.6}", total_ms / TIMING_RUNS as f64);
+    Ok(())
+}

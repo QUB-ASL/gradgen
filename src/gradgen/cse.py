@@ -50,7 +50,7 @@ def cse(
     if min_uses < 2:
         raise ValueError("min_uses must be at least 2")
 
-    flat_outputs = tuple(_flatten_outputs(outputs))
+    flat_outputs = tuple(_normalize_outputs(outputs))
     ordered = _topological_nodes(flat_outputs)
     use_counts = _count_uses(flat_outputs)
 
@@ -84,6 +84,18 @@ def _flatten_outputs(outputs: Iterable[ExpressionLike]) -> Iterable[SX]:
             yield output
         else:
             yield from output
+
+
+def _normalize_outputs(outputs: Iterable[ExpressionLike]) -> Iterable[SX]:
+    """Flatten outputs and normalize them before planning CSE."""
+    from .simplify import _resolve_effort, _simplify_value
+
+    effort = _resolve_effort("medium")
+    for output in outputs:
+        if isinstance(output, SX):
+            yield _simplify_value(output, effort)
+        else:
+            yield from _simplify_value(output, effort)
 
 
 def _topological_nodes(outputs: tuple[SX, ...]) -> tuple[SXNode, ...]:

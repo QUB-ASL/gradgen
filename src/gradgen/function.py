@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from typing import Callable, Iterable
 
 from .sx import (
@@ -50,6 +50,10 @@ class Function:
     - topological ordering of the output dependency graph
     - calling with symbolic values for substitution
     - calling with numeric values for direct evaluation
+
+    The class also carries optional internal provenance metadata so staged
+    code generation can recover a single-shooting lowering path after a
+    ``SingleShootingProblem`` has been flattened into a plain ``Function``.
     """
 
     name: str
@@ -57,6 +61,12 @@ class Function:
     outputs: tuple[FunctionArg, ...]
     input_names: tuple[str, ...]
     output_names: tuple[str, ...]
+    single_shooting_problem: object | None = field(
+        default=None, compare=False, repr=False
+    )
+    single_shooting_include_states: bool = field(
+        default=False, compare=False, repr=False
+    )
 
     def __init__(
         self,
@@ -65,6 +75,8 @@ class Function:
         outputs: Iterable[FunctionArg],
         input_names: Iterable[str] | None = None,
         output_names: Iterable[str] | None = None,
+        single_shooting_problem: object | None = None,
+        single_shooting_include_states: bool = False,
     ) -> None:
         """Construct a symbolic function from declared inputs and outputs.
 
@@ -119,6 +131,30 @@ class Function:
         object.__setattr__(self, "outputs", normalized_outputs)
         object.__setattr__(self, "input_names", resolved_input_names)
         object.__setattr__(self, "output_names", resolved_output_names)
+        object.__setattr__(
+            self,
+            "single_shooting_problem",
+            single_shooting_problem,
+        )
+        object.__setattr__(
+            self,
+            "single_shooting_include_states",
+            single_shooting_include_states,
+        )
+
+    def _with_origin(self, **changes: object) -> Function:
+        """Return a copy that preserves the single-shooting provenance.
+
+        This helper keeps the internal single-shooting marker attached.
+        """
+        return replace(
+            self,
+            single_shooting_problem=self.single_shooting_problem,
+            single_shooting_include_states=(
+                self.single_shooting_include_states
+            ),
+            **changes,
+        )
 
     @property
     def flat_inputs(self) -> tuple[SX, ...]:
@@ -343,10 +379,10 @@ class Function:
                 total = _add_like(total, jvp(output, wrt, tangent))
             differentiated_outputs.append(total)
 
-        return Function(
-            name or f"{self.name}_jvp",
-            self.inputs,
-            differentiated_outputs,
+        return self._with_origin(
+            name=name or f"{self.name}_jvp",
+            inputs=self.inputs,
+            outputs=tuple(differentiated_outputs),
             input_names=self.input_names,
             output_names=self.output_names,
         )
@@ -385,10 +421,10 @@ class Function:
             outputs = [grad]
             output_names = (output_name,)
 
-        return Function(
-            name or f"{self.name}_gradient_{self.input_names[wrt_index]}",
-            self.inputs,
-            outputs,
+        return self._with_origin(
+            name=name or f"{self.name}_gradient_{self.input_names[wrt_index]}",
+            inputs=self.inputs,
+            outputs=tuple(outputs),
             input_names=self.input_names,
             output_names=output_names,
         )
@@ -493,12 +529,12 @@ class Function:
             if tangent_input_name is None
             else (*self.input_names, tangent_input_name)
         )
-        joint_function = Function(
-            joint_name,
-            inputs,
-            outputs,
+        joint_function = self._with_origin(
+            name=joint_name,
+            inputs=inputs,
+            outputs=tuple(outputs),
             input_names=input_names,
-            output_names=output_names,
+            output_names=tuple(output_names),
         )
         if simplify_joint is None:
             return joint_function
@@ -533,10 +569,10 @@ class Function:
 
         hvp_output = jvp(gradient_output, wrt, tangent_input)
 
-        return Function(
-            name or f"{self.name}_hvp_{self.input_names[wrt_index]}",
-            (*self.inputs, tangent_input),
-            [hvp_output],
+        return self._with_origin(
+            name=name or f"{self.name}_hvp_{self.input_names[wrt_index]}",
+            inputs=(*self.inputs, tangent_input),
+            outputs=(hvp_output,),
             input_names=(*self.input_names, tangent_input_name),
             output_names=(self.output_names[0],),
         )
@@ -597,10 +633,10 @@ class Function:
             for output, cotangent in zip(self.outputs, cotangent_inputs):
                 total = _add_like(total, vjp(output, wrt, cotangent))
 
-            return Function(
-                name or f"{self.name}_vjp_{self.input_names[wrt_index]}",
-                (*self.inputs, *cotangent_inputs),
-                [total],
+            return self._with_origin(
+                name=name or f"{self.name}_vjp_{self.input_names[wrt_index]}",
+                inputs=(*self.inputs, *cotangent_inputs),
+                outputs=(total,),
                 input_names=(*self.input_names, *resolved_cotangent_names),
                 output_names=(f"vjp_{self.input_names[wrt_index]}",),
             )
@@ -624,10 +660,10 @@ class Function:
                 total = _add_like(total, vjp(output, wrt, cotangent))
             differentiated_inputs.append(total)
 
-        return Function(
-            name or f"{self.name}_vjp",
-            self.inputs,
-            differentiated_inputs,
+        return self._with_origin(
+            name=name or f"{self.name}_vjp",
+            inputs=self.inputs,
+            outputs=tuple(differentiated_inputs),
             input_names=self.input_names,
             output_names=tuple(
                 f"vjp_{input_name}" for input_name in self.input_names
@@ -668,12 +704,12 @@ class Function:
             differentiated_outputs.append(block)
             differentiated_names.append(f"jacobian_{output_name}")
 
-        return Function(
-            name or f"{self.name}_jacobian_{self.input_names[wrt_index]}",
-            self.inputs,
-            differentiated_outputs,
+        return self._with_origin(
+            name=name or f"{self.name}_jacobian_{self.input_names[wrt_index]}",
+            inputs=self.inputs,
+            outputs=tuple(differentiated_outputs),
             input_names=self.input_names,
-            output_names=differentiated_names,
+            output_names=tuple(differentiated_names),
         )
 
     def jacobian_blocks(
@@ -749,12 +785,12 @@ class Function:
             differentiated_outputs = [block]
             differentiated_names = [self.output_names[0]]
 
-        return Function(
-            name or f"{self.name}_hessian_{self.input_names[wrt_index]}",
-            self.inputs,
-            differentiated_outputs,
+        return self._with_origin(
+            name=name or f"{self.name}_hessian_{self.input_names[wrt_index]}",
+            inputs=self.inputs,
+            outputs=tuple(differentiated_outputs),
             input_names=self.input_names,
-            output_names=differentiated_names,
+            output_names=tuple(differentiated_names),
         )
 
     def hessian_blocks(
@@ -812,10 +848,10 @@ class Function:
             _simplify_value(output, effort) for output in self.outputs
         ]
 
-        return Function(
-            name or f"{self.name}_simplified",
-            self.inputs,
-            simplified_outputs,
+        return self._with_origin(
+            name=name or f"{self.name}_simplified",
+            inputs=self.inputs,
+            outputs=tuple(simplified_outputs),
             input_names=self.input_names,
             output_names=self.output_names,
         )

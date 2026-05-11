@@ -15,9 +15,100 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
   `A^T x`.
 - Added SymPy-backed integration coverage for `quadform(...)` in both
   symmetric and non-symmetric modes.
+- Added a benchmark demo that compares Gradgen and CasADi code size for
+  a bicycle-model single-shooting problem across horizons `N = 10` to
+  `N = 100`.
+- Added a profiling demo that times the generated Gradgen Rust kernel
+  directly and separates kernel compute from plain slice-copy cost.
+- Added a larger nonlinear single-shooting benchmark with 10 states and
+  5 inputs to compare Gradgen and CasADi on a more compute-heavy
+  problem.
+- Added Plotly and matplotlib figures to the benchmark docs so the
+  Gradgen and CasADi runtime trends are visible directly on the website.
+- The single-shooting benchmark demo now also runs native Gradgen Rust
+  and CasADi C benchmark executables from the terminal and prints the
+  average runtime plus standard deviation for each one.
+- Tuned the native Gradgen benchmark runner for release performance by
+  enabling link-time optimization, forcing one codegen unit, and
+  compiling for the native CPU target.
 
 ### Changed
 
+- Small staged single-shooting kernels now use a denser local layout so
+  the generated Rust reuses small fixed-size state and control blocks
+  more directly.
+- The Rust workspace allocator now keeps repeated expensive
+  expressions, like trig and power terms, more readily than repeated
+  cheap ones so staged single-shooting helpers reuse more useful
+  temporaries.
+- Flattened single-shooting functions created with `to_function()` are
+  now recognized again by the Rust builder and lowered through the
+  staged single-shooting path instead of the generic function path
+  when the requested outputs match the control-sequence cost and
+  gradient.
+- The single-shooting benchmark now generates and times one joint
+  cost-plus-gradient kernel instead of two separate calls.
+- The staged single-shooting cost-and-gradient helper now computes the
+  state and control gradients together in one pass, then splits them in
+  the driver to reduce repeated reverse-mode work.
+- The staged single-shooting gradient path now fuses the stage cost
+  gradient with the dynamics adjoint update through a single stage
+  Lagrangian helper, which lets the generated code reuse more of the
+  same intermediate expressions.
+- Single-shooting internal stage helpers are now inlined more
+  aggressively and use a tighter temporary-selection policy so the hot
+  runtime path does less helper-boundary work.
+- Small staged single-shooting Rust helpers now scalarize the reachable
+  slice inputs they actually use into local variables, which reduces
+  repeated indexing in the hot path.
+- Simplification now canonicalizes commutative sums and products more
+  aggressively before CSE, helping equivalent expressions line up for
+  reuse more often.
+- The Rust workspace planner now runs a dead-temp elimination pass after
+  the initial allocation so cached helper intermediates that no longer
+  pay off are dropped before code is emitted.
+- The staged single-shooting Rust driver now caches fixed parameters
+  once outside the horizon loop so repeated stage evaluations do less
+  indexing on loop-invariant data.
+- The single-shooting benchmark table now labels the runtime columns in
+  microseconds to match the reported values.
+- The staged single-shooting cost-plus-gradient kernel now computes
+  each stage cost together with its stage gradient, then reuses the
+  cached stage-gradient terms in the reverse sweep.
+- The staged single-shooting Rust generator now fuses shared stage-cost
+  gradient and dynamics-adjoint work so repeated expressions are only
+  computed once when both outputs are needed.
+
+### Fixed
+
+- Pinned the Docusaurus website `lodash` resolution back to
+  `4.17.21`, which restores `yarn start` after the docs dependency
+  refresh.
+- Updated the Docusaurus website dependencies so the docs site no
+  longer pulls vulnerable versions of
+  `@babel/plugin-transform-modules-systemjs`, `serialize-javascript`,
+  or `fast-uri`.
+- Fixed the small-dense single-shooting Rust generator so the final
+  reverse stage no longer leaves unused adjoint scratch values behind
+  or passes an immutable buffer where a mutable gradient output is
+  required.
+- Generated Rust now parenthesizes negated `if_else(...)` expressions
+  so Clippy no longer reports double-negation warnings.
+- Fixed the staged single-shooting joint cost-plus-gradient kernel so
+  the cached stage adjoint is initialized before the reverse sweep adds
+  the dynamics contribution.
+- Fixed the staged single-shooting joint reverse sweep to read the
+  cached stage gradient for the current stage instead of the previous
+  one.
+- Changed the single-shooting benchmark to time one repeated loop per
+  horizon and report the average runtime per call using `--num-runs`
+  instead of per-call mean plus standard deviation.
+- Added a `--flatten` benchmark option to compare the staged
+  single-shooting Gradgen path against a flattened `to_function()`
+  lowering.
+- Reused a shared Cargo target directory across benchmark horizons so
+  the Gradgen runner builds faster when comparing staged or flattened
+  single-shooting code.
 - Improved the generated documentation for matrix-building internals
   so the symbolic math helpers are easier to understand in the source
   code.
@@ -31,6 +122,21 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Made generated Rust use a compact `for` loop for repeated
   `matvec_component(...)` and `transpose_matvec_component(...)`
   accumulations instead of emitting one statement per term.
+- Fused shared `sin(...)` and `cos(...)` evaluations into a single
+  Rust `sin_cos()` call when both are used on the same angle, reducing
+  duplicate trig work in generated kernels.
+- The single-shooting benchmark can now build the Gradgen runner with
+  `f32` as well as `f64`, making it easier to compare the two scalar
+  types from the command line.
+- The single-shooting benchmark now writes its Cargo build settings
+  directly, which avoids a missing template lookup in GitHub Actions
+  and keeps the benchmark demo runnable in CI.
+- The single-shooting HVP generator now skips emitting unused helper
+  functions when the kernel only needs the directional-derivative
+  variants, which keeps Clippy happy for the generated demo crates.
+- The single-shooting cost-plus-gradient stage helper now also emits
+  the next state, so the benchmarked staged rollout can do more work in
+  one call per stage.
 
 
 ## 0.5.2 - 08-05-2025

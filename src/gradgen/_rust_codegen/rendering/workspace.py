@@ -120,12 +120,41 @@ def _count_node_uses(output_refs: tuple[SX, ...]) -> dict[SXNode, int]:
     return counts
 
 
+def _flatten_output_terms(expr: SX) -> list[SX]:
+    """Return scalar output terms using the same flattening as codegen."""
+    terms: list[SX] = []
+
+    def visit(node: SX) -> None:
+        if node.op == "add":
+            visit(node.args[0])
+            visit(node.args[1])
+            return
+        if node.op == "sub":
+            visit(node.args[0])
+            visit(node.args[1])
+            return
+        if node.op == "neg":
+            visit(node.args[0])
+            return
+        if node.op == "const" and node.value == 0.0:
+            return
+        terms.append(node)
+
+    visit(expr)
+    return terms
+
+
 def _allocate_workspace_slots(
     function,
     *,
     output_refs: tuple[SX, ...] | None = None,
+    prioritize_expensive_nodes: bool = False,
 ) -> tuple[dict[SXNode, int], int]:
-    """Assign reusable workspace slots based on each node's last use."""
+    """Assign reusable workspace slots based on each node's last use.
+
+    The allocator uses a small cost model so repeated expensive
+    expressions are more likely to be cached than repeated cheap ones.
+    """
     if output_refs is None:
         output_refs = tuple(
             scalar
@@ -140,9 +169,21 @@ def _allocate_workspace_slots(
         if (
             node.op not in {"symbol", "const"}
             and node in required_nodes
-            and use_counts.get(node, 0) > 1
+            and (
+                _should_materialize_node(node, use_counts.get(node, 0))
+                if prioritize_expensive_nodes
+                else use_counts.get(node, 0) > 1
+            )
         )
     ]
+    if not workspace_nodes:
+        return {}, 0
+
+    workspace_nodes = _prune_unprofitable_workspace_nodes(
+        tuple(workspace_nodes),
+        output_refs=output_refs,
+        prioritize_expensive_nodes=prioritize_expensive_nodes,
+    )
     if not workspace_nodes:
         return {}, 0
 
@@ -170,3 +211,150 @@ def _allocate_workspace_slots(
         workspace_map[node] = slot
 
     return workspace_map, next_slot
+
+
+def _prune_unprofitable_workspace_nodes(
+    workspace_nodes: tuple[SXNode, ...],
+    *,
+    output_refs: tuple[SX, ...],
+    prioritize_expensive_nodes: bool,
+) -> tuple[SXNode, ...]:
+    """Drop temps that stop paying off after other temps are introduced.
+
+    The initial workspace plan decides which nodes are worth materializing
+    based on DAG use counts. After that plan is fixed, some child temps can
+    end up referenced only once in the emitted code because their parents are
+    now cached too. This pass recomputes the final temp reference counts and
+    removes such nodes iteratively.
+    """
+    current_nodes = workspace_nodes
+    while True:
+        emitted_ref_counts = _count_emitted_workspace_refs(
+            current_nodes,
+            output_refs=output_refs,
+        )
+        next_nodes = tuple(
+            node
+            for node in current_nodes
+            if _keep_materialized_node(
+                node,
+                emitted_ref_counts.get(node, 0),
+                prioritize_expensive_nodes=prioritize_expensive_nodes,
+            )
+        )
+        if next_nodes == current_nodes:
+            return current_nodes
+        current_nodes = next_nodes
+
+
+def _count_emitted_workspace_refs(
+    workspace_nodes: tuple[SXNode, ...],
+    *,
+    output_refs: tuple[SX, ...],
+) -> dict[SXNode, int]:
+    """Count how often each temp is referenced in the emitted code."""
+    workspace_set = set(workspace_nodes)
+    counts: dict[SXNode, int] = Counter()
+
+    def record(node: SXNode) -> None:
+        if node in workspace_set:
+            counts[node] += 1
+            return
+        for arg in node.args:
+            record(arg)
+
+    for node in workspace_nodes:
+        for arg in node.args:
+            record(arg)
+    for expr in output_refs:
+        for term in _flatten_output_terms(expr):
+            record(term.node)
+    return counts
+
+
+def _keep_materialized_node(
+    node: SXNode,
+    emitted_ref_count: int,
+    *,
+    prioritize_expensive_nodes: bool,
+) -> bool:
+    """Return whether a temp still pays off after workspace planning."""
+    if prioritize_expensive_nodes:
+        return _should_materialize_node(node, emitted_ref_count)
+    return emitted_ref_count > 1
+
+
+def _should_materialize_node(node: SXNode, use_count: int) -> bool:
+    """Return whether a repeated node is worth caching in workspace."""
+    if use_count < 2:
+        return False
+    expr_cost = _estimate_node_cost(node)
+    if expr_cost <= 1:
+        materialization_cost = 3
+    elif expr_cost <= 2:
+        materialization_cost = 2
+    else:
+        materialization_cost = 1
+    return (use_count - 1) * expr_cost > materialization_cost
+
+
+def _estimate_node_cost(node: SXNode) -> int:
+    """Estimate the relative cost of recomputing ``node``."""
+    if node.op in {"symbol", "const"}:
+        return 0
+    if node.op in {"neg", "abs"}:
+        return 1
+    if node.op in {
+        "add",
+        "sub",
+        "mul",
+        "div",
+        "min",
+        "max",
+        "sign",
+        "signum",
+        "floor",
+        "ceil",
+        "trunc",
+        "round",
+        "remainder",
+    }:
+        return 1
+    if node.op in {
+        "pow",
+        "sqrt",
+        "exp",
+        "log",
+        "log1p",
+        "expm1",
+        "sin",
+        "cos",
+        "tan",
+        "asin",
+        "acos",
+        "atan",
+        "sinh",
+        "cosh",
+        "tanh",
+        "asinh",
+        "acosh",
+        "atanh",
+        "atan2",
+        "hypot",
+        "norm2",
+        "norm2sq",
+        "sum",
+        "mean",
+        "prod",
+        "reduce_max",
+        "reduce_min",
+        "matvec",
+        "transpose_matvec",
+        "matvec_component",
+        "transpose_matvec_component",
+        "bilinear_form",
+        "quadform",
+        "cross",
+    }:
+        return 4
+    return 2
