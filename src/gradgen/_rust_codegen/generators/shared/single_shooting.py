@@ -692,6 +692,29 @@ def _emit_single_shooting_control_slice(
     )
 
 
+def _emit_single_shooting_block_array(
+    sequence_name: str,
+    index_expr: str,
+    block_size: int,
+    array_name: str,
+) -> str:
+    """Return a small fixed-size array binding for one packed stage block."""
+    if block_size == 1:
+        if index_expr == "0":
+            return f"let {array_name} = [{sequence_name}[0]];"
+        return f"let {array_name} = [{sequence_name}[{index_expr}]];"
+
+    if index_expr == "0":
+        base_expr = "0"
+    else:
+        base_expr = f"{index_expr} * {block_size}"
+    entries = ", ".join(
+        f"{sequence_name}[{base_expr} + {offset}]"
+        for offset in range(block_size)
+    )
+    return f"let {array_name} = [{entries}];"
+
+
 def _emit_single_shooting_stage_range(index_expr: str, block_size: int) -> str:
     return _emit_half_open_range(index_expr, block_size)
 

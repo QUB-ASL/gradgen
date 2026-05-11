@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Changed
 
+- Small staged single-shooting kernels now use a denser local layout so
+  the generated Rust reuses small fixed-size state and control blocks
+  more directly.
 - The Rust workspace allocator now keeps repeated expensive
   expressions, like trig and power terms, more readily than repeated
   cheap ones so staged single-shooting helpers reuse more useful
@@ -62,6 +65,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - The Rust workspace planner now runs a dead-temp elimination pass after
   the initial allocation so cached helper intermediates that no longer
   pay off are dropped before code is emitted.
+- The staged single-shooting Rust driver now caches fixed parameters
+  once outside the horizon loop so repeated stage evaluations do less
+  indexing on loop-invariant data.
 - The single-shooting benchmark table now labels the runtime columns in
   microseconds to match the reported values.
 - The staged single-shooting cost-plus-gradient kernel now computes

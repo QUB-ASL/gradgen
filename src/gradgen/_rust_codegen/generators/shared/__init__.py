@@ -48,6 +48,7 @@ from .single_shooting import (
     _build_single_shooting_input_specs,
     _build_single_shooting_output_specs,
     _compose_single_shooting_helper_base_name,
+    _emit_single_shooting_block_array,
     _emit_single_shooting_control_slice,
     _emit_single_shooting_stage_range,
     _emit_small_accumulate,

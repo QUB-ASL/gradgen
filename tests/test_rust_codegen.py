@@ -1128,8 +1128,17 @@ mod single_shooting_horizon_one_tests {{
                 expected_gradient, "f64"
             )
 
+            self.assertIn("let u_t = [", lib_text)
             self.assertIn(
-                ("&u_seq[(stage_index * 2).." "((stage_index + 1) * 2)]"),
+                "u_seq[stage_index * 2 + 0]",
+                lib_text,
+            )
+            self.assertIn(
+                "u_seq[stage_index * 2 + 1]",
+                lib_text,
+            )
+            self.assertNotIn(
+                "&u_seq[(stage_index * 2)..((stage_index + 1) * 2)]",
                 lib_text,
             )
             self.assertIn(
@@ -1259,6 +1268,7 @@ mod single_shooting_multi_u_tests {{
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
             self.assertIn("#[inline(always)]", lib_text)
+            self.assertIn("let p_cached = [p[0], p[1]];", lib_text)
             self.assertIn("stage_cost_joint", lib_text)
             self.assertIn("stage_transition_grad", lib_text)
             self.assertNotIn("stage_cost_grad(", lib_text)
