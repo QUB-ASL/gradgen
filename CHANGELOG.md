@@ -56,6 +56,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Small staged single-shooting Rust helpers now scalarize the reachable
   slice inputs they actually use into local variables, which reduces
   repeated indexing in the hot path.
+- Simplification now canonicalizes commutative sums and products more
+  aggressively before CSE, helping equivalent expressions line up for
+  reuse more often.
 - The single-shooting benchmark table now labels the runtime columns in
   microseconds to match the reported values.
 - The staged single-shooting cost-plus-gradient kernel now computes

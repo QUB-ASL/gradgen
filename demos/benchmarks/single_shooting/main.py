@@ -90,7 +90,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--num-runs",
         type=int,
-        default=10000,
+        default=1000000,
         help="Number of benchmark repetitions per horizon.",
     )
     parser.add_argument(

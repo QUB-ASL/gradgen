@@ -11,11 +11,10 @@ class CSETests(unittest.TestCase):
 
         plan = cse([expr])
 
-        self.assertEqual(len(plan.assignments), 2)
+        self.assertEqual(len(plan.assignments), 1)
         self.assertEqual(plan.assignments[0].name, "w0")
-        self.assertEqual(plan.assignments[0].expr.op, "mul")
-        self.assertEqual(plan.assignments[1].expr.op, "add")
-        self.assertEqual(plan.assignments[1].use_count, 3)
+        self.assertEqual(plan.assignments[0].expr.op, "pow")
+        self.assertEqual(plan.assignments[0].use_count, 2)
 
     def test_cse_skips_leaf_nodes(self) -> None:
         x = SX.sym("x")
@@ -49,7 +48,7 @@ class CSETests(unittest.TestCase):
         plan = f.cse(prefix="tmp")
 
         self.assertEqual(plan.assignments[0].name, "tmp0")
-        self.assertEqual(plan.assignments[1].name, "tmp1")
+        self.assertEqual(plan.assignments[0].expr.op, "pow")
 
     def test_cse_can_identify_repeated_derivative_subexpressions(self) -> None:
         x = SX.sym("x")
@@ -57,9 +56,18 @@ class CSETests(unittest.TestCase):
 
         plan = cse([expr])
 
-        self.assertTrue(
-            any(assignment.expr.op == "add"
-                for assignment in plan.assignments))
+        self.assertEqual(plan.assignments, ())
+        self.assertEqual(plan.outputs[0].op, "mul")
+
+    def test_cse_normalizes_commutative_subexpressions(self) -> None:
+        x = SX.sym("x")
+        y = SX.sym("y")
+
+        plan = cse([x + y, y + x])
+
+        self.assertEqual(len(plan.assignments), 1)
+        self.assertEqual(plan.assignments[0].expr.op, "add")
+        self.assertEqual(plan.assignments[0].use_count, 2)
 
     def test_function_cse_works_for_jacobian_functions(self) -> None:
         x = SXVector.sym("x", 2)
@@ -67,7 +75,8 @@ class CSETests(unittest.TestCase):
 
         plan = jac.cse()
 
-        self.assertTrue(len(plan.assignments) >= 1)
+        self.assertEqual(plan.assignments, ())
+        self.assertTrue(all(output.op == "mul" for output in plan.outputs))
 
     def test_cse_validates_min_uses(self) -> None:
         x = SX.sym("x")
