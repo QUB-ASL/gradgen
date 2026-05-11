@@ -80,6 +80,7 @@ from ..sx import (
 SET_TUPLE_STR = set[tuple[str, str]]
 
 _LOGGER = logging.getLogger(__name__)
+_SCALARIZED_PRIVATE_INPUT_LIMIT = 32
 
 
 def _flatten_output_terms(expr: SX) -> list[tuple[float, SX]]:
@@ -164,6 +165,38 @@ def _emit_output_accumulation_lines(
         ref = emit_term(term)
         operator = "+=" if sign >= 0.0 else "-="
         lines.append(f"{target} {operator} {ref};")
+    return lines
+
+
+def _should_scalarize_private_inputs(
+    function_keyword: str,
+    input_specs: tuple[_ArgSpec, ...],
+) -> bool:
+    """Return whether a private helper should scalarize slice inputs."""
+    if function_keyword.startswith("pub"):
+        return False
+    return sum(spec.size for spec in input_specs) <= _SCALARIZED_PRIVATE_INPUT_LIMIT
+
+
+def _build_scalarized_input_binding_lines(
+    input_specs: tuple[_ArgSpec, ...],
+    input_args: tuple[object, ...],
+    reachable_nodes: set[SXNode],
+    scalar_bindings: dict[SXNode, str],
+) -> list[str]:
+    """Return local scalar bindings for reachable helper inputs."""
+    lines: list[str] = []
+    for input_spec, input_arg in zip(input_specs, input_args):
+        for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
+            if scalar.node not in reachable_nodes:
+                continue
+            binding_name = sanitize_ident(
+                f"{input_spec.rust_name}_{scalar_index}"
+            )
+            lines.append(
+                f"let {binding_name} = {input_spec.rust_name}[{scalar_index}];"
+            )
+            scalar_bindings[scalar.node] = binding_name
     return lines
 
 
@@ -800,6 +833,7 @@ def generate_rust(
     output_write_lines: list[str] = []
     computation_lines: list[str] = []
     suppressed_custom_wrappers: set[tuple[str, str]] = set()
+    scalarized_input_binding_lines: list[str] = []
 
     for input_spec, input_arg in zip(input_specs, function.inputs):
         _assert, _in_return, _out_return = _emit_exact_length_assert(
@@ -812,6 +846,14 @@ def generate_rust(
         for scalar_index, scalar in enumerate(_flatten_arg(input_arg)):
             scalar_bindings[scalar.node] = \
                 f"{input_spec.rust_name}[{scalar_index}]"
+
+    if _should_scalarize_private_inputs(function_keyword, input_specs):
+        scalarized_input_binding_lines = _build_scalarized_input_binding_lines(
+            input_specs,
+            function.inputs,
+            reachable_nodes,
+            scalar_bindings,
+        )
 
     direct_output_helpers: list[str | None] = []
     materialized_output_refs: list[SX] = []
@@ -894,6 +936,8 @@ def generate_rust(
         )
 
     with _use_sincos_bindings(sincos_bindings):
+        if scalarized_input_binding_lines:
+            computation_lines.extend(scalarized_input_binding_lines)
         if sincos_bindings:
             computation_lines.extend(
                 _render_sincos_binding_lines(

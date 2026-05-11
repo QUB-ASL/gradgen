@@ -586,6 +586,13 @@ mod {module_name} {{
         self.assertNotIn("vjp_u[0] = work[0];", helper_text)
         self.assertNotIn("work[0] =", helper_text)
         self.assertNotIn("work[1] =", helper_text)
+        self.assertIn("let p_0 = p[0];", helper_text)
+        self.assertIn(
+            "let cotangent_x_next_0 = cotangent_x_next[0];",
+            helper_text,
+        )
+        self.assertIn("    _x: &[f64],", helper_text)
+        self.assertIn("    _u: &[f64],", helper_text)
 
     def test_generates_vector_function_with_deterministic_workspace_layout(
         self,
