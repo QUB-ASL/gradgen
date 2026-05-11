@@ -186,7 +186,12 @@ def _should_materialize_node(node: SXNode, use_count: int) -> bool:
     if use_count < 2:
         return False
     expr_cost = _estimate_node_cost(node)
-    materialization_cost = 2
+    if expr_cost <= 1:
+        materialization_cost = 3
+    elif expr_cost <= 2:
+        materialization_cost = 2
+    else:
+        materialization_cost = 1
     return (use_count - 1) * expr_cost > materialization_cost
 
 

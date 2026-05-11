@@ -1251,8 +1251,9 @@ mod single_shooting_multi_u_tests {{
             joint_codegen = project.codegens[0]
             lib_text = project.lib_rs.read_text(encoding="utf-8")
 
+            self.assertIn("#[inline(always)]", lib_text)
             self.assertIn("stage_cost_joint", lib_text)
-            self.assertIn("grad_xu", lib_text)
+            self.assertIn("stage_transition_grad", lib_text)
             self.assertNotIn("stage_cost_grad(", lib_text)
             self.assertNotIn("stage_cost_grad_u(", lib_text)
 

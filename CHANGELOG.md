@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added a benchmark demo that compares Gradgen and CasADi code size for
   a bicycle-model single-shooting problem across horizons `N = 10` to
   `N = 100`.
+- Added a profiling demo that times the generated Gradgen Rust kernel
+  directly and separates kernel compute from plain slice-copy cost.
+- Added a larger nonlinear single-shooting benchmark with 10 states and
+  5 inputs to compare Gradgen and CasADi on a more compute-heavy
+  problem.
 - The single-shooting benchmark demo now also runs native Gradgen Rust
   and CasADi C benchmark executables from the terminal and prints the
   average runtime plus standard deviation for each one.
@@ -41,6 +46,13 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - The staged single-shooting cost-and-gradient helper now computes the
   state and control gradients together in one pass, then splits them in
   the driver to reduce repeated reverse-mode work.
+- The staged single-shooting gradient path now fuses the stage cost
+  gradient with the dynamics adjoint update through a single stage
+  Lagrangian helper, which lets the generated code reuse more of the
+  same intermediate expressions.
+- Single-shooting internal stage helpers are now inlined more
+  aggressively and use a tighter temporary-selection policy so the hot
+  runtime path does less helper-boundary work.
 - The single-shooting benchmark table now labels the runtime columns in
   microseconds to match the reported values.
 - The staged single-shooting cost-plus-gradient kernel now computes

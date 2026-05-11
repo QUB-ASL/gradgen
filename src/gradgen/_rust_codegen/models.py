@@ -133,6 +133,7 @@ class _SingleShootingHelperBundle:
     stage_cost_grad_u_name: str | None
     stage_cost_grad_name: str | None
     stage_cost_joint_name: str | None
+    stage_transition_grad_name: str | None
     stage_cost_grad_x_jvp_name: str | None
     stage_cost_grad_u_jvp_name: str | None
     terminal_cost_grad_x_name: str | None

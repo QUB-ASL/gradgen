@@ -117,3 +117,68 @@ class BenchmarkDemoTests(unittest.TestCase):
         self.assertIn("Gradgen lowering: flattened to_function()", completed.stdout)
         self.assertIn("Gradgen (us)", completed.stdout)
         self.assertIn("10 |", completed.stdout)
+
+    def test_single_shooting_profiling_smoke(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = (
+            repo_root
+            / "demos"
+            / "benchmarks"
+            / "profiling"
+            / "main.py"
+        )
+        env = os.environ.copy()
+        env["PYTHONPATH"] = "src"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                "--horizon",
+                "10",
+                "--num-runs",
+                "1",
+            ],
+            cwd=repo_root,
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertIn("Single-shooting Rust profiling", completed.stdout)
+        self.assertIn("joint |", completed.stdout)
+        self.assertIn("helper gap", completed.stdout)
+
+    def test_nonlinear_system_benchmark_prints_runtime_columns(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        script = (
+            repo_root
+            / "demos"
+            / "benchmarks"
+            / "nonlinear_system"
+            / "main.py"
+        )
+        env = os.environ.copy()
+        env["PYTHONPATH"] = "src"
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(script),
+                "--start-horizon",
+                "10",
+                "--max-horizon",
+                "10",
+                "--step",
+                "10",
+                "--num-runs",
+                "1",
+            ],
+            cwd=repo_root,
+            env=env,
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertIn("Nonlinear single-shooting benchmark", completed.stdout)
+        self.assertIn("Gradgen (us)", completed.stdout)
+        self.assertIn("CasADi (us)", completed.stdout)
+        self.assertIn("10 |", completed.stdout)
