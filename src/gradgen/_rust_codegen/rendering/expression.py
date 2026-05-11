@@ -668,8 +668,8 @@ def _emit_if_else_node(
         operator = _BINARY_COMPARISON_OPERATORS[condition.op]
         bool_condition = f"{condition_args[0]} {operator} {condition_args[1]}"
     return (
-        f"if {bool_condition} "
-        f"{{ {args[0]} }} else {{ {args[1]} }}"
+        f"(if {bool_condition} "
+        f"{{ {args[0]} }} else {{ {args[1]} }})"
     )
 
 
@@ -710,7 +710,7 @@ def _emit_unary_node(
     """Emit a unary Rust expression or math call."""
     del scalar_bindings, workspace_map
     if expr.op == "neg":
-        return f"-{args[0]}"
+        return f"-{_parenthesize_unary_operand(args[0])}"
     if expr.op in {"erf", "erfc"}:
         return f"{expr.op}({args[0]})"
     if expr.op in {"sin", "cos"}:
@@ -726,6 +726,17 @@ def _emit_unary_node(
         scalar_type,
         math_library,
     )
+
+
+def _parenthesize_unary_operand(arg: str) -> str:
+    """Return ``arg`` wrapped for unary prefix operators when needed."""
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", arg):
+        return arg
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\[[^\]]+\]", arg):
+        return arg
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\(\)", arg):
+        return arg
+    return f"({arg})"
 
 
 def _emit_custom_scalar_node(

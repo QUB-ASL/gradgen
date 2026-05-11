@@ -1,11 +1,11 @@
 {
   "crate_name": "single_shooting_penalty_kernel",
-  "created_at": "2026-05-01T08:32:16.605990Z",
-  "gradgen_version": "0.4.2a2",
+  "created_at": "2026-05-11T10:39:14.070202Z",
+  "gradgen_version": "0.5.3",
   "functions": [
     {
       "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_f_states",
-      "workspace_size": 8,
+      "workspace_size": 5,
       "input_names": [
         "x0",
         "u_seq",
@@ -29,7 +29,7 @@
     },
     {
       "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq",
-      "workspace_size": 14,
+      "workspace_size": 12,
       "input_names": [
         "x0",
         "u_seq",
@@ -53,7 +53,7 @@
     },
     {
       "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq",
-      "workspace_size": 33,
+      "workspace_size": 34,
       "input_names": [
         "x0",
         "u_seq",
@@ -79,7 +79,7 @@
     },
     {
       "function_name": "single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq",
-      "workspace_size": 15,
+      "workspace_size": 10,
       "input_names": [
         "x0",
         "u_seq",

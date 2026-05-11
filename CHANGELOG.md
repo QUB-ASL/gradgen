@@ -61,6 +61,11 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - The staged single-shooting Rust generator now fuses shared stage-cost
   gradient and dynamics-adjoint work so repeated expressions are only
   computed once when both outputs are needed.
+
+### Fixed
+
+- Generated Rust now parenthesizes negated `if_else(...)` expressions
+  so Clippy no longer reports double-negation warnings.
 - Fixed the staged single-shooting joint cost-plus-gradient kernel so
   the cached stage adjoint is initialized before the reverse sweep adds
   the dynamics contribution.

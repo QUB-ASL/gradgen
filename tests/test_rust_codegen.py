@@ -3295,9 +3295,26 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn("if p[0] >= ", result.source)
+        self.assertIn("(if p[0] >= ", result.source)
         self.assertIn(".sin()", result.source)
-        self.assertIn("y[0] = if", result.source)
+        self.assertIn("y[0] = (if", result.source)
+
+    def test_generated_code_parenthesizes_negated_if_else(self) -> None:
+        x = SX.sym("x")
+        p = SX.sym("p")
+        expr = -gradgen.if_else(-1.0, x, p >= 0.0)
+        f = Function(
+            "negated_piecewise",
+            [x, p],
+            [expr],
+            input_names=["x", "p"],
+            output_names=["y"],
+        )
+
+        result = f.generate_rust()
+
+        self.assertIn("-(if p[0] >= 0.0_f64", result.source)
+        self.assertNotIn("--1.0_f64", result.source)
 
     def test_generated_code_supports_if_else_with_truthy_condition(self) -> None:
         x = SX.sym("x")
@@ -3313,8 +3330,8 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn("if (p[0]) != 0.0_f64", result.source)
-        self.assertIn("y[0] = if", result.source)
+        self.assertIn("(if (p[0]) != 0.0_f64", result.source)
+        self.assertIn("y[0] = (if", result.source)
 
     def test_generated_code_supports_vector_if_else(self) -> None:
         x = SXVector.sym("x", 2)
@@ -3334,8 +3351,8 @@ mod tests {{
 
         result = f.generate_rust()
 
-        self.assertIn("y[0] = if p[0] >= 0.0_f64", result.source)
-        self.assertIn("y[1] = if p[0] >= 0.0_f64", result.source)
+        self.assertIn("y[0] = (if p[0] >= 0.0_f64", result.source)
+        self.assertIn("y[1] = (if p[0] >= 0.0_f64", result.source)
 
     def test_no_std_codegen_supports_extended_libm_functions(self) -> None:
         x = SX.sym("x")

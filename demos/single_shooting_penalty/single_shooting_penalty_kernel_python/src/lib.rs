@@ -134,7 +134,7 @@ fn module_all_impl(py: Python<'_>) -> PyResult<Py<PyAny>> {
 #[pyfunction(name = "__getattr__")]
 fn module_getattr(name: &str) -> PyResult<String> {
     match name {
-        "__version__" => Ok("0.4.0".to_string()),
+        "__version__" => Ok("0.6.0".to_string()),
         _ => Err(PyAttributeError::new_err(format!(
             "module has no attribute {name:?}"
         ))),
@@ -145,8 +145,8 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
     match function_name {
         "penalized_mpc_cost_f_states"
         | "single_shooting_penalty_kernel_penalized_mpc_cost_f_states" => {
-            let mut values = Vec::with_capacity(8);
-            values.resize(8, 0.0_f64);
+            let mut values = Vec::with_capacity(5);
+            values.resize(5, 0.0_f64);
             Py::new(
                 py,
                 Workspace {
@@ -157,8 +157,8 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
         }
         "penalized_mpc_cost_grad_states_u_seq"
         | "single_shooting_penalty_kernel_penalized_mpc_cost_grad_states_u_seq" => {
-            let mut values = Vec::with_capacity(14);
-            values.resize(14, 0.0_f64);
+            let mut values = Vec::with_capacity(12);
+            values.resize(12, 0.0_f64);
             Py::new(
                 py,
                 Workspace {
@@ -169,8 +169,8 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
         }
         "penalized_mpc_cost_hvp_states_u_seq"
         | "single_shooting_penalty_kernel_penalized_mpc_cost_hvp_states_u_seq" => {
-            let mut values = Vec::with_capacity(33);
-            values.resize(33, 0.0_f64);
+            let mut values = Vec::with_capacity(34);
+            values.resize(34, 0.0_f64);
             Py::new(
                 py,
                 Workspace {
@@ -181,8 +181,8 @@ fn workspace_for_function_impl(py: Python<'_>, function_name: &str) -> PyResult<
         }
         "penalized_mpc_cost_f_grad_states_u_seq"
         | "single_shooting_penalty_kernel_penalized_mpc_cost_f_grad_states_u_seq" => {
-            let mut values = Vec::with_capacity(15);
-            values.resize(15, 0.0_f64);
+            let mut values = Vec::with_capacity(10);
+            values.resize(10, 0.0_f64);
             Py::new(
                 py,
                 Workspace {
