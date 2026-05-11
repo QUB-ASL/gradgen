@@ -59,6 +59,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Simplification now canonicalizes commutative sums and products more
   aggressively before CSE, helping equivalent expressions line up for
   reuse more often.
+- The Rust workspace planner now runs a dead-temp elimination pass after
+  the initial allocation so cached helper intermediates that no longer
+  pay off are dropped before code is emitted.
 - The single-shooting benchmark table now labels the runtime columns in
   microseconds to match the reported values.
 - The staged single-shooting cost-plus-gradient kernel now computes
