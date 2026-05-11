@@ -1130,7 +1130,7 @@ mod single_shooting_horizon_one_tests {{
 
             self.assertIn("let u_t = [", lib_text)
             self.assertIn(
-                "u_seq[stage_index * 2 + 0]",
+                "u_seq[stage_index * 2]",
                 lib_text,
             )
             self.assertIn(

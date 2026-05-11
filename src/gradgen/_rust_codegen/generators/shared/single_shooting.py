@@ -709,7 +709,9 @@ def _emit_single_shooting_block_array(
     else:
         base_expr = f"{index_expr} * {block_size}"
     entries = ", ".join(
-        f"{sequence_name}[{base_expr} + {offset}]"
+        f"{sequence_name}[{base_expr}]"
+        if offset == 0
+        else f"{sequence_name}[{base_expr} + {offset}]"
         for offset in range(block_size)
     )
     return f"let {array_name} = [{entries}];"

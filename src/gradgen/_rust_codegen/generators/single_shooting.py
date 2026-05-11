@@ -577,10 +577,10 @@ def _build_single_shooting_driver_result(
         for_lines.append(
             f"    {helpers.dynamics_name}({current_state_arg}, {u_t_arg}, {parameter_arg}, {next_state_arg}, stage_work);"
         )
-    if include_hvp:
-        for_lines.append(
-            f"    {helpers.dynamics_jvp_name}({current_state_arg}, {u_t_arg}, {parameter_arg}, {current_tangent_arg}, {v_u_t_arg}, {next_tangent_arg}, stage_work);"
-        )
+        if include_hvp:
+            for_lines.append(
+                f"    {helpers.dynamics_jvp_name}({current_state_arg}, {u_t_arg}, {parameter_arg}, {current_tangent_arg}, {v_u_t_arg}, {next_tangent_arg}, stage_work);"
+            )
     if need_history:
         for_lines.append(
             f"    state_history[(stage_index * {state_size})..((stage_index + 1) * {state_size})].copy_from_slice({next_state_copy_arg});"
@@ -778,11 +778,6 @@ def _build_single_shooting_driver_result(
                 )
                 computation_lines.extend(
                     _emit_small_accumulate(
-                        "lambda_next", "temp_state", state_size, indent=""
-                    )
-                )
-                computation_lines.extend(
-                    _emit_small_accumulate(
                         "grad_u_t", "temp_control", control_size
                     )
                 )
@@ -796,8 +791,8 @@ def _build_single_shooting_driver_result(
                     f"next_tangent.fill({_format_float(0.0, resolved_config.scalar_type)});",
                     f"    {_emit_single_shooting_block_array(v_U_name, '0', control_size, 'v_u_t')}" if use_small_dense_layout else f"let v_u_t = {_emit_single_shooting_control_slice(v_U_name, '0', control_size)};",
                     f"let hvp_u_t = &mut {hvp_output_name}[{_emit_single_shooting_stage_range('0', control_size)}];",
-                    f"{helpers.stage_cost_grad_u_jvp_name}({x0_name}, {u_t_arg}, {parameter_arg}{runtime_weight_arg}, {next_tangent_arg if use_small_dense_layout else 'next_tangent'}, {v_u_t_arg}, hvp_u_t, stage_work);",
-                    f"{helpers.dynamics_vjp_u_jvp_name}({x0_name}, {u_t_arg}, {parameter_arg}, {lambda_current_arg if use_small_dense_layout else '&lambda_current[..]'}, {next_tangent_arg if use_small_dense_layout else 'next_tangent'}, {v_u_t_arg}, {mu_current_arg if use_small_dense_layout else '&mu_current[..]'}, {temp_control_arg}, stage_work);",
+                    f"{helpers.stage_cost_grad_u_jvp_name}({x0_name}, {u_t_arg}, {parameter_arg}{runtime_weight_arg}, {next_tangent_copy_arg if use_small_dense_layout else 'next_tangent'}, {v_u_t_arg}, hvp_u_t, stage_work);",
+                    f"{helpers.dynamics_vjp_u_jvp_name}({x0_name}, {u_t_arg}, {parameter_arg}, {lambda_current_arg if use_small_dense_layout else '&lambda_current[..]'}, {next_tangent_copy_arg if use_small_dense_layout else 'next_tangent'}, {v_u_t_arg}, {mu_current_arg if use_small_dense_layout else '&mu_current[..]'}, {temp_control_arg}, stage_work);",
                 ]
             )
             computation_lines.extend(

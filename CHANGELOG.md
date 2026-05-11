@@ -79,6 +79,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Fixed the small-dense single-shooting Rust generator so the final
+  reverse stage no longer leaves unused adjoint scratch values behind
+  or passes an immutable buffer where a mutable gradient output is
+  required.
 - Generated Rust now parenthesizes negated `if_else(...)` expressions
   so Clippy no longer reports double-negation warnings.
 - Fixed the staged single-shooting joint cost-plus-gradient kernel so
