@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added a larger nonlinear single-shooting benchmark with 10 states and
   5 inputs to compare Gradgen and CasADi on a more compute-heavy
   problem.
+- Added Plotly and matplotlib figures to the benchmark docs so the
+  Gradgen and CasADi runtime trends are visible directly on the website.
 - The single-shooting benchmark demo now also runs native Gradgen Rust
   and CasADi C benchmark executables from the terminal and prints the
   average runtime plus standard deviation for each one.
@@ -79,6 +81,9 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Pinned the Docusaurus website `lodash` resolution back to
+  `4.17.21`, which restores `yarn start` after the docs dependency
+  refresh.
 - Updated the Docusaurus website dependencies so the docs site no
   longer pulls vulnerable versions of
   `@babel/plugin-transform-modules-systemjs`, `serialize-javascript`,
