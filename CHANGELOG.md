@@ -79,6 +79,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
+- Updated the Docusaurus website dependencies so the docs site no
+  longer pulls vulnerable versions of
+  `@babel/plugin-transform-modules-systemjs`, `serialize-javascript`,
+  or `fast-uri`.
 - Fixed the small-dense single-shooting Rust generator so the final
   reverse stage no longer leaves unused adjoint scratch values behind
   or passes an immutable buffer where a mutable gradient output is

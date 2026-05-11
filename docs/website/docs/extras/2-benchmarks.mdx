@@ -1,0 +1,56 @@
+---
+sidebar_position: 2
+slug: /extras/2-benchmarks
+description: "Benchmarks."
+tags:
+  - extras
+  - benchmarks
+keywords:
+  - benchmarks
+last_update:
+  date: 2026-05-10
+  author: Pantelis Sopasakis
+---
+
+# Benchmarks
+
+The single-shooting benchmark now measures both code size and native
+runtime. Gradgen is compiled into a small Rust runner crate, and CasADi
+is compiled into a small C runner. Each runner is executed directly from
+the terminal, so the timing numbers reflect the generated code rather
+than a Python wrapper.
+
+There is also a profiling demo that measures the generated Gradgen Rust
+kernel directly and splits out compute time from plain slice-copy time.
+
+For a second comparison, Gradgen also ships a larger nonlinear
+single-shooting benchmark with 10 states and 5 control inputs. It uses
+the same native runner setup and is meant to show whether the
+Gradgen-versus-CasADi gap changes once the dynamics become more
+compute-heavy.
+
+Gradgen can be benchmarked in either `f64` or `f32` by passing
+`--gradgen-scalar-type`. You can also set `--num-runs` to control how
+many repeated calls are timed for each horizon; the default is `1000`.
+Pass `--flatten true` to benchmark the flattened Gradgen path built
+from `to_function()` instead of the staged single-shooting lowering.
+
+By default the script benchmarks horizons `N = 10, 20, ..., 100` and
+prints:
+
+- the number of non-empty lines in the generated source
+- the average runtime for one joint cost-plus-gradient call, computed by
+  timing the whole repeated loop and dividing by `--num-runs`
+
+N | Gradgen LOC | CasADi LOC | Gradgen time (us) [f64] | CasADi time (us)
+--|-------------|------------|-------------------------|----------------
+10 |         507 |        948 | 0.000759 | 0.000456
+20 |         509 |       1763 | 0.001465 | 0.001077
+30 |         509 |       2578 | 0.002187 | 0.001817
+40 |         509 |       3393 | 0.001526 | 0.001710
+50 |         509 |       4208 | 0.001929 | 0.000976
+60 |         509 |       5023 | 0.003108 | 0.002985
+70 |         509 |       5838 | 0.003861 | 0.003447
+80 |         509 |       6653 | 0.005689 | 0.003499
+90 |         509 |       7468 | 0.003404 | 0.004709
+100 |         511 |       8283 | 0.006999 | 0.002758
